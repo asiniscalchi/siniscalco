@@ -1,6 +1,11 @@
 use std::{error::Error, fmt, fs, path::Path, str::FromStr};
 
-use axum::{Router, routing::get};
+use axum::{
+    Router,
+    extract::Path as AxumPath,
+    http::StatusCode,
+    routing::{get, post, put},
+};
 use sqlx::{
     Row, SqlitePool,
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
@@ -100,6 +105,18 @@ pub struct AccountBalanceRecord {
 pub fn build_router(pool: SqlitePool) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route(
+            "/accounts",
+            post(create_account_handler).get(list_accounts_handler),
+        )
+        .route(
+            "/accounts/{account_id}",
+            get(get_account_handler).delete(delete_account_handler),
+        )
+        .route(
+            "/accounts/{account_id}/balances/{currency}",
+            put(upsert_account_balance_handler).delete(delete_account_balance_handler),
+        )
         .with_state(AppState { pool })
 }
 
@@ -302,6 +319,34 @@ async fn health() -> &'static str {
     "ok"
 }
 
+async fn create_account_handler() -> StatusCode {
+    StatusCode::NOT_IMPLEMENTED
+}
+
+async fn list_accounts_handler() -> StatusCode {
+    StatusCode::NOT_IMPLEMENTED
+}
+
+async fn get_account_handler(AxumPath((_account_id,)): AxumPath<(i64,)>) -> StatusCode {
+    StatusCode::NOT_IMPLEMENTED
+}
+
+async fn upsert_account_balance_handler(
+    AxumPath((_account_id, _currency)): AxumPath<(i64, String)>,
+) -> StatusCode {
+    StatusCode::NOT_IMPLEMENTED
+}
+
+async fn delete_account_balance_handler(
+    AxumPath((_account_id, _currency)): AxumPath<(i64, String)>,
+) -> StatusCode {
+    StatusCode::NOT_IMPLEMENTED
+}
+
+async fn delete_account_handler(AxumPath((_account_id,)): AxumPath<(i64,)>) -> StatusCode {
+    StatusCode::NOT_IMPLEMENTED
+}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -365,6 +410,35 @@ mod tests {
             .expect("health request should succeed");
 
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn serves_account_route_skeletons() {
+        let pool = test_pool().await;
+        let app = build_router(pool);
+
+        for (method, uri) in [
+            ("POST", "/accounts"),
+            ("GET", "/accounts"),
+            ("GET", "/accounts/1"),
+            ("DELETE", "/accounts/1"),
+            ("PUT", "/accounts/1/balances/USD"),
+            ("DELETE", "/accounts/1/balances/USD"),
+        ] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(uri)
+                        .body(Body::empty())
+                        .expect("request should build"),
+                )
+                .await
+                .expect("route request should succeed");
+
+            assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
+        }
     }
 
     #[tokio::test]
