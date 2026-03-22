@@ -103,7 +103,7 @@ pub async fn create_account(
     input: CreateAccountInput<'_>,
 ) -> Result<i64, StorageError> {
     validate_name(input.name)?;
-    validate_currency(input.base_currency)?;
+    validate_allowed_currency(pool, input.base_currency).await?;
 
     let result =
         sqlx::query("INSERT INTO accounts (name, account_type, base_currency) VALUES (?, ?, ?)")
@@ -120,7 +120,7 @@ pub async fn upsert_account_balance(
     pool: &SqlitePool,
     input: UpsertAccountBalanceInput<'_>,
 ) -> Result<UpsertOutcome, StorageError> {
-    validate_currency(input.currency)?;
+    validate_currency_code(input.currency)?;
     validate_decimal_20_8(input.amount)?;
 
     let updated_at = current_utc_timestamp()?;
@@ -263,7 +263,7 @@ pub async fn delete_account_balance(
     account_id: i64,
     currency: &str,
 ) -> Result<(), StorageError> {
-    validate_currency(currency)?;
+    validate_currency_code(currency)?;
 
     let result = sqlx::query("DELETE FROM account_balances WHERE account_id = ? AND currency = ?")
         .bind(account_id)
@@ -299,12 +299,28 @@ fn validate_name(name: &str) -> Result<(), StorageError> {
     Ok(())
 }
 
-fn validate_currency(currency: &str) -> Result<(), StorageError> {
+fn validate_currency_code(currency: &str) -> Result<(), StorageError> {
     let is_valid = currency.len() == 3 && currency.bytes().all(|byte| byte.is_ascii_uppercase());
 
     if !is_valid {
         return Err(StorageError::Validation(
             "currency must be a 3-letter uppercase code",
+        ));
+    }
+
+    Ok(())
+}
+
+async fn validate_allowed_currency(pool: &SqlitePool, currency: &str) -> Result<(), StorageError> {
+    let exists = sqlx::query_scalar::<_, i64>("SELECT EXISTS(SELECT 1 FROM currencies WHERE code = ?)")
+        .bind(currency)
+        .fetch_one(pool)
+        .await?
+        != 0;
+
+    if !exists {
+        return Err(StorageError::Validation(
+            "currency must be one of: EUR, USD, GBP, CHF",
         ));
     }
 
@@ -772,7 +788,7 @@ mod tests {
 
         assert_eq!(
             error.to_string(),
-            "currency must be a 3-letter uppercase code"
+            "currency must be one of: EUR, USD, GBP, CHF"
         );
     }
 

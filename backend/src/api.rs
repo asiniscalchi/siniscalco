@@ -954,7 +954,7 @@ mod tests {
 
         assert_eq!(
             std::str::from_utf8(&body).expect("json body should be utf8"),
-            r#"{"error":"validation_error","message":"currency must be a 3-letter uppercase code"}"#
+            r#"{"error":"validation_error","message":"currency must be one of: EUR, USD, GBP, CHF"}"#
         );
     }
 
