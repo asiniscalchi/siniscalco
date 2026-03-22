@@ -1,5 +1,7 @@
 mod account_id;
 mod account_name;
+mod account_summary_status;
+mod account_type;
 mod accounts;
 mod amount;
 mod balances;
@@ -9,9 +11,12 @@ mod fx_rate;
 #[cfg(test)]
 mod integration_tests;
 mod models;
+mod storage_error;
 
 pub use account_id::*;
 pub use account_name::*;
+pub use account_summary_status::*;
+pub use account_type::*;
 pub use accounts::*;
 pub use amount::*;
 pub use balances::*;
@@ -19,3 +24,4 @@ pub use currency::*;
 pub use fx::*;
 pub use fx_rate::*;
 pub use models::*;
+pub use storage_error::*;

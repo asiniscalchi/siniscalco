@@ -1,4 +1,4 @@
-use crate::storage::{AccountId, AccountName, Currency};
+use crate::storage::{AccountId, AccountName, AccountType, Currency, StorageError};
 use crate::storage::models::*;
 use sqlx::{Row, SqlitePool};
 

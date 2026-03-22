@@ -1,71 +1,18 @@
-use std::{error::Error, fmt};
-
 use time::OffsetDateTime;
 use time::format_description::FormatItem;
 use time::macros::format_description;
 
 use super::account_id::AccountId;
 use super::account_name::AccountName;
+use super::account_summary_status::AccountSummaryStatus;
+use super::account_type::AccountType;
 use super::amount::Amount;
 use super::currency::Currency;
 use super::fx_rate::FxRate;
+use super::storage_error::StorageError;
 
 pub const UTC_TIMESTAMP_FORMAT: &[FormatItem<'static>] =
     format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum AccountType {
-    Bank,
-    Broker,
-}
-
-impl AccountType {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Bank => "bank",
-            Self::Broker => "broker",
-        }
-    }
-}
-
-impl TryFrom<&str> for AccountType {
-    type Error = StorageError;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "bank" => Ok(Self::Bank),
-            "broker" => Ok(Self::Broker),
-            _ => Err(StorageError::Validation(
-                "account_type must be one of: bank, broker",
-            )),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum StorageError {
-    Validation(&'static str),
-    Internal(&'static str),
-    Database(sqlx::Error),
-}
-
-impl fmt::Display for StorageError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Validation(message) => f.write_str(message),
-            Self::Internal(message) => f.write_str(message),
-            Self::Database(error) => write!(f, "{error}"),
-        }
-    }
-}
-
-impl Error for StorageError {}
-
-impl From<sqlx::Error> for StorageError {
-    fn from(value: sqlx::Error) -> Self {
-        Self::Database(value)
-    }
-}
 
 pub(crate) fn current_utc_timestamp() -> Result<String, StorageError> {
     OffsetDateTime::now_utc()
@@ -104,21 +51,6 @@ pub struct AccountRecord {
     pub account_type: AccountType,
     pub base_currency: Currency,
     pub created_at: String,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum AccountSummaryStatus {
-    Ok,
-    ConversionUnavailable,
-}
-
-impl AccountSummaryStatus {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Ok => "ok",
-            Self::ConversionUnavailable => "conversion_unavailable",
-        }
-    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
