@@ -160,6 +160,97 @@ describe('App', () => {
     fireEvent.click(await screen.findByRole('link', { name: 'Create account' }))
 
     expect(await screen.findByText('New Account')).toBeTruthy()
-    expect(screen.getByText('Account creation route placeholder.')).toBeTruthy()
+    expect(screen.getByLabelText('Name')).toBeTruthy()
+    expect(screen.getByLabelText('Account type')).toBeTruthy()
+    expect(screen.getByLabelText('Base currency')).toBeTruthy()
+  })
+
+  it('creates an account and returns to the accounts list', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 12,
+            name: 'IBKR',
+            account_type: 'broker',
+            base_currency: 'EUR',
+            created_at: '2026-03-22 00:00:00',
+          }),
+          { status: 201, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              id: 12,
+              name: 'IBKR',
+              account_type: 'broker',
+              base_currency: 'EUR',
+              created_at: '2026-03-22 00:00:00',
+            },
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+
+    render(
+      <MemoryRouter initialEntries={['/accounts/new']}>
+        <App />
+      </MemoryRouter>
+    )
+
+    fireEvent.change(screen.getByLabelText('Name'), {
+      target: { value: 'IBKR' },
+    })
+    fireEvent.change(screen.getByLabelText('Account type'), {
+      target: { value: 'broker' },
+    })
+    fireEvent.change(screen.getByLabelText('Base currency'), {
+      target: { value: 'eur' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+
+    expect(await screen.findByText('Accounts')).toBeTruthy()
+    expect(await screen.findByText('IBKR')).toBeTruthy()
+    expect(fetch).toHaveBeenNthCalledWith(
+      1,
+      'http://127.0.0.1:3000/accounts',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'IBKR',
+          account_type: 'broker',
+          base_currency: 'EUR',
+        }),
+      })
+    )
+  })
+
+  it('shows an API error when account creation fails', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: 'validation_error',
+          message: 'Invalid currency format',
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    render(
+      <MemoryRouter initialEntries={['/accounts/new']}>
+        <App />
+      </MemoryRouter>
+    )
+
+    fireEvent.change(screen.getByLabelText('Name'), {
+      target: { value: 'IBKR' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+
+    expect(await screen.findByText('Invalid currency format')).toBeTruthy()
   })
 })
