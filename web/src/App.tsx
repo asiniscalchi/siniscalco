@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, Navigate, Route, Routes } from 'react-router-dom'
+import { Link, Navigate, Route, Routes, useParams } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -126,10 +126,12 @@ function getAccountsApiUrl() {
 }
 
 function AccountDetailPage() {
+  const { accountId } = useParams<{ accountId: string }>()
+
   return (
     <PageShell
       title="Account Detail"
-      description="Account detail route placeholder."
+      description={`Account detail route placeholder for account ${accountId ?? 'unknown'}.`}
     />
   )
 }
