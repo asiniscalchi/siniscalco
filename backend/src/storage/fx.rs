@@ -68,14 +68,14 @@ pub async fn list_fx_rates(pool: &SqlitePool) -> Result<Vec<FxRateRecord>, Stora
 
     Ok(rows
         .into_iter()
-        .map(|row| FxRateRecord {
-            from_currency: Currency::try_from(row.get::<&str, _>("from_currency"))
-                .expect("stored currency is valid"),
-            to_currency: Currency::try_from(row.get::<&str, _>("to_currency"))
-                .expect("stored currency is valid"),
-            rate: FxRate::try_from(row.get::<&str, _>("rate")).expect("stored rate is valid"),
+        .map(|row| {
+            Ok(FxRateRecord {
+                from_currency: Currency::try_from(row.get::<&str, _>("from_currency"))?,
+                to_currency: Currency::try_from(row.get::<&str, _>("to_currency"))?,
+                rate: FxRate::try_from(row.get::<&str, _>("rate"))?,
+            })
         })
-        .collect())
+        .collect::<Result<Vec<_>, StorageError>>()?)
 }
 
 pub async fn list_fx_rate_summary(
@@ -100,13 +100,14 @@ pub async fn list_fx_rate_summary(
 
     let rates: Vec<FxRateSummaryItemRecord> = rows
         .into_iter()
-        .map(|row| FxRateSummaryItemRecord {
-            from_currency: Currency::try_from(row.get::<&str, _>("from_currency"))
-                .expect("stored currency is valid"),
-            rate: FxRate::try_from(row.get::<&str, _>("rate")).expect("stored rate is valid"),
-            updated_at: row.get("updated_at"),
+        .map(|row| {
+            Ok(FxRateSummaryItemRecord {
+                from_currency: Currency::try_from(row.get::<&str, _>("from_currency"))?,
+                rate: FxRate::try_from(row.get::<&str, _>("rate"))?,
+                updated_at: row.get("updated_at"),
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, StorageError>>()?;
 
     let last_updated = rates.iter().map(|rate| rate.updated_at.clone()).max();
 

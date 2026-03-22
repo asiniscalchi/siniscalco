@@ -960,3 +960,24 @@ async fn rounds_after_summing_converted_balances() {
 
     assert_eq!(summaries[0].total_amount, Some(amt("0.66666666")));
 }
+
+#[tokio::test]
+async fn returns_validation_error_for_corrupt_stored_account_rows() {
+    let pool = test_pool().await;
+
+    sqlx::query(
+        "INSERT INTO accounts (name, account_type, base_currency, created_at) VALUES ('', 'bank', 'EUR', '2026-03-22 00:00:00')",
+    )
+    .execute(&pool)
+    .await
+    .expect("corrupt account row should insert");
+
+    let error = list_accounts(&pool)
+        .await
+        .expect_err("corrupt stored account row should return an error");
+
+    match error {
+        StorageError::Validation("name must not be empty") => {}
+        other => panic!("expected validation error, got {other}"),
+    }
+}
