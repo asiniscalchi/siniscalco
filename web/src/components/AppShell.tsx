@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 
-import { getApiBaseUrl, getHealthApiUrl } from '@/lib/api'
+import { getHealthApiUrl } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 export function AppShell() {
   const [backendStatus, setBackendStatus] = useState<
     'checking' | 'connected' | 'unavailable'
   >('checking')
-  const backendBaseUrl = getApiBaseUrl()
 
   useEffect(() => {
     let cancelled = false
