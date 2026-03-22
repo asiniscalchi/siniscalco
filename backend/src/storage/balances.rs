@@ -3,6 +3,7 @@ use sqlx::{Row, SqlitePool};
 
 use crate::storage::fx::get_direct_fx_rate;
 use crate::storage::models::*;
+use crate::storage::Currency;
 
 pub async fn upsert_account_balance(
     pool: &SqlitePool,

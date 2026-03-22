@@ -1,3 +1,4 @@
+use crate::storage::Currency;
 use crate::storage::models::*;
 use sqlx::{Row, SqlitePool};
 

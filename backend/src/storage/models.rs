@@ -1,9 +1,10 @@
 use std::{error::Error, fmt};
 
-use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use time::format_description::FormatItem;
 use time::macros::format_description;
+
+use super::currency::Currency;
 
 pub const UTC_TIMESTAMP_FORMAT: &[FormatItem<'static>] =
     format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
@@ -34,64 +35,6 @@ impl TryFrom<&str> for AccountType {
                 "account_type must be one of: bank, broker",
             )),
         }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Currency {
-    Eur,
-    Usd,
-    Gbp,
-    Chf,
-}
-
-impl Currency {
-    pub const fn all() -> [Self; 4] {
-        [Self::Chf, Self::Eur, Self::Gbp, Self::Usd]
-    }
-
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Eur => "EUR",
-            Self::Usd => "USD",
-            Self::Gbp => "GBP",
-            Self::Chf => "CHF",
-        }
-    }
-}
-
-impl TryFrom<&str> for Currency {
-    type Error = StorageError;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "EUR" => Ok(Self::Eur),
-            "USD" => Ok(Self::Usd),
-            "GBP" => Ok(Self::Gbp),
-            "CHF" => Ok(Self::Chf),
-            _ => Err(StorageError::Validation(
-                "currency must be one of: EUR, USD, GBP, CHF",
-            )),
-        }
-    }
-}
-
-impl Serialize for Currency {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(self.as_str())
-    }
-}
-
-impl<'de> Deserialize<'de> for Currency {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        Self::try_from(value.as_str()).map_err(serde::de::Error::custom)
     }
 }
 

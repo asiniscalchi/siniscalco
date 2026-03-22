@@ -3,6 +3,7 @@ use sqlx::{Row, SqlitePool};
 
 use crate::storage::balances::{parse_stored_decimal, validate_decimal_20_8};
 use crate::storage::models::*;
+use crate::storage::Currency;
 
 pub async fn upsert_fx_rate(
     pool: &SqlitePool,

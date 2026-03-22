@@ -402,24 +402,6 @@ async fn rejects_invalid_account_type_input() {
     );
 }
 
-#[test]
-fn parses_supported_currency_codes() {
-    assert_eq!(Currency::try_from("CHF").unwrap(), Currency::Chf);
-    assert_eq!(Currency::try_from("EUR").unwrap(), Currency::Eur);
-    assert_eq!(Currency::try_from("GBP").unwrap(), Currency::Gbp);
-    assert_eq!(Currency::try_from("USD").unwrap(), Currency::Usd);
-}
-
-#[test]
-fn rejects_invalid_currency_codes() {
-    let error = Currency::try_from("usd").expect_err("unsupported currency should fail");
-
-    assert_eq!(
-        error.to_string(),
-        "currency must be one of: EUR, USD, GBP, CHF"
-    );
-}
-
 #[tokio::test]
 async fn accepts_typed_account_currency_input() {
     let pool = test_pool().await;
