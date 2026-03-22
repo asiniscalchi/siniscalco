@@ -570,15 +570,68 @@ async fn get_account_handler(
 }
 
 async fn upsert_account_balance_handler(
-    AxumPath((_account_id, _currency)): AxumPath<(i64, String)>,
-) -> Result<StatusCode, ApiError> {
-    Err(ApiError::not_implemented())
+    State(state): State<AppState>,
+    AxumPath((account_id, currency)): AxumPath<(i64, String)>,
+    Json(request): Json<UpsertBalanceRequest>,
+) -> Result<(StatusCode, Json<BalanceResponse>), ApiError> {
+    get_account(&state.pool, account_id)
+        .await
+        .map_err(|error| match error {
+            StorageError::Database(sqlx::Error::RowNotFound) => {
+                ApiError::not_found("Account not found")
+            }
+            other => ApiError::from(other),
+        })?;
+
+    let outcome = upsert_account_balance(
+        &state.pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: &currency,
+            amount: &request.amount,
+        },
+    )
+    .await
+    .map_err(ApiError::from)?;
+
+    let balance = list_account_balances(&state.pool, account_id)
+        .await
+        .map_err(ApiError::from)?
+        .into_iter()
+        .find(|balance| balance.currency == currency)
+        .ok_or_else(|| ApiError::internal_server_error())?;
+
+    let status = match outcome {
+        UpsertOutcome::Created => StatusCode::CREATED,
+        UpsertOutcome::Updated => StatusCode::OK,
+    };
+
+    Ok((status, Json(to_balance_response(balance))))
 }
 
 async fn delete_account_balance_handler(
-    AxumPath((_account_id, _currency)): AxumPath<(i64, String)>,
+    State(state): State<AppState>,
+    AxumPath((account_id, currency)): AxumPath<(i64, String)>,
 ) -> Result<StatusCode, ApiError> {
-    Err(ApiError::not_implemented())
+    get_account(&state.pool, account_id)
+        .await
+        .map_err(|error| match error {
+            StorageError::Database(sqlx::Error::RowNotFound) => {
+                ApiError::not_found("Account not found")
+            }
+            other => ApiError::from(other),
+        })?;
+
+    delete_account_balance(&state.pool, account_id, &currency)
+        .await
+        .map_err(|error| match error {
+            StorageError::Database(sqlx::Error::RowNotFound) => {
+                ApiError::not_found("Balance not found")
+            }
+            other => ApiError::from(other),
+        })?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn delete_account_handler(
@@ -717,11 +770,7 @@ mod tests {
         let pool = test_pool().await;
         let app = build_router(pool);
 
-        for (method, uri) in [
-            ("DELETE", "/accounts/1"),
-            ("PUT", "/accounts/1/balances/USD"),
-            ("DELETE", "/accounts/1/balances/USD"),
-        ] {
+        for (method, uri) in [("DELETE", "/accounts/1")] {
             let response = app
                 .clone()
                 .oneshot(
@@ -766,6 +815,248 @@ mod tests {
         assert_eq!(
             std::str::from_utf8(&body).expect("json body should be utf8"),
             r#"{"error":"not_implemented","message":"Endpoint not implemented yet"}"#
+        );
+    }
+
+    #[tokio::test]
+    async fn creates_balance_through_api() {
+        let pool = test_pool().await;
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        let app = build_router(pool);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!("/accounts/{account_id}/balances/USD"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"amount":"12.3"}"#))
+                    .expect("request should build"),
+            )
+            .await
+            .expect("upsert request should succeed");
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("response body should collect")
+            .to_bytes();
+        let json: Value = serde_json::from_slice(&body).expect("balance body should be valid json");
+
+        assert_eq!(json["currency"], "USD");
+        assert_eq!(json["amount"], "12.30000000");
+        assert!(json["updated_at"].is_string());
+    }
+
+    #[tokio::test]
+    async fn updates_balance_through_api() {
+        let pool = test_pool().await;
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency: "USD",
+                amount: "1.0",
+            },
+        )
+        .await
+        .expect("initial balance insert should succeed");
+
+        let app = build_router(pool);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!("/accounts/{account_id}/balances/USD"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"amount":"12"}"#))
+                    .expect("request should build"),
+            )
+            .await
+            .expect("upsert request should succeed");
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("response body should collect")
+            .to_bytes();
+        let json: Value = serde_json::from_slice(&body).expect("balance body should be valid json");
+
+        assert_eq!(json["amount"], "12.00000000");
+    }
+
+    #[tokio::test]
+    async fn returns_not_found_when_writing_balance_for_missing_account() {
+        let pool = test_pool().await;
+        let app = build_router(pool);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/accounts/999/balances/USD")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"amount":"12"}"#))
+                    .expect("request should build"),
+            )
+            .await
+            .expect("upsert request should succeed");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("response body should collect")
+            .to_bytes();
+
+        assert_eq!(
+            std::str::from_utf8(&body).expect("json body should be utf8"),
+            r#"{"error":"not_found","message":"Account not found"}"#
+        );
+    }
+
+    #[tokio::test]
+    async fn deletes_balance_through_api() {
+        let pool = test_pool().await;
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency: "USD",
+                amount: "12.3",
+            },
+        )
+        .await
+        .expect("balance insert should succeed");
+
+        let app = build_router(pool.clone());
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/accounts/{account_id}/balances/USD"))
+                    .body(Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("delete request should succeed");
+
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        let balances = list_account_balances(&pool, account_id)
+            .await
+            .expect("balance list should succeed");
+        assert!(balances.is_empty());
+    }
+
+    #[tokio::test]
+    async fn returns_not_found_when_deleting_missing_balance() {
+        let pool = test_pool().await;
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        let app = build_router(pool);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/accounts/{account_id}/balances/USD"))
+                    .body(Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("delete request should succeed");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("response body should collect")
+            .to_bytes();
+
+        assert_eq!(
+            std::str::from_utf8(&body).expect("json body should be utf8"),
+            r#"{"error":"not_found","message":"Balance not found"}"#
+        );
+    }
+
+    #[tokio::test]
+    async fn returns_not_found_when_deleting_balance_for_missing_account() {
+        let pool = test_pool().await;
+        let app = build_router(pool);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/accounts/999/balances/USD")
+                    .body(Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("delete request should succeed");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("response body should collect")
+            .to_bytes();
+
+        assert_eq!(
+            std::str::from_utf8(&body).expect("json body should be utf8"),
+            r#"{"error":"not_found","message":"Account not found"}"#
         );
     }
 
