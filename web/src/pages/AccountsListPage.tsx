@@ -72,39 +72,37 @@ export function AccountsListPage() {
   }, [retryToken])
 
   return (
-    <main className="min-h-svh bg-muted/30 px-6 py-10">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-        <header className="flex flex-col gap-4 rounded-2xl border bg-background p-6 shadow-sm sm:flex-row sm:items-end sm:justify-between">
-          <div className="space-y-2">
-            <p className="text-sm font-medium uppercase tracking-[0.22em] text-muted-foreground">
-              Cash Accounts
-            </p>
-            <h1 className="text-3xl font-semibold tracking-tight">Accounts</h1>
-            <p className="max-w-2xl text-sm text-muted-foreground">
-              View your cash accounts and move into account detail or account
-              creation.
-            </p>
-          </div>
-          <Link
-            className={cn(buttonVariants({ size: 'lg' }))}
-            to="/accounts/new"
-          >
-            Create account
-          </Link>
-        </header>
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+      <header className="flex flex-col gap-4 rounded-2xl border bg-background p-6 shadow-sm sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-2">
+          <p className="text-sm font-medium uppercase tracking-[0.22em] text-muted-foreground">
+            Cash Accounts
+          </p>
+          <h1 className="text-3xl font-semibold tracking-tight">Accounts</h1>
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            View your cash accounts and move into account detail or account
+            creation.
+          </p>
+        </div>
+        <Link
+          className={cn(buttonVariants({ size: 'lg' }))}
+          to="/accounts/new"
+        >
+          Create account
+        </Link>
+      </header>
 
-        <section className="space-y-4">
-          {requestState.status === 'loading' ? <AccountsLoadingState /> : null}
-          {requestState.status === 'empty' ? <AccountsEmptyState /> : null}
-          {requestState.status === 'error' ? (
-            <AccountsErrorState onRetry={() => setRetryToken((value) => value + 1)} />
-          ) : null}
-          {requestState.status === 'ready' ? (
-            <AccountsReadyState accounts={requestState.accounts} />
-          ) : null}
-        </section>
-      </div>
-    </main>
+      <section className="space-y-4">
+        {requestState.status === 'loading' ? <AccountsLoadingState /> : null}
+        {requestState.status === 'empty' ? <AccountsEmptyState /> : null}
+        {requestState.status === 'error' ? (
+          <AccountsErrorState onRetry={() => setRetryToken((value) => value + 1)} />
+        ) : null}
+        {requestState.status === 'ready' ? (
+          <AccountsReadyState accounts={requestState.accounts} />
+        ) : null}
+      </section>
+    </div>
   )
 }
 
