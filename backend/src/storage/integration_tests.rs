@@ -962,22 +962,64 @@ async fn rounds_after_summing_converted_balances() {
 }
 
 #[tokio::test]
-async fn returns_validation_error_for_corrupt_stored_account_rows() {
+async fn rejects_corrupt_account_rows_at_the_schema_level() {
     let pool = test_pool().await;
 
-    sqlx::query(
+    let error = sqlx::query(
         "INSERT INTO accounts (name, account_type, base_currency, created_at) VALUES ('', 'bank', 'EUR', '2026-03-22 00:00:00')",
     )
     .execute(&pool)
     .await
-    .expect("corrupt account row should insert");
+    .expect_err("corrupt account row should be rejected");
 
-    let error = list_accounts(&pool)
-        .await
-        .expect_err("corrupt stored account row should return an error");
+    assert!(error.to_string().contains("CHECK constraint failed"));
+}
 
-    match error {
-        StorageError::Validation("name must not be empty") => {}
-        other => panic!("expected validation error, got {other}"),
-    }
+#[tokio::test]
+async fn rejects_invalid_balance_amounts_at_the_schema_level() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let error = sqlx::query(
+        "INSERT INTO account_balances (account_id, currency, amount, updated_at) VALUES (?, 'USD', '1.123456789', '2026-03-22 00:00:00')",
+    )
+    .bind(account_id.as_i64())
+    .execute(&pool)
+    .await
+    .expect_err("invalid balance amount should be rejected");
+
+    assert!(error.to_string().contains("CHECK constraint failed"));
+}
+
+#[tokio::test]
+async fn rejects_invalid_fx_rates_at_the_schema_level() {
+    let pool = test_pool().await;
+
+    let format_error = sqlx::query(
+        "INSERT INTO fx_rates (from_currency, to_currency, rate, updated_at) VALUES ('USD', 'EUR', '1.123456789', '2026-03-22 00:00:00')",
+    )
+    .execute(&pool)
+    .await
+    .expect_err("invalid fx rate format should be rejected");
+
+    assert!(format_error.to_string().contains("CHECK constraint failed"));
+
+    let zero_error = sqlx::query(
+        "INSERT INTO fx_rates (from_currency, to_currency, rate, updated_at) VALUES ('USD', 'EUR', '0.00000000', '2026-03-22 00:00:00')",
+    )
+    .execute(&pool)
+    .await
+    .expect_err("non-positive fx rate should be rejected");
+
+    assert!(zero_error.to_string().contains("CHECK constraint failed"));
 }

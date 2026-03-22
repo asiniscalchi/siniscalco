@@ -9,9 +9,9 @@ use crate::{
     AccountBalanceRecord, AccountId, AccountName, AccountRecord, AccountSummaryRecord,
     AccountSummaryStatus, AccountType, Amount, CreateAccountInput, Currency, CurrencyRecord,
     FxRateSummaryItemRecord, FxRateSummaryRecord, UpsertAccountBalanceInput, UpsertOutcome,
-    delete_account, delete_account_balance, get_account, list_account_balances,
-    list_account_summaries, list_currencies, list_fx_rate_summary, normalize_amount_output,
-    storage::StorageError, upsert_account_balance,
+    compact_decimal_output, delete_account, delete_account_balance, get_account,
+    list_account_balances, list_account_summaries, list_currencies, list_fx_rate_summary,
+    normalize_amount_output, storage::StorageError, upsert_account_balance,
 };
 
 pub(crate) async fn health() -> &'static str {
@@ -276,6 +276,6 @@ fn map_json_rejection(rejection: JsonRejection) -> ApiError {
 fn to_fx_rate_summary_item_response(rate: FxRateSummaryItemRecord) -> FxRateSummaryItemResponse {
     FxRateSummaryItemResponse {
         currency: rate.from_currency,
-        rate: rate.rate.to_string(),
+        rate: compact_decimal_output(&rate.rate.to_string()),
     }
 }

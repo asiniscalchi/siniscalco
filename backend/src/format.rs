@@ -26,6 +26,21 @@ pub fn normalize_amount_output(amount: &str) -> String {
     normalized
 }
 
+pub fn compact_decimal_output(value: &str) -> String {
+    match value.split_once('.') {
+        Some((integer_part, fractional_part)) => {
+            let trimmed_fraction = fractional_part.trim_end_matches('0');
+
+            if trimmed_fraction.is_empty() {
+                integer_part.to_string()
+            } else {
+                format!("{integer_part}.{trimmed_fraction}")
+            }
+        }
+        None => value.to_string(),
+    }
+}
+
 pub fn format_decimal_amount(amount: Decimal) -> String {
     normalize_amount_output(
         &amount
@@ -40,7 +55,7 @@ mod tests {
 
     use rust_decimal::Decimal;
 
-    use super::{format_decimal_amount, normalize_amount_output};
+    use super::{compact_decimal_output, format_decimal_amount, normalize_amount_output};
 
     #[test]
     fn normalizes_integer_amounts_to_fixed_scale() {
@@ -63,6 +78,14 @@ mod tests {
     fn normalizes_negative_amounts_to_fixed_scale() {
         assert_eq!(normalize_amount_output("-12"), "-12.00000000");
         assert_eq!(normalize_amount_output("-12.3"), "-12.30000000");
+    }
+
+    #[test]
+    fn compacts_decimal_outputs() {
+        assert_eq!(compact_decimal_output("12.34000000"), "12.34");
+        assert_eq!(compact_decimal_output("12.00000000"), "12");
+        assert_eq!(compact_decimal_output("12.34560000"), "12.3456");
+        assert_eq!(compact_decimal_output("12"), "12");
     }
 
     #[test]
