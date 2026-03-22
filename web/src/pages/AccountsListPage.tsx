@@ -73,15 +73,11 @@ export function AccountsListPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-      <header className="flex flex-col gap-4 rounded-2xl border bg-background p-6 shadow-sm sm:flex-row sm:items-end sm:justify-between">
-        <div className="space-y-2">
-          <p className="text-sm font-medium uppercase tracking-[0.22em] text-muted-foreground">
-            Cash Accounts
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight">Accounts</h1>
+      <header className="flex flex-col gap-4 rounded-xl border bg-background px-6 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Accounts</h1>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            View your cash accounts and move into account detail or account
-            creation.
+            View your cash accounts and manage their details.
           </p>
         </div>
         <Link
@@ -194,22 +190,22 @@ function AccountListItem({
   baseCurrency: string
 }) {
   return (
-    <Card className="bg-background transition-colors hover:bg-muted/30">
-      <CardHeader>
-        <CardTitle>{name}</CardTitle>
-        <CardDescription>{accountType}</CardDescription>
-        <CardAction>
-          <Link
-            className={cn(buttonVariants({ variant: 'outline' }))}
-            to={`/accounts/${id}`}
-          >
-            Open
-          </Link>
-        </CardAction>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground">{baseCurrency}</p>
-      </CardContent>
-    </Card>
+    <Link className="block" to={`/accounts/${id}`}>
+      <Card className="bg-background transition-colors hover:bg-muted/30">
+        <CardHeader>
+          <CardTitle>{name}</CardTitle>
+          <CardDescription className="flex items-center gap-2">
+            {accountType}
+            <span className="text-muted-foreground/50">·</span>
+            {baseCurrency}
+          </CardDescription>
+          <CardAction>
+            <div className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'text-muted-foreground')}>
+              View details
+            </div>
+          </CardAction>
+        </CardHeader>
+      </Card>
+    </Link>
   )
 }
