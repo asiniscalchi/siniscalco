@@ -189,16 +189,6 @@ impl ApiError {
             },
         }
     }
-
-    fn not_implemented() -> Self {
-        Self {
-            status: StatusCode::NOT_IMPLEMENTED,
-            body: ApiErrorResponse {
-                error: "not_implemented",
-                message: "Endpoint not implemented yet",
-            },
-        }
-    }
 }
 
 impl From<StorageError> for ApiError {
@@ -635,9 +625,19 @@ async fn delete_account_balance_handler(
 }
 
 async fn delete_account_handler(
-    AxumPath((_account_id,)): AxumPath<(i64,)>,
+    State(state): State<AppState>,
+    AxumPath((account_id,)): AxumPath<(i64,)>,
 ) -> Result<StatusCode, ApiError> {
-    Err(ApiError::not_implemented())
+    delete_account(&state.pool, account_id)
+        .await
+        .map_err(|error| match error {
+            StorageError::Database(sqlx::Error::RowNotFound) => {
+                ApiError::not_found("Account not found")
+            }
+            other => ApiError::from(other),
+        })?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 fn to_account_summary_response(account: AccountRecord) -> AccountSummaryResponse {
@@ -770,28 +770,6 @@ mod tests {
         let pool = test_pool().await;
         let app = build_router(pool);
 
-        for (method, uri) in [("DELETE", "/accounts/1")] {
-            let response = app
-                .clone()
-                .oneshot(
-                    Request::builder()
-                        .method(method)
-                        .uri(uri)
-                        .body(Body::empty())
-                        .expect("request should build"),
-                )
-                .await
-                .expect("route request should succeed");
-
-            assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
-        }
-    }
-
-    #[tokio::test]
-    async fn returns_standard_json_error_shape_for_placeholder_routes() {
-        let pool = test_pool().await;
-        let app = build_router(pool);
-
         let response = app
             .oneshot(
                 Request::builder()
@@ -803,7 +781,79 @@ mod tests {
             .await
             .expect("route request should succeed");
 
-        assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn deletes_account_through_api() {
+        let pool = test_pool().await;
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency: "USD",
+                amount: "12.3",
+            },
+        )
+        .await
+        .expect("balance insert should succeed");
+
+        let app = build_router(pool.clone());
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/accounts/{account_id}"))
+                    .body(Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("delete request should succeed");
+
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        let account_error = get_account(&pool, account_id)
+            .await
+            .expect_err("account should be deleted");
+        let balances = list_account_balances(&pool, account_id)
+            .await
+            .expect("balance lookup should succeed");
+
+        match account_error {
+            StorageError::Database(sqlx::Error::RowNotFound) => {}
+            other => panic!("expected RowNotFound, got {other}"),
+        }
+        assert!(balances.is_empty());
+    }
+
+    #[tokio::test]
+    async fn returns_not_found_when_deleting_missing_account_through_api() {
+        let pool = test_pool().await;
+        let app = build_router(pool);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/accounts/999")
+                    .body(Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("delete request should succeed");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
         let body = response
             .into_body()
@@ -814,7 +864,7 @@ mod tests {
 
         assert_eq!(
             std::str::from_utf8(&body).expect("json body should be utf8"),
-            r#"{"error":"not_implemented","message":"Endpoint not implemented yet"}"#
+            r#"{"error":"not_found","message":"Account not found"}"#
         );
     }
 
