@@ -1,6 +1,5 @@
 use rust_decimal::Decimal;
 use sqlx::{Row, SqlitePool};
-use time::OffsetDateTime;
 
 use crate::storage::accounts::validate_allowed_currency;
 use crate::storage::fx::get_direct_fx_rate;
@@ -210,10 +209,4 @@ pub(crate) fn validate_decimal_20_8(amount: &str) -> Result<(), StorageError> {
     }
 
     Ok(())
-}
-
-fn current_utc_timestamp() -> Result<String, StorageError> {
-    OffsetDateTime::now_utc()
-        .format(UTC_TIMESTAMP_FORMAT)
-        .map_err(|_| StorageError::Validation("failed to generate UTC timestamp"))
 }

@@ -4,10 +4,11 @@ use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
 use super::{
     AccountBalanceRecord, AccountRecord, AccountSummaryRecord, AccountSummaryStatus, AccountType,
-    CreateAccountInput, CurrencyRecord, FxRateRecord, StorageError, UpsertAccountBalanceInput,
-    UpsertFxRateInput, UpsertOutcome, create_account, delete_account, delete_account_balance,
-    get_account, list_account_balances, list_account_summaries, list_accounts, list_currencies,
-    list_fx_rates, upsert_account_balance, upsert_fx_rate,
+    CreateAccountInput, CurrencyRecord, FxRateRecord, FxRateSummaryItemRecord, FxRateSummaryRecord,
+    StorageError, UpsertAccountBalanceInput, UpsertFxRateInput, UpsertOutcome, create_account,
+    delete_account, delete_account_balance, get_account, list_account_balances,
+    list_account_summaries, list_accounts, list_currencies, list_fx_rate_summary, list_fx_rates,
+    upsert_account_balance, upsert_fx_rate,
 };
 use crate::db::init_db;
 
@@ -588,6 +589,89 @@ async fn rejects_non_positive_fx_rates() {
     .expect_err("zero fx rate should fail");
 
     assert_eq!(error.to_string(), "rate must be greater than zero");
+}
+
+#[tokio::test]
+async fn lists_fx_rate_summary_for_a_single_target_currency() {
+    let pool = test_pool().await;
+
+    for (from_currency, to_currency, rate) in [
+        ("USD", "EUR", "0.92000000"),
+        ("GBP", "EUR", "1.17000000"),
+        ("CHF", "EUR", "1.04000000"),
+        ("EUR", "EUR", "1.00000000"),
+        ("USD", "GBP", "0.78000000"),
+    ] {
+        upsert_fx_rate(
+            &pool,
+            UpsertFxRateInput {
+                from_currency,
+                to_currency,
+                rate,
+            },
+        )
+        .await
+        .expect("fx rate insert should succeed");
+    }
+
+    for (from_currency, updated_at) in [
+        ("USD", "2026-03-22 09:00:00"),
+        ("GBP", "2026-03-22 10:00:00"),
+        ("CHF", "2026-03-22 08:30:00"),
+        ("EUR", "2026-03-22 11:00:00"),
+    ] {
+        sqlx::query(
+            "UPDATE fx_rates SET updated_at = ? WHERE from_currency = ? AND to_currency = 'EUR'",
+        )
+        .bind(updated_at)
+        .bind(from_currency)
+        .execute(&pool)
+        .await
+        .expect("timestamp update should succeed");
+    }
+
+    assert_eq!(
+        list_fx_rate_summary(&pool, "EUR")
+            .await
+            .expect("fx summary should succeed"),
+        FxRateSummaryRecord {
+            target_currency: "EUR".to_string(),
+            rates: vec![
+                FxRateSummaryItemRecord {
+                    from_currency: "CHF".to_string(),
+                    rate: "1.04".to_string(),
+                    updated_at: "2026-03-22 08:30:00".to_string(),
+                },
+                FxRateSummaryItemRecord {
+                    from_currency: "GBP".to_string(),
+                    rate: "1.17".to_string(),
+                    updated_at: "2026-03-22 10:00:00".to_string(),
+                },
+                FxRateSummaryItemRecord {
+                    from_currency: "USD".to_string(),
+                    rate: "0.92".to_string(),
+                    updated_at: "2026-03-22 09:00:00".to_string(),
+                },
+            ],
+            last_updated: Some("2026-03-22 10:00:00".to_string()),
+        }
+    );
+}
+
+#[tokio::test]
+async fn returns_empty_fx_rate_summary_when_target_has_no_rates() {
+    let pool = test_pool().await;
+
+    assert_eq!(
+        list_fx_rate_summary(&pool, "EUR")
+            .await
+            .expect("fx summary should succeed"),
+        FxRateSummaryRecord {
+            target_currency: "EUR".to_string(),
+            rates: vec![],
+            last_updated: None,
+        }
+    );
 }
 
 #[tokio::test]

@@ -1,5 +1,6 @@
 use std::{error::Error, fmt};
 
+use time::OffsetDateTime;
 use time::format_description::FormatItem;
 use time::macros::format_description;
 
@@ -58,6 +59,12 @@ impl From<sqlx::Error> for StorageError {
     fn from(value: sqlx::Error) -> Self {
         Self::Database(value)
     }
+}
+
+pub(crate) fn current_utc_timestamp() -> Result<String, StorageError> {
+    OffsetDateTime::now_utc()
+        .format(UTC_TIMESTAMP_FORMAT)
+        .map_err(|_| StorageError::Validation("failed to generate UTC timestamp"))
 }
 
 pub struct CreateAccountInput<'a> {
@@ -137,4 +144,18 @@ pub struct FxRateRecord {
     pub from_currency: String,
     pub to_currency: String,
     pub rate: String,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct FxRateSummaryItemRecord {
+    pub from_currency: String,
+    pub rate: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct FxRateSummaryRecord {
+    pub target_currency: String,
+    pub rates: Vec<FxRateSummaryItemRecord>,
+    pub last_updated: Option<String>,
 }

@@ -14,6 +14,7 @@ pub async fn upsert_fx_rate(
     validate_decimal_20_8(input.rate)?;
     validate_positive_decimal(input.rate)?;
 
+    let updated_at = current_utc_timestamp()?;
     let mut transaction = pool.begin().await?;
 
     let existed = sqlx::query_scalar::<_, i64>(
@@ -27,15 +28,17 @@ pub async fn upsert_fx_rate(
 
     sqlx::query(
         r#"
-        INSERT INTO fx_rates (from_currency, to_currency, rate)
-        VALUES (?, ?, ?)
+        INSERT INTO fx_rates (from_currency, to_currency, rate, updated_at)
+        VALUES (?, ?, ?, ?)
         ON CONFLICT(from_currency, to_currency) DO UPDATE SET
-            rate = excluded.rate
+            rate = excluded.rate,
+            updated_at = excluded.updated_at
         "#,
     )
     .bind(input.from_currency)
     .bind(input.to_currency)
     .bind(input.rate)
+    .bind(updated_at)
     .execute(&mut *transaction)
     .await?;
 
@@ -89,6 +92,46 @@ pub async fn list_fx_rates(pool: &SqlitePool) -> Result<Vec<FxRateRecord>, Stora
             rate: row.get("rate"),
         })
         .collect())
+}
+
+pub async fn list_fx_rate_summary(
+    pool: &SqlitePool,
+    target_currency: &str,
+) -> Result<FxRateSummaryRecord, StorageError> {
+    validate_allowed_currency(pool, target_currency).await?;
+
+    let rows = sqlx::query(
+        r#"
+        SELECT
+            from_currency,
+            CAST(rate AS TEXT) AS rate,
+            updated_at
+        FROM fx_rates
+        WHERE to_currency = ? AND from_currency != ?
+        ORDER BY from_currency
+        "#,
+    )
+    .bind(target_currency)
+    .bind(target_currency)
+    .fetch_all(pool)
+    .await?;
+
+    let rates: Vec<FxRateSummaryItemRecord> = rows
+        .into_iter()
+        .map(|row| FxRateSummaryItemRecord {
+            from_currency: row.get("from_currency"),
+            rate: row.get("rate"),
+            updated_at: row.get("updated_at"),
+        })
+        .collect();
+
+    let last_updated = rates.iter().map(|rate| rate.updated_at.clone()).max();
+
+    Ok(FxRateSummaryRecord {
+        target_currency: target_currency.to_string(),
+        rates,
+        last_updated,
+    })
 }
 
 pub(crate) async fn get_direct_fx_rate(
