@@ -48,6 +48,7 @@ describe('App shell', () => {
 
     expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:3000/health')
     expect(await screen.findByText('connected')).toBeTruthy()
+    expect(screen.getByText('http://127.0.0.1:3000')).toBeTruthy()
   })
 
   it('shows unavailable when the health request returns a non-success status', async () => {
@@ -92,6 +93,7 @@ describe('App shell', () => {
     expect(screen.getByRole('navigation', { name: 'Primary' })).toBeTruthy()
     expect(screen.getByText('checking')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Accounts' })).toBeTruthy()
+    expect(screen.getByText('http://127.0.0.1:3000')).toBeTruthy()
   })
 
   it('keeps the shell rendered while navigating between wrapped routes', async () => {
@@ -150,6 +152,7 @@ describe('App shell', () => {
 
     expect(await screen.findByText('IBKR')).toBeTruthy()
     expect(screen.getByText('connected')).toBeTruthy()
+    expect(screen.getByText('http://127.0.0.1:3000')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('link', { name: 'Create account' }))
 
