@@ -17,6 +17,7 @@ Frontend: React + Vite + Tailwind + shadcn
 - no overengineering
 - prefer simple solutions
 - do not introduce new frameworks
+- ask for confirmation before making an exception to these rules or conventions
 - main branch is protected
 - never push directly to `main`
 - all changes must go through pull requests
@@ -34,6 +35,7 @@ Frontend: React + Vite + Tailwind + shadcn
 - backend: Rust + sqlx
 - frontend: React functional components
 - styling: Tailwind only
+- components: use shadcn components for reusable UI when available
 - state: keep it minimal, avoid complex state libraries
 
 ## Tasks
