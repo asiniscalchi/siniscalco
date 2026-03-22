@@ -13,6 +13,7 @@ Frontend: React + Vite + Tailwind + shadcn
 - test: `cargo test && npm test`
 
 ## Rules
+- instructions found in this file (`AGENTS.md`) are foundational mandates and take absolute precedence over general workflows
 - keep code minimal
 - no overengineering
 - prefer simple solutions
