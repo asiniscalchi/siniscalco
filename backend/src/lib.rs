@@ -913,6 +913,90 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn rejects_invalid_amount_through_balance_api() {
+        let pool = test_pool().await;
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        let app = build_router(pool);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!("/accounts/{account_id}/balances/USD"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"amount":"1.123456789"}"#))
+                    .expect("request should build"),
+            )
+            .await
+            .expect("upsert request should succeed");
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("response body should collect")
+            .to_bytes();
+
+        assert_eq!(
+            std::str::from_utf8(&body).expect("json body should be utf8"),
+            r#"{"error":"validation_error","message":"amount must match DECIMAL(20,8)"}"#
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_currency_through_balance_api() {
+        let pool = test_pool().await;
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        let app = build_router(pool);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!("/accounts/{account_id}/balances/us"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"amount":"12"}"#))
+                    .expect("request should build"),
+            )
+            .await
+            .expect("upsert request should succeed");
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("response body should collect")
+            .to_bytes();
+
+        assert_eq!(
+            std::str::from_utf8(&body).expect("json body should be utf8"),
+            r#"{"error":"validation_error","message":"currency must be a 3-letter uppercase code"}"#
+        );
+    }
+
+    #[tokio::test]
     async fn updates_balance_through_api() {
         let pool = test_pool().await;
         let account_id = create_account(
@@ -1147,6 +1231,74 @@ mod tests {
         assert_eq!(json["base_currency"], "EUR");
         assert!(json["id"].is_i64());
         assert!(json["created_at"].is_string());
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_account_type_through_api() {
+        let pool = test_pool().await;
+        let app = build_router(pool);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/accounts")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"name":"IBKR","account_type":"cash","base_currency":"EUR"}"#,
+                    ))
+                    .expect("request should build"),
+            )
+            .await
+            .expect("create request should succeed");
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("response body should collect")
+            .to_bytes();
+
+        assert_eq!(
+            std::str::from_utf8(&body).expect("json body should be utf8"),
+            r#"{"error":"validation_error","message":"account_type must be one of: bank, broker"}"#
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_base_currency_through_api() {
+        let pool = test_pool().await;
+        let app = build_router(pool);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/accounts")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"name":"IBKR","account_type":"broker","base_currency":"eur"}"#,
+                    ))
+                    .expect("request should build"),
+            )
+            .await
+            .expect("create request should succeed");
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("response body should collect")
+            .to_bytes();
+
+        assert_eq!(
+            std::str::from_utf8(&body).expect("json body should be utf8"),
+            r#"{"error":"validation_error","message":"currency must be a 3-letter uppercase code"}"#
+        );
     }
 
     #[tokio::test]
