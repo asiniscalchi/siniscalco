@@ -6,6 +6,8 @@ mod balances;
 mod currency;
 mod fx;
 mod fx_rate;
+#[cfg(test)]
+mod integration_tests;
 mod models;
 
 pub use account_id::*;
@@ -17,6 +19,3 @@ pub use currency::*;
 pub use fx::*;
 pub use fx_rate::*;
 pub use models::*;
-
-#[cfg(test)]
-mod tests;
