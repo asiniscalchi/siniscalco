@@ -5,7 +5,7 @@ mod storage;
 
 pub use api::{ApiError, ApiErrorResponse, AppState, build_router};
 pub use db::{connect_db, connect_db_file, init_db};
-pub use format::{format_decimal_amount, normalize_amount_output};
+pub use format::{compact_decimal_output, format_decimal_amount, normalize_amount_output};
 pub use storage::{
     AccountBalanceRecord, AccountId, AccountName, AccountRecord, AccountSummaryRecord,
     AccountSummaryStatus, AccountType, Amount, CreateAccountInput, Currency, CurrencyRecord,

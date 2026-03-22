@@ -4,7 +4,7 @@ CREATE TABLE currencies (
 
 CREATE TABLE accounts (
     id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL,
+    name TEXT NOT NULL CHECK (length(trim(name)) > 0),
     account_type TEXT NOT NULL CHECK (account_type IN ('bank', 'broker')),
     base_currency TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -14,7 +14,26 @@ CREATE TABLE accounts (
 CREATE TABLE account_balances (
     account_id INTEGER NOT NULL,
     currency TEXT NOT NULL,
-    amount DECIMAL(20,8) NOT NULL,
+    amount TEXT NOT NULL CHECK (
+        length(amount) > 0
+        AND trim(amount) = amount
+        AND amount NOT LIKE '%.%.%'
+        AND (instr(amount, '-') = 0 OR instr(amount, '-') = 1)
+        AND length(amount) - length(replace(amount, '-', '')) <= 1
+        AND replace(replace(amount, '-', ''), '.', '') NOT GLOB '*[^0-9]*'
+        AND length(replace(replace(amount, '-', ''), '.', '')) BETWEEN 1 AND 20
+        AND (
+            (
+                instr(replace(amount, '-', ''), '.') = 0
+                AND length(replace(amount, '-', '')) BETWEEN 1 AND 12
+            )
+            OR (
+                instr(replace(amount, '-', ''), '.') > 0
+                AND length(substr(replace(amount, '-', ''), 1, instr(replace(amount, '-', ''), '.') - 1)) BETWEEN 1 AND 12
+                AND length(substr(replace(amount, '-', ''), instr(replace(amount, '-', ''), '.') + 1)) BETWEEN 1 AND 8
+            )
+        )
+    ),
     updated_at TEXT NOT NULL,
     PRIMARY KEY (account_id, currency),
     FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
@@ -24,7 +43,22 @@ CREATE TABLE account_balances (
 CREATE TABLE fx_rates (
     from_currency TEXT NOT NULL,
     to_currency TEXT NOT NULL,
-    rate DECIMAL(20,8) NOT NULL CHECK (rate > 0),
+    rate TEXT NOT NULL CHECK (
+        length(rate) > 0
+        AND trim(rate) = rate
+        AND rate NOT LIKE '%.%.%'
+        AND rate NOT GLOB '*[^0-9.]*'
+        AND length(replace(rate, '.', '')) BETWEEN 1 AND 20
+        AND (
+            (instr(rate, '.') = 0 AND length(rate) BETWEEN 1 AND 12)
+            OR (
+                instr(rate, '.') > 0
+                AND length(substr(rate, 1, instr(rate, '.') - 1)) BETWEEN 1 AND 12
+                AND length(substr(rate, instr(rate, '.') + 1)) BETWEEN 1 AND 8
+            )
+        )
+        AND CAST(rate AS REAL) > 0
+    ),
     updated_at TEXT NOT NULL,
     PRIMARY KEY (from_currency, to_currency),
     FOREIGN KEY (from_currency) REFERENCES currencies(code),
