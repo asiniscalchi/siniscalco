@@ -10,10 +10,10 @@ use sqlx::SqlitePool;
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::{
-    AccountBalanceRecord, AccountRecord, AccountType, CreateAccountInput, CurrencyRecord,
-    UpsertAccountBalanceInput, UpsertOutcome, delete_account, delete_account_balance, get_account,
-    list_account_balances, list_accounts, list_currencies, normalize_amount_output,
-    storage::StorageError, upsert_account_balance,
+    AccountBalanceRecord, AccountRecord, AccountSummaryRecord, AccountSummaryStatus, AccountType,
+    CreateAccountInput, CurrencyRecord, UpsertAccountBalanceInput, UpsertOutcome, delete_account,
+    delete_account_balance, get_account, list_account_balances, list_account_summaries,
+    list_currencies, normalize_amount_output, storage::StorageError, upsert_account_balance,
 };
 
 #[derive(Clone)]
@@ -39,7 +39,9 @@ pub struct AccountSummaryResponse {
     pub name: String,
     pub account_type: String,
     pub base_currency: String,
-    pub created_at: String,
+    pub summary_status: String,
+    pub total_amount: Option<String>,
+    pub total_currency: Option<String>,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]
@@ -111,6 +113,7 @@ impl From<StorageError> for ApiError {
     fn from(value: StorageError) -> Self {
         match value {
             StorageError::Validation(message) => Self::validation(message),
+            StorageError::Internal(_) => Self::internal_server_error(),
             StorageError::Database(sqlx::Error::RowNotFound) => {
                 Self::not_found("Resource not found")
             }
@@ -178,7 +181,7 @@ async fn create_account_handler(
 
     Ok((
         StatusCode::CREATED,
-        Json(to_account_summary_response(account)),
+        Json(to_created_account_summary_response(account)),
     ))
 }
 
@@ -195,7 +198,9 @@ async fn list_currencies_handler(
 async fn list_accounts_handler(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<AccountSummaryResponse>>, ApiError> {
-    let accounts = list_accounts(&state.pool).await.map_err(ApiError::from)?;
+    let accounts = list_account_summaries(&state.pool)
+        .await
+        .map_err(ApiError::from)?;
 
     Ok(Json(
         accounts
@@ -305,13 +310,27 @@ async fn delete_account_handler(
     Ok(StatusCode::NO_CONTENT)
 }
 
-fn to_account_summary_response(account: AccountRecord) -> AccountSummaryResponse {
+fn to_account_summary_response(account: AccountSummaryRecord) -> AccountSummaryResponse {
     AccountSummaryResponse {
         id: account.id,
         name: account.name,
         account_type: account.account_type.as_str().to_string(),
         base_currency: account.base_currency,
-        created_at: account.created_at,
+        summary_status: account.summary_status.as_str().to_string(),
+        total_amount: account.total_amount,
+        total_currency: account.total_currency,
+    }
+}
+
+fn to_created_account_summary_response(account: AccountRecord) -> AccountSummaryResponse {
+    AccountSummaryResponse {
+        id: account.id,
+        name: account.name,
+        account_type: account.account_type.as_str().to_string(),
+        base_currency: account.base_currency.clone(),
+        summary_status: AccountSummaryStatus::Ok.as_str().to_string(),
+        total_amount: Some("0.00000000".to_string()),
+        total_currency: Some(account.base_currency),
     }
 }
 
@@ -359,8 +378,9 @@ mod tests {
 
     use super::{ApiError, build_router};
     use crate::{
-        AccountType, CreateAccountInput, UpsertAccountBalanceInput, create_account, get_account,
-        init_db, list_account_balances, upsert_account_balance,
+        AccountType, CreateAccountInput, UpsertAccountBalanceInput, UpsertFxRateInput,
+        create_account, get_account, init_db, list_account_balances, upsert_account_balance,
+        upsert_fx_rate,
     };
 
     async fn test_pool() -> sqlx::SqlitePool {
@@ -939,8 +959,10 @@ mod tests {
         assert_eq!(json["name"], "IBKR");
         assert_eq!(json["account_type"], "broker");
         assert_eq!(json["base_currency"], "EUR");
+        assert_eq!(json["summary_status"], "ok");
+        assert_eq!(json["total_amount"], "0.00000000");
+        assert_eq!(json["total_currency"], "EUR");
         assert!(json["id"].is_i64());
-        assert!(json["created_at"].is_string());
     }
 
     #[tokio::test]
@@ -1012,10 +1034,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn lists_account_summaries_without_balances_through_api() {
+    async fn lists_account_summaries_with_totals_through_api() {
         let pool = test_pool().await;
-
-        let account_id = create_account(
+        create_account(
             &pool,
             CreateAccountInput {
                 name: "IBKR",
@@ -1029,7 +1050,7 @@ mod tests {
         upsert_account_balance(
             &pool,
             UpsertAccountBalanceInput {
-                account_id,
+                account_id: 1,
                 currency: "EUR",
                 amount: "12000.00000000",
             },
@@ -1068,6 +1089,195 @@ mod tests {
         );
         assert!(json[0].get("balances").is_none());
         assert_eq!(json[0]["name"], "IBKR");
+        assert_eq!(json[0]["summary_status"], "ok");
+        assert_eq!(json[0]["total_amount"], "12000.00000000");
+        assert_eq!(json[0]["total_currency"], "EUR");
+        assert!(json[0].get("created_at").is_none());
+    }
+
+    #[tokio::test]
+    async fn returns_conversion_unavailable_through_api_when_direct_rate_is_missing() {
+        let pool = test_pool().await;
+
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency: "USD",
+                amount: "12.30000000",
+            },
+        )
+        .await
+        .expect("balance insert should succeed");
+
+        let app = build_router(pool);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/accounts")
+                    .body(Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("list request should succeed");
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("response body should collect")
+            .to_bytes();
+        let json: Value =
+            serde_json::from_slice(&body).expect("account list body should be valid json");
+
+        assert_eq!(json[0]["summary_status"], "conversion_unavailable");
+        assert!(json[0]["total_amount"].is_null());
+        assert!(json[0]["total_currency"].is_null());
+    }
+
+    #[tokio::test]
+    async fn does_not_use_inverse_fx_rates_through_api() {
+        let pool = test_pool().await;
+
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency: "USD",
+                amount: "12.30000000",
+            },
+        )
+        .await
+        .expect("balance insert should succeed");
+
+        upsert_fx_rate(
+            &pool,
+            UpsertFxRateInput {
+                from_currency: "EUR",
+                to_currency: "USD",
+                rate: "1.10000000",
+            },
+        )
+        .await
+        .expect("inverse fx rate insert should succeed");
+
+        let app = build_router(pool);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/accounts")
+                    .body(Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("list request should succeed");
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("response body should collect")
+            .to_bytes();
+        let json: Value =
+            serde_json::from_slice(&body).expect("account list body should be valid json");
+
+        assert_eq!(json[0]["summary_status"], "conversion_unavailable");
+    }
+
+    #[tokio::test]
+    async fn rounds_converted_account_totals_through_api() {
+        let pool = test_pool().await;
+
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        for currency in ["USD", "GBP"] {
+            upsert_account_balance(
+                &pool,
+                UpsertAccountBalanceInput {
+                    account_id,
+                    currency,
+                    amount: "1.00000000",
+                },
+            )
+            .await
+            .expect("balance insert should succeed");
+        }
+
+        for (from_currency, rate) in [("USD", "0.33333333"), ("GBP", "0.33333333")] {
+            upsert_fx_rate(
+                &pool,
+                UpsertFxRateInput {
+                    from_currency,
+                    to_currency: "EUR",
+                    rate,
+                },
+            )
+            .await
+            .expect("fx rate insert should succeed");
+        }
+
+        let app = build_router(pool);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/accounts")
+                    .body(Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("list request should succeed");
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("response body should collect")
+            .to_bytes();
+        let json: Value =
+            serde_json::from_slice(&body).expect("account list body should be valid json");
+
+        assert_eq!(json[0]["summary_status"], "ok");
+        assert_eq!(json[0]["total_amount"], "0.66666666");
     }
 
     #[tokio::test]

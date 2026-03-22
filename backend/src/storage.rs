@@ -1,5 +1,6 @@
 use std::{error::Error, fmt};
 
+use rust_decimal::Decimal;
 use sqlx::{Row, SqlitePool};
 use time::{OffsetDateTime, format_description::FormatItem, macros::format_description};
 
@@ -38,6 +39,7 @@ impl TryFrom<&str> for AccountType {
 #[derive(Debug)]
 pub enum StorageError {
     Validation(&'static str),
+    Internal(&'static str),
     Database(sqlx::Error),
 }
 
@@ -45,6 +47,7 @@ impl fmt::Display for StorageError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Validation(message) => f.write_str(message),
+            Self::Internal(message) => f.write_str(message),
             Self::Database(error) => write!(f, "{error}"),
         }
     }
@@ -89,6 +92,32 @@ pub struct AccountRecord {
     pub account_type: AccountType,
     pub base_currency: String,
     pub created_at: String,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AccountSummaryStatus {
+    Ok,
+    ConversionUnavailable,
+}
+
+impl AccountSummaryStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Ok => "ok",
+            Self::ConversionUnavailable => "conversion_unavailable",
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct AccountSummaryRecord {
+    pub id: i64,
+    pub name: String,
+    pub account_type: AccountType,
+    pub base_currency: String,
+    pub summary_status: AccountSummaryStatus,
+    pub total_amount: Option<String>,
+    pub total_currency: Option<String>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -240,6 +269,30 @@ pub async fn list_accounts(pool: &SqlitePool) -> Result<Vec<AccountRecord>, Stor
         .collect()
 }
 
+pub async fn list_account_summaries(
+    pool: &SqlitePool,
+) -> Result<Vec<AccountSummaryRecord>, StorageError> {
+    let accounts = list_accounts(pool).await?;
+    let mut summaries = Vec::with_capacity(accounts.len());
+
+    for account in accounts {
+        let balances = list_account_balances(pool, account.id).await?;
+        let summary = summarize_account(pool, &account, &balances).await?;
+
+        summaries.push(AccountSummaryRecord {
+            id: account.id,
+            name: account.name,
+            account_type: account.account_type,
+            base_currency: account.base_currency,
+            summary_status: summary.status,
+            total_amount: summary.total_amount,
+            total_currency: summary.total_currency,
+        });
+    }
+
+    Ok(summaries)
+}
+
 pub async fn list_currencies(pool: &SqlitePool) -> Result<Vec<CurrencyRecord>, StorageError> {
     let rows = sqlx::query(
         r#"
@@ -336,6 +389,81 @@ pub async fn list_account_balances(
             updated_at: row.get("updated_at"),
         })
         .collect())
+}
+
+struct AccountTotalSummary {
+    status: AccountSummaryStatus,
+    total_amount: Option<String>,
+    total_currency: Option<String>,
+}
+
+async fn summarize_account(
+    pool: &SqlitePool,
+    account: &AccountRecord,
+    balances: &[AccountBalanceRecord],
+) -> Result<AccountTotalSummary, StorageError> {
+    if balances.is_empty() {
+        return Ok(AccountTotalSummary {
+            status: AccountSummaryStatus::Ok,
+            total_amount: Some("0.00000000".to_string()),
+            total_currency: Some(account.base_currency.clone()),
+        });
+    }
+
+    let mut total = Decimal::ZERO;
+
+    for balance in balances {
+        let amount = parse_stored_decimal(&balance.amount)?;
+
+        if balance.currency == account.base_currency {
+            total += amount;
+            continue;
+        }
+
+        let Some(rate) =
+            get_direct_fx_rate(pool, &balance.currency, &account.base_currency).await?
+        else {
+            return Ok(AccountTotalSummary {
+                status: AccountSummaryStatus::ConversionUnavailable,
+                total_amount: None,
+                total_currency: None,
+            });
+        };
+
+        total += amount * rate;
+    }
+
+    Ok(AccountTotalSummary {
+        status: AccountSummaryStatus::Ok,
+        total_amount: Some(crate::format_decimal_amount(total)),
+        total_currency: Some(account.base_currency.clone()),
+    })
+}
+
+async fn get_direct_fx_rate(
+    pool: &SqlitePool,
+    from_currency: &str,
+    to_currency: &str,
+) -> Result<Option<Decimal>, StorageError> {
+    let rate = sqlx::query_scalar::<_, String>(
+        r#"
+        SELECT CAST(rate AS TEXT) AS rate
+        FROM fx_rates
+        WHERE from_currency = ? AND to_currency = ?
+        "#,
+    )
+    .bind(from_currency)
+    .bind(to_currency)
+    .fetch_optional(pool)
+    .await?;
+
+    rate.map(|value| parse_stored_decimal(&value)).transpose()
+}
+
+fn parse_stored_decimal(value: &str) -> Result<Decimal, StorageError> {
+    value
+        .parse::<Decimal>()
+        .map_err(|_| StorageError::Internal("stored decimal value is invalid"))
 }
 
 pub async fn delete_account_balance(
@@ -453,10 +581,12 @@ mod tests {
     use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
     use super::{
-        AccountBalanceRecord, AccountRecord, AccountType, CreateAccountInput, CurrencyRecord,
-        FxRateRecord, StorageError, UpsertAccountBalanceInput, UpsertFxRateInput, UpsertOutcome,
-        create_account, delete_account, delete_account_balance, get_account, list_account_balances,
-        list_accounts, list_currencies, list_fx_rates, upsert_account_balance, upsert_fx_rate,
+        AccountBalanceRecord, AccountRecord, AccountSummaryRecord, AccountSummaryStatus,
+        AccountType, CreateAccountInput, CurrencyRecord, FxRateRecord, StorageError,
+        UpsertAccountBalanceInput, UpsertFxRateInput, UpsertOutcome, create_account,
+        delete_account, delete_account_balance, get_account, list_account_balances,
+        list_account_summaries, list_accounts, list_currencies, list_fx_rates,
+        upsert_account_balance, upsert_fx_rate,
     };
     use crate::db::init_db;
 
@@ -953,7 +1083,9 @@ mod tests {
             StorageError::Database(error) => {
                 assert!(error.to_string().contains("FOREIGN KEY constraint failed"));
             }
-            StorageError::Validation(_) => panic!("expected database error"),
+            StorageError::Validation(_) | StorageError::Internal(_) => {
+                panic!("expected database error")
+            }
         }
     }
 
@@ -1036,5 +1168,315 @@ mod tests {
         .expect_err("zero fx rate should fail");
 
         assert_eq!(error.to_string(), "rate must be greater than zero");
+    }
+
+    #[tokio::test]
+    async fn lists_account_summaries_with_zero_total_for_empty_accounts() {
+        let pool = test_pool().await;
+
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        assert_eq!(
+            list_account_summaries(&pool)
+                .await
+                .expect("account summaries should succeed"),
+            vec![AccountSummaryRecord {
+                id: account_id,
+                name: "IBKR".to_string(),
+                account_type: AccountType::Broker,
+                base_currency: "EUR".to_string(),
+                summary_status: AccountSummaryStatus::Ok,
+                total_amount: Some("0.00000000".to_string()),
+                total_currency: Some("EUR".to_string()),
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn lists_account_summaries_with_single_base_currency_balance() {
+        let pool = test_pool().await;
+
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "Main Bank",
+                account_type: AccountType::Bank,
+                base_currency: "USD",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency: "USD",
+                amount: "123.45000000",
+            },
+        )
+        .await
+        .expect("balance insert should succeed");
+
+        let summaries = list_account_summaries(&pool)
+            .await
+            .expect("account summaries should succeed");
+
+        assert_eq!(summaries[0].summary_status, AccountSummaryStatus::Ok);
+        assert_eq!(summaries[0].total_amount.as_deref(), Some("123.45000000"));
+        assert_eq!(summaries[0].total_currency.as_deref(), Some("USD"));
+    }
+
+    #[tokio::test]
+    async fn lists_account_summaries_with_direct_fx_conversion() {
+        let pool = test_pool().await;
+
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        for (currency, amount) in [
+            ("EUR", "10.00000000"),
+            ("USD", "20.00000000"),
+            ("GBP", "30.00000000"),
+        ] {
+            upsert_account_balance(
+                &pool,
+                UpsertAccountBalanceInput {
+                    account_id,
+                    currency,
+                    amount,
+                },
+            )
+            .await
+            .expect("balance insert should succeed");
+        }
+
+        for (from_currency, rate) in [("USD", "0.50000000"), ("GBP", "1.20000000")] {
+            upsert_fx_rate(
+                &pool,
+                UpsertFxRateInput {
+                    from_currency,
+                    to_currency: "EUR",
+                    rate,
+                },
+            )
+            .await
+            .expect("fx rate insert should succeed");
+        }
+
+        let summaries = list_account_summaries(&pool)
+            .await
+            .expect("account summaries should succeed");
+
+        assert_eq!(summaries[0].summary_status, AccountSummaryStatus::Ok);
+        assert_eq!(summaries[0].total_amount.as_deref(), Some("56.00000000"));
+        assert_eq!(summaries[0].total_currency.as_deref(), Some("EUR"));
+    }
+
+    #[tokio::test]
+    async fn marks_summary_unavailable_when_direct_fx_rate_is_missing() {
+        let pool = test_pool().await;
+
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency: "USD",
+                amount: "20.00000000",
+            },
+        )
+        .await
+        .expect("balance insert should succeed");
+
+        let summaries = list_account_summaries(&pool)
+            .await
+            .expect("account summaries should succeed");
+
+        assert_eq!(
+            summaries[0],
+            AccountSummaryRecord {
+                id: account_id,
+                name: "IBKR".to_string(),
+                account_type: AccountType::Broker,
+                base_currency: "EUR".to_string(),
+                summary_status: AccountSummaryStatus::ConversionUnavailable,
+                total_amount: None,
+                total_currency: None,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn does_not_use_inverse_fx_rates() {
+        let pool = test_pool().await;
+
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency: "USD",
+                amount: "20.00000000",
+            },
+        )
+        .await
+        .expect("balance insert should succeed");
+
+        upsert_fx_rate(
+            &pool,
+            UpsertFxRateInput {
+                from_currency: "EUR",
+                to_currency: "USD",
+                rate: "1.10000000",
+            },
+        )
+        .await
+        .expect("inverse fx rate insert should succeed");
+
+        let summaries = list_account_summaries(&pool)
+            .await
+            .expect("account summaries should succeed");
+
+        assert_eq!(
+            summaries[0].summary_status,
+            AccountSummaryStatus::ConversionUnavailable
+        );
+    }
+
+    #[tokio::test]
+    async fn does_not_use_multi_hop_fx_rates() {
+        let pool = test_pool().await;
+
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "Swiss Cash",
+                account_type: AccountType::Bank,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency: "CHF",
+                amount: "20.00000000",
+            },
+        )
+        .await
+        .expect("balance insert should succeed");
+
+        for (from_currency, to_currency, rate) in
+            [("CHF", "USD", "1.10000000"), ("USD", "EUR", "0.80000000")]
+        {
+            upsert_fx_rate(
+                &pool,
+                UpsertFxRateInput {
+                    from_currency,
+                    to_currency,
+                    rate,
+                },
+            )
+            .await
+            .expect("multi-hop fx rate insert should succeed");
+        }
+
+        let summaries = list_account_summaries(&pool)
+            .await
+            .expect("account summaries should succeed");
+
+        assert_eq!(
+            summaries[0].summary_status,
+            AccountSummaryStatus::ConversionUnavailable
+        );
+    }
+
+    #[tokio::test]
+    async fn rounds_after_summing_converted_balances() {
+        let pool = test_pool().await;
+
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "Precise FX",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        for currency in ["USD", "GBP"] {
+            upsert_account_balance(
+                &pool,
+                UpsertAccountBalanceInput {
+                    account_id,
+                    currency,
+                    amount: "1.00000000",
+                },
+            )
+            .await
+            .expect("balance insert should succeed");
+        }
+
+        for (from_currency, rate) in [("USD", "0.33333333"), ("GBP", "0.33333333")] {
+            upsert_fx_rate(
+                &pool,
+                UpsertFxRateInput {
+                    from_currency,
+                    to_currency: "EUR",
+                    rate,
+                },
+            )
+            .await
+            .expect("fx rate insert should succeed");
+        }
+
+        let summaries = list_account_summaries(&pool)
+            .await
+            .expect("account summaries should succeed");
+
+        assert_eq!(summaries[0].total_amount.as_deref(), Some("0.66666666"));
     }
 }
