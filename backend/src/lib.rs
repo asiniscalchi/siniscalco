@@ -1,11 +1,13 @@
 use std::{error::Error, fmt, fs, path::Path, str::FromStr};
 
 use axum::{
-    Router,
+    Json, Router,
     extract::Path as AxumPath,
     http::StatusCode,
+    response::{IntoResponse, Response},
     routing::{get, post, put},
 };
+use serde::{Deserialize, Serialize};
 use sqlx::{
     Row, SqlitePool,
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
@@ -100,6 +102,73 @@ pub struct AccountBalanceRecord {
     pub currency: String,
     pub amount: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Deserialize, Eq, PartialEq)]
+pub struct CreateAccountRequest {
+    pub name: String,
+    pub account_type: String,
+    pub base_currency: String,
+}
+
+#[derive(Debug, Deserialize, Eq, PartialEq)]
+pub struct UpsertBalanceRequest {
+    pub amount: String,
+}
+
+#[derive(Debug, Serialize, Eq, PartialEq)]
+pub struct AccountSummaryResponse {
+    pub id: i64,
+    pub name: String,
+    pub account_type: String,
+    pub base_currency: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Eq, PartialEq)]
+pub struct BalanceResponse {
+    pub currency: String,
+    pub amount: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Serialize, Eq, PartialEq)]
+pub struct AccountDetailResponse {
+    pub id: i64,
+    pub name: String,
+    pub account_type: String,
+    pub base_currency: String,
+    pub created_at: String,
+    pub balances: Vec<BalanceResponse>,
+}
+
+#[derive(Debug, Serialize, Eq, PartialEq)]
+pub struct ApiErrorResponse {
+    pub error: &'static str,
+    pub message: &'static str,
+}
+
+pub struct ApiError {
+    status: StatusCode,
+    body: ApiErrorResponse,
+}
+
+impl ApiError {
+    fn not_implemented() -> Self {
+        Self {
+            status: StatusCode::NOT_IMPLEMENTED,
+            body: ApiErrorResponse {
+                error: "not_implemented",
+                message: "Endpoint not implemented yet",
+            },
+        }
+    }
+}
+
+impl IntoResponse for ApiError {
+    fn into_response(self) -> Response {
+        (self.status, Json(self.body)).into_response()
+    }
 }
 
 pub fn build_router(pool: SqlitePool) -> Router {
@@ -319,32 +388,36 @@ async fn health() -> &'static str {
     "ok"
 }
 
-async fn create_account_handler() -> StatusCode {
-    StatusCode::NOT_IMPLEMENTED
+async fn create_account_handler() -> Result<StatusCode, ApiError> {
+    Err(ApiError::not_implemented())
 }
 
-async fn list_accounts_handler() -> StatusCode {
-    StatusCode::NOT_IMPLEMENTED
+async fn list_accounts_handler() -> Result<StatusCode, ApiError> {
+    Err(ApiError::not_implemented())
 }
 
-async fn get_account_handler(AxumPath((_account_id,)): AxumPath<(i64,)>) -> StatusCode {
-    StatusCode::NOT_IMPLEMENTED
+async fn get_account_handler(
+    AxumPath((_account_id,)): AxumPath<(i64,)>,
+) -> Result<StatusCode, ApiError> {
+    Err(ApiError::not_implemented())
 }
 
 async fn upsert_account_balance_handler(
     AxumPath((_account_id, _currency)): AxumPath<(i64, String)>,
-) -> StatusCode {
-    StatusCode::NOT_IMPLEMENTED
+) -> Result<StatusCode, ApiError> {
+    Err(ApiError::not_implemented())
 }
 
 async fn delete_account_balance_handler(
     AxumPath((_account_id, _currency)): AxumPath<(i64, String)>,
-) -> StatusCode {
-    StatusCode::NOT_IMPLEMENTED
+) -> Result<StatusCode, ApiError> {
+    Err(ApiError::not_implemented())
 }
 
-async fn delete_account_handler(AxumPath((_account_id,)): AxumPath<(i64,)>) -> StatusCode {
-    StatusCode::NOT_IMPLEMENTED
+async fn delete_account_handler(
+    AxumPath((_account_id,)): AxumPath<(i64,)>,
+) -> Result<StatusCode, ApiError> {
+    Err(ApiError::not_implemented())
 }
 
 #[cfg(test)]
@@ -355,6 +428,7 @@ mod tests {
         body::Body,
         http::{Request, StatusCode},
     };
+    use http_body_util::BodyExt;
     use sqlx::sqlite::SqlitePoolOptions;
     use tempfile::NamedTempFile;
     use tower::ServiceExt;
@@ -439,6 +513,37 @@ mod tests {
 
             assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
         }
+    }
+
+    #[tokio::test]
+    async fn returns_standard_json_error_shape_for_placeholder_routes() {
+        let pool = test_pool().await;
+        let app = build_router(pool);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/accounts")
+                    .body(Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("route request should succeed");
+
+        assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("response body should collect")
+            .to_bytes();
+
+        assert_eq!(
+            std::str::from_utf8(&body).expect("json body should be utf8"),
+            r#"{"error":"not_implemented","message":"Endpoint not implemented yet"}"#
+        );
     }
 
     #[tokio::test]
