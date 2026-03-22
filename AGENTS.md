@@ -41,6 +41,7 @@ Frontend: React + Vite + Tailwind + shadcn
 - state: keep it minimal, avoid complex state libraries
 
 ## Tasks
+- create a short plan with concrete steps for each task before making changes
 - always read existing code before editing
 - modify existing code when possible; rewrite only if necessary
 - keep changes small and focused
