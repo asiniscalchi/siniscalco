@@ -1,3 +1,3 @@
-export { AccountDetailPage } from './account-detail'
-export { AccountNewPage } from './account-new'
-export { AccountsListPage } from './accounts-list'
+export { AccountDetailPage } from './AccountDetailPage'
+export { AccountNewPage } from './AccountNewPage'
+export { AccountsListPage } from './AccountsListPage'
