@@ -1,39 +1,41 @@
-import { useEffect, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { useEffect, useState } from "react";
+import { NavLink, Outlet } from "react-router-dom";
 
-import { getHealthApiUrl } from '@/lib/api'
-import { cn } from '@/lib/utils'
+import { getHealthApiUrl } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 export function AppShell() {
   const [backendStatus, setBackendStatus] = useState<
-    'checking' | 'connected' | 'unavailable'
-  >('checking')
+    "checking" | "connected" | "unavailable"
+  >("checking");
 
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
 
     async function checkBackendHealth() {
-      setBackendStatus('checking')
+      setBackendStatus("checking");
 
       try {
-        const response = await fetch(getHealthApiUrl())
+        const response = await fetch(getHealthApiUrl());
 
         if (!cancelled) {
-          setBackendStatus(response.status === 200 ? 'connected' : 'unavailable')
+          setBackendStatus(
+            response.status === 200 ? "connected" : "unavailable",
+          );
         }
       } catch {
         if (!cancelled) {
-          setBackendStatus('unavailable')
+          setBackendStatus("unavailable");
         }
       }
     }
 
-    void checkBackendHealth()
+    void checkBackendHealth();
 
     return () => {
-      cancelled = true
-    }
-  }, [])
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="min-h-svh bg-muted/30">
@@ -47,10 +49,10 @@ export function AppShell() {
             <NavLink
               className={({ isActive }) =>
                 cn(
-                  'inline-flex items-center px-1 py-1 text-sm font-medium transition-colors border-b-2',
+                  "inline-flex items-center px-1 py-1 text-sm font-medium transition-colors border-b-2",
                   isActive
-                    ? 'border-foreground text-foreground'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                    ? "border-foreground text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground",
                 )
               }
               to="/accounts"
@@ -63,13 +65,13 @@ export function AppShell() {
             <div
               aria-live="polite"
               className={cn(
-                'inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium capitalize',
-                backendStatus === 'connected' &&
-                  'border-emerald-200 bg-emerald-50 text-emerald-700',
-                backendStatus === 'checking' &&
-                  'border-amber-200 bg-amber-50 text-amber-700',
-                backendStatus === 'unavailable' &&
-                  'border-destructive/20 bg-destructive/10 text-destructive'
+                "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium capitalize",
+                backendStatus === "connected" &&
+                  "border-emerald-200 bg-emerald-50 text-emerald-700",
+                backendStatus === "checking" &&
+                  "border-amber-200 bg-amber-50 text-amber-700",
+                backendStatus === "unavailable" &&
+                  "border-destructive/20 bg-destructive/10 text-destructive",
               )}
             >
               {backendStatus}
@@ -81,5 +83,5 @@ export function AppShell() {
         <Outlet />
       </div>
     </div>
-  )
+  );
 }

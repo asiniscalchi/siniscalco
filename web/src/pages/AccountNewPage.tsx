@@ -1,113 +1,113 @@
-import { useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
+import { Link, useNavigate } from "react-router-dom";
 
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { buttonVariants } from '@/components/ui/button-variants'
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { buttonVariants } from "@/components/ui/button-variants";
 import {
   getAccountsApiUrl,
   getCurrenciesApiUrl,
   readApiErrorMessage,
   type CurrencyResponse,
-} from '@/lib/api'
-import { cn } from '@/lib/utils'
+} from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 export function AccountNewPage() {
-  const navigate = useNavigate()
-  const [name, setName] = useState('')
-  const [accountType, setAccountType] = useState<'bank' | 'broker'>('bank')
-  const [baseCurrency, setBaseCurrency] = useState('EUR')
+  const navigate = useNavigate();
+  const [name, setName] = useState("");
+  const [accountType, setAccountType] = useState<"bank" | "broker">("bank");
+  const [baseCurrency, setBaseCurrency] = useState("EUR");
   const [currenciesState, setCurrenciesState] = useState<
-    | { status: 'loading' }
-    | { status: 'error'; message: string }
-    | { status: 'ready'; codes: string[] }
-  >({ status: 'loading' })
+    | { status: "loading" }
+    | { status: "error"; message: string }
+    | { status: "ready"; codes: string[] }
+  >({ status: "loading" });
   const [requestState, setRequestState] = useState<
-    | { status: 'idle' }
-    | { status: 'submitting' }
-    | { status: 'error'; message: string }
-  >({ status: 'idle' })
+    | { status: "idle" }
+    | { status: "submitting" }
+    | { status: "error"; message: string }
+  >({ status: "idle" });
 
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
 
     async function loadCurrencies() {
-      setCurrenciesState({ status: 'loading' })
+      setCurrenciesState({ status: "loading" });
 
       try {
-        const response = await fetch(getCurrenciesApiUrl())
+        const response = await fetch(getCurrenciesApiUrl());
 
         if (!response.ok) {
           const message = await readApiErrorMessage(
             response,
-            'Could not load currencies.'
-          )
-          throw new Error(message)
+            "Could not load currencies.",
+          );
+          throw new Error(message);
         }
 
-        const data = (await response.json()) as CurrencyResponse[]
-        const codes = data.map((currency) => currency.code)
+        const data = (await response.json()) as CurrencyResponse[];
+        const codes = data.map((currency) => currency.code);
 
         if (!cancelled) {
-          setCurrenciesState({ status: 'ready', codes })
+          setCurrenciesState({ status: "ready", codes });
           setBaseCurrency((current) =>
-            codes.length > 0 && !codes.includes(current) ? codes[0] : current
-          )
+            codes.length > 0 && !codes.includes(current) ? codes[0] : current,
+          );
         }
       } catch (error) {
         if (!cancelled) {
           setCurrenciesState({
-            status: 'error',
+            status: "error",
             message:
               error instanceof Error
                 ? error.message
-                : 'Could not load currencies.',
-          })
+                : "Could not load currencies.",
+          });
         }
       }
     }
 
-    void loadCurrencies()
+    void loadCurrencies();
 
     return () => {
-      cancelled = true
-    }
-  }, [])
+      cancelled = true;
+    };
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+    event.preventDefault();
 
-    setRequestState({ status: 'submitting' })
+    setRequestState({ status: "submitting" });
 
     try {
       const response = await fetch(getAccountsApiUrl(), {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           name: name.trim(),
           account_type: accountType,
           base_currency: baseCurrency,
         }),
-      })
+      });
 
       if (!response.ok) {
         const message = await readApiErrorMessage(
           response,
-          'Could not create account.'
-        )
-        throw new Error(message)
+          "Could not create account.",
+        );
+        throw new Error(message);
       }
 
-      navigate('/accounts')
+      navigate("/accounts");
     } catch (error) {
       setRequestState({
-        status: 'error',
+        status: "error",
         message:
-          error instanceof Error ? error.message : 'Could not create account.',
-      })
+          error instanceof Error ? error.message : "Could not create account.",
+      });
     }
   }
 
@@ -151,7 +151,7 @@ export function AccountNewPage() {
                 id="account-type"
                 name="account_type"
                 onChange={(event) =>
-                  setAccountType(event.target.value as 'bank' | 'broker')
+                  setAccountType(event.target.value as "bank" | "broker")
                 }
                 value={accountType}
               >
@@ -172,7 +172,7 @@ export function AccountNewPage() {
                 required
                 value={baseCurrency}
               >
-                {currenciesState.status === 'ready'
+                {currenciesState.status === "ready"
                   ? currenciesState.codes.map((code) => (
                       <option key={code} value={code}>
                         {code}
@@ -182,36 +182,38 @@ export function AccountNewPage() {
               </select>
             </div>
 
-            {currenciesState.status === 'error' ? (
-              <p className="text-sm text-destructive">{currenciesState.message}</p>
+            {currenciesState.status === "error" ? (
+              <p className="text-sm text-destructive">
+                {currenciesState.message}
+              </p>
             ) : null}
 
-            {requestState.status === 'error' ? (
+            {requestState.status === "error" ? (
               <p className="text-sm text-destructive">{requestState.message}</p>
             ) : null}
 
             <div className="flex justify-end gap-3">
               <Link
-                className={cn(buttonVariants({ variant: 'outline' }))}
+                className={cn(buttonVariants({ variant: "outline" }))}
                 to="/accounts"
               >
                 Cancel
               </Link>
               <Button
                 disabled={
-                  requestState.status === 'submitting' ||
-                  currenciesState.status !== 'ready'
+                  requestState.status === "submitting" ||
+                  currenciesState.status !== "ready"
                 }
                 type="submit"
               >
-                {requestState.status === 'submitting'
-                  ? 'Creating...'
-                  : 'Create account'}
+                {requestState.status === "submitting"
+                  ? "Creating..."
+                  : "Create account"}
               </Button>
             </div>
           </form>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

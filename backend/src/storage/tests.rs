@@ -1,0 +1,901 @@
+use std::str::FromStr;
+
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+
+use super::{
+    AccountBalanceRecord, AccountRecord, AccountSummaryRecord, AccountSummaryStatus, AccountType,
+    CreateAccountInput, CurrencyRecord, FxRateRecord, StorageError, UpsertAccountBalanceInput,
+    UpsertFxRateInput, UpsertOutcome, create_account, delete_account, delete_account_balance,
+    get_account, list_account_balances, list_account_summaries, list_accounts, list_currencies,
+    list_fx_rates, upsert_account_balance, upsert_fx_rate,
+};
+use crate::db::init_db;
+
+async fn test_pool() -> sqlx::SqlitePool {
+    let options = SqliteConnectOptions::from_str("sqlite::memory:")
+        .expect("in-memory sqlite connect options should parse")
+        .foreign_keys(true);
+
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(options)
+        .await
+        .expect("in-memory sqlite pool should connect");
+
+    init_db(&pool).await.expect("schema should initialize");
+    pool
+}
+
+#[tokio::test]
+async fn creates_account_without_balance() {
+    let pool = test_pool().await;
+
+    create_account(
+        &pool,
+        CreateAccountInput {
+            name: "IBKR",
+            account_type: AccountType::Broker,
+            base_currency: "EUR",
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM accounts")
+        .fetch_one(&pool)
+        .await
+        .expect("account count query should succeed");
+
+    assert_eq!(count, 1);
+}
+
+#[tokio::test]
+async fn lists_currencies_in_code_order() {
+    let pool = test_pool().await;
+
+    let currencies = list_currencies(&pool)
+        .await
+        .expect("currency list should succeed");
+
+    assert_eq!(
+        currencies,
+        vec![
+            CurrencyRecord {
+                code: "CHF".to_string(),
+            },
+            CurrencyRecord {
+                code: "EUR".to_string(),
+            },
+            CurrencyRecord {
+                code: "GBP".to_string(),
+            },
+            CurrencyRecord {
+                code: "USD".to_string(),
+            },
+        ]
+    );
+}
+
+#[tokio::test]
+async fn reads_accounts_in_insert_order() {
+    let pool = test_pool().await;
+
+    create_account(
+        &pool,
+        CreateAccountInput {
+            name: "Main Bank",
+            account_type: AccountType::Bank,
+            base_currency: "USD",
+        },
+    )
+    .await
+    .expect("first account insert should succeed");
+
+    create_account(
+        &pool,
+        CreateAccountInput {
+            name: "IBKR",
+            account_type: AccountType::Broker,
+            base_currency: "EUR",
+        },
+    )
+    .await
+    .expect("second account insert should succeed");
+
+    let accounts = list_accounts(&pool)
+        .await
+        .expect("account list should succeed");
+
+    assert_eq!(accounts.len(), 2);
+    assert_eq!(accounts[0].name, "Main Bank");
+    assert_eq!(accounts[0].account_type, AccountType::Bank);
+    assert_eq!(accounts[1].name, "IBKR");
+    assert_eq!(accounts[1].account_type, AccountType::Broker);
+}
+
+#[tokio::test]
+async fn gets_single_account_by_id() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: "IBKR",
+            account_type: AccountType::Broker,
+            base_currency: "EUR",
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let account = get_account(&pool, account_id)
+        .await
+        .expect("single account fetch should succeed");
+
+    assert_eq!(account.id, account_id);
+    assert_eq!(account.name, "IBKR");
+    assert_eq!(account.account_type, AccountType::Broker);
+    assert_eq!(account.base_currency, "EUR");
+}
+
+#[tokio::test]
+async fn allows_multiple_currencies_per_account() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: "IBKR",
+            account_type: AccountType::Broker,
+            base_currency: "EUR",
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    for (currency, amount) in [("EUR", "12000.00000000"), ("USD", "3500.00000000")] {
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency,
+                amount,
+            },
+        )
+        .await
+        .expect("balance insert should succeed");
+    }
+
+    let balances = list_account_balances(&pool, account_id)
+        .await
+        .expect("balance list should succeed");
+
+    assert_eq!(
+        balances,
+        vec![
+            AccountBalanceRecord {
+                account_id,
+                currency: "EUR".to_string(),
+                amount: "12000".to_string(),
+                updated_at: balances[0].updated_at.clone(),
+            },
+            AccountBalanceRecord {
+                account_id,
+                currency: "USD".to_string(),
+                amount: "3500".to_string(),
+                updated_at: balances[1].updated_at.clone(),
+            }
+        ]
+    );
+    assert_eq!(balances[0].updated_at.len(), 19);
+    assert_eq!(balances[1].updated_at.len(), 19);
+}
+
+#[tokio::test]
+async fn upsert_updates_existing_balance() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: "Main Bank",
+            account_type: AccountType::Bank,
+            base_currency: "USD",
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let first_outcome = upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: "USD",
+            amount: "10.00000000",
+        },
+    )
+    .await
+    .expect("first balance insert should succeed");
+    assert_eq!(first_outcome, UpsertOutcome::Created);
+
+    let second_outcome = upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: "USD",
+            amount: "12.00000000",
+        },
+    )
+    .await
+    .expect("upsert should update the existing balance");
+    assert_eq!(second_outcome, UpsertOutcome::Updated);
+
+    let balances = list_account_balances(&pool, account_id)
+        .await
+        .expect("balance list should succeed");
+
+    assert_eq!(balances.len(), 1);
+    assert_eq!(balances[0].amount, "12");
+    assert_eq!(balances[0].updated_at.len(), 19);
+}
+
+#[tokio::test]
+async fn deletes_single_balance() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: "IBKR",
+            account_type: AccountType::Broker,
+            base_currency: "EUR",
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: "EUR",
+            amount: "12000.00000000",
+        },
+    )
+    .await
+    .expect("balance insert should succeed");
+
+    delete_account_balance(&pool, account_id, "EUR")
+        .await
+        .expect("balance delete should succeed");
+
+    let balances = list_account_balances(&pool, account_id)
+        .await
+        .expect("balance list should succeed");
+
+    assert!(balances.is_empty());
+}
+
+#[tokio::test]
+async fn deleting_missing_balance_returns_not_found() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: "Main Bank",
+            account_type: AccountType::Bank,
+            base_currency: "USD",
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let error = delete_account_balance(&pool, account_id, "USD")
+        .await
+        .expect_err("missing balance delete should fail");
+
+    match error {
+        StorageError::Database(sqlx::Error::RowNotFound) => {}
+        other => panic!("expected RowNotFound, got {other}"),
+    }
+}
+
+#[tokio::test]
+async fn deletes_account_and_cascades_balances() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: "IBKR",
+            account_type: AccountType::Broker,
+            base_currency: "EUR",
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: "EUR",
+            amount: "12000.00000000",
+        },
+    )
+    .await
+    .expect("balance insert should succeed");
+
+    delete_account(&pool, account_id)
+        .await
+        .expect("account delete should succeed");
+
+    let account_error = get_account(&pool, account_id)
+        .await
+        .expect_err("deleted account should not exist");
+    let balances = list_account_balances(&pool, account_id)
+        .await
+        .expect("balance list should still succeed");
+
+    match account_error {
+        StorageError::Database(sqlx::Error::RowNotFound) => {}
+        other => panic!("expected RowNotFound, got {other}"),
+    }
+    assert!(balances.is_empty());
+}
+
+#[tokio::test]
+async fn deleting_missing_account_returns_not_found() {
+    let pool = test_pool().await;
+
+    let error = delete_account(&pool, 999)
+        .await
+        .expect_err("missing account delete should fail");
+
+    match error {
+        StorageError::Database(sqlx::Error::RowNotFound) => {}
+        other => panic!("expected RowNotFound, got {other}"),
+    }
+}
+
+#[tokio::test]
+async fn preserves_created_account_fields() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: "Joint Bank",
+            account_type: AccountType::Bank,
+            base_currency: "GBP",
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let accounts = list_accounts(&pool)
+        .await
+        .expect("account list should succeed");
+
+    assert_eq!(
+        accounts,
+        vec![AccountRecord {
+            id: account_id,
+            name: "Joint Bank".to_string(),
+            account_type: AccountType::Bank,
+            base_currency: "GBP".to_string(),
+            created_at: accounts[0].created_at.clone(),
+        }]
+    );
+    assert_eq!(accounts[0].created_at.len(), 19);
+}
+
+#[tokio::test]
+async fn rejects_invalid_account_type_input() {
+    let error = AccountType::try_from("cash").expect_err("unsupported account type should fail");
+
+    assert_eq!(
+        error.to_string(),
+        "account_type must be one of: bank, broker"
+    );
+}
+
+#[tokio::test]
+async fn rejects_invalid_account_currency_input() {
+    let pool = test_pool().await;
+
+    let error = create_account(
+        &pool,
+        CreateAccountInput {
+            name: "Main Bank",
+            account_type: AccountType::Bank,
+            base_currency: "usd",
+        },
+    )
+    .await
+    .expect_err("lowercase currency should fail");
+
+    assert_eq!(
+        error.to_string(),
+        "currency must be one of: EUR, USD, GBP, CHF"
+    );
+}
+
+#[tokio::test]
+async fn rejects_invalid_balance_currency_input() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: "Main Bank",
+            account_type: AccountType::Bank,
+            base_currency: "USD",
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let error = upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: "us",
+            amount: "10.00000000",
+        },
+    )
+    .await
+    .expect_err("invalid currency should fail");
+
+    assert_eq!(
+        error.to_string(),
+        "currency must be one of: EUR, USD, GBP, CHF"
+    );
+}
+
+#[tokio::test]
+async fn rejects_invalid_amount_input() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: "IBKR",
+            account_type: AccountType::Broker,
+            base_currency: "EUR",
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let error = upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: "EUR",
+            amount: "1.123456789",
+        },
+    )
+    .await
+    .expect_err("amount with more than 8 decimals should fail");
+
+    assert_eq!(error.to_string(), "amount must match DECIMAL(20,8)");
+}
+
+#[tokio::test]
+async fn rejects_balance_for_missing_account() {
+    let pool = test_pool().await;
+
+    let error = upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id: 999_i64,
+            currency: "USD",
+            amount: "10.00000000",
+        },
+    )
+    .await
+    .expect_err("missing parent account should fail");
+
+    match error {
+        StorageError::Database(sqlx::Error::RowNotFound) => {}
+        StorageError::Database(error) => {
+            assert!(error.to_string().contains("FOREIGN KEY constraint failed"));
+        }
+        StorageError::Validation(_) | StorageError::Internal(_) => {
+            panic!("expected database error")
+        }
+    }
+}
+
+#[tokio::test]
+async fn upserts_fx_rates() {
+    let pool = test_pool().await;
+
+    let outcome = upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: "USD",
+            to_currency: "EUR",
+            rate: "0.92000000",
+        },
+    )
+    .await
+    .expect("fx rate insert should succeed");
+
+    assert_eq!(outcome, UpsertOutcome::Created);
+    assert_eq!(
+        list_fx_rates(&pool).await.expect("fx rates should list"),
+        vec![FxRateRecord {
+            from_currency: "USD".to_string(),
+            to_currency: "EUR".to_string(),
+            rate: "0.92".to_string(),
+        }]
+    );
+}
+
+#[tokio::test]
+async fn updates_existing_fx_rate() {
+    let pool = test_pool().await;
+
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: "USD",
+            to_currency: "EUR",
+            rate: "0.92000000",
+        },
+    )
+    .await
+    .expect("initial fx rate insert should succeed");
+
+    let outcome = upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: "USD",
+            to_currency: "EUR",
+            rate: "0.91000000",
+        },
+    )
+    .await
+    .expect("fx rate update should succeed");
+
+    assert_eq!(outcome, UpsertOutcome::Updated);
+    assert_eq!(
+        list_fx_rates(&pool).await.expect("fx rates should list"),
+        vec![FxRateRecord {
+            from_currency: "USD".to_string(),
+            to_currency: "EUR".to_string(),
+            rate: "0.91".to_string(),
+        }]
+    );
+}
+
+#[tokio::test]
+async fn rejects_non_positive_fx_rates() {
+    let pool = test_pool().await;
+
+    let error = upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: "USD",
+            to_currency: "EUR",
+            rate: "0.00000000",
+        },
+    )
+    .await
+    .expect_err("zero fx rate should fail");
+
+    assert_eq!(error.to_string(), "rate must be greater than zero");
+}
+
+#[tokio::test]
+async fn lists_account_summaries_with_zero_total_for_empty_accounts() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: "IBKR",
+            account_type: AccountType::Broker,
+            base_currency: "EUR",
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    assert_eq!(
+        list_account_summaries(&pool)
+            .await
+            .expect("account summaries should succeed"),
+        vec![AccountSummaryRecord {
+            id: account_id,
+            name: "IBKR".to_string(),
+            account_type: AccountType::Broker,
+            base_currency: "EUR".to_string(),
+            summary_status: AccountSummaryStatus::Ok,
+            total_amount: Some("0.00000000".to_string()),
+            total_currency: Some("EUR".to_string()),
+        }]
+    );
+}
+
+#[tokio::test]
+async fn lists_account_summaries_with_single_base_currency_balance() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: "Main Bank",
+            account_type: AccountType::Bank,
+            base_currency: "USD",
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: "USD",
+            amount: "123.45000000",
+        },
+    )
+    .await
+    .expect("balance insert should succeed");
+
+    let summaries = list_account_summaries(&pool)
+        .await
+        .expect("account summaries should succeed");
+
+    assert_eq!(summaries[0].summary_status, AccountSummaryStatus::Ok);
+    assert_eq!(summaries[0].total_amount.as_deref(), Some("123.45000000"));
+    assert_eq!(summaries[0].total_currency.as_deref(), Some("USD"));
+}
+
+#[tokio::test]
+async fn lists_account_summaries_with_direct_fx_conversion() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: "IBKR",
+            account_type: AccountType::Broker,
+            base_currency: "EUR",
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    for (currency, amount) in [
+        ("EUR", "10.00000000"),
+        ("USD", "20.00000000"),
+        ("GBP", "30.00000000"),
+    ] {
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency,
+                amount,
+            },
+        )
+        .await
+        .expect("balance insert should succeed");
+    }
+
+    for (from_currency, rate) in [("USD", "0.50000000"), ("GBP", "1.20000000")] {
+        upsert_fx_rate(
+            &pool,
+            UpsertFxRateInput {
+                from_currency,
+                to_currency: "EUR",
+                rate,
+            },
+        )
+        .await
+        .expect("fx rate insert should succeed");
+    }
+
+    let summaries = list_account_summaries(&pool)
+        .await
+        .expect("account summaries should succeed");
+
+    assert_eq!(summaries[0].summary_status, AccountSummaryStatus::Ok);
+    assert_eq!(summaries[0].total_amount.as_deref(), Some("56.00000000"));
+    assert_eq!(summaries[0].total_currency.as_deref(), Some("EUR"));
+}
+
+#[tokio::test]
+async fn marks_summary_unavailable_when_direct_fx_rate_is_missing() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: "IBKR",
+            account_type: AccountType::Broker,
+            base_currency: "EUR",
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: "USD",
+            amount: "20.00000000",
+        },
+    )
+    .await
+    .expect("balance insert should succeed");
+
+    let summaries = list_account_summaries(&pool)
+        .await
+        .expect("account summaries should succeed");
+
+    assert_eq!(
+        summaries[0],
+        AccountSummaryRecord {
+            id: account_id,
+            name: "IBKR".to_string(),
+            account_type: AccountType::Broker,
+            base_currency: "EUR".to_string(),
+            summary_status: AccountSummaryStatus::ConversionUnavailable,
+            total_amount: None,
+            total_currency: None,
+        }
+    );
+}
+
+#[tokio::test]
+async fn does_not_use_inverse_fx_rates() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: "IBKR",
+            account_type: AccountType::Broker,
+            base_currency: "EUR",
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: "USD",
+            amount: "20.00000000",
+        },
+    )
+    .await
+    .expect("balance insert should succeed");
+
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: "EUR",
+            to_currency: "USD",
+            rate: "1.10000000",
+        },
+    )
+    .await
+    .expect("inverse fx rate insert should succeed");
+
+    let summaries = list_account_summaries(&pool)
+        .await
+        .expect("account summaries should succeed");
+
+    assert_eq!(
+        summaries[0].summary_status,
+        AccountSummaryStatus::ConversionUnavailable
+    );
+}
+
+#[tokio::test]
+async fn does_not_use_multi_hop_fx_rates() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: "Swiss Cash",
+            account_type: AccountType::Bank,
+            base_currency: "EUR",
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: "CHF",
+            amount: "20.00000000",
+        },
+    )
+    .await
+    .expect("balance insert should succeed");
+
+    for (from_currency, to_currency, rate) in
+        [("CHF", "USD", "1.10000000"), ("USD", "EUR", "0.80000000")]
+    {
+        upsert_fx_rate(
+            &pool,
+            UpsertFxRateInput {
+                from_currency,
+                to_currency,
+                rate,
+            },
+        )
+        .await
+        .expect("multi-hop fx rate insert should succeed");
+    }
+
+    let summaries = list_account_summaries(&pool)
+        .await
+        .expect("account summaries should succeed");
+
+    assert_eq!(
+        summaries[0].summary_status,
+        AccountSummaryStatus::ConversionUnavailable
+    );
+}
+
+#[tokio::test]
+async fn rounds_after_summing_converted_balances() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: "Precise FX",
+            account_type: AccountType::Broker,
+            base_currency: "EUR",
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    for currency in ["USD", "GBP"] {
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency,
+                amount: "1.00000000",
+            },
+        )
+        .await
+        .expect("balance insert should succeed");
+    }
+
+    for (from_currency, rate) in [("USD", "0.33333333"), ("GBP", "0.33333333")] {
+        upsert_fx_rate(
+            &pool,
+            UpsertFxRateInput {
+                from_currency,
+                to_currency: "EUR",
+                rate,
+            },
+        )
+        .await
+        .expect("fx rate insert should succeed");
+    }
+
+    let summaries = list_account_summaries(&pool)
+        .await
+        .expect("account summaries should succeed");
+
+    assert_eq!(summaries[0].total_amount.as_deref(), Some("0.66666666"));
+}

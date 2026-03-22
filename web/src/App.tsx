@@ -1,11 +1,7 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from "react-router-dom";
 
-import { AppShell } from './components/AppShell'
-import {
-  AccountDetailPage,
-  AccountNewPage,
-  AccountsListPage,
-} from './pages'
+import { AppShell } from "./components/AppShell";
+import { AccountDetailPage, AccountNewPage, AccountsListPage } from "./pages";
 
 function App() {
   return (
@@ -17,7 +13,7 @@ function App() {
         <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
       </Route>
     </Routes>
-  )
+  );
 }
 
-export default App
+export default App;

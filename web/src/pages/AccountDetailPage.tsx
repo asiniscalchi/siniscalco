@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
+import { Link, useParams } from "react-router-dom";
 
-import { Button } from '@/components/ui/button'
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -11,108 +11,110 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { buttonVariants } from '@/components/ui/button-variants'
+} from "@/components/ui/card";
+import { buttonVariants } from "@/components/ui/button-variants";
 import {
   getAccountBalanceApiUrl,
   getAccountDetailApiUrl,
   getCurrenciesApiUrl,
   readApiErrorMessage,
   type CurrencyResponse,
-} from '@/lib/api'
-import { cn } from '@/lib/utils'
+} from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 type AccountBalance = {
-  currency: string
-  amount: string
-  updated_at: string
-}
+  currency: string;
+  amount: string;
+  updated_at: string;
+};
 
 type AccountDetail = {
-  id: number
-  name: string
-  account_type: string
-  base_currency: string
-  created_at: string
-  balances: AccountBalance[]
-}
+  id: number;
+  name: string;
+  account_type: string;
+  base_currency: string;
+  created_at: string;
+  balances: AccountBalance[];
+};
 
 type ReadyState = {
-  account: AccountDetail
-  currencies: string[]
-}
+  account: AccountDetail;
+  currencies: string[];
+};
 
 export function AccountDetailPage() {
-  const { accountId } = useParams<{ accountId: string }>()
+  const { accountId } = useParams<{ accountId: string }>();
   const [requestState, setRequestState] = useState<
-    | { status: 'loading' }
-    | { status: 'error'; message: string }
-    | { status: 'ready'; data: ReadyState }
-  >({ status: 'loading' })
-  const [retryToken, setRetryToken] = useState(0)
+    | { status: "loading" }
+    | { status: "error"; message: string }
+    | { status: "ready"; data: ReadyState }
+  >({ status: "loading" });
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     if (!accountId) {
-      setRequestState({ status: 'error', message: 'Account not found.' })
-      return
+      setRequestState({ status: "error", message: "Account not found." });
+      return;
     }
 
-    const resolvedAccountId = accountId
+    const resolvedAccountId = accountId;
 
-    let cancelled = false
+    let cancelled = false;
 
     async function loadAccount() {
-      setRequestState({ status: 'loading' })
+      setRequestState({ status: "loading" });
 
       try {
         const [accountResponse, currenciesResponse] = await Promise.all([
           fetch(getAccountDetailApiUrl(resolvedAccountId)),
           fetch(getCurrenciesApiUrl()),
-        ])
+        ]);
 
         if (!accountResponse.ok) {
           const message = await readApiErrorMessage(
             accountResponse,
-            'Could not load account.'
-          )
-          throw new Error(message)
+            "Could not load account.",
+          );
+          throw new Error(message);
         }
 
         if (!currenciesResponse.ok) {
           const message = await readApiErrorMessage(
             currenciesResponse,
-            'Could not load currencies.'
-          )
-          throw new Error(message)
+            "Could not load currencies.",
+          );
+          throw new Error(message);
         }
 
-        const account = (await accountResponse.json()) as AccountDetail
-        const currencies = ((await currenciesResponse.json()) as CurrencyResponse[]).map(
-          (currency) => currency.code
-        )
+        const account = (await accountResponse.json()) as AccountDetail;
+        const currencies = (
+          (await currenciesResponse.json()) as CurrencyResponse[]
+        ).map((currency) => currency.code);
 
         if (!cancelled) {
-          setRequestState({ status: 'ready', data: { account, currencies } })
+          setRequestState({ status: "ready", data: { account, currencies } });
         }
       } catch (error) {
         if (!cancelled) {
           setRequestState({
-            status: 'error',
+            status: "error",
             message:
-              error instanceof Error ? error.message : 'Could not load account.',
-          })
+              error instanceof Error
+                ? error.message
+                : "Could not load account.",
+          });
         }
       }
     }
 
-    void loadAccount()
+    void loadAccount();
 
     return () => {
-      cancelled = true
-    }
-  }, [accountId, retryToken])
+      cancelled = true;
+    };
+  }, [accountId, retryToken]);
 
-  if (requestState.status === 'loading') {
+  if (requestState.status === "loading") {
     return (
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
         <header className="rounded-2xl border bg-background p-6 shadow-sm">
@@ -137,10 +139,10 @@ export function AccountDetailPage() {
           ))}
         </div>
       </div>
-    )
+    );
   }
 
-  if (requestState.status === 'error') {
+  if (requestState.status === "error") {
     return (
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
         <header className="flex items-start justify-between gap-4 rounded-2xl border bg-background p-6 shadow-sm">
@@ -152,7 +154,10 @@ export function AccountDetailPage() {
               Account Detail
             </h1>
           </div>
-          <Link className={cn(buttonVariants({ variant: 'outline' }))} to="/accounts">
+          <Link
+            className={cn(buttonVariants({ variant: "outline" }))}
+            to="/accounts"
+          >
             Back to accounts
           </Link>
         </header>
@@ -163,18 +168,21 @@ export function AccountDetailPage() {
           </CardHeader>
           <CardFooter className="justify-end gap-3">
             <Link
-              className={cn(buttonVariants({ variant: 'outline' }))}
+              className={cn(buttonVariants({ variant: "outline" }))}
               to="/accounts"
             >
               Back to accounts
             </Link>
-            <Button onClick={() => setRetryToken((value) => value + 1)} type="button">
+            <Button
+              onClick={() => setRetryToken((value) => value + 1)}
+              type="button"
+            >
               Retry
             </Button>
           </CardFooter>
         </Card>
       </div>
-    )
+    );
   }
 
   return (
@@ -183,7 +191,7 @@ export function AccountDetailPage() {
       currencies={requestState.data.currencies}
       onRefresh={() => setRetryToken((value) => value + 1)}
     />
-  )
+  );
 }
 
 function AccountDetailReadyState({
@@ -191,94 +199,94 @@ function AccountDetailReadyState({
   currencies,
   onRefresh,
 }: {
-  account: AccountDetail
-  currencies: string[]
-  onRefresh: () => void
+  account: AccountDetail;
+  currencies: string[];
+  onRefresh: () => void;
 }) {
-  const [currency, setCurrency] = useState(account.base_currency)
-  const [amount, setAmount] = useState('')
+  const [currency, setCurrency] = useState(account.base_currency);
+  const [amount, setAmount] = useState("");
   const [requestState, setRequestState] = useState<
-    | { status: 'idle' }
-    | { status: 'submitting' }
-    | { status: 'error'; message: string }
-  >({ status: 'idle' })
-  const [deletingCurrency, setDeletingCurrency] = useState<string | null>(null)
+    | { status: "idle" }
+    | { status: "submitting" }
+    | { status: "error"; message: string }
+  >({ status: "idle" });
+  const [deletingCurrency, setDeletingCurrency] = useState<string | null>(null);
 
   useEffect(() => {
-    setCurrency(account.base_currency)
-    setAmount('')
-    setRequestState({ status: 'idle' })
-    setDeletingCurrency(null)
-  }, [account.id, account.base_currency])
+    setCurrency(account.base_currency);
+    setAmount("");
+    setRequestState({ status: "idle" });
+    setDeletingCurrency(null);
+  }, [account.id, account.base_currency]);
 
   async function handleBalanceSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+    event.preventDefault();
 
-    setRequestState({ status: 'submitting' })
+    setRequestState({ status: "submitting" });
 
     try {
       const response = await fetch(
         getAccountBalanceApiUrl(String(account.id), currency),
         {
-          method: 'PUT',
+          method: "PUT",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             amount: amount.trim(),
           }),
-        }
-      )
+        },
+      );
 
       if (!response.ok) {
         const message = await readApiErrorMessage(
           response,
-          'Could not save balance.'
-        )
-        throw new Error(message)
+          "Could not save balance.",
+        );
+        throw new Error(message);
       }
 
-      setAmount('')
-      setRequestState({ status: 'idle' })
-      onRefresh()
+      setAmount("");
+      setRequestState({ status: "idle" });
+      onRefresh();
     } catch (error) {
       setRequestState({
-        status: 'error',
+        status: "error",
         message:
-          error instanceof Error ? error.message : 'Could not save balance.',
-      })
+          error instanceof Error ? error.message : "Could not save balance.",
+      });
     }
   }
 
   async function handleDeleteBalance(balanceCurrency: string) {
-    setDeletingCurrency(balanceCurrency)
-    setRequestState({ status: 'idle' })
+    setDeletingCurrency(balanceCurrency);
+    setRequestState({ status: "idle" });
 
     try {
       const response = await fetch(
         getAccountBalanceApiUrl(String(account.id), balanceCurrency),
         {
-          method: 'DELETE',
-        }
-      )
+          method: "DELETE",
+        },
+      );
 
       if (!response.ok) {
         const message = await readApiErrorMessage(
           response,
-          'Could not delete balance.'
-        )
-        throw new Error(message)
+          "Could not delete balance.",
+        );
+        throw new Error(message);
       }
 
-      onRefresh()
+      onRefresh();
     } catch (error) {
       setRequestState({
-        status: 'error',
+        status: "error",
         message:
-          error instanceof Error ? error.message : 'Could not delete balance.',
-      })
+          error instanceof Error ? error.message : "Could not delete balance.",
+      });
     } finally {
-      setDeletingCurrency(null)
+      setDeletingCurrency(null);
     }
   }
 
@@ -289,12 +297,17 @@ function AccountDetailReadyState({
           <p className="text-sm font-medium uppercase tracking-[0.22em] text-muted-foreground">
             Cash Accounts
           </p>
-          <h1 className="text-3xl font-semibold tracking-tight">{account.name}</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            {account.name}
+          </h1>
           <p className="text-sm text-muted-foreground">
             {account.account_type} · base currency {account.base_currency}
           </p>
         </div>
-        <Link className={cn(buttonVariants({ variant: 'outline' }))} to="/accounts">
+        <Link
+          className={cn(buttonVariants({ variant: "outline" }))}
+          to="/accounts"
+        >
           Back to accounts
         </Link>
       </header>
@@ -339,7 +352,10 @@ function AccountDetailReadyState({
             <form className="space-y-4" onSubmit={handleBalanceSubmit}>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium" htmlFor="balance-currency">
+                  <label
+                    className="text-sm font-medium"
+                    htmlFor="balance-currency"
+                  >
                     Currency
                   </label>
                   <select
@@ -357,7 +373,10 @@ function AccountDetailReadyState({
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium" htmlFor="balance-amount">
+                  <label
+                    className="text-sm font-medium"
+                    htmlFor="balance-amount"
+                  >
                     Amount
                   </label>
                   <input
@@ -372,15 +391,20 @@ function AccountDetailReadyState({
                 </div>
               </div>
 
-              {requestState.status === 'error' ? (
-                <p className="text-sm text-destructive">{requestState.message}</p>
+              {requestState.status === "error" ? (
+                <p className="text-sm text-destructive">
+                  {requestState.message}
+                </p>
               ) : null}
 
               <div className="flex justify-end">
-                <Button disabled={requestState.status === 'submitting'} type="submit">
-                  {requestState.status === 'submitting'
-                    ? 'Saving...'
-                    : 'Save balance'}
+                <Button
+                  disabled={requestState.status === "submitting"}
+                  type="submit"
+                >
+                  {requestState.status === "submitting"
+                    ? "Saving..."
+                    : "Save balance"}
                 </Button>
               </div>
             </form>
@@ -402,7 +426,9 @@ function AccountDetailReadyState({
               <Card className="bg-background" key={balance.currency}>
                 <CardHeader>
                   <CardTitle>{balance.currency}</CardTitle>
-                  <CardDescription>Updated at {balance.updated_at}</CardDescription>
+                  <CardDescription>
+                    Updated at {balance.updated_at}
+                  </CardDescription>
                   <CardAction>
                     <Button
                       disabled={deletingCurrency === balance.currency}
@@ -411,8 +437,8 @@ function AccountDetailReadyState({
                       variant="outline"
                     >
                       {deletingCurrency === balance.currency
-                        ? 'Deleting...'
-                        : 'Delete'}
+                        ? "Deleting..."
+                        : "Delete"}
                     </Button>
                   </CardAction>
                 </CardHeader>
@@ -427,5 +453,5 @@ function AccountDetailReadyState({
         )}
       </section>
     </div>
-  )
+  );
 }
