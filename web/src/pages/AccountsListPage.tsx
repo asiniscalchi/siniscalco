@@ -190,23 +190,22 @@ function AccountListItem({
   baseCurrency: string
 }) {
   return (
-    <Card className="bg-background transition-colors hover:bg-muted/30">
-      <CardHeader>
-        <CardTitle>{name}</CardTitle>
-        <CardDescription className="flex items-center gap-2">
-          {accountType}
-          <span className="text-muted-foreground/50">·</span>
-          {baseCurrency}
-        </CardDescription>
-        <CardAction>
-          <Link
-            className={cn(buttonVariants({ variant: 'outline' }))}
-            to={`/accounts/${id}`}
-          >
-            Open
-          </Link>
-        </CardAction>
-      </CardHeader>
-    </Card>
+    <Link className="block" to={`/accounts/${id}`}>
+      <Card className="bg-background transition-colors hover:bg-muted/30">
+        <CardHeader>
+          <CardTitle>{name}</CardTitle>
+          <CardDescription className="flex items-center gap-2">
+            {accountType}
+            <span className="text-muted-foreground/50">·</span>
+            {baseCurrency}
+          </CardDescription>
+          <CardAction>
+            <div className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'text-muted-foreground')}>
+              View details
+            </div>
+          </CardAction>
+        </CardHeader>
+      </Card>
+    </Link>
   )
 }
