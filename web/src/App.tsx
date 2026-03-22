@@ -154,6 +154,13 @@ function getAccountDetailApiUrl(accountId: string) {
   return new URL(`/accounts/${accountId}`, getAccountsApiUrl()).toString()
 }
 
+function getAccountBalanceApiUrl(accountId: string, currency: string) {
+  return new URL(
+    `/accounts/${accountId}/balances/${currency}`,
+    getAccountsApiUrl()
+  ).toString()
+}
+
 function AccountDetailPage() {
   const { accountId } = useParams<{ accountId: string }>()
   const [requestState, setRequestState] = useState<
@@ -286,7 +293,12 @@ function AccountDetailPage() {
     )
   }
 
-  return <AccountDetailReadyState account={requestState.account} />
+  return (
+    <AccountDetailReadyState
+      account={requestState.account}
+      onRefresh={() => setRetryToken((value) => value + 1)}
+    />
+  )
 }
 
 function AccountNewPage() {
@@ -437,7 +449,109 @@ function AccountNewPage() {
   )
 }
 
-function AccountDetailReadyState({ account }: { account: AccountDetail }) {
+function AccountDetailReadyState({
+  account,
+  onRefresh,
+}: {
+  account: AccountDetail
+  onRefresh: () => void
+}) {
+  const [currency, setCurrency] = useState(account.base_currency)
+  const [amount, setAmount] = useState('')
+  const [requestState, setRequestState] = useState<
+    | { status: 'idle' }
+    | { status: 'submitting' }
+    | { status: 'error'; message: string }
+  >({ status: 'idle' })
+  const [deletingCurrency, setDeletingCurrency] = useState<string | null>(null)
+
+  async function handleBalanceSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const normalizedCurrency = currency.trim().toUpperCase()
+
+    setRequestState({ status: 'submitting' })
+
+    try {
+      const response = await fetch(
+        getAccountBalanceApiUrl(String(account.id), normalizedCurrency),
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            amount: amount.trim(),
+          }),
+        }
+      )
+
+      if (!response.ok) {
+        let message = 'Could not save balance.'
+
+        try {
+          const data = (await response.json()) as ApiErrorResponse
+          if (data.message) {
+            message = data.message
+          }
+        } catch {
+          // Keep the fallback message when the error body is unavailable.
+        }
+
+        throw new Error(message)
+      }
+
+      setAmount('')
+      setRequestState({ status: 'idle' })
+      onRefresh()
+    } catch (error) {
+      setRequestState({
+        status: 'error',
+        message:
+          error instanceof Error ? error.message : 'Could not save balance.',
+      })
+    }
+  }
+
+  async function handleDeleteBalance(balanceCurrency: string) {
+    setDeletingCurrency(balanceCurrency)
+    setRequestState({ status: 'idle' })
+
+    try {
+      const response = await fetch(
+        getAccountBalanceApiUrl(String(account.id), balanceCurrency),
+        {
+          method: 'DELETE',
+        }
+      )
+
+      if (!response.ok) {
+        let message = 'Could not delete balance.'
+
+        try {
+          const data = (await response.json()) as ApiErrorResponse
+          if (data.message) {
+            message = data.message
+          }
+        } catch {
+          // Keep the fallback message when the error body is unavailable.
+        }
+
+        throw new Error(message)
+      }
+
+      onRefresh()
+    } catch (error) {
+      setRequestState({
+        status: 'error',
+        message:
+          error instanceof Error ? error.message : 'Could not delete balance.',
+      })
+    } finally {
+      setDeletingCurrency(null)
+    }
+  }
+
   return (
     <main className="min-h-svh bg-muted/30 px-6 py-10">
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
@@ -487,6 +601,64 @@ function AccountDetailReadyState({ account }: { account: AccountDetail }) {
             </p>
           </div>
 
+          <Card className="bg-background">
+            <CardHeader>
+              <CardTitle>Update Balance</CardTitle>
+              <CardDescription>
+                Create or update the current balance for one currency.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form className="space-y-4" onSubmit={handleBalanceSubmit}>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="balance-currency">
+                      Currency
+                    </label>
+                    <input
+                      className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm uppercase outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                      id="balance-currency"
+                      maxLength={3}
+                      onChange={(event) =>
+                        setCurrency(event.target.value.toUpperCase())
+                      }
+                      placeholder="USD"
+                      required
+                      type="text"
+                      value={currency}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="balance-amount">
+                      Amount
+                    </label>
+                    <input
+                      className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                      id="balance-amount"
+                      onChange={(event) => setAmount(event.target.value)}
+                      placeholder="12000.00000000"
+                      required
+                      type="text"
+                      value={amount}
+                    />
+                  </div>
+                </div>
+
+                {requestState.status === 'error' ? (
+                  <p className="text-sm text-destructive">{requestState.message}</p>
+                ) : null}
+
+                <div className="flex justify-end">
+                  <Button disabled={requestState.status === 'submitting'} type="submit">
+                    {requestState.status === 'submitting'
+                      ? 'Saving...'
+                      : 'Save balance'}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
           {account.balances.length === 0 ? (
             <Card className="border-dashed bg-background">
               <CardHeader>
@@ -505,6 +677,18 @@ function AccountDetailReadyState({ account }: { account: AccountDetail }) {
                     <CardDescription>
                       Updated at {balance.updated_at}
                     </CardDescription>
+                    <CardAction>
+                      <Button
+                        disabled={deletingCurrency === balance.currency}
+                        onClick={() => void handleDeleteBalance(balance.currency)}
+                        type="button"
+                        variant="outline"
+                      >
+                        {deletingCurrency === balance.currency
+                          ? 'Deleting...'
+                          : 'Delete'}
+                      </Button>
+                    </CardAction>
                   </CardHeader>
                   <CardContent>
                     <p className="text-2xl font-semibold tracking-tight">

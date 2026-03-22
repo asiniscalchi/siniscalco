@@ -345,4 +345,133 @@ describe('App', () => {
     expect(screen.getByText('100.00000000')).toBeTruthy()
     expect(fetch).toHaveBeenCalledTimes(2)
   })
+
+  it('upserts a balance from the account detail page', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 9,
+            name: 'IBKR',
+            account_type: 'broker',
+            base_currency: 'EUR',
+            created_at: '2026-03-22 00:00:00',
+            balances: [],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            currency: 'USD',
+            amount: '42.50000000',
+            updated_at: '2026-03-22 00:00:00',
+          }),
+          { status: 201, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 9,
+            name: 'IBKR',
+            account_type: 'broker',
+            base_currency: 'EUR',
+            created_at: '2026-03-22 00:00:00',
+            balances: [
+              {
+                currency: 'USD',
+                amount: '42.50000000',
+                updated_at: '2026-03-22 00:00:00',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+
+    render(
+      <MemoryRouter initialEntries={['/accounts/9']}>
+        <App />
+      </MemoryRouter>
+    )
+
+    expect(await screen.findByText('No balances yet')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('Currency'), {
+      target: { value: 'usd' },
+    })
+    fireEvent.change(screen.getByLabelText('Amount'), {
+      target: { value: '42.5' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save balance' }))
+
+    expect(await screen.findByText('42.50000000')).toBeTruthy()
+    expect(fetch).toHaveBeenNthCalledWith(
+      2,
+      'http://127.0.0.1:3000/accounts/9/balances/USD',
+      expect.objectContaining({
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: '42.5' }),
+      })
+    )
+  })
+
+  it('deletes a balance from the account detail page', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 10,
+            name: 'Main Bank',
+            account_type: 'bank',
+            base_currency: 'USD',
+            created_at: '2026-03-22 00:00:00',
+            balances: [
+              {
+                currency: 'USD',
+                amount: '100.00000000',
+                updated_at: '2026-03-22 00:00:00',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 10,
+            name: 'Main Bank',
+            account_type: 'bank',
+            base_currency: 'USD',
+            created_at: '2026-03-22 00:00:00',
+            balances: [],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+
+    render(
+      <MemoryRouter initialEntries={['/accounts/10']}>
+        <App />
+      </MemoryRouter>
+    )
+
+    expect(await screen.findByText('100.00000000')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+    expect(await screen.findByText('No balances yet')).toBeTruthy()
+    expect(fetch).toHaveBeenNthCalledWith(
+      2,
+      'http://127.0.0.1:3000/accounts/10/balances/USD',
+      expect.objectContaining({
+        method: 'DELETE',
+      })
+    )
+  })
 })
