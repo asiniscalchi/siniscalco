@@ -194,6 +194,223 @@ async fn returns_empty_fx_rates_payload_when_no_eur_rates_exist() {
 }
 
 #[tokio::test]
+async fn returns_portfolio_summary_through_api() {
+    let pool = test_pool().await;
+
+    let ibkr_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("broker account insert should succeed");
+
+    let bank_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Main Bank"),
+            account_type: AccountType::Bank,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .expect("bank account insert should succeed");
+
+    for (from_currency, rate, updated_at) in [
+        (Currency::Usd, "0.92000000", "2026-03-22 10:00:00"),
+        (Currency::Gbp, "1.17000000", "2026-03-22 11:30:00"),
+    ] {
+        upsert_fx_rate(
+            &pool,
+            UpsertFxRateInput {
+                from_currency,
+                to_currency: Currency::Eur,
+                rate: fx_rate(rate),
+            },
+        )
+        .await
+        .expect("fx rate insert should succeed");
+
+        sqlx::query(
+            "UPDATE fx_rates SET updated_at = ? WHERE from_currency = ? AND to_currency = 'EUR'",
+        )
+        .bind(updated_at)
+        .bind(from_currency.as_str())
+        .execute(&pool)
+        .await
+        .expect("fx timestamp update should succeed");
+    }
+
+    for (account_id, currency, amount) in [
+        (ibkr_id, Currency::Usd, "100.00"),
+        (ibkr_id, Currency::Gbp, "10.00"),
+        (bank_id, Currency::Eur, "50.00"),
+    ] {
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency,
+                amount: amt(amount),
+            },
+        )
+        .await
+        .expect("balance insert should succeed");
+    }
+
+    let app = build_router(pool);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/portfolio")
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("portfolio request should succeed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+
+    assert_eq!(
+        std::str::from_utf8(&body).expect("json body should be utf8"),
+        r#"{"display_currency":"EUR","total_value_status":"ok","total_value_amount":"153.70000000","account_totals":[{"id":1,"name":"IBKR","account_type":"broker","summary_status":"ok","total_amount":"103.70000000","total_currency":"EUR"},{"id":2,"name":"Main Bank","account_type":"bank","summary_status":"ok","total_amount":"50.00000000","total_currency":"EUR"}],"cash_by_currency":[{"currency":"EUR","amount":"50.00000000"},{"currency":"GBP","amount":"10.00000000"},{"currency":"USD","amount":"100.00000000"}],"fx_last_updated":"2026-03-22 11:30:00"}"#
+    );
+}
+
+#[tokio::test]
+async fn returns_empty_portfolio_summary_when_no_cash_exists() {
+    let pool = test_pool().await;
+
+    create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let app = build_router(pool);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/portfolio")
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("portfolio request should succeed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+
+    assert_eq!(
+        std::str::from_utf8(&body).expect("json body should be utf8"),
+        r#"{"display_currency":"EUR","total_value_status":"ok","total_value_amount":"0.00000000","account_totals":[{"id":1,"name":"IBKR","account_type":"broker","summary_status":"ok","total_amount":"0.00000000","total_currency":"EUR"}],"cash_by_currency":[],"fx_last_updated":null}"#
+    );
+}
+
+#[tokio::test]
+async fn returns_conversion_unavailable_portfolio_summary_when_fx_is_missing() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Usd,
+            amount: amt("100.00"),
+        },
+    )
+    .await
+    .expect("usd balance insert should succeed");
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Gbp,
+            amount: amt("10.00"),
+        },
+    )
+    .await
+    .expect("gbp balance insert should succeed");
+
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate("0.92000000"),
+        },
+    )
+    .await
+    .expect("usd fx rate insert should succeed");
+
+    sqlx::query("UPDATE fx_rates SET updated_at = '2026-03-22 10:00:00' WHERE from_currency = 'USD' AND to_currency = 'EUR'")
+        .execute(&pool)
+        .await
+        .expect("fx timestamp update should succeed");
+
+    let app = build_router(pool);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/portfolio")
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("portfolio request should succeed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+
+    assert_eq!(
+        std::str::from_utf8(&body).expect("json body should be utf8"),
+        r#"{"display_currency":"EUR","total_value_status":"conversion_unavailable","total_value_amount":null,"account_totals":[{"id":1,"name":"IBKR","account_type":"broker","summary_status":"conversion_unavailable","total_amount":null,"total_currency":"EUR"}],"cash_by_currency":[{"currency":"GBP","amount":"10.00000000"},{"currency":"USD","amount":"100.00000000"}],"fx_last_updated":"2026-03-22 10:00:00"}"#
+    );
+}
+
+#[tokio::test]
 async fn serves_account_route_skeletons() {
     let pool = test_pool().await;
     let app = build_router(pool);

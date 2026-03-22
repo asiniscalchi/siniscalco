@@ -46,19 +46,34 @@ export function AppShell() {
           </div>
 
           <nav aria-label="Primary">
-            <NavLink
-              className={({ isActive }) =>
-                cn(
-                  "inline-flex items-center px-1 py-1 text-sm font-medium transition-colors border-b-2",
-                  isActive
-                    ? "border-foreground text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground",
-                )
-              }
-              to="/accounts"
-            >
-              Accounts
-            </NavLink>
+            <div className="flex items-center gap-6">
+              <NavLink
+                className={({ isActive }) =>
+                  cn(
+                    "inline-flex items-center px-1 py-1 text-sm font-medium transition-colors border-b-2",
+                    isActive
+                      ? "border-foreground text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground",
+                  )
+                }
+                to="/portfolio"
+              >
+                Portfolio
+              </NavLink>
+              <NavLink
+                className={({ isActive }) =>
+                  cn(
+                    "inline-flex items-center px-1 py-1 text-sm font-medium transition-colors border-b-2",
+                    isActive
+                      ? "border-foreground text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground",
+                  )
+                }
+                to="/accounts"
+              >
+                Accounts
+              </NavLink>
+            </div>
           </nav>
 
           <div className="flex items-center gap-3">

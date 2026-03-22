@@ -1,0 +1,213 @@
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { PortfolioPage } from "./PortfolioPage";
+
+function mockPortfolioRequest(summary: unknown) {
+  vi.mocked(fetch).mockImplementation((input) => {
+    const url = String(input);
+
+    if (url.endsWith("/portfolio")) {
+      return Promise.resolve(
+        new Response(JSON.stringify(summary), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    }
+
+    throw new Error(`Unhandled fetch request: ${url}`);
+  });
+}
+
+describe("PortfolioPage", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("shows a loading state before the portfolio resolves", () => {
+    vi.mocked(fetch).mockImplementation(() => new Promise(() => {}));
+
+    render(
+      <MemoryRouter>
+        <PortfolioPage />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Portfolio")).toBeTruthy();
+    expect(
+      document.querySelectorAll('[data-slot="card"]').length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("renders the portfolio overview when cash data exists", async () => {
+    mockPortfolioRequest({
+      display_currency: "EUR",
+      total_value_status: "ok",
+      total_value_amount: "153.70000000",
+      account_totals: [
+        {
+          id: 1,
+          name: "IBKR",
+          account_type: "broker",
+          summary_status: "ok",
+          total_amount: "103.70000000",
+          total_currency: "EUR",
+        },
+        {
+          id: 2,
+          name: "Main Bank",
+          account_type: "bank",
+          summary_status: "ok",
+          total_amount: "50.00000000",
+          total_currency: "EUR",
+        },
+      ],
+      cash_by_currency: [
+        { currency: "EUR", amount: "50.00000000" },
+        { currency: "GBP", amount: "10.00000000" },
+        { currency: "USD", amount: "100.00000000" },
+      ],
+      fx_last_updated: "2026-03-22 11:30:00",
+    });
+
+    render(
+      <MemoryRouter>
+        <PortfolioPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Total Cash Value")).toBeTruthy();
+    expect(screen.getByText("153.70 EUR")).toBeTruthy();
+    expect(screen.getByText("By Account")).toBeTruthy();
+    expect(screen.getByText("103.70 EUR")).toBeTruthy();
+    expect(screen.getByText("50.00 EUR")).toBeTruthy();
+    expect(screen.getByText("Cash By Currency")).toBeTruthy();
+    expect(screen.getByText("50 EUR")).toBeTruthy();
+    expect(screen.getByText("10 GBP")).toBeTruthy();
+    expect(screen.getByText("100 USD")).toBeTruthy();
+    expect(screen.getByText("Last FX update: 2026-03-22 11:30")).toBeTruthy();
+  });
+
+  it("renders the empty state when no cash balances exist", async () => {
+    mockPortfolioRequest({
+      display_currency: "EUR",
+      total_value_status: "ok",
+      total_value_amount: "0.00000000",
+      account_totals: [
+        {
+          id: 1,
+          name: "IBKR",
+          account_type: "broker",
+          summary_status: "ok",
+          total_amount: "0.00000000",
+          total_currency: "EUR",
+        },
+      ],
+      cash_by_currency: [],
+      fx_last_updated: null,
+    });
+
+    render(
+      <MemoryRouter>
+        <PortfolioPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("No portfolio cash data yet")).toBeTruthy();
+    expect(screen.queryByText("Total Cash Value")).toBeNull();
+  });
+
+  it("renders conversion unavailable while keeping original cash balances visible", async () => {
+    mockPortfolioRequest({
+      display_currency: "EUR",
+      total_value_status: "conversion_unavailable",
+      total_value_amount: null,
+      account_totals: [
+        {
+          id: 1,
+          name: "IBKR",
+          account_type: "broker",
+          summary_status: "conversion_unavailable",
+          total_amount: null,
+          total_currency: "EUR",
+        },
+      ],
+      cash_by_currency: [
+        { currency: "GBP", amount: "10.00000000" },
+        { currency: "USD", amount: "100.00000000" },
+      ],
+      fx_last_updated: "2026-03-22 10:00:00",
+    });
+
+    render(
+      <MemoryRouter>
+        <PortfolioPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findAllByText("Conversion unavailable")).toHaveLength(2);
+    expect(screen.getByText("Conversion data unavailable")).toBeTruthy();
+    expect(screen.getByText("10 GBP")).toBeTruthy();
+    expect(screen.getByText("100 USD")).toBeTruthy();
+  });
+
+  it("renders an error state and retries the request", async () => {
+    let attempt = 0;
+
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input);
+
+      if (url.endsWith("/portfolio")) {
+        attempt += 1;
+
+        if (attempt === 1) {
+          return Promise.reject(new Error("network error"));
+        }
+
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              display_currency: "EUR",
+              total_value_status: "ok",
+              total_value_amount: "1.00000000",
+              account_totals: [],
+              cash_by_currency: [{ currency: "EUR", amount: "1.00000000" }],
+              fx_last_updated: null,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+
+      throw new Error(`Unhandled fetch request: ${url}`);
+    });
+
+    render(
+      <MemoryRouter>
+        <PortfolioPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Could not load portfolio")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("Retry"));
+
+    await waitFor(() => {
+      expect(screen.getByText("1.00 EUR")).toBeTruthy();
+    });
+  });
+});

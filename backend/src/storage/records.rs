@@ -97,3 +97,29 @@ pub struct FxRateSummaryRecord {
     pub rates: Vec<FxRateSummaryItemRecord>,
     pub last_updated: Option<String>,
 }
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct PortfolioSummaryRecord {
+    pub display_currency: Currency,
+    pub total_value_status: AccountSummaryStatus,
+    pub total_value_amount: Option<Amount>,
+    pub account_totals: Vec<PortfolioAccountTotalRecord>,
+    pub cash_by_currency: Vec<PortfolioCashByCurrencyRecord>,
+    pub fx_last_updated: Option<String>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct PortfolioAccountTotalRecord {
+    pub id: AccountId,
+    pub name: AccountName,
+    pub account_type: AccountType,
+    pub summary_status: AccountSummaryStatus,
+    pub total_amount: Option<Amount>,
+    pub total_currency: Currency,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct PortfolioCashByCurrencyRecord {
+    pub currency: Currency,
+    pub amount: Amount,
+}

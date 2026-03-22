@@ -18,6 +18,29 @@ export type FxRateSummaryResponse = {
   last_updated: string | null;
 };
 
+export type PortfolioAccountTotalResponse = {
+  id: number;
+  name: string;
+  account_type: string;
+  summary_status: "ok" | "conversion_unavailable";
+  total_amount: string | null;
+  total_currency: string;
+};
+
+export type PortfolioCashByCurrencyResponse = {
+  currency: string;
+  amount: string;
+};
+
+export type PortfolioSummaryResponse = {
+  display_currency: string;
+  total_value_status: "ok" | "conversion_unavailable";
+  total_value_amount: string | null;
+  account_totals: PortfolioAccountTotalResponse[];
+  cash_by_currency: PortfolioCashByCurrencyResponse[];
+  fx_last_updated: string | null;
+};
+
 export function getApiBaseUrl() {
   return import.meta.env.VITE_API_BASE_URL?.trim() || "http://127.0.0.1:3000";
 }
@@ -36,6 +59,10 @@ export function getCurrenciesApiUrl() {
 
 export function getFxRatesApiUrl() {
   return new URL("/fx-rates", getApiBaseUrl()).toString();
+}
+
+export function getPortfolioApiUrl() {
+  return new URL("/portfolio", getApiBaseUrl()).toString();
 }
 
 export function getAccountDetailApiUrl(accountId: string) {

@@ -8,10 +8,11 @@ use crate::api::models::*;
 use crate::{
     AccountBalanceRecord, AccountId, AccountName, AccountRecord, AccountSummaryRecord,
     AccountSummaryStatus, AccountType, Amount, CreateAccountInput, Currency, CurrencyRecord,
-    FxRateSummaryItemRecord, FxRateSummaryRecord, UpsertAccountBalanceInput, UpsertOutcome,
-    compact_decimal_output, delete_account, delete_account_balance, get_account,
-    list_account_balances, list_account_summaries, list_currencies, list_fx_rate_summary,
-    normalize_amount_output, storage::StorageError, upsert_account_balance,
+    FxRateSummaryItemRecord, FxRateSummaryRecord, PortfolioAccountTotalRecord,
+    PortfolioCashByCurrencyRecord, PortfolioSummaryRecord, UpsertAccountBalanceInput,
+    UpsertOutcome, compact_decimal_output, delete_account, delete_account_balance, get_account,
+    get_portfolio_summary, list_account_balances, list_account_summaries, list_currencies,
+    list_fx_rate_summary, normalize_amount_output, storage::StorageError, upsert_account_balance,
 };
 
 pub(crate) async fn health() -> &'static str {
@@ -83,6 +84,16 @@ pub(crate) async fn get_fx_rate_summary_handler(
         .map_err(ApiError::from)?;
 
     Ok(Json(to_fx_rate_summary_response(summary)))
+}
+
+pub(crate) async fn get_portfolio_summary_handler(
+    State(state): State<AppState>,
+) -> Result<Json<PortfolioSummaryResponse>, ApiError> {
+    let summary = get_portfolio_summary(&state.pool, Currency::Eur)
+        .await
+        .map_err(ApiError::from)?;
+
+    Ok(Json(to_portfolio_summary_response(summary)))
 }
 
 pub(crate) async fn get_account_handler(
@@ -263,6 +274,27 @@ fn to_fx_rate_summary_response(summary: FxRateSummaryRecord) -> FxRateSummaryRes
     }
 }
 
+fn to_portfolio_summary_response(summary: PortfolioSummaryRecord) -> PortfolioSummaryResponse {
+    PortfolioSummaryResponse {
+        display_currency: summary.display_currency,
+        total_value_status: summary.total_value_status.as_str().to_string(),
+        total_value_amount: summary
+            .total_value_amount
+            .map(|amount| normalize_amount_output(&amount.to_string())),
+        account_totals: summary
+            .account_totals
+            .into_iter()
+            .map(to_portfolio_account_total_response)
+            .collect(),
+        cash_by_currency: summary
+            .cash_by_currency
+            .into_iter()
+            .map(to_portfolio_cash_by_currency_response)
+            .collect(),
+        fx_last_updated: summary.fx_last_updated,
+    }
+}
+
 fn map_json_rejection(rejection: JsonRejection) -> ApiError {
     match rejection {
         JsonRejection::JsonSyntaxError(_) | JsonRejection::JsonDataError(_) => {
@@ -277,5 +309,29 @@ fn to_fx_rate_summary_item_response(rate: FxRateSummaryItemRecord) -> FxRateSumm
     FxRateSummaryItemResponse {
         currency: rate.from_currency,
         rate: compact_decimal_output(&rate.rate.to_string()),
+    }
+}
+
+fn to_portfolio_account_total_response(
+    account: PortfolioAccountTotalRecord,
+) -> PortfolioAccountTotalResponse {
+    PortfolioAccountTotalResponse {
+        id: account.id.as_i64(),
+        name: account.name.to_string(),
+        account_type: account.account_type.as_str().to_string(),
+        summary_status: account.summary_status.as_str().to_string(),
+        total_amount: account
+            .total_amount
+            .map(|amount| normalize_amount_output(&amount.to_string())),
+        total_currency: account.total_currency,
+    }
+}
+
+fn to_portfolio_cash_by_currency_response(
+    balance: PortfolioCashByCurrencyRecord,
+) -> PortfolioCashByCurrencyResponse {
+    PortfolioCashByCurrencyResponse {
+        currency: balance.currency,
+        amount: normalize_amount_output(&balance.amount.to_string()),
     }
 }

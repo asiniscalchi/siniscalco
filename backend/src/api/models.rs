@@ -62,6 +62,32 @@ pub struct FxRateSummaryResponse {
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]
+pub struct PortfolioSummaryResponse {
+    pub display_currency: Currency,
+    pub total_value_status: String,
+    pub total_value_amount: Option<String>,
+    pub account_totals: Vec<PortfolioAccountTotalResponse>,
+    pub cash_by_currency: Vec<PortfolioCashByCurrencyResponse>,
+    pub fx_last_updated: Option<String>,
+}
+
+#[derive(Debug, Serialize, Eq, PartialEq)]
+pub struct PortfolioAccountTotalResponse {
+    pub id: i64,
+    pub name: String,
+    pub account_type: String,
+    pub summary_status: String,
+    pub total_amount: Option<String>,
+    pub total_currency: Currency,
+}
+
+#[derive(Debug, Serialize, Eq, PartialEq)]
+pub struct PortfolioCashByCurrencyResponse {
+    pub currency: Currency,
+    pub amount: String,
+}
+
+#[derive(Debug, Serialize, Eq, PartialEq)]
 pub struct AccountDetailResponse {
     pub id: i64,
     pub name: String,
