@@ -1,6 +1,7 @@
 use rust_decimal::Decimal;
 use sqlx::{Row, SqlitePool};
 
+use crate::format_decimal_amount;
 use crate::storage::fx::get_direct_fx_rate;
 use crate::storage::records::*;
 use crate::storage::{AccountId, AccountSummaryStatus, Amount, Currency, StorageError};
@@ -103,6 +104,71 @@ pub async fn list_account_summaries(
     Ok(summaries)
 }
 
+pub async fn get_portfolio_summary(
+    pool: &SqlitePool,
+    display_currency: Currency,
+) -> Result<PortfolioSummaryRecord, StorageError> {
+    let accounts = crate::storage::accounts::list_accounts(pool).await?;
+    let fx_summary = crate::storage::fx::list_fx_rate_summary(pool, display_currency).await?;
+    let mut account_totals = Vec::with_capacity(accounts.len());
+    let mut cash_by_currency = Vec::<PortfolioCashByCurrencyRecord>::new();
+    let mut portfolio_total = Decimal::ZERO;
+    let mut portfolio_status = AccountSummaryStatus::Ok;
+
+    for account in accounts {
+        let balances = list_account_balances(pool, account.id).await?;
+        let summary = summarize_balances_in_currency(pool, &balances, display_currency).await?;
+
+        if summary.status == AccountSummaryStatus::ConversionUnavailable {
+            portfolio_status = AccountSummaryStatus::ConversionUnavailable;
+        }
+
+        if let Some(total_amount) = summary.total_amount {
+            portfolio_total += total_amount.as_decimal();
+        }
+
+        for balance in balances {
+            if let Some(existing_balance) = cash_by_currency
+                .iter_mut()
+                .find(|existing_balance| existing_balance.currency == balance.currency)
+            {
+                existing_balance.amount = parse_decimal_amount(
+                    existing_balance.amount.as_decimal() + balance.amount.as_decimal(),
+                );
+            } else {
+                cash_by_currency.push(PortfolioCashByCurrencyRecord {
+                    currency: balance.currency,
+                    amount: balance.amount,
+                });
+            }
+        }
+
+        account_totals.push(PortfolioAccountTotalRecord {
+            id: account.id,
+            name: account.name,
+            account_type: account.account_type,
+            summary_status: summary.status,
+            total_amount: summary.total_amount,
+            total_currency: display_currency,
+        });
+    }
+
+    cash_by_currency.sort_by_key(|balance| balance.currency.as_str());
+
+    Ok(PortfolioSummaryRecord {
+        display_currency,
+        total_value_status: portfolio_status,
+        total_value_amount: if portfolio_status == AccountSummaryStatus::Ok {
+            Some(parse_decimal_amount(portfolio_total))
+        } else {
+            None
+        },
+        account_totals,
+        cash_by_currency,
+        fx_last_updated: fx_summary.last_updated,
+    })
+}
+
 pub(crate) struct AccountTotalSummaryInternal {
     pub(crate) status: AccountSummaryStatus,
     pub(crate) total_amount: Option<Amount>,
@@ -114,26 +180,37 @@ async fn summarize_account(
     account: &AccountRecord,
     balances: &[AccountBalanceRecord],
 ) -> Result<AccountTotalSummaryInternal, StorageError> {
+    let summary = summarize_balances_in_currency(pool, balances, account.base_currency).await?;
+
+    Ok(AccountTotalSummaryInternal {
+        status: summary.status,
+        total_amount: summary.total_amount,
+        total_currency: summary.total_currency,
+    })
+}
+
+async fn summarize_balances_in_currency(
+    pool: &SqlitePool,
+    balances: &[AccountBalanceRecord],
+    target_currency: Currency,
+) -> Result<AccountTotalSummaryInternal, StorageError> {
     if balances.is_empty() {
         return Ok(AccountTotalSummaryInternal {
             status: AccountSummaryStatus::Ok,
-            total_amount: Some(Amount::try_from("0.00000000").expect("zero amount should parse")),
-            total_currency: Some(account.base_currency),
+            total_amount: Some(parse_decimal_amount(Decimal::ZERO)),
+            total_currency: Some(target_currency),
         });
     }
 
     let mut total = Decimal::ZERO;
 
     for balance in balances {
-        let amount = balance.amount.as_decimal();
-
-        if balance.currency == account.base_currency {
-            total += amount;
+        if balance.currency == target_currency {
+            total += balance.amount.as_decimal();
             continue;
         }
 
-        let Some(rate) = get_direct_fx_rate(pool, balance.currency, account.base_currency).await?
-        else {
+        let Some(rate) = get_direct_fx_rate(pool, balance.currency, target_currency).await? else {
             return Ok(AccountTotalSummaryInternal {
                 status: AccountSummaryStatus::ConversionUnavailable,
                 total_amount: None,
@@ -141,17 +218,19 @@ async fn summarize_account(
             });
         };
 
-        total += amount * rate;
+        total += balance.amount.as_decimal() * rate;
     }
 
     Ok(AccountTotalSummaryInternal {
         status: AccountSummaryStatus::Ok,
-        total_amount: Some(
-            Amount::try_from(crate::format_decimal_amount(total).as_str())
-                .expect("formatted total amount should parse"),
-        ),
-        total_currency: Some(account.base_currency),
+        total_amount: Some(parse_decimal_amount(total)),
+        total_currency: Some(target_currency),
     })
+}
+
+fn parse_decimal_amount(amount: Decimal) -> Amount {
+    Amount::try_from(format_decimal_amount(amount).as_str())
+        .expect("formatted total amount should parse")
 }
 
 pub async fn delete_account_balance(

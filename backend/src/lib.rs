@@ -9,8 +9,10 @@ pub use format::{compact_decimal_output, format_decimal_amount, normalize_amount
 pub use storage::{
     AccountBalanceRecord, AccountId, AccountName, AccountRecord, AccountSummaryRecord,
     AccountSummaryStatus, AccountType, Amount, CreateAccountInput, Currency, CurrencyRecord,
-    FxRate, FxRateRecord, FxRateSummaryItemRecord, FxRateSummaryRecord, UpsertAccountBalanceInput,
-    UpsertFxRateInput, UpsertOutcome, create_account, delete_account, delete_account_balance,
-    get_account, list_account_balances, list_account_summaries, list_accounts, list_currencies,
-    list_fx_rate_summary, list_fx_rates, upsert_account_balance, upsert_fx_rate,
+    FxRate, FxRateRecord, FxRateSummaryItemRecord, FxRateSummaryRecord,
+    PortfolioAccountTotalRecord, PortfolioCashByCurrencyRecord, PortfolioSummaryRecord,
+    UpsertAccountBalanceInput, UpsertFxRateInput, UpsertOutcome, create_account, delete_account,
+    delete_account_balance, get_account, get_portfolio_summary, list_account_balances,
+    list_account_summaries, list_accounts, list_currencies, list_fx_rate_summary, list_fx_rates,
+    upsert_account_balance, upsert_fx_rate,
 };

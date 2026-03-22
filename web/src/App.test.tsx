@@ -50,6 +50,22 @@ describe("App shell", () => {
         );
       }
 
+      if (url.endsWith("/portfolio")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              display_currency: "EUR",
+              total_value_status: "ok",
+              total_value_amount: "0.00000000",
+              account_totals: [],
+              cash_by_currency: [],
+              fx_last_updated: null,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+
       throw new Error(`Unhandled fetch request: ${url}`);
     });
 
@@ -93,6 +109,22 @@ describe("App shell", () => {
         );
       }
 
+      if (url.endsWith("/portfolio")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              display_currency: "EUR",
+              total_value_status: "ok",
+              total_value_amount: "0.00000000",
+              account_totals: [],
+              cash_by_currency: [],
+              fx_last_updated: null,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+
       throw new Error(`Unhandled fetch request: ${url}`);
     });
 
@@ -117,6 +149,7 @@ describe("App shell", () => {
     expect(screen.getByText("Siniscalco")).toBeTruthy();
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeTruthy();
     expect(screen.getByText("checking")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Portfolio" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Accounts" })).toBeTruthy();
   });
 
@@ -138,6 +171,31 @@ describe("App shell", () => {
               base_currency: "EUR",
               created_at: "2026-03-22 00:00:00",
               balances: [],
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+
+      if (url.endsWith("/portfolio")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              display_currency: "EUR",
+              total_value_status: "ok",
+              total_value_amount: "1.00000000",
+              account_totals: [
+                {
+                  id: 7,
+                  name: "IBKR",
+                  account_type: "broker",
+                  summary_status: "ok",
+                  total_amount: "1.00000000",
+                  total_currency: "EUR",
+                },
+              ],
+              cash_by_currency: [{ currency: "EUR", amount: "1.00000000" }],
+              fx_last_updated: null,
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
@@ -199,7 +257,9 @@ describe("App shell", () => {
       </MemoryRouter>,
     );
 
+    const portfolioLink = screen.getByRole("link", { name: "Portfolio" });
     const accountsLink = screen.getByRole("link", { name: "Accounts" });
+    expect(portfolioLink.getAttribute("aria-current")).toBeNull();
     expect(accountsLink.getAttribute("aria-current")).toBe("page");
     expect(accountsLink.className).toContain("border-foreground");
 
