@@ -193,7 +193,11 @@ function AccountListItem({
     <Card className="bg-background transition-colors hover:bg-muted/30">
       <CardHeader>
         <CardTitle>{name}</CardTitle>
-        <CardDescription>{accountType}</CardDescription>
+        <CardDescription className="flex items-center gap-2">
+          {accountType}
+          <span className="text-muted-foreground/50">·</span>
+          {baseCurrency}
+        </CardDescription>
         <CardAction>
           <Link
             className={cn(buttonVariants({ variant: 'outline' }))}
@@ -203,9 +207,6 @@ function AccountListItem({
           </Link>
         </CardAction>
       </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground">{baseCurrency}</p>
-      </CardContent>
     </Card>
   )
 }
