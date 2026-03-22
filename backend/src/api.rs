@@ -1,12 +1,13 @@
 use axum::{
     Json, Router,
     extract::{Path as AxumPath, State},
-    http::StatusCode,
+    http::{Method, StatusCode, header::CONTENT_TYPE},
     response::{IntoResponse, Response},
     routing::{get, post, put},
 };
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
+use tower_http::cors::{Any, CorsLayer};
 
 use crate::{
     AccountBalanceRecord, AccountRecord, AccountType, CreateAccountInput,
@@ -133,6 +134,12 @@ pub fn build_router(pool: SqlitePool) -> Router {
         .route(
             "/accounts/{account_id}/balances/{currency}",
             put(upsert_account_balance_handler).delete(delete_account_balance_handler),
+        )
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+                .allow_headers([CONTENT_TYPE]),
         )
         .with_state(AppState { pool })
 }
