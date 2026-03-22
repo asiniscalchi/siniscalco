@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +44,7 @@ type ReadyState = {
 
 export function AccountDetailPage() {
   const { accountId } = useParams<{ accountId: string }>();
+  const navigate = useNavigate();
   const [requestState, setRequestState] = useState<
     | { status: "loading" }
     | { status: "error"; message: string }
@@ -189,6 +190,7 @@ export function AccountDetailPage() {
     <AccountDetailReadyState
       account={requestState.data.account}
       currencies={requestState.data.currencies}
+      onDeleteSuccess={() => navigate("/accounts")}
       onRefresh={() => setRetryToken((value) => value + 1)}
     />
   );
@@ -197,10 +199,12 @@ export function AccountDetailPage() {
 function AccountDetailReadyState({
   account,
   currencies,
+  onDeleteSuccess,
   onRefresh,
 }: {
   account: AccountDetail;
   currencies: string[];
+  onDeleteSuccess: () => void;
   onRefresh: () => void;
 }) {
   const [currency, setCurrency] = useState(account.base_currency);
@@ -211,12 +215,14 @@ function AccountDetailReadyState({
     | { status: "error"; message: string }
   >({ status: "idle" });
   const [deletingCurrency, setDeletingCurrency] = useState<string | null>(null);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   useEffect(() => {
     setCurrency(account.base_currency);
     setAmount("");
     setRequestState({ status: "idle" });
     setDeletingCurrency(null);
+    setIsDeletingAccount(false);
   }, [account.id, account.base_currency]);
 
   async function handleBalanceSubmit(event: FormEvent<HTMLFormElement>) {
@@ -290,6 +296,34 @@ function AccountDetailReadyState({
     }
   }
 
+  async function handleDeleteAccount() {
+    setIsDeletingAccount(true);
+    setRequestState({ status: "idle" });
+
+    try {
+      const response = await fetch(getAccountDetailApiUrl(String(account.id)), {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const message = await readApiErrorMessage(
+          response,
+          "Could not delete account.",
+        );
+        throw new Error(message);
+      }
+
+      onDeleteSuccess();
+    } catch (error) {
+      setRequestState({
+        status: "error",
+        message:
+          error instanceof Error ? error.message : "Could not delete account.",
+      });
+      setIsDeletingAccount(false);
+    }
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
       <header className="flex flex-col gap-4 rounded-2xl border bg-background p-6 shadow-sm sm:flex-row sm:items-start sm:justify-between">
@@ -311,6 +345,17 @@ function AccountDetailReadyState({
           Back to accounts
         </Link>
       </header>
+
+      <div className="flex justify-end">
+        <Button
+          disabled={isDeletingAccount}
+          onClick={() => void handleDeleteAccount()}
+          type="button"
+          variant="destructive"
+        >
+          {isDeletingAccount ? "Deleting account..." : "Delete account"}
+        </Button>
+      </div>
 
       <Card className="bg-background">
         <CardHeader>

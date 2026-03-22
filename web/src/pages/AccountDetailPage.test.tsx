@@ -369,6 +369,108 @@ describe("AccountDetailPage", () => {
     );
   });
 
+  it("deletes an account from the account detail page", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 13,
+            name: "Broker Account",
+            account_type: "broker",
+            base_currency: "EUR",
+            created_at: "2026-03-22 00:00:00",
+            balances: [],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            { code: "CHF" },
+            { code: "EUR" },
+            { code: "GBP" },
+            { code: "USD" },
+          ]),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    render(
+      <MemoryRouter initialEntries={["/accounts/13"]}>
+        <Routes>
+          <Route path="/accounts" element={<div>Accounts Route</div>} />
+          <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Broker Account")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+
+    expect(await screen.findByText("Accounts Route")).toBeTruthy();
+    expect(fetch).toHaveBeenNthCalledWith(
+      3,
+      expect.stringMatching(/\/accounts\/13$/),
+      expect.objectContaining({
+        method: "DELETE",
+      }),
+    );
+  });
+
+  it("renders an error when account deletion fails", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 14,
+            name: "Checking",
+            account_type: "bank",
+            base_currency: "USD",
+            created_at: "2026-03-22 00:00:00",
+            balances: [],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            { code: "CHF" },
+            { code: "EUR" },
+            { code: "GBP" },
+            { code: "USD" },
+          ]),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: "conflict",
+            message: "Could not delete account.",
+          }),
+          { status: 409, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+
+    render(
+      <MemoryRouter initialEntries={["/accounts/14"]}>
+        <Routes>
+          <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Checking")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+
+    expect(await screen.findByText("Could not delete account.")).toBeTruthy();
+  });
+
   it("resets the balance form when the loaded account changes", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(
