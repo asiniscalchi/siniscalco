@@ -1,0 +1,176 @@
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import App from './App'
+
+describe('App shell', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('requests health on shell mount and shows connected from the response status', async () => {
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input)
+
+      if (url.endsWith('/health')) {
+        return Promise.resolve(
+          new Response('not-used', {
+            status: 200,
+            headers: { 'Content-Type': 'text/plain' },
+          })
+        )
+      }
+
+      if (url.endsWith('/accounts')) {
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        )
+      }
+
+      throw new Error(`Unhandled fetch request: ${url}`)
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/accounts']}>
+        <App />
+      </MemoryRouter>
+    )
+
+    expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:3000/health')
+    expect(await screen.findByText('connected')).toBeTruthy()
+  })
+
+  it('shows unavailable when the health request returns a non-success status', async () => {
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input)
+
+      if (url.endsWith('/health')) {
+        return Promise.resolve(new Response('down', { status: 503 }))
+      }
+
+      if (url.endsWith('/accounts')) {
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        )
+      }
+
+      throw new Error(`Unhandled fetch request: ${url}`)
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/accounts']}>
+        <App />
+      </MemoryRouter>
+    )
+
+    expect(await screen.findByText('unavailable')).toBeTruthy()
+  })
+
+  it('renders the shell while page content and health are still loading', () => {
+    vi.mocked(fetch).mockImplementation(() => new Promise(() => {}))
+
+    render(
+      <MemoryRouter initialEntries={['/accounts']}>
+        <App />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText('Siniscalco')).toBeTruthy()
+    expect(screen.getByRole('navigation', { name: 'Primary' })).toBeTruthy()
+    expect(screen.getByText('checking')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Accounts' })).toBeTruthy()
+  })
+
+  it('keeps the shell rendered while navigating between wrapped routes', async () => {
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input)
+
+      if (url.endsWith('/health')) {
+        return Promise.resolve(new Response('ok', { status: 200 }))
+      }
+
+      if (url.endsWith('/accounts/7')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: 7,
+              name: 'IBKR',
+              account_type: 'broker',
+              base_currency: 'EUR',
+              created_at: '2026-03-22 00:00:00',
+              balances: [],
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      }
+
+      if (url.endsWith('/accounts')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify([
+              {
+                id: 7,
+                name: 'IBKR',
+                account_type: 'broker',
+                base_currency: 'EUR',
+                created_at: '2026-03-22 00:00:00',
+              },
+            ]),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      }
+
+      throw new Error(`Unhandled fetch request: ${url}`)
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/accounts']}>
+        <App />
+      </MemoryRouter>
+    )
+
+    const accountsLink = screen.getByRole('link', { name: 'Accounts' })
+    expect(accountsLink.getAttribute('aria-current')).toBe('page')
+    expect(accountsLink.className).toContain('bg-foreground')
+
+    expect(await screen.findByText('IBKR')).toBeTruthy()
+    expect(screen.getByText('connected')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('link', { name: 'Create account' }))
+
+    expect(await screen.findByText('New Account')).toBeTruthy()
+    expect(screen.getByText('Siniscalco')).toBeTruthy()
+    expect(screen.getByText('connected')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Accounts' }).getAttribute('aria-current')).toBe(
+      'page'
+    )
+
+    fireEvent.click(screen.getByRole('link', { name: 'Cancel' }))
+
+    expect(await screen.findByText('IBKR')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('link', { name: 'Open' }))
+
+    expect(await screen.findByText('Account Summary')).toBeTruthy()
+    expect(screen.getByText('Siniscalco')).toBeTruthy()
+    expect(screen.getByText('connected')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Accounts' }).getAttribute('aria-current')).toBe(
+      'page'
+    )
+  })
+})
