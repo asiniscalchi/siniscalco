@@ -1,14 +1,18 @@
 import { renderToStaticMarkup } from 'react-dom/server'
+import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
 import App from './App'
 
 describe('App', () => {
-  it('renders the homepage content', () => {
-    const html = renderToStaticMarkup(<App />)
+  it('renders the accounts route shell', () => {
+    const html = renderToStaticMarkup(
+      <MemoryRouter initialEntries={['/accounts']}>
+        <App />
+      </MemoryRouter>
+    )
 
-    expect(html).toContain('siniscalco')
-    expect(html).toContain('Hello World!')
-    expect(html).toContain('Minimal homepage built with shadcn components.')
+    expect(html).toContain('Accounts')
+    expect(html).toContain('Accounts list page placeholder.')
   })
 })
