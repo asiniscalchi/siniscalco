@@ -36,6 +36,45 @@ impl TryFrom<&str> for AccountType {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Currency {
+    Eur,
+    Usd,
+    Gbp,
+    Chf,
+}
+
+impl Currency {
+    pub const fn all() -> [Self; 4] {
+        [Self::Chf, Self::Eur, Self::Gbp, Self::Usd]
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Eur => "EUR",
+            Self::Usd => "USD",
+            Self::Gbp => "GBP",
+            Self::Chf => "CHF",
+        }
+    }
+}
+
+impl TryFrom<&str> for Currency {
+    type Error = StorageError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "EUR" => Ok(Self::Eur),
+            "USD" => Ok(Self::Usd),
+            "GBP" => Ok(Self::Gbp),
+            "CHF" => Ok(Self::Chf),
+            _ => Err(StorageError::Validation(
+                "currency must be one of: EUR, USD, GBP, CHF",
+            )),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum StorageError {
     Validation(&'static str),

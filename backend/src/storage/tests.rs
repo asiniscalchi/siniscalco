@@ -4,11 +4,11 @@ use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
 use super::{
     AccountBalanceRecord, AccountRecord, AccountSummaryRecord, AccountSummaryStatus, AccountType,
-    CreateAccountInput, CurrencyRecord, FxRateRecord, FxRateSummaryItemRecord, FxRateSummaryRecord,
-    StorageError, UpsertAccountBalanceInput, UpsertFxRateInput, UpsertOutcome, create_account,
-    delete_account, delete_account_balance, get_account, list_account_balances,
-    list_account_summaries, list_accounts, list_currencies, list_fx_rate_summary, list_fx_rates,
-    upsert_account_balance, upsert_fx_rate,
+    CreateAccountInput, Currency, CurrencyRecord, FxRateRecord, FxRateSummaryItemRecord,
+    FxRateSummaryRecord, StorageError, UpsertAccountBalanceInput, UpsertFxRateInput,
+    UpsertOutcome, create_account, delete_account, delete_account_balance, get_account,
+    list_account_balances, list_account_summaries, list_accounts, list_currencies,
+    list_fx_rate_summary, list_fx_rates, upsert_account_balance, upsert_fx_rate,
 };
 use crate::db::init_db;
 
@@ -399,6 +399,24 @@ async fn rejects_invalid_account_type_input() {
     assert_eq!(
         error.to_string(),
         "account_type must be one of: bank, broker"
+    );
+}
+
+#[test]
+fn parses_supported_currency_codes() {
+    assert_eq!(Currency::try_from("CHF").unwrap(), Currency::Chf);
+    assert_eq!(Currency::try_from("EUR").unwrap(), Currency::Eur);
+    assert_eq!(Currency::try_from("GBP").unwrap(), Currency::Gbp);
+    assert_eq!(Currency::try_from("USD").unwrap(), Currency::Usd);
+}
+
+#[test]
+fn rejects_invalid_currency_codes() {
+    let error = Currency::try_from("usd").expect_err("unsupported currency should fail");
+
+    assert_eq!(
+        error.to_string(),
+        "currency must be one of: EUR, USD, GBP, CHF"
     );
 }
 
