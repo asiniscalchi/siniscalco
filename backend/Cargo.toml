@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "sqlite"] }
+time = { version = "0.3.44", features = ["formatting", "macros"] }
 tokio = { version = "1.48.0", features = ["macros", "rt-multi-thread"] }

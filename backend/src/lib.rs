@@ -1,4 +1,7 @@
+use std::{error::Error, fmt};
+
 use sqlx::{Executor, SqlitePool};
+use time::{OffsetDateTime, format_description::FormatItem, macros::format_description};
 
 pub const SCHEMA_SQL: &str = r#"
 CREATE TABLE IF NOT EXISTS accounts (
@@ -19,6 +22,73 @@ CREATE TABLE IF NOT EXISTS account_balances (
 );
 "#;
 
+const UTC_TIMESTAMP_FORMAT: &[FormatItem<'static>] =
+    format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AccountType {
+    Bank,
+    Broker,
+}
+
+impl AccountType {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Bank => "bank",
+            Self::Broker => "broker",
+        }
+    }
+}
+
+impl TryFrom<&str> for AccountType {
+    type Error = StorageError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "bank" => Ok(Self::Bank),
+            "broker" => Ok(Self::Broker),
+            _ => Err(StorageError::Validation(
+                "account_type must be one of: bank, broker",
+            )),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum StorageError {
+    Validation(&'static str),
+    Database(sqlx::Error),
+}
+
+impl fmt::Display for StorageError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Validation(message) => f.write_str(message),
+            Self::Database(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl Error for StorageError {}
+
+impl From<sqlx::Error> for StorageError {
+    fn from(value: sqlx::Error) -> Self {
+        Self::Database(value)
+    }
+}
+
+pub struct CreateAccountInput<'a> {
+    pub name: &'a str,
+    pub account_type: AccountType,
+    pub base_currency: &'a str,
+}
+
+pub struct UpsertAccountBalanceInput<'a> {
+    pub account_id: i64,
+    pub currency: &'a str,
+    pub amount: &'a str,
+}
+
 pub async fn init_db(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     pool.execute("PRAGMA foreign_keys = ON;").await?;
     pool.execute(SCHEMA_SQL).await?;
@@ -26,11 +96,119 @@ pub async fn init_db(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     Ok(())
 }
 
+pub async fn create_account(
+    pool: &SqlitePool,
+    input: CreateAccountInput<'_>,
+) -> Result<i64, StorageError> {
+    validate_name(input.name)?;
+    validate_currency(input.base_currency)?;
+
+    let result =
+        sqlx::query("INSERT INTO accounts (name, account_type, base_currency) VALUES (?, ?, ?)")
+            .bind(input.name)
+            .bind(input.account_type.as_str())
+            .bind(input.base_currency)
+            .execute(pool)
+            .await?;
+
+    Ok(result.last_insert_rowid())
+}
+
+pub async fn upsert_account_balance(
+    pool: &SqlitePool,
+    input: UpsertAccountBalanceInput<'_>,
+) -> Result<(), StorageError> {
+    validate_currency(input.currency)?;
+    validate_decimal_20_8(input.amount)?;
+
+    let updated_at = current_utc_timestamp()?;
+
+    sqlx::query(
+        r#"
+        INSERT INTO account_balances (account_id, currency, amount, updated_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(account_id, currency) DO UPDATE SET
+            amount = excluded.amount,
+            updated_at = excluded.updated_at
+        "#,
+    )
+    .bind(input.account_id)
+    .bind(input.currency)
+    .bind(input.amount)
+    .bind(updated_at)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+fn validate_name(name: &str) -> Result<(), StorageError> {
+    if name.trim().is_empty() {
+        return Err(StorageError::Validation("name must not be empty"));
+    }
+
+    Ok(())
+}
+
+fn validate_currency(currency: &str) -> Result<(), StorageError> {
+    let is_valid = currency.len() == 3 && currency.bytes().all(|byte| byte.is_ascii_uppercase());
+
+    if !is_valid {
+        return Err(StorageError::Validation(
+            "currency must be a 3-letter uppercase code",
+        ));
+    }
+
+    Ok(())
+}
+
+fn validate_decimal_20_8(amount: &str) -> Result<(), StorageError> {
+    let amount = amount.strip_prefix('-').unwrap_or(amount);
+
+    if amount.is_empty() {
+        return Err(StorageError::Validation("amount must not be empty"));
+    }
+
+    let (integer_part, fractional_part) = match amount.split_once('.') {
+        Some((integer_part, fractional_part)) => (integer_part, Some(fractional_part)),
+        None => (amount, None),
+    };
+
+    if integer_part.is_empty() || !integer_part.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(StorageError::Validation("amount must match DECIMAL(20,8)"));
+    }
+
+    if let Some(fractional_part) = fractional_part {
+        if fractional_part.is_empty()
+            || fractional_part.len() > 8
+            || !fractional_part.bytes().all(|byte| byte.is_ascii_digit())
+        {
+            return Err(StorageError::Validation("amount must match DECIMAL(20,8)"));
+        }
+    }
+
+    let total_digits = integer_part.len() + fractional_part.map_or(0, str::len);
+    if total_digits > 20 || integer_part.len() > 12 {
+        return Err(StorageError::Validation("amount must match DECIMAL(20,8)"));
+    }
+
+    Ok(())
+}
+
+fn current_utc_timestamp() -> Result<String, StorageError> {
+    OffsetDateTime::now_utc()
+        .format(UTC_TIMESTAMP_FORMAT)
+        .map_err(|_| StorageError::Validation("failed to generate UTC timestamp"))
+}
+
 #[cfg(test)]
 mod tests {
-    use sqlx::sqlite::SqlitePoolOptions;
+    use sqlx::{Row, sqlite::SqlitePoolOptions};
 
-    use super::init_db;
+    use super::{
+        AccountType, CreateAccountInput, StorageError, UpsertAccountBalanceInput, create_account,
+        init_db, upsert_account_balance,
+    };
 
     async fn test_pool() -> sqlx::SqlitePool {
         let pool = SqlitePoolOptions::new()
@@ -47,13 +225,16 @@ mod tests {
     async fn creates_account_without_balance() {
         let pool = test_pool().await;
 
-        sqlx::query("INSERT INTO accounts (name, account_type, base_currency) VALUES (?, ?, ?)")
-            .bind("IBKR")
-            .bind("broker")
-            .bind("EUR")
-            .execute(&pool)
-            .await
-            .expect("account insert should succeed");
+        create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
 
         let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM accounts")
             .fetch_one(&pool)
@@ -67,26 +248,26 @@ mod tests {
     async fn allows_multiple_currencies_per_account() {
         let pool = test_pool().await;
 
-        let account_id = sqlx::query(
-            "INSERT INTO accounts (name, account_type, base_currency) VALUES (?, ?, ?)",
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
         )
-        .bind("IBKR")
-        .bind("broker")
-        .bind("EUR")
-        .execute(&pool)
         .await
-        .expect("account insert should succeed")
-        .last_insert_rowid();
+        .expect("account insert should succeed");
 
         for (currency, amount) in [("EUR", "12000.00000000"), ("USD", "3500.00000000")] {
-            sqlx::query(
-                "INSERT INTO account_balances (account_id, currency, amount, updated_at) VALUES (?, ?, ?, ?)",
+            upsert_account_balance(
+                &pool,
+                UpsertAccountBalanceInput {
+                    account_id,
+                    currency,
+                    amount,
+                },
             )
-            .bind(account_id)
-            .bind(currency)
-            .bind(amount)
-            .bind("2026-03-22 00:00:00")
-            .execute(&pool)
             .await
             .expect("balance insert should succeed");
         }
@@ -105,91 +286,168 @@ mod tests {
     async fn rejects_duplicate_balance_currency_per_account() {
         let pool = test_pool().await;
 
-        let account_id = sqlx::query(
-            "INSERT INTO accounts (name, account_type, base_currency) VALUES (?, ?, ?)",
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "Main Bank",
+                account_type: AccountType::Bank,
+                base_currency: "USD",
+            },
         )
-        .bind("Main Bank")
-        .bind("bank")
-        .bind("USD")
-        .execute(&pool)
         .await
-        .expect("account insert should succeed")
-        .last_insert_rowid();
+        .expect("account insert should succeed");
 
-        sqlx::query(
-            "INSERT INTO account_balances (account_id, currency, amount, updated_at) VALUES (?, ?, ?, ?)",
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency: "USD",
+                amount: "10.00000000",
+            },
         )
-        .bind(account_id)
-        .bind("USD")
-        .bind("10.00000000")
-        .bind("2026-03-22 00:00:00")
-        .execute(&pool)
         .await
         .expect("first balance insert should succeed");
 
-        let error = sqlx::query(
-            "INSERT INTO account_balances (account_id, currency, amount, updated_at) VALUES (?, ?, ?, ?)",
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency: "USD",
+                amount: "12.00000000",
+            },
+        )
+        .await
+        .expect("upsert should update the existing balance");
+
+        let row = sqlx::query(
+            "SELECT CAST(amount AS TEXT) AS amount, updated_at FROM account_balances WHERE account_id = ? AND currency = ?",
         )
         .bind(account_id)
         .bind("USD")
-        .bind("12.00000000")
-        .bind("2026-03-22 00:01:00")
-        .execute(&pool)
+        .fetch_one(&pool)
         .await
-        .expect_err("duplicate balance insert should fail");
+        .expect("balance fetch should succeed");
 
-        assert!(error.to_string().contains("UNIQUE"));
+        let amount: String = row.get("amount");
+        let updated_at: String = row.get("updated_at");
+
+        assert_eq!(amount, "12");
+        assert_eq!(updated_at.len(), 19);
     }
 
     #[tokio::test]
-    async fn rejects_invalid_account_type() {
-        let pool = test_pool().await;
+    async fn rejects_invalid_account_type_input() {
+        let error =
+            AccountType::try_from("cash").expect_err("unsupported account type should fail");
 
-        let error = sqlx::query(
-            "INSERT INTO accounts (name, account_type, base_currency) VALUES (?, ?, ?)",
-        )
-        .bind("Cash Jar")
-        .bind("cash")
-        .bind("EUR")
-        .execute(&pool)
-        .await
-        .expect_err("invalid account type should fail");
-
-        assert!(error.to_string().contains("CHECK constraint failed"));
+        assert_eq!(
+            error.to_string(),
+            "account_type must be one of: bank, broker"
+        );
     }
 
     #[tokio::test]
-    async fn rejects_invalid_currency_format() {
+    async fn rejects_invalid_account_currency_input() {
         let pool = test_pool().await;
 
-        let error = sqlx::query(
-            "INSERT INTO accounts (name, account_type, base_currency) VALUES (?, ?, ?)",
+        let error = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "Main Bank",
+                account_type: AccountType::Bank,
+                base_currency: "usd",
+            },
         )
-        .bind("Main Bank")
-        .bind("bank")
-        .bind("usd")
-        .execute(&pool)
         .await
         .expect_err("lowercase currency should fail");
 
-        assert!(error.to_string().contains("CHECK constraint failed"));
+        assert_eq!(
+            error.to_string(),
+            "currency must be a 3-letter uppercase code"
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_balance_currency_input() {
+        let pool = test_pool().await;
+
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "Main Bank",
+                account_type: AccountType::Bank,
+                base_currency: "USD",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        let error = upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency: "us",
+                amount: "10.00000000",
+            },
+        )
+        .await
+        .expect_err("invalid currency should fail");
+
+        assert_eq!(
+            error.to_string(),
+            "currency must be a 3-letter uppercase code"
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_amount_input() {
+        let pool = test_pool().await;
+
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        let error = upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency: "EUR",
+                amount: "1.123456789",
+            },
+        )
+        .await
+        .expect_err("amount with more than 8 decimals should fail");
+
+        assert_eq!(error.to_string(), "amount must match DECIMAL(20,8)");
     }
 
     #[tokio::test]
     async fn rejects_balance_for_missing_account() {
         let pool = test_pool().await;
 
-        let error = sqlx::query(
-            "INSERT INTO account_balances (account_id, currency, amount, updated_at) VALUES (?, ?, ?, ?)",
+        let error = upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id: 999_i64,
+                currency: "USD",
+                amount: "10.00000000",
+            },
         )
-        .bind(999_i64)
-        .bind("USD")
-        .bind("10.00000000")
-        .bind("2026-03-22 00:00:00")
-        .execute(&pool)
         .await
         .expect_err("missing parent account should fail");
 
-        assert!(error.to_string().contains("FOREIGN KEY constraint failed"));
+        match error {
+            StorageError::Database(error) => {
+                assert!(error.to_string().contains("FOREIGN KEY constraint failed"));
+            }
+            StorageError::Validation(_) => panic!("expected database error"),
+        }
     }
 }
