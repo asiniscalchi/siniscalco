@@ -16,7 +16,9 @@ import { buttonVariants } from '@/components/ui/button-variants'
 import {
   getAccountBalanceApiUrl,
   getAccountDetailApiUrl,
+  getCurrenciesApiUrl,
   readApiErrorMessage,
+  type CurrencyResponse,
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -35,12 +37,17 @@ type AccountDetail = {
   balances: AccountBalance[]
 }
 
+type ReadyState = {
+  account: AccountDetail
+  currencies: string[]
+}
+
 export function AccountDetailPage() {
   const { accountId } = useParams<{ accountId: string }>()
   const [requestState, setRequestState] = useState<
     | { status: 'loading' }
     | { status: 'error'; message: string }
-    | { status: 'ready'; account: AccountDetail }
+    | { status: 'ready'; data: ReadyState }
   >({ status: 'loading' })
   const [retryToken, setRetryToken] = useState(0)
 
@@ -58,20 +65,34 @@ export function AccountDetailPage() {
       setRequestState({ status: 'loading' })
 
       try {
-        const response = await fetch(getAccountDetailApiUrl(resolvedAccountId))
+        const [accountResponse, currenciesResponse] = await Promise.all([
+          fetch(getAccountDetailApiUrl(resolvedAccountId)),
+          fetch(getCurrenciesApiUrl()),
+        ])
 
-        if (!response.ok) {
+        if (!accountResponse.ok) {
           const message = await readApiErrorMessage(
-            response,
+            accountResponse,
             'Could not load account.'
           )
           throw new Error(message)
         }
 
-        const data = (await response.json()) as AccountDetail
+        if (!currenciesResponse.ok) {
+          const message = await readApiErrorMessage(
+            currenciesResponse,
+            'Could not load currencies.'
+          )
+          throw new Error(message)
+        }
+
+        const account = (await accountResponse.json()) as AccountDetail
+        const currencies = ((await currenciesResponse.json()) as CurrencyResponse[]).map(
+          (currency) => currency.code
+        )
 
         if (!cancelled) {
-          setRequestState({ status: 'ready', account: data })
+          setRequestState({ status: 'ready', data: { account, currencies } })
         }
       } catch (error) {
         if (!cancelled) {
@@ -158,7 +179,8 @@ export function AccountDetailPage() {
 
   return (
     <AccountDetailReadyState
-      account={requestState.account}
+      account={requestState.data.account}
+      currencies={requestState.data.currencies}
       onRefresh={() => setRetryToken((value) => value + 1)}
     />
   )
@@ -166,9 +188,11 @@ export function AccountDetailPage() {
 
 function AccountDetailReadyState({
   account,
+  currencies,
   onRefresh,
 }: {
   account: AccountDetail
+  currencies: string[]
   onRefresh: () => void
 }) {
   const [currency, setCurrency] = useState(account.base_currency)
@@ -190,13 +214,11 @@ function AccountDetailReadyState({
   async function handleBalanceSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    const normalizedCurrency = currency.trim().toUpperCase()
-
     setRequestState({ status: 'submitting' })
 
     try {
       const response = await fetch(
-        getAccountBalanceApiUrl(String(account.id), normalizedCurrency),
+        getAccountBalanceApiUrl(String(account.id), currency),
         {
           method: 'PUT',
           headers: {
@@ -320,18 +342,19 @@ function AccountDetailReadyState({
                   <label className="text-sm font-medium" htmlFor="balance-currency">
                     Currency
                   </label>
-                  <input
-                    className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm uppercase outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  <select
+                    className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                     id="balance-currency"
-                    maxLength={3}
-                    onChange={(event) =>
-                      setCurrency(event.target.value.toUpperCase())
-                    }
-                    placeholder="USD"
+                    onChange={(event) => setCurrency(event.target.value)}
                     required
-                    type="text"
                     value={currency}
-                  />
+                  >
+                    {currencies.map((code) => (
+                      <option key={code} value={code}>
+                        {code}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium" htmlFor="balance-amount">

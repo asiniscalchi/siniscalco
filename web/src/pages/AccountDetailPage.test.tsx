@@ -16,25 +16,47 @@ describe('AccountDetailPage', () => {
   })
 
   it('renders account detail with balances', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          id: 7,
-          name: 'IBKR',
-          account_type: 'broker',
-          base_currency: 'EUR',
-          created_at: '2026-03-22 00:00:00',
-          balances: [
-            {
-              currency: 'USD',
-              amount: '12.30000000',
-              updated_at: '2026-03-22 00:00:00',
-            },
-          ],
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      )
-    )
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input)
+
+      if (url.endsWith('/currencies')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify([
+              { code: 'CHF' },
+              { code: 'EUR' },
+              { code: 'GBP' },
+              { code: 'USD' },
+            ]),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      }
+
+      if (url.endsWith('/accounts/7')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: 7,
+              name: 'IBKR',
+              account_type: 'broker',
+              base_currency: 'EUR',
+              created_at: '2026-03-22 00:00:00',
+              balances: [
+                {
+                  currency: 'USD',
+                  amount: '12.30000000',
+                  updated_at: '2026-03-22 00:00:00',
+                },
+              ],
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      }
+
+      throw new Error(`Unhandled fetch request: ${url}`)
+    })
 
     render(
       <MemoryRouter initialEntries={['/accounts/7']}>
@@ -50,19 +72,41 @@ describe('AccountDetailPage', () => {
   })
 
   it('renders account detail with empty balances', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          id: 3,
-          name: 'Main Bank',
-          account_type: 'bank',
-          base_currency: 'USD',
-          created_at: '2026-03-22 00:00:00',
-          balances: [],
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      )
-    )
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input)
+
+      if (url.endsWith('/currencies')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify([
+              { code: 'CHF' },
+              { code: 'EUR' },
+              { code: 'GBP' },
+              { code: 'USD' },
+            ]),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      }
+
+      if (url.endsWith('/accounts/3')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: 3,
+              name: 'Main Bank',
+              account_type: 'bank',
+              base_currency: 'USD',
+              created_at: '2026-03-22 00:00:00',
+              balances: [],
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      }
+
+      throw new Error(`Unhandled fetch request: ${url}`)
+    })
 
     render(
       <MemoryRouter initialEntries={['/accounts/3']}>
@@ -74,7 +118,7 @@ describe('AccountDetailPage', () => {
 
     expect(await screen.findByText('Main Bank')).toBeTruthy()
     expect(screen.getByText('No balances yet')).toBeTruthy()
-    expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:3000/accounts/3')
+    expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/accounts\/3$/))
   })
 
   it('renders an error state and retries the request', async () => {
@@ -86,6 +130,17 @@ describe('AccountDetailPage', () => {
             message: 'Account not found',
           }),
           { status: 404, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            { code: 'CHF' },
+            { code: 'EUR' },
+            { code: 'GBP' },
+            { code: 'USD' },
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
         )
       )
       .mockResolvedValueOnce(
@@ -107,6 +162,17 @@ describe('AccountDetailPage', () => {
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         )
       )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            { code: 'CHF' },
+            { code: 'EUR' },
+            { code: 'GBP' },
+            { code: 'USD' },
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
 
     render(
       <MemoryRouter initialEntries={['/accounts/8']}>
@@ -123,7 +189,7 @@ describe('AccountDetailPage', () => {
 
     expect(await screen.findByText('Broker')).toBeTruthy()
     expect(screen.getByText('100.00000000')).toBeTruthy()
-    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(fetch).toHaveBeenCalledTimes(4)
   })
 
   it('upserts a balance from the account detail page', async () => {
@@ -138,6 +204,17 @@ describe('AccountDetailPage', () => {
             created_at: '2026-03-22 00:00:00',
             balances: [],
           }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            { code: 'CHF' },
+            { code: 'EUR' },
+            { code: 'GBP' },
+            { code: 'USD' },
+          ]),
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         )
       )
@@ -170,6 +247,17 @@ describe('AccountDetailPage', () => {
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         )
       )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            { code: 'CHF' },
+            { code: 'EUR' },
+            { code: 'GBP' },
+            { code: 'USD' },
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
 
     render(
       <MemoryRouter initialEntries={['/accounts/9']}>
@@ -182,7 +270,7 @@ describe('AccountDetailPage', () => {
     expect(await screen.findByText('No balances yet')).toBeTruthy()
 
     fireEvent.change(screen.getByLabelText('Currency'), {
-      target: { value: 'usd' },
+      target: { value: 'USD' },
     })
     fireEvent.change(screen.getByLabelText('Amount'), {
       target: { value: '42.5' },
@@ -191,8 +279,8 @@ describe('AccountDetailPage', () => {
 
     expect(await screen.findByText('42.50000000')).toBeTruthy()
     expect(fetch).toHaveBeenNthCalledWith(
-      2,
-      'http://127.0.0.1:3000/accounts/9/balances/USD',
+      3,
+      expect.stringMatching(/\/accounts\/9\/balances\/USD$/),
       expect.objectContaining({
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -222,6 +310,17 @@ describe('AccountDetailPage', () => {
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         )
       )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            { code: 'CHF' },
+            { code: 'EUR' },
+            { code: 'GBP' },
+            { code: 'USD' },
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(
         new Response(
@@ -233,6 +332,17 @@ describe('AccountDetailPage', () => {
             created_at: '2026-03-22 00:00:00',
             balances: [],
           }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            { code: 'CHF' },
+            { code: 'EUR' },
+            { code: 'GBP' },
+            { code: 'USD' },
+          ]),
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         )
       )
@@ -251,8 +361,8 @@ describe('AccountDetailPage', () => {
 
     expect(await screen.findByText('No balances yet')).toBeTruthy()
     expect(fetch).toHaveBeenNthCalledWith(
-      2,
-      'http://127.0.0.1:3000/accounts/10/balances/USD',
+      3,
+      expect.stringMatching(/\/accounts\/10\/balances\/USD$/),
       expect.objectContaining({
         method: 'DELETE',
       })
@@ -276,6 +386,17 @@ describe('AccountDetailPage', () => {
       )
       .mockResolvedValueOnce(
         new Response(
+          JSON.stringify([
+            { code: 'CHF' },
+            { code: 'EUR' },
+            { code: 'GBP' },
+            { code: 'USD' },
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
           JSON.stringify({
             id: 12,
             name: 'Second Account',
@@ -284,6 +405,17 @@ describe('AccountDetailPage', () => {
             created_at: '2026-03-22 00:00:00',
             balances: [],
           }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            { code: 'CHF' },
+            { code: 'EUR' },
+            { code: 'GBP' },
+            { code: 'USD' },
+          ]),
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         )
       )
@@ -316,7 +448,7 @@ describe('AccountDetailPage', () => {
     )
 
     expect(await screen.findByText('Second Account')).toBeTruthy()
-    expect((screen.getByLabelText('Currency') as HTMLInputElement).value).toBe('USD')
+    expect((screen.getByLabelText('Currency') as HTMLSelectElement).value).toBe('USD')
     expect((screen.getByLabelText('Amount') as HTMLInputElement).value).toBe('')
   })
 })
