@@ -88,6 +88,12 @@ pub struct UpsertAccountBalanceInput<'a> {
 }
 
 #[derive(Debug, Eq, PartialEq)]
+pub enum UpsertOutcome {
+    Created,
+    Updated,
+}
+
+#[derive(Debug, Eq, PartialEq)]
 pub struct AccountRecord {
     pub id: i64,
     pub name: String,
@@ -287,11 +293,21 @@ pub async fn create_account(
 pub async fn upsert_account_balance(
     pool: &SqlitePool,
     input: UpsertAccountBalanceInput<'_>,
-) -> Result<(), StorageError> {
+) -> Result<UpsertOutcome, StorageError> {
     validate_currency(input.currency)?;
     validate_decimal_20_8(input.amount)?;
 
     let updated_at = current_utc_timestamp()?;
+    let mut transaction = pool.begin().await?;
+
+    let existed = sqlx::query_scalar::<_, i64>(
+        "SELECT EXISTS(SELECT 1 FROM account_balances WHERE account_id = ? AND currency = ?)",
+    )
+    .bind(input.account_id)
+    .bind(input.currency)
+    .fetch_one(&mut *transaction)
+    .await?
+        != 0;
 
     sqlx::query(
         r#"
@@ -306,10 +322,16 @@ pub async fn upsert_account_balance(
     .bind(input.currency)
     .bind(input.amount)
     .bind(updated_at)
-    .execute(pool)
+    .execute(&mut *transaction)
     .await?;
 
-    Ok(())
+    transaction.commit().await?;
+
+    if existed {
+        Ok(UpsertOutcome::Updated)
+    } else {
+        Ok(UpsertOutcome::Created)
+    }
 }
 
 pub async fn list_accounts(pool: &SqlitePool) -> Result<Vec<AccountRecord>, StorageError> {
@@ -334,6 +356,30 @@ pub async fn list_accounts(pool: &SqlitePool) -> Result<Vec<AccountRecord>, Stor
             })
         })
         .collect()
+}
+
+pub async fn get_account(
+    pool: &SqlitePool,
+    account_id: i64,
+) -> Result<AccountRecord, StorageError> {
+    let row = sqlx::query(
+        r#"
+        SELECT id, name, account_type, base_currency, created_at
+        FROM accounts
+        WHERE id = ?
+        "#,
+    )
+    .bind(account_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(AccountRecord {
+        id: row.get("id"),
+        name: row.get("name"),
+        account_type: AccountType::try_from(row.get::<&str, _>("account_type"))?,
+        base_currency: row.get("base_currency"),
+        created_at: row.get("created_at"),
+    })
 }
 
 pub async fn list_account_balances(
@@ -365,6 +411,39 @@ pub async fn list_account_balances(
             updated_at: row.get("updated_at"),
         })
         .collect())
+}
+
+pub async fn delete_account_balance(
+    pool: &SqlitePool,
+    account_id: i64,
+    currency: &str,
+) -> Result<(), StorageError> {
+    validate_currency(currency)?;
+
+    let result = sqlx::query("DELETE FROM account_balances WHERE account_id = ? AND currency = ?")
+        .bind(account_id)
+        .bind(currency)
+        .execute(pool)
+        .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(StorageError::Database(sqlx::Error::RowNotFound));
+    }
+
+    Ok(())
+}
+
+pub async fn delete_account(pool: &SqlitePool, account_id: i64) -> Result<(), StorageError> {
+    let result = sqlx::query("DELETE FROM accounts WHERE id = ?")
+        .bind(account_id)
+        .execute(pool)
+        .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(StorageError::Database(sqlx::Error::RowNotFound));
+    }
+
+    Ok(())
 }
 
 fn validate_name(name: &str) -> Result<(), StorageError> {
@@ -478,8 +557,9 @@ mod tests {
 
     use super::{
         AccountBalanceRecord, AccountRecord, AccountType, ApiError, CreateAccountInput,
-        StorageError, UpsertAccountBalanceInput, build_router, connect_db_file, create_account,
-        init_db, list_account_balances, list_accounts, upsert_account_balance,
+        StorageError, UpsertAccountBalanceInput, UpsertOutcome, build_router, connect_db_file,
+        create_account, delete_account, delete_account_balance, get_account, init_db,
+        list_account_balances, list_accounts, upsert_account_balance,
     };
 
     async fn test_pool() -> sqlx::SqlitePool {
@@ -711,6 +791,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn gets_single_account_by_id() {
+        let pool = test_pool().await;
+
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        let account = get_account(&pool, account_id)
+            .await
+            .expect("single account fetch should succeed");
+
+        assert_eq!(account.id, account_id);
+        assert_eq!(account.name, "IBKR");
+        assert_eq!(account.account_type, AccountType::Broker);
+        assert_eq!(account.base_currency, "EUR");
+    }
+
+    #[tokio::test]
     async fn allows_multiple_currencies_per_account() {
         let pool = test_pool().await;
 
@@ -778,7 +883,7 @@ mod tests {
         .await
         .expect("account insert should succeed");
 
-        upsert_account_balance(
+        let first_outcome = upsert_account_balance(
             &pool,
             UpsertAccountBalanceInput {
                 account_id,
@@ -788,8 +893,9 @@ mod tests {
         )
         .await
         .expect("first balance insert should succeed");
+        assert_eq!(first_outcome, UpsertOutcome::Created);
 
-        upsert_account_balance(
+        let second_outcome = upsert_account_balance(
             &pool,
             UpsertAccountBalanceInput {
                 account_id,
@@ -799,6 +905,7 @@ mod tests {
         )
         .await
         .expect("upsert should update the existing balance");
+        assert_eq!(second_outcome, UpsertOutcome::Updated);
 
         let balances = list_account_balances(&pool, account_id)
             .await
@@ -807,6 +914,126 @@ mod tests {
         assert_eq!(balances.len(), 1);
         assert_eq!(balances[0].amount, "12");
         assert_eq!(balances[0].updated_at.len(), 19);
+    }
+
+    #[tokio::test]
+    async fn deletes_single_balance() {
+        let pool = test_pool().await;
+
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency: "EUR",
+                amount: "12000.00000000",
+            },
+        )
+        .await
+        .expect("balance insert should succeed");
+
+        delete_account_balance(&pool, account_id, "EUR")
+            .await
+            .expect("balance delete should succeed");
+
+        let balances = list_account_balances(&pool, account_id)
+            .await
+            .expect("balance list should succeed");
+
+        assert!(balances.is_empty());
+    }
+
+    #[tokio::test]
+    async fn deleting_missing_balance_returns_not_found() {
+        let pool = test_pool().await;
+
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "Main Bank",
+                account_type: AccountType::Bank,
+                base_currency: "USD",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        let error = delete_account_balance(&pool, account_id, "USD")
+            .await
+            .expect_err("missing balance delete should fail");
+
+        match error {
+            StorageError::Database(sqlx::Error::RowNotFound) => {}
+            other => panic!("expected RowNotFound, got {other}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn deletes_account_and_cascades_balances() {
+        let pool = test_pool().await;
+
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency: "EUR",
+                amount: "12000.00000000",
+            },
+        )
+        .await
+        .expect("balance insert should succeed");
+
+        delete_account(&pool, account_id)
+            .await
+            .expect("account delete should succeed");
+
+        let account_error = get_account(&pool, account_id)
+            .await
+            .expect_err("deleted account should not exist");
+        let balances = list_account_balances(&pool, account_id)
+            .await
+            .expect("balance list should still succeed");
+
+        match account_error {
+            StorageError::Database(sqlx::Error::RowNotFound) => {}
+            other => panic!("expected RowNotFound, got {other}"),
+        }
+        assert!(balances.is_empty());
+    }
+
+    #[tokio::test]
+    async fn deleting_missing_account_returns_not_found() {
+        let pool = test_pool().await;
+
+        let error = delete_account(&pool, 999)
+            .await
+            .expect_err("missing account delete should fail");
+
+        match error {
+            StorageError::Database(sqlx::Error::RowNotFound) => {}
+            other => panic!("expected RowNotFound, got {other}"),
+        }
     }
 
     #[tokio::test]
