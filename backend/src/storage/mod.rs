@@ -10,7 +10,7 @@ mod fx;
 mod fx_rate;
 #[cfg(test)]
 mod integration_tests;
-mod models;
+mod records;
 mod storage_error;
 
 pub use account_id::*;
@@ -23,5 +23,5 @@ pub use balances::*;
 pub use currency::*;
 pub use fx::*;
 pub use fx_rate::*;
-pub use models::*;
+pub use records::*;
 pub use storage_error::*;

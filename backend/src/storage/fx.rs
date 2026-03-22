@@ -1,7 +1,7 @@
 use rust_decimal::Decimal;
 use sqlx::{Row, SqlitePool};
 
-use crate::storage::models::*;
+use crate::storage::records::*;
 use crate::storage::{Currency, FxRate, StorageError};
 
 pub async fn upsert_fx_rate(

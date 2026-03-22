@@ -1,5 +1,5 @@
+use crate::storage::records::*;
 use crate::storage::{AccountId, AccountName, AccountType, Currency, StorageError};
-use crate::storage::models::*;
 use sqlx::{Row, SqlitePool};
 
 pub async fn create_account(
@@ -59,7 +59,8 @@ pub async fn get_account(
     .await?;
 
     Ok(AccountRecord {
-        id: AccountId::try_from(row.get::<i64, _>("id")).expect("stored account id should be valid"),
+        id: AccountId::try_from(row.get::<i64, _>("id"))
+            .expect("stored account id should be valid"),
         name: AccountName::try_from(row.get::<&str, _>("name"))
             .expect("stored account name should be valid"),
         account_type: AccountType::try_from(row.get::<&str, _>("account_type"))?,
