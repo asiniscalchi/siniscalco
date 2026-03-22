@@ -2,9 +2,9 @@ use rust_decimal::Decimal;
 use sqlx::{Row, SqlitePool};
 use time::OffsetDateTime;
 
-use crate::storage::models::*;
 use crate::storage::accounts::validate_allowed_currency;
 use crate::storage::fx::get_direct_fx_rate;
+use crate::storage::models::*;
 
 pub async fn upsert_account_balance(
     pool: &SqlitePool,
@@ -196,13 +196,12 @@ pub(crate) fn validate_decimal_20_8(amount: &str) -> Result<(), StorageError> {
         return Err(StorageError::Validation("amount must match DECIMAL(20,8)"));
     }
 
-    if let Some(fractional_part) = fractional_part {
-        if fractional_part.is_empty()
+    if let Some(fractional_part) = fractional_part
+        && (fractional_part.is_empty()
             || fractional_part.len() > 8
-            || !fractional_part.bytes().all(|byte| byte.is_ascii_digit())
-        {
-            return Err(StorageError::Validation("amount must match DECIMAL(20,8)"));
-        }
+            || !fractional_part.bytes().all(|byte| byte.is_ascii_digit()))
+    {
+        return Err(StorageError::Validation("amount must match DECIMAL(20,8)"));
     }
 
     let total_digits = integer_part.len() + fractional_part.map_or(0, str::len);

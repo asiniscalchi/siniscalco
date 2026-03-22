@@ -22,11 +22,10 @@ pub async fn connect_db(database_url: &str) -> Result<SqlitePool, sqlx::Error> {
 }
 
 pub async fn connect_db_file(path: impl AsRef<Path>) -> Result<SqlitePool, sqlx::Error> {
-    if let Some(parent) = path.as_ref().parent() {
-        if !parent.as_os_str().is_empty() {
-            fs::create_dir_all(parent)
-                .map_err(|error| sqlx::Error::Configuration(Box::new(error)))?;
-        }
+    if let Some(parent) = path.as_ref().parent()
+        && !parent.as_os_str().is_empty()
+    {
+        fs::create_dir_all(parent).map_err(|error| sqlx::Error::Configuration(Box::new(error)))?;
     }
 
     let url = format!("sqlite://{}", path.as_ref().display());

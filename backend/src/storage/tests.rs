@@ -3,12 +3,11 @@ use std::str::FromStr;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
 use super::{
-    AccountBalanceRecord, AccountRecord, AccountSummaryRecord, AccountSummaryStatus,
-    AccountType, CreateAccountInput, CurrencyRecord, FxRateRecord, StorageError,
-    UpsertAccountBalanceInput, UpsertFxRateInput, UpsertOutcome, create_account,
-    delete_account, delete_account_balance, get_account, list_account_balances,
-    list_account_summaries, list_accounts, list_currencies, list_fx_rates,
-    upsert_account_balance, upsert_fx_rate,
+    AccountBalanceRecord, AccountRecord, AccountSummaryRecord, AccountSummaryStatus, AccountType,
+    CreateAccountInput, CurrencyRecord, FxRateRecord, StorageError, UpsertAccountBalanceInput,
+    UpsertFxRateInput, UpsertOutcome, create_account, delete_account, delete_account_balance,
+    get_account, list_account_balances, list_account_summaries, list_accounts, list_currencies,
+    list_fx_rates, upsert_account_balance, upsert_fx_rate,
 };
 use crate::db::init_db;
 
@@ -394,8 +393,7 @@ async fn preserves_created_account_fields() {
 
 #[tokio::test]
 async fn rejects_invalid_account_type_input() {
-    let error =
-        AccountType::try_from("cash").expect_err("unsupported account type should fail");
+    let error = AccountType::try_from("cash").expect_err("unsupported account type should fail");
 
     assert_eq!(
         error.to_string(),

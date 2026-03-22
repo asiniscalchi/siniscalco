@@ -1,5 +1,5 @@
-use sqlx::{Row, SqlitePool};
 use crate::storage::models::*;
+use sqlx::{Row, SqlitePool};
 
 pub async fn create_account(
     pool: &SqlitePool,
@@ -88,7 +88,10 @@ pub(crate) fn validate_name(name: &str) -> Result<(), StorageError> {
     Ok(())
 }
 
-pub(crate) async fn validate_allowed_currency(pool: &SqlitePool, currency: &str) -> Result<(), StorageError> {
+pub(crate) async fn validate_allowed_currency(
+    pool: &SqlitePool,
+    currency: &str,
+) -> Result<(), StorageError> {
     let exists =
         sqlx::query_scalar::<_, i64>("SELECT EXISTS(SELECT 1 FROM currencies WHERE code = ?)")
             .bind(currency)

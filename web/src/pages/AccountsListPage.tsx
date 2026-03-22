@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
-import { Button } from '@/components/ui/button'
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -10,68 +10,70 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { buttonVariants } from '@/components/ui/button-variants'
-import { getAccountsApiUrl } from '@/lib/api'
-import { cn } from '@/lib/utils'
+} from "@/components/ui/card";
+import { buttonVariants } from "@/components/ui/button-variants";
+import { getAccountsApiUrl } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 type AccountSummary = {
-  id: number
-  name: string
-  account_type: string
-  base_currency: string
-  summary_status: 'ok' | 'conversion_unavailable'
-  total_amount: string | null
-  total_currency: string | null
-}
+  id: number;
+  name: string;
+  account_type: string;
+  base_currency: string;
+  summary_status: "ok" | "conversion_unavailable";
+  total_amount: string | null;
+  total_currency: string | null;
+};
 
 export function AccountsListPage() {
   const [requestState, setRequestState] = useState<
-    | { status: 'loading' }
-    | { status: 'empty' }
-    | { status: 'error' }
-    | { status: 'ready'; accounts: AccountSummary[] }
-  >({ status: 'loading' })
-  const [retryToken, setRetryToken] = useState(0)
+    | { status: "loading" }
+    | { status: "empty" }
+    | { status: "error" }
+    | { status: "ready"; accounts: AccountSummary[] }
+  >({ status: "loading" });
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
 
     async function loadAccounts() {
-      setRequestState({ status: 'loading' })
+      setRequestState({ status: "loading" });
 
       try {
-        const response = await fetch(getAccountsApiUrl())
+        const response = await fetch(getAccountsApiUrl());
 
         if (!response.ok) {
-          throw new Error(`accounts request failed with status ${response.status}`)
+          throw new Error(
+            `accounts request failed with status ${response.status}`,
+          );
         }
 
-        const data = (await response.json()) as AccountSummary[]
+        const data = (await response.json()) as AccountSummary[];
 
         if (cancelled) {
-          return
+          return;
         }
 
         if (data.length === 0) {
-          setRequestState({ status: 'empty' })
-          return
+          setRequestState({ status: "empty" });
+          return;
         }
 
-        setRequestState({ status: 'ready', accounts: data })
+        setRequestState({ status: "ready", accounts: data });
       } catch {
         if (!cancelled) {
-          setRequestState({ status: 'error' })
+          setRequestState({ status: "error" });
         }
       }
     }
 
-    void loadAccounts()
+    void loadAccounts();
 
     return () => {
-      cancelled = true
-    }
-  }, [retryToken])
+      cancelled = true;
+    };
+  }, [retryToken]);
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
@@ -82,26 +84,25 @@ export function AccountsListPage() {
             View your cash accounts and manage their details.
           </p>
         </div>
-        <Link
-          className={cn(buttonVariants({ size: 'lg' }))}
-          to="/accounts/new"
-        >
+        <Link className={cn(buttonVariants({ size: "lg" }))} to="/accounts/new">
           Create account
         </Link>
       </header>
 
       <section className="space-y-4">
-        {requestState.status === 'loading' ? <AccountsLoadingState /> : null}
-        {requestState.status === 'empty' ? <AccountsEmptyState /> : null}
-        {requestState.status === 'error' ? (
-          <AccountsErrorState onRetry={() => setRetryToken((value) => value + 1)} />
+        {requestState.status === "loading" ? <AccountsLoadingState /> : null}
+        {requestState.status === "empty" ? <AccountsEmptyState /> : null}
+        {requestState.status === "error" ? (
+          <AccountsErrorState
+            onRetry={() => setRetryToken((value) => value + 1)}
+          />
         ) : null}
-        {requestState.status === 'ready' ? (
+        {requestState.status === "ready" ? (
           <AccountsReadyState accounts={requestState.accounts} />
         ) : null}
       </section>
     </div>
-  )
+  );
 }
 
 function AccountsLoadingState() {
@@ -119,7 +120,7 @@ function AccountsLoadingState() {
         </Card>
       ))}
     </div>
-  )
+  );
 }
 
 function AccountsEmptyState() {
@@ -137,7 +138,7 @@ function AccountsEmptyState() {
         </Link>
       </CardFooter>
     </Card>
-  )
+  );
 }
 
 function AccountsErrorState({ onRetry }: { onRetry: () => void }) {
@@ -151,7 +152,7 @@ function AccountsErrorState({ onRetry }: { onRetry: () => void }) {
       </CardHeader>
       <CardFooter className="justify-end gap-3">
         <Link
-          className={cn(buttonVariants({ variant: 'outline' }))}
+          className={cn(buttonVariants({ variant: "outline" }))}
           to="/accounts/new"
         >
           Create account
@@ -161,7 +162,7 @@ function AccountsErrorState({ onRetry }: { onRetry: () => void }) {
         </Button>
       </CardFooter>
     </Card>
-  )
+  );
 }
 
 function AccountsReadyState({ accounts }: { accounts: AccountSummary[] }) {
@@ -180,7 +181,7 @@ function AccountsReadyState({ accounts }: { accounts: AccountSummary[] }) {
         />
       ))}
     </div>
-  )
+  );
 }
 
 function AccountListItem({
@@ -192,13 +193,13 @@ function AccountListItem({
   totalAmount,
   totalCurrency,
 }: {
-  id: string
-  name: string
-  accountType: string
-  baseCurrency: string
-  summaryStatus: 'ok' | 'conversion_unavailable'
-  totalAmount: string | null
-  totalCurrency: string | null
+  id: string;
+  name: string;
+  accountType: string;
+  baseCurrency: string;
+  summaryStatus: "ok" | "conversion_unavailable";
+  totalAmount: string | null;
+  totalCurrency: string | null;
 }) {
   return (
     <Link className="block" to={`/accounts/${id}`}>
@@ -211,14 +212,19 @@ function AccountListItem({
             {baseCurrency}
           </CardDescription>
           <CardAction>
-            <div className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'text-muted-foreground')}>
+            <div
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "sm" }),
+                "text-muted-foreground",
+              )}
+            >
               View details
             </div>
           </CardAction>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">Total</p>
-          {summaryStatus === 'ok' ? (
+          {summaryStatus === "ok" ? (
             <p className="mt-1 text-lg font-semibold">
               {totalAmount} {totalCurrency}
             </p>
@@ -230,5 +236,5 @@ function AccountListItem({
         </CardContent>
       </Card>
     </Link>
-  )
+  );
 }

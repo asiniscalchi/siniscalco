@@ -12,9 +12,8 @@ use tower::ServiceExt;
 
 use super::{ApiError, build_router};
 use crate::{
-    AccountType, CreateAccountInput, UpsertAccountBalanceInput, UpsertFxRateInput,
-    create_account, get_account, init_db, list_account_balances, upsert_account_balance,
-    upsert_fx_rate,
+    AccountType, CreateAccountInput, UpsertAccountBalanceInput, UpsertFxRateInput, create_account,
+    get_account, init_db, list_account_balances, upsert_account_balance, upsert_fx_rate,
 };
 
 async fn test_pool() -> sqlx::SqlitePool {

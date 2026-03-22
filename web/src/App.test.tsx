@@ -1,192 +1,198 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import App from './App'
+import App from "./App";
 
-describe('App shell', () => {
+describe("App shell", () => {
   beforeEach(() => {
-    vi.stubGlobal('fetch', vi.fn())
-  })
+    vi.stubGlobal("fetch", vi.fn());
+  });
 
   afterEach(() => {
-    cleanup()
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
-  })
+    cleanup();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
 
-  it('requests health on shell mount and shows connected from the response status', async () => {
+  it("requests health on shell mount and shows connected from the response status", async () => {
     vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input)
+      const url = String(input);
 
-      if (url.endsWith('/health')) {
+      if (url.endsWith("/health")) {
         return Promise.resolve(
-          new Response('not-used', {
+          new Response("not-used", {
             status: 200,
-            headers: { 'Content-Type': 'text/plain' },
-          })
-        )
+            headers: { "Content-Type": "text/plain" },
+          }),
+        );
       }
 
-      if (url.endsWith('/accounts')) {
-        return Promise.resolve(
-          new Response(JSON.stringify([]), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        )
-      }
-
-      throw new Error(`Unhandled fetch request: ${url}`)
-    })
-
-    render(
-      <MemoryRouter initialEntries={['/accounts']}>
-        <App />
-      </MemoryRouter>
-    )
-
-    expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/health$/))
-    expect(await screen.findByText('connected')).toBeTruthy()
-  })
-
-  it('shows unavailable when the health request returns a non-success status', async () => {
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input)
-
-      if (url.endsWith('/health')) {
-        return Promise.resolve(new Response('down', { status: 503 }))
-      }
-
-      if (url.endsWith('/accounts')) {
+      if (url.endsWith("/accounts")) {
         return Promise.resolve(
           new Response(JSON.stringify([]), {
             status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        )
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
       }
 
-      throw new Error(`Unhandled fetch request: ${url}`)
-    })
+      throw new Error(`Unhandled fetch request: ${url}`);
+    });
 
     render(
-      <MemoryRouter initialEntries={['/accounts']}>
+      <MemoryRouter initialEntries={["/accounts"]}>
         <App />
-      </MemoryRouter>
-    )
+      </MemoryRouter>,
+    );
 
-    expect(await screen.findByText('unavailable')).toBeTruthy()
-  })
+    expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/health$/));
+    expect(await screen.findByText("connected")).toBeTruthy();
+  });
 
-  it('renders the shell while page content and health are still loading', () => {
-    vi.mocked(fetch).mockImplementation(() => new Promise(() => {}))
-
-    render(
-      <MemoryRouter initialEntries={['/accounts']}>
-        <App />
-      </MemoryRouter>
-    )
-
-    expect(screen.getByText('Siniscalco')).toBeTruthy()
-    expect(screen.getByRole('navigation', { name: 'Primary' })).toBeTruthy()
-    expect(screen.getByText('checking')).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Accounts' })).toBeTruthy()
-  })
-
-  it('keeps the shell rendered while navigating between wrapped routes', async () => {
+  it("shows unavailable when the health request returns a non-success status", async () => {
     vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input)
+      const url = String(input);
 
-      if (url.endsWith('/health')) {
-        return Promise.resolve(new Response('ok', { status: 200 }))
+      if (url.endsWith("/health")) {
+        return Promise.resolve(new Response("down", { status: 503 }));
       }
 
-      if (url.endsWith('/accounts/7')) {
+      if (url.endsWith("/accounts")) {
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      }
+
+      throw new Error(`Unhandled fetch request: ${url}`);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/accounts"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("unavailable")).toBeTruthy();
+  });
+
+  it("renders the shell while page content and health are still loading", () => {
+    vi.mocked(fetch).mockImplementation(() => new Promise(() => {}));
+
+    render(
+      <MemoryRouter initialEntries={["/accounts"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Siniscalco")).toBeTruthy();
+    expect(screen.getByRole("navigation", { name: "Primary" })).toBeTruthy();
+    expect(screen.getByText("checking")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Accounts" })).toBeTruthy();
+  });
+
+  it("keeps the shell rendered while navigating between wrapped routes", async () => {
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input);
+
+      if (url.endsWith("/health")) {
+        return Promise.resolve(new Response("ok", { status: 200 }));
+      }
+
+      if (url.endsWith("/accounts/7")) {
         return Promise.resolve(
           new Response(
             JSON.stringify({
               id: 7,
-              name: 'IBKR',
-              account_type: 'broker',
-              base_currency: 'EUR',
-              created_at: '2026-03-22 00:00:00',
+              name: "IBKR",
+              account_type: "broker",
+              base_currency: "EUR",
+              created_at: "2026-03-22 00:00:00",
               balances: [],
             }),
-            { status: 200, headers: { 'Content-Type': 'application/json' } }
-          )
-        )
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
       }
 
-      if (url.endsWith('/currencies')) {
+      if (url.endsWith("/currencies")) {
         return Promise.resolve(
           new Response(
             JSON.stringify([
-              { code: 'CHF' },
-              { code: 'EUR' },
-              { code: 'GBP' },
-              { code: 'USD' },
+              { code: "CHF" },
+              { code: "EUR" },
+              { code: "GBP" },
+              { code: "USD" },
             ]),
-            { status: 200, headers: { 'Content-Type': 'application/json' } }
-          )
-        )
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
       }
 
-      if (url.endsWith('/accounts')) {
+      if (url.endsWith("/accounts")) {
         return Promise.resolve(
           new Response(
             JSON.stringify([
               {
                 id: 7,
-                name: 'IBKR',
-                account_type: 'broker',
-                base_currency: 'EUR',
-                summary_status: 'ok',
-                total_amount: '1.00000000',
-                total_currency: 'EUR',
+                name: "IBKR",
+                account_type: "broker",
+                base_currency: "EUR",
+                summary_status: "ok",
+                total_amount: "1.00000000",
+                total_currency: "EUR",
               },
             ]),
-            { status: 200, headers: { 'Content-Type': 'application/json' } }
-          )
-        )
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
       }
 
-      throw new Error(`Unhandled fetch request: ${url}`)
-    })
+      throw new Error(`Unhandled fetch request: ${url}`);
+    });
 
     render(
-      <MemoryRouter initialEntries={['/accounts']}>
+      <MemoryRouter initialEntries={["/accounts"]}>
         <App />
-      </MemoryRouter>
-    )
+      </MemoryRouter>,
+    );
 
-    const accountsLink = screen.getByRole('link', { name: 'Accounts' })
-    expect(accountsLink.getAttribute('aria-current')).toBe('page')
-    expect(accountsLink.className).toContain('border-foreground')
+    const accountsLink = screen.getByRole("link", { name: "Accounts" });
+    expect(accountsLink.getAttribute("aria-current")).toBe("page");
+    expect(accountsLink.className).toContain("border-foreground");
 
-    expect(await screen.findByText('IBKR')).toBeTruthy()
-    expect(screen.getByText('connected')).toBeTruthy()
+    expect(await screen.findByText("IBKR")).toBeTruthy();
+    expect(screen.getByText("connected")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('link', { name: 'Create account' }))
+    fireEvent.click(screen.getByRole("link", { name: "Create account" }));
 
-    expect(await screen.findByText('New Account')).toBeTruthy()
-    expect(screen.getByText('Siniscalco')).toBeTruthy()
-    expect(screen.getByText('connected')).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Accounts' }).getAttribute('aria-current')).toBe(
-      'page'
-    )
+    expect(await screen.findByText("New Account")).toBeTruthy();
+    expect(screen.getByText("Siniscalco")).toBeTruthy();
+    expect(screen.getByText("connected")).toBeTruthy();
+    expect(
+      screen
+        .getByRole("link", { name: "Accounts" })
+        .getAttribute("aria-current"),
+    ).toBe("page");
 
-    fireEvent.click(screen.getByRole('link', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole("link", { name: "Cancel" }));
 
-    expect(await screen.findByText('IBKR')).toBeTruthy()
+    expect(await screen.findByText("IBKR")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('link', { name: /IBKR.*broker.*EUR.*View details/ }))
+    fireEvent.click(
+      screen.getByRole("link", { name: /IBKR.*broker.*EUR.*View details/ }),
+    );
 
-    expect(await screen.findByText('Account Summary')).toBeTruthy()
-    expect(screen.getByText('Siniscalco')).toBeTruthy()
-    expect(screen.getByText('connected')).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Accounts' }).getAttribute('aria-current')).toBe(
-      'page'
-    )
-  })
-})
+    expect(await screen.findByText("Account Summary")).toBeTruthy();
+    expect(screen.getByText("Siniscalco")).toBeTruthy();
+    expect(screen.getByText("connected")).toBeTruthy();
+    expect(
+      screen
+        .getByRole("link", { name: "Accounts" })
+        .getAttribute("aria-current"),
+    ).toBe("page");
+  });
+});

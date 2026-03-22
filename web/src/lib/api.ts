@@ -1,47 +1,47 @@
 type ApiErrorResponse = {
-  error: string
-  message: string
-}
+  error: string;
+  message: string;
+};
 
 export type CurrencyResponse = {
-  code: string
-}
+  code: string;
+};
 
 export function getApiBaseUrl() {
-  return import.meta.env.VITE_API_BASE_URL?.trim() || 'http://127.0.0.1:3000'
+  return import.meta.env.VITE_API_BASE_URL?.trim() || "http://127.0.0.1:3000";
 }
 
 export function getHealthApiUrl() {
-  return new URL('/health', getApiBaseUrl()).toString()
+  return new URL("/health", getApiBaseUrl()).toString();
 }
 
 export function getAccountsApiUrl() {
-  return new URL('/accounts', getApiBaseUrl()).toString()
+  return new URL("/accounts", getApiBaseUrl()).toString();
 }
 
 export function getCurrenciesApiUrl() {
-  return new URL('/currencies', getApiBaseUrl()).toString()
+  return new URL("/currencies", getApiBaseUrl()).toString();
 }
 
 export function getAccountDetailApiUrl(accountId: string) {
-  return new URL(`/accounts/${accountId}`, getApiBaseUrl()).toString()
+  return new URL(`/accounts/${accountId}`, getApiBaseUrl()).toString();
 }
 
 export function getAccountBalanceApiUrl(accountId: string, currency: string) {
   return new URL(
     `/accounts/${accountId}/balances/${currency}`,
-    getApiBaseUrl()
-  ).toString()
+    getApiBaseUrl(),
+  ).toString();
 }
 
 export async function readApiErrorMessage(
   response: Response,
-  fallbackMessage: string
+  fallbackMessage: string,
 ) {
   try {
-    const data = (await response.json()) as ApiErrorResponse
-    return data.message || fallbackMessage
+    const data = (await response.json()) as ApiErrorResponse;
+    return data.message || fallbackMessage;
   } catch {
-    return fallbackMessage
+    return fallbackMessage;
   }
 }

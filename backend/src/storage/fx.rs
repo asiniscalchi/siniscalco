@@ -1,9 +1,9 @@
 use rust_decimal::Decimal;
 use sqlx::{Row, SqlitePool};
 
-use crate::storage::models::*;
 use crate::storage::accounts::validate_allowed_currency;
 use crate::storage::balances::{parse_stored_decimal, validate_decimal_20_8};
+use crate::storage::models::*;
 
 pub async fn upsert_fx_rate(
     pool: &SqlitePool,

@@ -1,8 +1,8 @@
 mod handlers;
 mod models;
 
-pub use models::*;
 use handlers::*;
+pub use models::*;
 
 use axum::{
     Router,
@@ -23,7 +23,10 @@ pub fn build_router(pool: SqlitePool) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/currencies", get(list_currencies_handler))
-        .route("/accounts", get(list_accounts_handler).post(create_account_handler))
+        .route(
+            "/accounts",
+            get(list_accounts_handler).post(create_account_handler),
+        )
         .route(
             "/accounts/{account_id}",
             get(get_account_handler).delete(delete_account_handler),

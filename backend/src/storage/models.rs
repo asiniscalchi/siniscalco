@@ -138,4 +138,3 @@ pub struct FxRateRecord {
     pub to_currency: String,
     pub rate: String,
 }
-
