@@ -154,6 +154,36 @@ pub struct ApiError {
 }
 
 impl ApiError {
+    fn validation(message: &'static str) -> Self {
+        Self {
+            status: StatusCode::BAD_REQUEST,
+            body: ApiErrorResponse {
+                error: "validation_error",
+                message,
+            },
+        }
+    }
+
+    fn not_found(message: &'static str) -> Self {
+        Self {
+            status: StatusCode::NOT_FOUND,
+            body: ApiErrorResponse {
+                error: "not_found",
+                message,
+            },
+        }
+    }
+
+    fn internal_server_error() -> Self {
+        Self {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            body: ApiErrorResponse {
+                error: "internal_error",
+                message: "Internal server error",
+            },
+        }
+    }
+
     fn not_implemented() -> Self {
         Self {
             status: StatusCode::NOT_IMPLEMENTED,
@@ -161,6 +191,18 @@ impl ApiError {
                 error: "not_implemented",
                 message: "Endpoint not implemented yet",
             },
+        }
+    }
+}
+
+impl From<StorageError> for ApiError {
+    fn from(value: StorageError) -> Self {
+        match value {
+            StorageError::Validation(message) => Self::validation(message),
+            StorageError::Database(sqlx::Error::RowNotFound) => {
+                Self::not_found("Resource not found")
+            }
+            StorageError::Database(_) => Self::internal_server_error(),
         }
     }
 }
@@ -427,6 +469,7 @@ mod tests {
     use axum::{
         body::Body,
         http::{Request, StatusCode},
+        response::IntoResponse,
     };
     use http_body_util::BodyExt;
     use sqlx::sqlite::SqlitePoolOptions;
@@ -434,9 +477,9 @@ mod tests {
     use tower::ServiceExt;
 
     use super::{
-        AccountBalanceRecord, AccountRecord, AccountType, CreateAccountInput, StorageError,
-        UpsertAccountBalanceInput, build_router, connect_db_file, create_account, init_db,
-        list_account_balances, list_accounts, upsert_account_balance,
+        AccountBalanceRecord, AccountRecord, AccountType, ApiError, CreateAccountInput,
+        StorageError, UpsertAccountBalanceInput, build_router, connect_db_file, create_account,
+        init_db, list_account_balances, list_accounts, upsert_account_balance,
     };
 
     async fn test_pool() -> sqlx::SqlitePool {
@@ -543,6 +586,50 @@ mod tests {
         assert_eq!(
             std::str::from_utf8(&body).expect("json body should be utf8"),
             r#"{"error":"not_implemented","message":"Endpoint not implemented yet"}"#
+        );
+    }
+
+    #[test]
+    fn maps_validation_storage_errors_to_bad_request() {
+        let error = ApiError::from(StorageError::Validation("Invalid currency format"));
+        let response = error.into_response();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn maps_row_not_found_to_not_found() {
+        let error = ApiError::from(StorageError::Database(sqlx::Error::RowNotFound));
+        let response = error.into_response();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn maps_database_errors_to_internal_server_error() {
+        let error = ApiError::from(StorageError::Database(sqlx::Error::PoolTimedOut));
+        let response = error.into_response();
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[tokio::test]
+    async fn builds_standard_validation_error_payload() {
+        let error = ApiError::validation("Invalid amount format");
+        let response = error.into_response();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("response body should collect")
+            .to_bytes();
+
+        assert_eq!(
+            std::str::from_utf8(&body).expect("json body should be utf8"),
+            r#"{"error":"validation_error","message":"Invalid amount format"}"#
         );
     }
 
