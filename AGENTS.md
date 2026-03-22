@@ -1,6 +1,7 @@
 # AGENTS.md
 
 ## Project
+Name: siniscalco  
 Minimal portfolio app  
 Backend: Rust + SQLite  
 Frontend: React + Vite + Tailwind + shadcn
