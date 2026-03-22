@@ -60,19 +60,11 @@ export function AppShell() {
             </NavLink>
           </nav>
 
-          <div className="flex items-end gap-3">
-            <div className="hidden text-right sm:block">
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                Backend
-              </p>
-              <p className="max-w-72 truncate text-sm text-muted-foreground">
-                {backendBaseUrl}
-              </p>
-            </div>
+          <div className="flex items-center gap-3">
             <div
               aria-live="polite"
               className={cn(
-                'inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium capitalize',
+                'inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium capitalize',
                 backendStatus === 'connected' &&
                   'border-emerald-200 bg-emerald-50 text-emerald-700',
                 backendStatus === 'checking' &&
