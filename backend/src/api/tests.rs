@@ -12,7 +12,7 @@ use tower::ServiceExt;
 
 use super::{ApiError, build_router};
 use crate::{
-    AccountType, Amount, CreateAccountInput, Currency, UpsertAccountBalanceInput,
+    AccountId, AccountType, Amount, CreateAccountInput, Currency, UpsertAccountBalanceInput,
     UpsertFxRateInput, create_account, get_account, init_db, list_account_balances,
     upsert_account_balance, upsert_fx_rate, FxRate,
 };
@@ -23,6 +23,10 @@ fn amt(value: &str) -> Amount {
 
 fn fx_rate(value: &str) -> FxRate {
     FxRate::try_from(value).expect("rate should parse")
+}
+
+fn account_id(value: i64) -> AccountId {
+    AccountId::try_from(value).expect("account id should parse")
 }
 
 async fn test_pool() -> sqlx::SqlitePool {
@@ -788,7 +792,7 @@ async fn lists_account_summaries_with_totals_through_api() {
     upsert_account_balance(
         &pool,
         UpsertAccountBalanceInput {
-            account_id: 1,
+            account_id: account_id(1),
             currency: Currency::Eur,
             amount: amt("12000.00000000"),
         },

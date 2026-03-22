@@ -3,7 +3,7 @@ use sqlx::{Row, SqlitePool};
 
 use crate::storage::fx::get_direct_fx_rate;
 use crate::storage::models::*;
-use crate::storage::{Amount, Currency};
+use crate::storage::{AccountId, Amount, Currency};
 
 pub async fn upsert_account_balance(
     pool: &SqlitePool,
@@ -15,7 +15,7 @@ pub async fn upsert_account_balance(
     let existed = sqlx::query_scalar::<_, i64>(
         "SELECT EXISTS(SELECT 1 FROM account_balances WHERE account_id = ? AND currency = ?)",
     )
-    .bind(input.account_id)
+    .bind(input.account_id.as_i64())
     .bind(input.currency.as_str())
     .fetch_one(&mut *transaction)
     .await?
@@ -30,7 +30,7 @@ pub async fn upsert_account_balance(
             updated_at = excluded.updated_at
         "#,
     )
-    .bind(input.account_id)
+    .bind(input.account_id.as_i64())
     .bind(input.currency.as_str())
     .bind(input.amount.to_string())
     .bind(updated_at)
@@ -48,7 +48,7 @@ pub async fn upsert_account_balance(
 
 pub async fn list_account_balances(
     pool: &SqlitePool,
-    account_id: i64,
+    account_id: AccountId,
 ) -> Result<Vec<AccountBalanceRecord>, StorageError> {
     let rows = sqlx::query(
         r#"
@@ -62,14 +62,15 @@ pub async fn list_account_balances(
         ORDER BY currency
         "#,
     )
-    .bind(account_id)
+    .bind(account_id.as_i64())
     .fetch_all(pool)
     .await?;
 
     Ok(rows
         .into_iter()
         .map(|row| AccountBalanceRecord {
-            account_id: row.get("account_id"),
+            account_id: AccountId::try_from(row.get::<i64, _>("account_id"))
+                .expect("stored account id should be valid"),
             currency: Currency::try_from(row.get::<&str, _>("currency"))
                 .expect("stored currency should be valid"),
             amount: Amount::try_from(row.get::<&str, _>("amount"))
@@ -156,11 +157,11 @@ async fn summarize_account(
 
 pub async fn delete_account_balance(
     pool: &SqlitePool,
-    account_id: i64,
+    account_id: AccountId,
     currency: Currency,
 ) -> Result<(), StorageError> {
     let result = sqlx::query("DELETE FROM account_balances WHERE account_id = ? AND currency = ?")
-        .bind(account_id)
+        .bind(account_id.as_i64())
         .bind(currency.as_str())
         .execute(pool)
         .await?;

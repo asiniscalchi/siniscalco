@@ -4,6 +4,7 @@ use time::OffsetDateTime;
 use time::format_description::FormatItem;
 use time::macros::format_description;
 
+use super::account_id::AccountId;
 use super::amount::Amount;
 use super::currency::Currency;
 use super::fx_rate::FxRate;
@@ -78,7 +79,7 @@ pub struct CreateAccountInput<'a> {
 }
 
 pub struct UpsertAccountBalanceInput {
-    pub account_id: i64,
+    pub account_id: AccountId,
     pub currency: Currency,
     pub amount: Amount,
 }
@@ -97,7 +98,7 @@ pub enum UpsertOutcome {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct AccountRecord {
-    pub id: i64,
+    pub id: AccountId,
     pub name: String,
     pub account_type: AccountType,
     pub base_currency: Currency,
@@ -121,7 +122,7 @@ impl AccountSummaryStatus {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct AccountSummaryRecord {
-    pub id: i64,
+    pub id: AccountId,
     pub name: String,
     pub account_type: AccountType,
     pub base_currency: Currency,
@@ -132,7 +133,7 @@ pub struct AccountSummaryRecord {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct AccountBalanceRecord {
-    pub account_id: i64,
+    pub account_id: AccountId,
     pub currency: Currency,
     pub amount: Amount,
     pub updated_at: String,

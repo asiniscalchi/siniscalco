@@ -3,8 +3,8 @@ use std::str::FromStr;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
 use super::{
-    AccountBalanceRecord, AccountRecord, AccountSummaryRecord, AccountSummaryStatus, AccountType,
-    Amount, CreateAccountInput, Currency, CurrencyRecord, FxRate, FxRateRecord,
+    AccountBalanceRecord, AccountId, AccountRecord, AccountSummaryRecord, AccountSummaryStatus,
+    AccountType, Amount, CreateAccountInput, Currency, CurrencyRecord, FxRate, FxRateRecord,
     FxRateSummaryItemRecord, FxRateSummaryRecord, StorageError, UpsertAccountBalanceInput,
     UpsertFxRateInput, UpsertOutcome, create_account, delete_account, delete_account_balance,
     get_account, list_account_balances, list_account_summaries, list_accounts, list_currencies,
@@ -18,6 +18,10 @@ fn amt(value: &str) -> Amount {
 
 fn fx_rate(value: &str) -> FxRate {
     FxRate::try_from(value).expect("rate should parse")
+}
+
+fn account_id(value: i64) -> AccountId {
+    AccountId::try_from(value).expect("account id should parse")
 }
 
 async fn test_pool() -> sqlx::SqlitePool {
@@ -358,7 +362,7 @@ async fn deletes_account_and_cascades_balances() {
 async fn deleting_missing_account_returns_not_found() {
     let pool = test_pool().await;
 
-    let error = delete_account(&pool, 999)
+    let error = delete_account(&pool, account_id(999))
         .await
         .expect_err("missing account delete should fail");
 
@@ -469,7 +473,7 @@ async fn rejects_balance_for_missing_account() {
     let error = upsert_account_balance(
         &pool,
         UpsertAccountBalanceInput {
-            account_id: 999_i64,
+            account_id: account_id(999),
             currency: Currency::Usd,
             amount: amt("10.00000000"),
         },

@@ -6,8 +6,8 @@ use axum::{
 
 use crate::api::models::*;
 use crate::{
-    AccountBalanceRecord, AccountRecord, AccountSummaryRecord, AccountSummaryStatus, AccountType,
-    Amount, CreateAccountInput, Currency, CurrencyRecord, FxRateSummaryItemRecord,
+    AccountBalanceRecord, AccountId, AccountRecord, AccountSummaryRecord, AccountSummaryStatus,
+    AccountType, Amount, CreateAccountInput, Currency, CurrencyRecord, FxRateSummaryItemRecord,
     FxRateSummaryRecord, UpsertAccountBalanceInput, UpsertOutcome, delete_account,
     delete_account_balance, get_account, list_account_balances, list_account_summaries,
     list_currencies, list_fx_rate_summary, normalize_amount_output, storage::StorageError,
@@ -87,6 +87,8 @@ pub(crate) async fn get_account_handler(
     State(state): State<AppState>,
     AxumPath((account_id,)): AxumPath<(i64,)>,
 ) -> Result<Json<AccountDetailResponse>, ApiError> {
+    let account_id = AccountId::try_from(account_id).map_err(ApiError::from)?;
+
     let account = get_account(&state.pool, account_id)
         .await
         .map_err(|error| match error {
@@ -107,6 +109,7 @@ pub(crate) async fn upsert_account_balance_handler(
     AxumPath((account_id, currency)): AxumPath<(i64, String)>,
     Json(request): Json<UpsertBalanceRequest>,
 ) -> Result<(StatusCode, Json<BalanceResponse>), ApiError> {
+    let account_id = AccountId::try_from(account_id).map_err(ApiError::from)?;
     let currency = Currency::try_from(currency.as_str()).map_err(ApiError::from)?;
     let amount = Amount::try_from(request.amount.as_str()).map_err(ApiError::from)?;
 
@@ -149,6 +152,7 @@ pub(crate) async fn delete_account_balance_handler(
     State(state): State<AppState>,
     AxumPath((account_id, currency)): AxumPath<(i64, String)>,
 ) -> Result<StatusCode, ApiError> {
+    let account_id = AccountId::try_from(account_id).map_err(ApiError::from)?;
     let currency = Currency::try_from(currency.as_str()).map_err(ApiError::from)?;
 
     get_account(&state.pool, account_id)
@@ -176,6 +180,8 @@ pub(crate) async fn delete_account_handler(
     State(state): State<AppState>,
     AxumPath((account_id,)): AxumPath<(i64,)>,
 ) -> Result<StatusCode, ApiError> {
+    let account_id = AccountId::try_from(account_id).map_err(ApiError::from)?;
+
     delete_account(&state.pool, account_id)
         .await
         .map_err(|error| match error {
@@ -190,7 +196,7 @@ pub(crate) async fn delete_account_handler(
 
 fn to_account_summary_response(account: AccountSummaryRecord) -> AccountSummaryResponse {
     AccountSummaryResponse {
-        id: account.id,
+        id: account.id.as_i64(),
         name: account.name,
         account_type: account.account_type.as_str().to_string(),
         base_currency: account.base_currency,
@@ -204,7 +210,7 @@ fn to_account_summary_response(account: AccountSummaryRecord) -> AccountSummaryR
 
 fn to_created_account_summary_response(account: AccountRecord) -> AccountSummaryResponse {
     AccountSummaryResponse {
-        id: account.id,
+        id: account.id.as_i64(),
         name: account.name,
         account_type: account.account_type.as_str().to_string(),
         base_currency: account.base_currency,
@@ -219,7 +225,7 @@ fn to_account_detail_response(
     balances: Vec<AccountBalanceRecord>,
 ) -> AccountDetailResponse {
     AccountDetailResponse {
-        id: account.id,
+        id: account.id.as_i64(),
         name: account.name,
         account_type: account.account_type.as_str().to_string(),
         base_currency: account.base_currency,

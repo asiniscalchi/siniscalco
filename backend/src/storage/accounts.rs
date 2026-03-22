@@ -1,11 +1,11 @@
-use crate::storage::Currency;
+use crate::storage::{AccountId, Currency};
 use crate::storage::models::*;
 use sqlx::{Row, SqlitePool};
 
 pub async fn create_account(
     pool: &SqlitePool,
     input: CreateAccountInput<'_>,
-) -> Result<i64, StorageError> {
+) -> Result<AccountId, StorageError> {
     validate_name(input.name)?;
 
     let result =
@@ -16,7 +16,7 @@ pub async fn create_account(
             .execute(pool)
             .await?;
 
-    Ok(result.last_insert_rowid())
+    AccountId::try_from(result.last_insert_rowid())
 }
 
 pub async fn list_accounts(pool: &SqlitePool) -> Result<Vec<AccountRecord>, StorageError> {
@@ -33,7 +33,8 @@ pub async fn list_accounts(pool: &SqlitePool) -> Result<Vec<AccountRecord>, Stor
     rows.into_iter()
         .map(|row| {
             Ok(AccountRecord {
-                id: row.get("id"),
+                id: AccountId::try_from(row.get::<i64, _>("id"))
+                    .expect("stored account id should be valid"),
                 name: row.get("name"),
                 account_type: AccountType::try_from(row.get::<&str, _>("account_type"))?,
                 base_currency: Currency::try_from(row.get::<&str, _>("base_currency"))?,
@@ -45,7 +46,7 @@ pub async fn list_accounts(pool: &SqlitePool) -> Result<Vec<AccountRecord>, Stor
 
 pub async fn get_account(
     pool: &SqlitePool,
-    account_id: i64,
+    account_id: AccountId,
 ) -> Result<AccountRecord, StorageError> {
     let row = sqlx::query(
         r#"
@@ -54,12 +55,12 @@ pub async fn get_account(
         WHERE id = ?
         "#,
     )
-    .bind(account_id)
+    .bind(account_id.as_i64())
     .fetch_one(pool)
     .await?;
 
     Ok(AccountRecord {
-        id: row.get("id"),
+        id: AccountId::try_from(row.get::<i64, _>("id")).expect("stored account id should be valid"),
         name: row.get("name"),
         account_type: AccountType::try_from(row.get::<&str, _>("account_type"))?,
         base_currency: Currency::try_from(row.get::<&str, _>("base_currency"))?,
@@ -67,9 +68,9 @@ pub async fn get_account(
     })
 }
 
-pub async fn delete_account(pool: &SqlitePool, account_id: i64) -> Result<(), StorageError> {
+pub async fn delete_account(pool: &SqlitePool, account_id: AccountId) -> Result<(), StorageError> {
     let result = sqlx::query("DELETE FROM accounts WHERE id = ?")
-        .bind(account_id)
+        .bind(account_id.as_i64())
         .execute(pool)
         .await?;
 
