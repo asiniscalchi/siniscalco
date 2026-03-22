@@ -93,6 +93,11 @@ pub struct AccountBalanceRecord {
     pub updated_at: String,
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub struct CurrencyRecord {
+    pub code: String,
+}
+
 pub async fn create_account(
     pool: &SqlitePool,
     input: CreateAccountInput<'_>,
@@ -177,6 +182,25 @@ pub async fn list_accounts(pool: &SqlitePool) -> Result<Vec<AccountRecord>, Stor
             })
         })
         .collect()
+}
+
+pub async fn list_currencies(pool: &SqlitePool) -> Result<Vec<CurrencyRecord>, StorageError> {
+    let rows = sqlx::query(
+        r#"
+        SELECT code
+        FROM currencies
+        ORDER BY code
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|row| CurrencyRecord {
+            code: row.get("code"),
+        })
+        .collect())
 }
 
 pub async fn get_account(
@@ -333,10 +357,10 @@ mod tests {
     use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
     use super::{
-        AccountBalanceRecord, AccountRecord, AccountType, CreateAccountInput, StorageError,
-        UpsertAccountBalanceInput, UpsertOutcome, create_account, delete_account,
+        AccountBalanceRecord, AccountRecord, AccountType, CreateAccountInput, CurrencyRecord,
+        StorageError, UpsertAccountBalanceInput, UpsertOutcome, create_account, delete_account,
         delete_account_balance, get_account, list_account_balances, list_accounts,
-        upsert_account_balance,
+        list_currencies, upsert_account_balance,
     };
     use crate::db::init_db;
 
@@ -376,6 +400,32 @@ mod tests {
             .expect("account count query should succeed");
 
         assert_eq!(count, 1);
+    }
+
+    #[tokio::test]
+    async fn lists_currencies_in_code_order() {
+        let pool = test_pool().await;
+
+        sqlx::query("INSERT INTO currencies (code) VALUES ('USD'), ('EUR')")
+            .execute(&pool)
+            .await
+            .expect("currency inserts should succeed");
+
+        let currencies = list_currencies(&pool)
+            .await
+            .expect("currency list should succeed");
+
+        assert_eq!(
+            currencies,
+            vec![
+                CurrencyRecord {
+                    code: "EUR".to_string(),
+                },
+                CurrencyRecord {
+                    code: "USD".to_string(),
+                },
+            ]
+        );
     }
 
     #[tokio::test]

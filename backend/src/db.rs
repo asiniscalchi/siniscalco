@@ -67,13 +67,13 @@ mod tests {
         let pool = test_pool().await;
 
         let tables: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('accounts', 'account_balances', '_sqlx_migrations')",
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('accounts', 'account_balances', 'currencies', '_sqlx_migrations')",
         )
         .fetch_one(&pool)
         .await
         .expect("table lookup should succeed");
 
-        assert_eq!(tables, 3);
+        assert_eq!(tables, 4);
     }
 
     #[tokio::test]
@@ -84,13 +84,13 @@ mod tests {
             .expect("file database should initialize");
 
         let tables: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('accounts', 'account_balances')",
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('accounts', 'account_balances', 'currencies')",
         )
         .fetch_one(&pool)
         .await
         .expect("table lookup should succeed");
 
-        assert_eq!(tables, 2);
+        assert_eq!(tables, 3);
     }
 
     #[tokio::test]
