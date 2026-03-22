@@ -1,16 +1,14 @@
 use rust_decimal::Decimal;
 use sqlx::{Row, SqlitePool};
 
-use crate::storage::balances::{parse_stored_decimal, validate_decimal_20_8};
 use crate::storage::models::*;
-use crate::storage::Currency;
+use crate::storage::{Amount, Currency};
 
 pub async fn upsert_fx_rate(
     pool: &SqlitePool,
-    input: UpsertFxRateInput<'_>,
+    input: UpsertFxRateInput,
 ) -> Result<UpsertOutcome, StorageError> {
-    validate_decimal_20_8(input.rate)?;
-    validate_positive_decimal(input.rate)?;
+    validate_positive_amount(input.rate)?;
 
     let updated_at = current_utc_timestamp()?;
     let mut transaction = pool.begin().await?;
@@ -35,7 +33,7 @@ pub async fn upsert_fx_rate(
     )
     .bind(input.from_currency.as_str())
     .bind(input.to_currency.as_str())
-    .bind(input.rate)
+    .bind(input.rate.to_string())
     .bind(updated_at)
     .execute(&mut *transaction)
     .await?;
@@ -77,7 +75,7 @@ pub async fn list_fx_rates(pool: &SqlitePool) -> Result<Vec<FxRateRecord>, Stora
                 .expect("stored currency is valid"),
             to_currency: Currency::try_from(row.get::<&str, _>("to_currency"))
                 .expect("stored currency is valid"),
-            rate: row.get("rate"),
+            rate: Amount::try_from(row.get::<&str, _>("rate")).expect("stored rate is valid"),
         })
         .collect())
 }
@@ -107,7 +105,7 @@ pub async fn list_fx_rate_summary(
         .map(|row| FxRateSummaryItemRecord {
             from_currency: Currency::try_from(row.get::<&str, _>("from_currency"))
                 .expect("stored currency is valid"),
-            rate: row.get("rate"),
+            rate: Amount::try_from(row.get::<&str, _>("rate")).expect("stored rate is valid"),
             updated_at: row.get("updated_at"),
         })
         .collect();
@@ -138,14 +136,12 @@ pub(crate) async fn get_direct_fx_rate(
     .fetch_optional(pool)
     .await?;
 
-    rate.map(|value| parse_stored_decimal(&value)).transpose()
+    rate.map(|value| Amount::try_from(value.as_str()).map(|amount| amount.as_decimal()))
+        .transpose()
 }
 
-fn validate_positive_decimal(amount: &str) -> Result<(), StorageError> {
-    if amount.starts_with('-')
-        || amount == "0"
-        || amount.starts_with("0.") && amount[2..].bytes().all(|byte| byte == b'0')
-    {
+fn validate_positive_amount(amount: Amount) -> Result<(), StorageError> {
+    if !amount.is_positive() {
         return Err(StorageError::Validation("rate must be greater than zero"));
     }
 

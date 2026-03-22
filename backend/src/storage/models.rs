@@ -4,6 +4,7 @@ use time::OffsetDateTime;
 use time::format_description::FormatItem;
 use time::macros::format_description;
 
+use super::amount::Amount;
 use super::currency::Currency;
 
 pub const UTC_TIMESTAMP_FORMAT: &[FormatItem<'static>] =
@@ -75,16 +76,16 @@ pub struct CreateAccountInput<'a> {
     pub base_currency: Currency,
 }
 
-pub struct UpsertAccountBalanceInput<'a> {
+pub struct UpsertAccountBalanceInput {
     pub account_id: i64,
     pub currency: Currency,
-    pub amount: &'a str,
+    pub amount: Amount,
 }
 
-pub struct UpsertFxRateInput<'a> {
+pub struct UpsertFxRateInput {
     pub from_currency: Currency,
     pub to_currency: Currency,
-    pub rate: &'a str,
+    pub rate: Amount,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -124,7 +125,7 @@ pub struct AccountSummaryRecord {
     pub account_type: AccountType,
     pub base_currency: Currency,
     pub summary_status: AccountSummaryStatus,
-    pub total_amount: Option<String>,
+    pub total_amount: Option<Amount>,
     pub total_currency: Option<Currency>,
 }
 
@@ -132,7 +133,7 @@ pub struct AccountSummaryRecord {
 pub struct AccountBalanceRecord {
     pub account_id: i64,
     pub currency: Currency,
-    pub amount: String,
+    pub amount: Amount,
     pub updated_at: String,
 }
 
@@ -145,13 +146,13 @@ pub struct CurrencyRecord {
 pub struct FxRateRecord {
     pub from_currency: Currency,
     pub to_currency: Currency,
-    pub rate: String,
+    pub rate: Amount,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct FxRateSummaryItemRecord {
     pub from_currency: Currency,
-    pub rate: String,
+    pub rate: Amount,
     pub updated_at: String,
 }
 

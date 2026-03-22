@@ -3,14 +3,12 @@ use sqlx::{Row, SqlitePool};
 
 use crate::storage::fx::get_direct_fx_rate;
 use crate::storage::models::*;
-use crate::storage::Currency;
+use crate::storage::{Amount, Currency};
 
 pub async fn upsert_account_balance(
     pool: &SqlitePool,
-    input: UpsertAccountBalanceInput<'_>,
+    input: UpsertAccountBalanceInput,
 ) -> Result<UpsertOutcome, StorageError> {
-    validate_decimal_20_8(input.amount)?;
-
     let updated_at = current_utc_timestamp()?;
     let mut transaction = pool.begin().await?;
 
@@ -34,7 +32,7 @@ pub async fn upsert_account_balance(
     )
     .bind(input.account_id)
     .bind(input.currency.as_str())
-    .bind(input.amount)
+    .bind(input.amount.to_string())
     .bind(updated_at)
     .execute(&mut *transaction)
     .await?;
@@ -74,7 +72,8 @@ pub async fn list_account_balances(
             account_id: row.get("account_id"),
             currency: Currency::try_from(row.get::<&str, _>("currency"))
                 .expect("stored currency should be valid"),
-            amount: row.get("amount"),
+            amount: Amount::try_from(row.get::<&str, _>("amount"))
+                .expect("stored amount should be valid"),
             updated_at: row.get("updated_at"),
         })
         .collect())
@@ -106,7 +105,7 @@ pub async fn list_account_summaries(
 
 pub(crate) struct AccountTotalSummaryInternal {
     pub(crate) status: AccountSummaryStatus,
-    pub(crate) total_amount: Option<String>,
+    pub(crate) total_amount: Option<Amount>,
     pub(crate) total_currency: Option<Currency>,
 }
 
@@ -118,7 +117,7 @@ async fn summarize_account(
     if balances.is_empty() {
         return Ok(AccountTotalSummaryInternal {
             status: AccountSummaryStatus::Ok,
-            total_amount: Some("0.00000000".to_string()),
+            total_amount: Some(Amount::try_from("0.00000000").expect("zero amount should parse")),
             total_currency: Some(account.base_currency),
         });
     }
@@ -126,7 +125,7 @@ async fn summarize_account(
     let mut total = Decimal::ZERO;
 
     for balance in balances {
-        let amount = parse_stored_decimal(&balance.amount)?;
+        let amount = balance.amount.as_decimal();
 
         if balance.currency == account.base_currency {
             total += amount;
@@ -147,15 +146,12 @@ async fn summarize_account(
 
     Ok(AccountTotalSummaryInternal {
         status: AccountSummaryStatus::Ok,
-        total_amount: Some(crate::format_decimal_amount(total)),
+        total_amount: Some(
+            Amount::try_from(crate::format_decimal_amount(total).as_str())
+                .expect("formatted total amount should parse"),
+        ),
         total_currency: Some(account.base_currency),
     })
-}
-
-pub(crate) fn parse_stored_decimal(value: &str) -> Result<Decimal, StorageError> {
-    value
-        .parse::<Decimal>()
-        .map_err(|_| StorageError::Internal("stored decimal value is invalid"))
 }
 
 pub async fn delete_account_balance(
@@ -171,38 +167,6 @@ pub async fn delete_account_balance(
 
     if result.rows_affected() == 0 {
         return Err(StorageError::Database(sqlx::Error::RowNotFound));
-    }
-
-    Ok(())
-}
-
-pub(crate) fn validate_decimal_20_8(amount: &str) -> Result<(), StorageError> {
-    let amount = amount.strip_prefix('-').unwrap_or(amount);
-
-    if amount.is_empty() {
-        return Err(StorageError::Validation("amount must not be empty"));
-    }
-
-    let (integer_part, fractional_part) = match amount.split_once('.') {
-        Some((integer_part, fractional_part)) => (integer_part, Some(fractional_part)),
-        None => (amount, None),
-    };
-
-    if integer_part.is_empty() || !integer_part.bytes().all(|byte| byte.is_ascii_digit()) {
-        return Err(StorageError::Validation("amount must match DECIMAL(20,8)"));
-    }
-
-    if let Some(fractional_part) = fractional_part
-        && (fractional_part.is_empty()
-            || fractional_part.len() > 8
-            || !fractional_part.bytes().all(|byte| byte.is_ascii_digit()))
-    {
-        return Err(StorageError::Validation("amount must match DECIMAL(20,8)"));
-    }
-
-    let total_digits = integer_part.len() + fractional_part.map_or(0, str::len);
-    if total_digits > 20 || integer_part.len() > 12 {
-        return Err(StorageError::Validation("amount must match DECIMAL(20,8)"));
     }
 
     Ok(())

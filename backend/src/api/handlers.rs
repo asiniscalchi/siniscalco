@@ -7,10 +7,11 @@ use axum::{
 use crate::api::models::*;
 use crate::{
     AccountBalanceRecord, AccountRecord, AccountSummaryRecord, AccountSummaryStatus, AccountType,
-    CreateAccountInput, Currency, CurrencyRecord, FxRateSummaryItemRecord, FxRateSummaryRecord,
-    UpsertAccountBalanceInput, UpsertOutcome, delete_account, delete_account_balance, get_account,
-    list_account_balances, list_account_summaries, list_currencies, list_fx_rate_summary,
-    normalize_amount_output, storage::StorageError, upsert_account_balance,
+    Amount, CreateAccountInput, Currency, CurrencyRecord, FxRateSummaryItemRecord,
+    FxRateSummaryRecord, UpsertAccountBalanceInput, UpsertOutcome, delete_account,
+    delete_account_balance, get_account, list_account_balances, list_account_summaries,
+    list_currencies, list_fx_rate_summary, normalize_amount_output, storage::StorageError,
+    upsert_account_balance,
 };
 
 pub(crate) async fn health() -> &'static str {
@@ -107,6 +108,7 @@ pub(crate) async fn upsert_account_balance_handler(
     Json(request): Json<UpsertBalanceRequest>,
 ) -> Result<(StatusCode, Json<BalanceResponse>), ApiError> {
     let currency = Currency::try_from(currency.as_str()).map_err(ApiError::from)?;
+    let amount = Amount::try_from(request.amount.as_str()).map_err(ApiError::from)?;
 
     get_account(&state.pool, account_id)
         .await
@@ -122,7 +124,7 @@ pub(crate) async fn upsert_account_balance_handler(
         UpsertAccountBalanceInput {
             account_id,
             currency,
-            amount: &request.amount,
+            amount,
         },
     )
     .await
@@ -193,7 +195,9 @@ fn to_account_summary_response(account: AccountSummaryRecord) -> AccountSummaryR
         account_type: account.account_type.as_str().to_string(),
         base_currency: account.base_currency,
         summary_status: account.summary_status.as_str().to_string(),
-        total_amount: account.total_amount,
+        total_amount: account
+            .total_amount
+            .map(|amount| normalize_amount_output(&amount.to_string())),
         total_currency: account.total_currency,
     }
 }
@@ -227,7 +231,7 @@ fn to_account_detail_response(
 fn to_balance_response(balance: AccountBalanceRecord) -> BalanceResponse {
     BalanceResponse {
         currency: balance.currency,
-        amount: normalize_amount_output(&balance.amount),
+        amount: normalize_amount_output(&balance.amount.to_string()),
         updated_at: balance.updated_at,
     }
 }
@@ -253,6 +257,6 @@ fn to_fx_rate_summary_response(summary: FxRateSummaryRecord) -> FxRateSummaryRes
 fn to_fx_rate_summary_item_response(rate: FxRateSummaryItemRecord) -> FxRateSummaryItemResponse {
     FxRateSummaryItemResponse {
         currency: rate.from_currency,
-        rate: rate.rate,
+        rate: rate.rate.to_string(),
     }
 }

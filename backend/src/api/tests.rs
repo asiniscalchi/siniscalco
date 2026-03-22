@@ -12,10 +12,14 @@ use tower::ServiceExt;
 
 use super::{ApiError, build_router};
 use crate::{
-    AccountType, CreateAccountInput, Currency, UpsertAccountBalanceInput, UpsertFxRateInput,
-    create_account, get_account, init_db, list_account_balances, upsert_account_balance,
-    upsert_fx_rate,
+    AccountType, Amount, CreateAccountInput, Currency, UpsertAccountBalanceInput,
+    UpsertFxRateInput, create_account, get_account, init_db, list_account_balances,
+    upsert_account_balance, upsert_fx_rate,
 };
+
+fn amt(value: &str) -> Amount {
+    Amount::try_from(value).expect("amount should parse")
+}
 
 async fn test_pool() -> sqlx::SqlitePool {
     let options = SqliteConnectOptions::from_str("sqlite::memory:")
@@ -96,7 +100,7 @@ async fn lists_fx_rates_for_eur_through_api() {
             UpsertFxRateInput {
                 from_currency,
                 to_currency,
-                rate,
+                rate: amt(rate),
             },
         )
         .await
@@ -265,7 +269,7 @@ async fn deletes_account_through_api() {
         UpsertAccountBalanceInput {
             account_id,
             currency: Currency::Usd,
-            amount: "12.3",
+            amount: amt("12.3"),
         },
     )
     .await
@@ -475,7 +479,7 @@ async fn updates_balance_through_api() {
         UpsertAccountBalanceInput {
             account_id,
             currency: Currency::Usd,
-            amount: "1.0",
+            amount: amt("1.0"),
         },
     )
     .await
@@ -558,7 +562,7 @@ async fn deletes_balance_through_api() {
         UpsertAccountBalanceInput {
             account_id,
             currency: Currency::Usd,
-            amount: "12.3",
+            amount: amt("12.3"),
         },
     )
     .await
@@ -782,7 +786,7 @@ async fn lists_account_summaries_with_totals_through_api() {
         UpsertAccountBalanceInput {
             account_id: 1,
             currency: Currency::Eur,
-            amount: "12000.00000000",
+            amount: amt("12000.00000000"),
         },
     )
     .await
@@ -845,7 +849,7 @@ async fn returns_conversion_unavailable_through_api_when_direct_rate_is_missing(
         UpsertAccountBalanceInput {
             account_id,
             currency: Currency::Usd,
-            amount: "12.30000000",
+            amount: amt("12.30000000"),
         },
     )
     .await
@@ -899,7 +903,7 @@ async fn does_not_use_inverse_fx_rates_through_api() {
         UpsertAccountBalanceInput {
             account_id,
             currency: Currency::Usd,
-            amount: "12.30000000",
+            amount: amt("12.30000000"),
         },
     )
     .await
@@ -910,7 +914,7 @@ async fn does_not_use_inverse_fx_rates_through_api() {
         UpsertFxRateInput {
             from_currency: Currency::Eur,
             to_currency: Currency::Usd,
-            rate: "1.10000000",
+            rate: amt("1.10000000"),
         },
     )
     .await
@@ -963,7 +967,7 @@ async fn rounds_converted_account_totals_through_api() {
             UpsertAccountBalanceInput {
                 account_id,
                 currency,
-                amount: "1.00000000",
+                amount: amt("1.00000000"),
             },
         )
         .await
@@ -976,7 +980,7 @@ async fn rounds_converted_account_totals_through_api() {
             UpsertFxRateInput {
                 from_currency,
                 to_currency: Currency::Eur,
-                rate,
+                rate: amt(rate),
             },
         )
         .await
@@ -1030,7 +1034,7 @@ async fn gets_account_detail_with_balances_through_api() {
         UpsertAccountBalanceInput {
             account_id,
             currency: Currency::Usd,
-            amount: "12.3",
+            amount: amt("12.3"),
         },
     )
     .await
