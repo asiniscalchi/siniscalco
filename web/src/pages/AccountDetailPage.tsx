@@ -13,6 +13,11 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { buttonVariants } from '@/components/ui/button-variants'
+import {
+  getAccountBalanceApiUrl,
+  getAccountDetailApiUrl,
+  readApiErrorMessage,
+} from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 type AccountBalance = {
@@ -28,29 +33,6 @@ type AccountDetail = {
   base_currency: string
   created_at: string
   balances: AccountBalance[]
-}
-
-type ApiErrorResponse = {
-  error: string
-  message: string
-}
-
-function getAccountsApiUrl() {
-  const baseUrl =
-    import.meta.env.VITE_API_BASE_URL?.trim() || 'http://127.0.0.1:3000'
-
-  return new URL('/accounts', baseUrl).toString()
-}
-
-function getAccountDetailApiUrl(accountId: string) {
-  return new URL(`/accounts/${accountId}`, getAccountsApiUrl()).toString()
-}
-
-function getAccountBalanceApiUrl(accountId: string, currency: string) {
-  return new URL(
-    `/accounts/${accountId}/balances/${currency}`,
-    getAccountsApiUrl()
-  ).toString()
 }
 
 export function AccountDetailPage() {
@@ -79,17 +61,10 @@ export function AccountDetailPage() {
         const response = await fetch(getAccountDetailApiUrl(resolvedAccountId))
 
         if (!response.ok) {
-          let message = 'Could not load account.'
-
-          try {
-            const data = (await response.json()) as ApiErrorResponse
-            if (data.message) {
-              message = data.message
-            }
-          } catch {
-            // Keep the fallback message when the error body is unavailable.
-          }
-
+          const message = await readApiErrorMessage(
+            response,
+            'Could not load account.'
+          )
           throw new Error(message)
         }
 
@@ -231,17 +206,10 @@ function AccountDetailReadyState({
       )
 
       if (!response.ok) {
-        let message = 'Could not save balance.'
-
-        try {
-          const data = (await response.json()) as ApiErrorResponse
-          if (data.message) {
-            message = data.message
-          }
-        } catch {
-          // Keep the fallback message when the error body is unavailable.
-        }
-
+        const message = await readApiErrorMessage(
+          response,
+          'Could not save balance.'
+        )
         throw new Error(message)
       }
 
@@ -270,17 +238,10 @@ function AccountDetailReadyState({
       )
 
       if (!response.ok) {
-        let message = 'Could not delete balance.'
-
-        try {
-          const data = (await response.json()) as ApiErrorResponse
-          if (data.message) {
-            message = data.message
-          }
-        } catch {
-          // Keep the fallback message when the error body is unavailable.
-        }
-
+        const message = await readApiErrorMessage(
+          response,
+          'Could not delete balance.'
+        )
         throw new Error(message)
       }
 

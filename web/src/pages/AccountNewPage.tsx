@@ -5,19 +5,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { buttonVariants } from '@/components/ui/button-variants'
+import { getAccountsApiUrl, readApiErrorMessage } from '@/lib/api'
 import { cn } from '@/lib/utils'
-
-type ApiErrorResponse = {
-  error: string
-  message: string
-}
-
-function getAccountsApiUrl() {
-  const baseUrl =
-    import.meta.env.VITE_API_BASE_URL?.trim() || 'http://127.0.0.1:3000'
-
-  return new URL('/accounts', baseUrl).toString()
-}
 
 export function AccountNewPage() {
   const navigate = useNavigate()
@@ -49,17 +38,10 @@ export function AccountNewPage() {
       })
 
       if (!response.ok) {
-        let message = 'Could not create account.'
-
-        try {
-          const data = (await response.json()) as ApiErrorResponse
-          if (data.message) {
-            message = data.message
-          }
-        } catch {
-          // Keep the fallback message when the error body is unavailable.
-        }
-
+        const message = await readApiErrorMessage(
+          response,
+          'Could not create account.'
+        )
         throw new Error(message)
       }
 

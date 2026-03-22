@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { buttonVariants } from '@/components/ui/button-variants'
+import { getAccountsApiUrl } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 type AccountSummary = {
@@ -20,13 +21,6 @@ type AccountSummary = {
   account_type: string
   base_currency: string
   created_at: string
-}
-
-function getAccountsApiUrl() {
-  const baseUrl =
-    import.meta.env.VITE_API_BASE_URL?.trim() || 'http://127.0.0.1:3000'
-
-  return new URL('/accounts', baseUrl).toString()
 }
 
 export function AccountsListPage() {
