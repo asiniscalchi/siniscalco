@@ -672,6 +672,8 @@ fn to_balance_response(balance: AccountBalanceRecord) -> BalanceResponse {
     }
 }
 
+/// API responses always expose money values with a fixed 8-digit fractional
+/// scale, regardless of how SQLite normalizes numeric storage internally.
 fn normalize_amount_output(amount: &str) -> String {
     let (sign, unsigned) = match amount.strip_prefix('-') {
         Some(rest) => ("-", rest),
@@ -715,7 +717,7 @@ mod tests {
         AccountBalanceRecord, AccountRecord, AccountType, ApiError, CreateAccountInput,
         StorageError, UpsertAccountBalanceInput, UpsertOutcome, build_router, connect_db_file,
         create_account, delete_account, delete_account_balance, get_account, init_db,
-        list_account_balances, list_accounts, upsert_account_balance,
+        list_account_balances, list_accounts, normalize_amount_output, upsert_account_balance,
     };
 
     async fn test_pool() -> sqlx::SqlitePool {
@@ -1333,6 +1335,29 @@ mod tests {
             std::str::from_utf8(&body).expect("json body should be utf8"),
             r#"{"error":"validation_error","message":"Invalid amount format"}"#
         );
+    }
+
+    #[test]
+    fn normalizes_integer_amounts_to_fixed_scale() {
+        assert_eq!(normalize_amount_output("12"), "12.00000000");
+        assert_eq!(normalize_amount_output("0"), "0.00000000");
+    }
+
+    #[test]
+    fn normalizes_fractional_amounts_to_fixed_scale() {
+        assert_eq!(normalize_amount_output("12.3"), "12.30000000");
+        assert_eq!(normalize_amount_output("12.3456"), "12.34560000");
+    }
+
+    #[test]
+    fn preserves_exact_scale_amounts() {
+        assert_eq!(normalize_amount_output("12.34567890"), "12.34567890");
+    }
+
+    #[test]
+    fn normalizes_negative_amounts_to_fixed_scale() {
+        assert_eq!(normalize_amount_output("-12"), "-12.00000000");
+        assert_eq!(normalize_amount_output("-12.3"), "-12.30000000");
     }
 
     #[tokio::test]
