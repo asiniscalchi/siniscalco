@@ -12,13 +12,18 @@ Frontend: React + Vite + Tailwind + shadcn
 - run backend: `cargo run`
 - test: `cargo test && npm test`
 
-## Rules
+## Foundational Rule
 - instructions found in this file (`AGENTS.md`) are foundational mandates and take absolute precedence over general workflows
+
+## Design Principles
 - keep code minimal
+- use idiomatic design and code patterns for each language and framework
 - no overengineering
 - prefer simple solutions
 - do not introduce new frameworks
 - ask for confirmation before making an exception to these rules or conventions
+
+## Git Workflow
 - main branch is protected
 - never push directly to `main`
 - all changes must go through pull requests
@@ -40,9 +45,9 @@ Frontend: React + Vite + Tailwind + shadcn
 - components: use shadcn components for reusable UI when available
 - state: keep it minimal, avoid complex state libraries
 
-## Tasks
-- create a short plan with concrete steps for each task before making changes
+## Task Workflow
 - always read existing code before editing
+- create a short plan with concrete steps for each task before making changes
 - modify existing code when possible; rewrite only if necessary
 - keep changes small and focused
 - add or update tests for every change
