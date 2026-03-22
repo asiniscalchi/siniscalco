@@ -5,10 +5,10 @@ use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use super::{
     AccountBalanceRecord, AccountRecord, AccountSummaryRecord, AccountSummaryStatus, AccountType,
     CreateAccountInput, Currency, CurrencyRecord, FxRateRecord, FxRateSummaryItemRecord,
-    FxRateSummaryRecord, StorageError, UpsertAccountBalanceInput, UpsertFxRateInput,
-    UpsertOutcome, create_account, delete_account, delete_account_balance, get_account,
-    list_account_balances, list_account_summaries, list_accounts, list_currencies,
-    list_fx_rate_summary, list_fx_rates, upsert_account_balance, upsert_fx_rate,
+    FxRateSummaryRecord, StorageError, UpsertAccountBalanceInput, UpsertFxRateInput, UpsertOutcome,
+    create_account, delete_account, delete_account_balance, get_account, list_account_balances,
+    list_account_summaries, list_accounts, list_currencies, list_fx_rate_summary, list_fx_rates,
+    upsert_account_balance, upsert_fx_rate,
 };
 use crate::db::init_db;
 
@@ -782,10 +782,7 @@ async fn lists_account_summaries_with_direct_fx_conversion() {
         .expect("balance insert should succeed");
     }
 
-    for (from_currency, rate) in [
-        (Currency::Usd, "0.50000000"),
-        (Currency::Gbp, "1.20000000"),
-    ] {
+    for (from_currency, rate) in [(Currency::Usd, "0.50000000"), (Currency::Gbp, "1.20000000")] {
         upsert_fx_rate(
             &pool,
             UpsertFxRateInput {
@@ -924,12 +921,10 @@ async fn does_not_use_multi_hop_fx_rates() {
     .await
     .expect("balance insert should succeed");
 
-    for (from_currency, to_currency, rate) in
-        [
-            (Currency::Chf, Currency::Usd, "1.10000000"),
-            (Currency::Usd, Currency::Eur, "0.80000000"),
-        ]
-    {
+    for (from_currency, to_currency, rate) in [
+        (Currency::Chf, Currency::Usd, "1.10000000"),
+        (Currency::Usd, Currency::Eur, "0.80000000"),
+    ] {
         upsert_fx_rate(
             &pool,
             UpsertFxRateInput {
@@ -980,10 +975,7 @@ async fn rounds_after_summing_converted_balances() {
         .expect("balance insert should succeed");
     }
 
-    for (from_currency, rate) in [
-        (Currency::Usd, "0.33333333"),
-        (Currency::Gbp, "0.33333333"),
-    ] {
+    for (from_currency, rate) in [(Currency::Usd, "0.33333333"), (Currency::Gbp, "0.33333333")] {
         upsert_fx_rate(
             &pool,
             UpsertFxRateInput {

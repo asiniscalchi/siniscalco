@@ -23,7 +23,8 @@ pub(crate) async fn create_account_handler(
 ) -> Result<(StatusCode, Json<AccountSummaryResponse>), ApiError> {
     let account_type =
         AccountType::try_from(request.account_type.as_str()).map_err(ApiError::from)?;
-    let base_currency = Currency::try_from(request.base_currency.as_str()).map_err(ApiError::from)?;
+    let base_currency =
+        Currency::try_from(request.base_currency.as_str()).map_err(ApiError::from)?;
 
     let account_id = crate::create_account(
         &state.pool,
@@ -232,7 +233,9 @@ fn to_balance_response(balance: AccountBalanceRecord) -> BalanceResponse {
 }
 
 fn to_currency_response(currency: CurrencyRecord) -> CurrencyResponse {
-    CurrencyResponse { code: currency.code }
+    CurrencyResponse {
+        code: currency.code,
+    }
 }
 
 fn to_fx_rate_summary_response(summary: FxRateSummaryRecord) -> FxRateSummaryResponse {

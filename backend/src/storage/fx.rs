@@ -48,22 +48,10 @@ pub async fn upsert_fx_rate(
     }
 }
 
-pub async fn list_currencies(pool: &SqlitePool) -> Result<Vec<CurrencyRecord>, StorageError> {
-    let rows = sqlx::query(
-        r#"
-        SELECT code
-        FROM currencies
-        ORDER BY code
-        "#,
-    )
-    .fetch_all(pool)
-    .await?;
-
-    Ok(rows
+pub async fn list_currencies(_pool: &SqlitePool) -> Result<Vec<CurrencyRecord>, StorageError> {
+    Ok(Currency::all()
         .into_iter()
-        .map(|row| CurrencyRecord {
-            code: Currency::try_from(row.get::<&str, _>("code")).expect("stored currency is valid"),
-        })
+        .map(|code| CurrencyRecord { code })
         .collect())
 }
 

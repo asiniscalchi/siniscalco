@@ -970,10 +970,7 @@ async fn rounds_converted_account_totals_through_api() {
         .expect("balance insert should succeed");
     }
 
-    for (from_currency, rate) in [
-        (Currency::Usd, "0.33333333"),
-        (Currency::Gbp, "0.33333333"),
-    ] {
+    for (from_currency, rate) in [(Currency::Usd, "0.33333333"), (Currency::Gbp, "0.33333333")] {
         upsert_fx_rate(
             &pool,
             UpsertFxRateInput {

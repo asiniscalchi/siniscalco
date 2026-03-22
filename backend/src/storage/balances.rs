@@ -132,8 +132,7 @@ async fn summarize_account(
             continue;
         }
 
-        let Some(rate) =
-            get_direct_fx_rate(pool, balance.currency, account.base_currency).await?
+        let Some(rate) = get_direct_fx_rate(pool, balance.currency, account.base_currency).await?
         else {
             return Ok(AccountTotalSummaryInternal {
                 status: AccountSummaryStatus::ConversionUnavailable,

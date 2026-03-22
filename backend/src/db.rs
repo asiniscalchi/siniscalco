@@ -45,6 +45,7 @@ mod tests {
     use tempfile::NamedTempFile;
 
     use super::{connect_db_file, init_db};
+    use crate::Currency;
 
     async fn test_pool() -> sqlx::SqlitePool {
         let options = SqliteConnectOptions::from_str("sqlite::memory:")
@@ -113,6 +114,12 @@ mod tests {
             .await
             .expect("currency seed query should succeed");
 
-        assert_eq!(codes, vec!["CHF", "EUR", "GBP", "USD"]);
+        assert_eq!(
+            codes,
+            Currency::all()
+                .into_iter()
+                .map(|currency| currency.as_str().to_string())
+                .collect::<Vec<_>>()
+        );
     }
 }
