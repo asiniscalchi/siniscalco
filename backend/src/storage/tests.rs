@@ -3,12 +3,13 @@ use std::str::FromStr;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
 use super::{
-    AccountBalanceRecord, AccountId, AccountRecord, AccountSummaryRecord, AccountSummaryStatus,
-    AccountType, Amount, CreateAccountInput, Currency, CurrencyRecord, FxRate, FxRateRecord,
-    FxRateSummaryItemRecord, FxRateSummaryRecord, StorageError, UpsertAccountBalanceInput,
-    UpsertFxRateInput, UpsertOutcome, create_account, delete_account, delete_account_balance,
-    get_account, list_account_balances, list_account_summaries, list_accounts, list_currencies,
-    list_fx_rate_summary, list_fx_rates, upsert_account_balance, upsert_fx_rate,
+    AccountBalanceRecord, AccountId, AccountName, AccountRecord, AccountSummaryRecord,
+    AccountSummaryStatus, AccountType, Amount, CreateAccountInput, Currency, CurrencyRecord,
+    FxRate, FxRateRecord, FxRateSummaryItemRecord, FxRateSummaryRecord, StorageError,
+    UpsertAccountBalanceInput, UpsertFxRateInput, UpsertOutcome, create_account, delete_account,
+    delete_account_balance, get_account, list_account_balances, list_account_summaries,
+    list_accounts, list_currencies, list_fx_rate_summary, list_fx_rates, upsert_account_balance,
+    upsert_fx_rate,
 };
 use crate::db::init_db;
 
@@ -22,6 +23,10 @@ fn fx_rate(value: &str) -> FxRate {
 
 fn account_id(value: i64) -> AccountId {
     AccountId::try_from(value).expect("account id should parse")
+}
+
+fn account_name(value: &str) -> AccountName {
+    AccountName::try_from(value).expect("account name should parse")
 }
 
 async fn test_pool() -> sqlx::SqlitePool {
@@ -46,7 +51,7 @@ async fn creates_account_without_balance() {
     create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -96,7 +101,7 @@ async fn reads_accounts_in_insert_order() {
     create_account(
         &pool,
         CreateAccountInput {
-            name: "Main Bank",
+            name: account_name("Main Bank"),
             account_type: AccountType::Bank,
             base_currency: Currency::Usd,
         },
@@ -107,7 +112,7 @@ async fn reads_accounts_in_insert_order() {
     create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -120,9 +125,9 @@ async fn reads_accounts_in_insert_order() {
         .expect("account list should succeed");
 
     assert_eq!(accounts.len(), 2);
-    assert_eq!(accounts[0].name, "Main Bank");
+    assert_eq!(accounts[0].name, account_name("Main Bank"));
     assert_eq!(accounts[0].account_type, AccountType::Bank);
-    assert_eq!(accounts[1].name, "IBKR");
+    assert_eq!(accounts[1].name, account_name("IBKR"));
     assert_eq!(accounts[1].account_type, AccountType::Broker);
 }
 
@@ -133,7 +138,7 @@ async fn gets_single_account_by_id() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -146,7 +151,7 @@ async fn gets_single_account_by_id() {
         .expect("single account fetch should succeed");
 
     assert_eq!(account.id, account_id);
-    assert_eq!(account.name, "IBKR");
+    assert_eq!(account.name, account_name("IBKR"));
     assert_eq!(account.account_type, AccountType::Broker);
     assert_eq!(account.base_currency, Currency::Eur);
 }
@@ -158,7 +163,7 @@ async fn allows_multiple_currencies_per_account() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -211,7 +216,7 @@ async fn upsert_updates_existing_balance() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "Main Bank",
+            name: account_name("Main Bank"),
             account_type: AccountType::Bank,
             base_currency: Currency::Usd,
         },
@@ -259,7 +264,7 @@ async fn deletes_single_balance() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -296,7 +301,7 @@ async fn deleting_missing_balance_returns_not_found() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "Main Bank",
+            name: account_name("Main Bank"),
             account_type: AccountType::Bank,
             base_currency: Currency::Usd,
         },
@@ -321,7 +326,7 @@ async fn deletes_account_and_cascades_balances() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -379,7 +384,7 @@ async fn preserves_created_account_fields() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "Joint Bank",
+            name: account_name("Joint Bank"),
             account_type: AccountType::Bank,
             base_currency: Currency::Gbp,
         },
@@ -395,7 +400,7 @@ async fn preserves_created_account_fields() {
         accounts,
         vec![AccountRecord {
             id: account_id,
-            name: "Joint Bank".to_string(),
+            name: account_name("Joint Bank"),
             account_type: AccountType::Bank,
             base_currency: Currency::Gbp,
             created_at: accounts[0].created_at.clone(),
@@ -421,7 +426,7 @@ async fn accepts_typed_account_currency_input() {
     create_account(
         &pool,
         CreateAccountInput {
-            name: "Main Bank",
+            name: account_name("Main Bank"),
             account_type: AccountType::Bank,
             base_currency: Currency::Usd,
         },
@@ -437,7 +442,7 @@ async fn accepts_typed_balance_currency_input() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "Main Bank",
+            name: account_name("Main Bank"),
             account_type: AccountType::Bank,
             base_currency: Currency::Usd,
         },
@@ -652,7 +657,7 @@ async fn lists_account_summaries_with_zero_total_for_empty_accounts() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -666,7 +671,7 @@ async fn lists_account_summaries_with_zero_total_for_empty_accounts() {
             .expect("account summaries should succeed"),
         vec![AccountSummaryRecord {
             id: account_id,
-            name: "IBKR".to_string(),
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
             summary_status: AccountSummaryStatus::Ok,
@@ -683,7 +688,7 @@ async fn lists_account_summaries_with_single_base_currency_balance() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "Main Bank",
+            name: account_name("Main Bank"),
             account_type: AccountType::Bank,
             base_currency: Currency::Usd,
         },
@@ -718,7 +723,7 @@ async fn lists_account_summaries_with_direct_fx_conversion() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -772,7 +777,7 @@ async fn marks_summary_unavailable_when_direct_fx_rate_is_missing() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -799,7 +804,7 @@ async fn marks_summary_unavailable_when_direct_fx_rate_is_missing() {
         summaries[0],
         AccountSummaryRecord {
             id: account_id,
-            name: "IBKR".to_string(),
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
             summary_status: AccountSummaryStatus::ConversionUnavailable,
@@ -816,7 +821,7 @@ async fn does_not_use_inverse_fx_rates() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -863,7 +868,7 @@ async fn does_not_use_multi_hop_fx_rates() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "Swiss Cash",
+            name: account_name("Swiss Cash"),
             account_type: AccountType::Bank,
             base_currency: Currency::Eur,
         },
@@ -915,7 +920,7 @@ async fn rounds_after_summing_converted_balances() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "Precise FX",
+            name: account_name("Precise FX"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },

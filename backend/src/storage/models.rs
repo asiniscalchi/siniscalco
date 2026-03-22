@@ -5,6 +5,7 @@ use time::format_description::FormatItem;
 use time::macros::format_description;
 
 use super::account_id::AccountId;
+use super::account_name::AccountName;
 use super::amount::Amount;
 use super::currency::Currency;
 use super::fx_rate::FxRate;
@@ -72,8 +73,8 @@ pub(crate) fn current_utc_timestamp() -> Result<String, StorageError> {
         .map_err(|_| StorageError::Validation("failed to generate UTC timestamp"))
 }
 
-pub struct CreateAccountInput<'a> {
-    pub name: &'a str,
+pub struct CreateAccountInput {
+    pub name: AccountName,
     pub account_type: AccountType,
     pub base_currency: Currency,
 }
@@ -99,7 +100,7 @@ pub enum UpsertOutcome {
 #[derive(Debug, Eq, PartialEq)]
 pub struct AccountRecord {
     pub id: AccountId,
-    pub name: String,
+    pub name: AccountName,
     pub account_type: AccountType,
     pub base_currency: Currency,
     pub created_at: String,
@@ -123,7 +124,7 @@ impl AccountSummaryStatus {
 #[derive(Debug, Eq, PartialEq)]
 pub struct AccountSummaryRecord {
     pub id: AccountId,
-    pub name: String,
+    pub name: AccountName,
     pub account_type: AccountType,
     pub base_currency: Currency,
     pub summary_status: AccountSummaryStatus,

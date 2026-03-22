@@ -1,16 +1,14 @@
-use crate::storage::{AccountId, Currency};
+use crate::storage::{AccountId, AccountName, Currency};
 use crate::storage::models::*;
 use sqlx::{Row, SqlitePool};
 
 pub async fn create_account(
     pool: &SqlitePool,
-    input: CreateAccountInput<'_>,
+    input: CreateAccountInput,
 ) -> Result<AccountId, StorageError> {
-    validate_name(input.name)?;
-
     let result =
         sqlx::query("INSERT INTO accounts (name, account_type, base_currency) VALUES (?, ?, ?)")
-            .bind(input.name)
+            .bind(input.name.as_str())
             .bind(input.account_type.as_str())
             .bind(input.base_currency.as_str())
             .execute(pool)
@@ -35,7 +33,8 @@ pub async fn list_accounts(pool: &SqlitePool) -> Result<Vec<AccountRecord>, Stor
             Ok(AccountRecord {
                 id: AccountId::try_from(row.get::<i64, _>("id"))
                     .expect("stored account id should be valid"),
-                name: row.get("name"),
+                name: AccountName::try_from(row.get::<&str, _>("name"))
+                    .expect("stored account name should be valid"),
                 account_type: AccountType::try_from(row.get::<&str, _>("account_type"))?,
                 base_currency: Currency::try_from(row.get::<&str, _>("base_currency"))?,
                 created_at: row.get("created_at"),
@@ -61,7 +60,8 @@ pub async fn get_account(
 
     Ok(AccountRecord {
         id: AccountId::try_from(row.get::<i64, _>("id")).expect("stored account id should be valid"),
-        name: row.get("name"),
+        name: AccountName::try_from(row.get::<&str, _>("name"))
+            .expect("stored account name should be valid"),
         account_type: AccountType::try_from(row.get::<&str, _>("account_type"))?,
         base_currency: Currency::try_from(row.get::<&str, _>("base_currency"))?,
         created_at: row.get("created_at"),
@@ -76,14 +76,6 @@ pub async fn delete_account(pool: &SqlitePool, account_id: AccountId) -> Result<
 
     if result.rows_affected() == 0 {
         return Err(StorageError::Database(sqlx::Error::RowNotFound));
-    }
-
-    Ok(())
-}
-
-pub(crate) fn validate_name(name: &str) -> Result<(), StorageError> {
-    if name.trim().is_empty() {
-        return Err(StorageError::Validation("name must not be empty"));
     }
 
     Ok(())

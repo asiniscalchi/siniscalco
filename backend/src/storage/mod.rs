@@ -1,4 +1,5 @@
 mod account_id;
+mod account_name;
 mod accounts;
 mod amount;
 mod balances;
@@ -8,6 +9,7 @@ mod fx_rate;
 mod models;
 
 pub use account_id::*;
+pub use account_name::*;
 pub use accounts::*;
 pub use amount::*;
 pub use balances::*;

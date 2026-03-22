@@ -6,12 +6,12 @@ use axum::{
 
 use crate::api::models::*;
 use crate::{
-    AccountBalanceRecord, AccountId, AccountRecord, AccountSummaryRecord, AccountSummaryStatus,
-    AccountType, Amount, CreateAccountInput, Currency, CurrencyRecord, FxRateSummaryItemRecord,
-    FxRateSummaryRecord, UpsertAccountBalanceInput, UpsertOutcome, delete_account,
-    delete_account_balance, get_account, list_account_balances, list_account_summaries,
-    list_currencies, list_fx_rate_summary, normalize_amount_output, storage::StorageError,
-    upsert_account_balance,
+    AccountBalanceRecord, AccountId, AccountName, AccountRecord, AccountSummaryRecord,
+    AccountSummaryStatus, AccountType, Amount, CreateAccountInput, Currency, CurrencyRecord,
+    FxRateSummaryItemRecord, FxRateSummaryRecord, UpsertAccountBalanceInput, UpsertOutcome,
+    delete_account, delete_account_balance, get_account, list_account_balances,
+    list_account_summaries, list_currencies, list_fx_rate_summary, normalize_amount_output,
+    storage::StorageError, upsert_account_balance,
 };
 
 pub(crate) async fn health() -> &'static str {
@@ -22,6 +22,7 @@ pub(crate) async fn create_account_handler(
     State(state): State<AppState>,
     Json(request): Json<CreateAccountRequest>,
 ) -> Result<(StatusCode, Json<AccountSummaryResponse>), ApiError> {
+    let name = AccountName::try_from(request.name.as_str()).map_err(ApiError::from)?;
     let account_type =
         AccountType::try_from(request.account_type.as_str()).map_err(ApiError::from)?;
     let base_currency =
@@ -30,7 +31,7 @@ pub(crate) async fn create_account_handler(
     let account_id = crate::create_account(
         &state.pool,
         CreateAccountInput {
-            name: &request.name,
+            name,
             account_type,
             base_currency,
         },
@@ -197,7 +198,7 @@ pub(crate) async fn delete_account_handler(
 fn to_account_summary_response(account: AccountSummaryRecord) -> AccountSummaryResponse {
     AccountSummaryResponse {
         id: account.id.as_i64(),
-        name: account.name,
+        name: account.name.to_string(),
         account_type: account.account_type.as_str().to_string(),
         base_currency: account.base_currency,
         summary_status: account.summary_status.as_str().to_string(),
@@ -211,7 +212,7 @@ fn to_account_summary_response(account: AccountSummaryRecord) -> AccountSummaryR
 fn to_created_account_summary_response(account: AccountRecord) -> AccountSummaryResponse {
     AccountSummaryResponse {
         id: account.id.as_i64(),
-        name: account.name,
+        name: account.name.to_string(),
         account_type: account.account_type.as_str().to_string(),
         base_currency: account.base_currency,
         summary_status: AccountSummaryStatus::Ok.as_str().to_string(),
@@ -226,7 +227,7 @@ fn to_account_detail_response(
 ) -> AccountDetailResponse {
     AccountDetailResponse {
         id: account.id.as_i64(),
-        name: account.name,
+        name: account.name.to_string(),
         account_type: account.account_type.as_str().to_string(),
         base_currency: account.base_currency,
         created_at: account.created_at,

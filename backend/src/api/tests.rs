@@ -12,9 +12,9 @@ use tower::ServiceExt;
 
 use super::{ApiError, build_router};
 use crate::{
-    AccountId, AccountType, Amount, CreateAccountInput, Currency, UpsertAccountBalanceInput,
-    UpsertFxRateInput, create_account, get_account, init_db, list_account_balances,
-    upsert_account_balance, upsert_fx_rate, FxRate,
+    AccountId, AccountName, AccountType, Amount, CreateAccountInput, Currency,
+    UpsertAccountBalanceInput, UpsertFxRateInput, create_account, get_account, init_db,
+    list_account_balances, upsert_account_balance, upsert_fx_rate, FxRate,
 };
 
 fn amt(value: &str) -> Amount {
@@ -27,6 +27,10 @@ fn fx_rate(value: &str) -> FxRate {
 
 fn account_id(value: i64) -> AccountId {
     AccountId::try_from(value).expect("account id should parse")
+}
+
+fn account_name(value: &str) -> AccountName {
+    AccountName::try_from(value).expect("account name should parse")
 }
 
 async fn test_pool() -> sqlx::SqlitePool {
@@ -264,7 +268,7 @@ async fn deletes_account_through_api() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -348,7 +352,7 @@ async fn creates_balance_through_api() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -390,7 +394,7 @@ async fn rejects_invalid_amount_through_balance_api() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -432,7 +436,7 @@ async fn rejects_invalid_currency_through_balance_api() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -474,7 +478,7 @@ async fn updates_balance_through_api() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -557,7 +561,7 @@ async fn deletes_balance_through_api() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -602,7 +606,7 @@ async fn returns_not_found_when_deleting_missing_balance() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -781,7 +785,7 @@ async fn lists_account_summaries_with_totals_through_api() {
     create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -844,7 +848,7 @@ async fn returns_conversion_unavailable_through_api_when_direct_rate_is_missing(
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -898,7 +902,7 @@ async fn does_not_use_inverse_fx_rates_through_api() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -961,7 +965,7 @@ async fn rounds_converted_account_totals_through_api() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
@@ -1029,7 +1033,7 @@ async fn gets_account_detail_with_balances_through_api() {
     let account_id = create_account(
         &pool,
         CreateAccountInput {
-            name: "IBKR",
+            name: account_name("IBKR"),
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
         },
