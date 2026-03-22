@@ -1,5 +1,6 @@
 use std::{error::Error, fmt, fs, path::Path, str::FromStr};
 
+use axum::{Router, routing::get};
 use sqlx::{
     Row, SqlitePool,
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
@@ -9,6 +10,11 @@ use time::{OffsetDateTime, format_description::FormatItem, macros::format_descri
 const UTC_TIMESTAMP_FORMAT: &[FormatItem<'static>] =
     format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
+
+#[derive(Clone)]
+pub struct AppState {
+    pub pool: SqlitePool,
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AccountType {
@@ -89,6 +95,12 @@ pub struct AccountBalanceRecord {
     pub currency: String,
     pub amount: String,
     pub updated_at: String,
+}
+
+pub fn build_router(pool: SqlitePool) -> Router {
+    Router::new()
+        .route("/health", get(health))
+        .with_state(AppState { pool })
 }
 
 /// SQLite stores DECIMAL values with numeric affinity, so it does not preserve
@@ -286,17 +298,26 @@ fn current_utc_timestamp() -> Result<String, StorageError> {
         .map_err(|_| StorageError::Validation("failed to generate UTC timestamp"))
 }
 
+async fn health() -> &'static str {
+    "ok"
+}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
 
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
     use sqlx::sqlite::SqlitePoolOptions;
     use tempfile::NamedTempFile;
+    use tower::ServiceExt;
 
     use super::{
         AccountBalanceRecord, AccountRecord, AccountType, CreateAccountInput, StorageError,
-        UpsertAccountBalanceInput, connect_db_file, create_account, init_db, list_account_balances,
-        list_accounts, upsert_account_balance,
+        UpsertAccountBalanceInput, build_router, connect_db_file, create_account, init_db,
+        list_account_balances, list_accounts, upsert_account_balance,
     };
 
     async fn test_pool() -> sqlx::SqlitePool {
@@ -326,6 +347,24 @@ mod tests {
         .expect("table lookup should succeed");
 
         assert_eq!(tables, 3);
+    }
+
+    #[tokio::test]
+    async fn serves_health_route() {
+        let pool = test_pool().await;
+        let app = build_router(pool);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("health request should succeed");
+
+        assert_eq!(response.status(), StatusCode::OK);
     }
 
     #[tokio::test]
