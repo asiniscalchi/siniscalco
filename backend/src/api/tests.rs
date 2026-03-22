@@ -12,8 +12,9 @@ use tower::ServiceExt;
 
 use super::{ApiError, build_router};
 use crate::{
-    AccountType, CreateAccountInput, UpsertAccountBalanceInput, UpsertFxRateInput, create_account,
-    get_account, init_db, list_account_balances, upsert_account_balance, upsert_fx_rate,
+    AccountType, CreateAccountInput, Currency, UpsertAccountBalanceInput, UpsertFxRateInput,
+    create_account, get_account, init_db, list_account_balances, upsert_account_balance,
+    upsert_fx_rate,
 };
 
 async fn test_pool() -> sqlx::SqlitePool {
@@ -85,10 +86,10 @@ async fn lists_fx_rates_for_eur_through_api() {
     let pool = test_pool().await;
 
     for (from_currency, to_currency, rate) in [
-        ("USD", "EUR", "0.92000000"),
-        ("GBP", "EUR", "1.17000000"),
-        ("CHF", "EUR", "1.04000000"),
-        ("EUR", "EUR", "1.00000000"),
+        (Currency::Usd, Currency::Eur, "0.92000000"),
+        (Currency::Gbp, Currency::Eur, "1.17000000"),
+        (Currency::Chf, Currency::Eur, "1.04000000"),
+        (Currency::Eur, Currency::Eur, "1.00000000"),
     ] {
         upsert_fx_rate(
             &pool,
@@ -253,7 +254,7 @@ async fn deletes_account_through_api() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -263,7 +264,7 @@ async fn deletes_account_through_api() {
         &pool,
         UpsertAccountBalanceInput {
             account_id,
-            currency: "USD",
+            currency: Currency::Usd,
             amount: "12.3",
         },
     )
@@ -337,7 +338,7 @@ async fn creates_balance_through_api() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -379,7 +380,7 @@ async fn rejects_invalid_amount_through_balance_api() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -421,7 +422,7 @@ async fn rejects_invalid_currency_through_balance_api() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -463,7 +464,7 @@ async fn updates_balance_through_api() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -473,7 +474,7 @@ async fn updates_balance_through_api() {
         &pool,
         UpsertAccountBalanceInput {
             account_id,
-            currency: "USD",
+            currency: Currency::Usd,
             amount: "1.0",
         },
     )
@@ -546,7 +547,7 @@ async fn deletes_balance_through_api() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -556,7 +557,7 @@ async fn deletes_balance_through_api() {
         &pool,
         UpsertAccountBalanceInput {
             account_id,
-            currency: "USD",
+            currency: Currency::Usd,
             amount: "12.3",
         },
     )
@@ -591,7 +592,7 @@ async fn returns_not_found_when_deleting_missing_balance() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -770,7 +771,7 @@ async fn lists_account_summaries_with_totals_through_api() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -780,7 +781,7 @@ async fn lists_account_summaries_with_totals_through_api() {
         &pool,
         UpsertAccountBalanceInput {
             account_id: 1,
-            currency: "EUR",
+            currency: Currency::Eur,
             amount: "12000.00000000",
         },
     )
@@ -833,7 +834,7 @@ async fn returns_conversion_unavailable_through_api_when_direct_rate_is_missing(
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -843,7 +844,7 @@ async fn returns_conversion_unavailable_through_api_when_direct_rate_is_missing(
         &pool,
         UpsertAccountBalanceInput {
             account_id,
-            currency: "USD",
+            currency: Currency::Usd,
             amount: "12.30000000",
         },
     )
@@ -887,7 +888,7 @@ async fn does_not_use_inverse_fx_rates_through_api() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -897,7 +898,7 @@ async fn does_not_use_inverse_fx_rates_through_api() {
         &pool,
         UpsertAccountBalanceInput {
             account_id,
-            currency: "USD",
+            currency: Currency::Usd,
             amount: "12.30000000",
         },
     )
@@ -907,8 +908,8 @@ async fn does_not_use_inverse_fx_rates_through_api() {
     upsert_fx_rate(
         &pool,
         UpsertFxRateInput {
-            from_currency: "EUR",
-            to_currency: "USD",
+            from_currency: Currency::Eur,
+            to_currency: Currency::Usd,
             rate: "1.10000000",
         },
     )
@@ -950,13 +951,13 @@ async fn rounds_converted_account_totals_through_api() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
     .expect("account insert should succeed");
 
-    for currency in ["USD", "GBP"] {
+    for currency in [Currency::Usd, Currency::Gbp] {
         upsert_account_balance(
             &pool,
             UpsertAccountBalanceInput {
@@ -969,12 +970,15 @@ async fn rounds_converted_account_totals_through_api() {
         .expect("balance insert should succeed");
     }
 
-    for (from_currency, rate) in [("USD", "0.33333333"), ("GBP", "0.33333333")] {
+    for (from_currency, rate) in [
+        (Currency::Usd, "0.33333333"),
+        (Currency::Gbp, "0.33333333"),
+    ] {
         upsert_fx_rate(
             &pool,
             UpsertFxRateInput {
                 from_currency,
-                to_currency: "EUR",
+                to_currency: Currency::Eur,
                 rate,
             },
         )
@@ -1018,7 +1022,7 @@ async fn gets_account_detail_with_balances_through_api() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -1028,7 +1032,7 @@ async fn gets_account_detail_with_balances_through_api() {
         &pool,
         UpsertAccountBalanceInput {
             account_id,
-            currency: "USD",
+            currency: Currency::Usd,
             amount: "12.3",
         },
     )

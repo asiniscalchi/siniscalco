@@ -109,18 +109,18 @@ pub(crate) fn current_utc_timestamp() -> Result<String, StorageError> {
 pub struct CreateAccountInput<'a> {
     pub name: &'a str,
     pub account_type: AccountType,
-    pub base_currency: &'a str,
+    pub base_currency: Currency,
 }
 
 pub struct UpsertAccountBalanceInput<'a> {
     pub account_id: i64,
-    pub currency: &'a str,
+    pub currency: Currency,
     pub amount: &'a str,
 }
 
 pub struct UpsertFxRateInput<'a> {
-    pub from_currency: &'a str,
-    pub to_currency: &'a str,
+    pub from_currency: Currency,
+    pub to_currency: Currency,
     pub rate: &'a str,
 }
 
@@ -135,7 +135,7 @@ pub struct AccountRecord {
     pub id: i64,
     pub name: String,
     pub account_type: AccountType,
-    pub base_currency: String,
+    pub base_currency: Currency,
     pub created_at: String,
 }
 
@@ -159,42 +159,42 @@ pub struct AccountSummaryRecord {
     pub id: i64,
     pub name: String,
     pub account_type: AccountType,
-    pub base_currency: String,
+    pub base_currency: Currency,
     pub summary_status: AccountSummaryStatus,
     pub total_amount: Option<String>,
-    pub total_currency: Option<String>,
+    pub total_currency: Option<Currency>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct AccountBalanceRecord {
     pub account_id: i64,
-    pub currency: String,
+    pub currency: Currency,
     pub amount: String,
     pub updated_at: String,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct CurrencyRecord {
-    pub code: String,
+    pub code: Currency,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct FxRateRecord {
-    pub from_currency: String,
-    pub to_currency: String,
+    pub from_currency: Currency,
+    pub to_currency: Currency,
     pub rate: String,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct FxRateSummaryItemRecord {
-    pub from_currency: String,
+    pub from_currency: Currency,
     pub rate: String,
     pub updated_at: String,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct FxRateSummaryRecord {
-    pub target_currency: String,
+    pub target_currency: Currency,
     pub rates: Vec<FxRateSummaryItemRecord>,
     pub last_updated: Option<String>,
 }

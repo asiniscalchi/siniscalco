@@ -1,7 +1,6 @@
 use rust_decimal::Decimal;
 use sqlx::{Row, SqlitePool};
 
-use crate::storage::accounts::validate_allowed_currency;
 use crate::storage::fx::get_direct_fx_rate;
 use crate::storage::models::*;
 
@@ -9,7 +8,6 @@ pub async fn upsert_account_balance(
     pool: &SqlitePool,
     input: UpsertAccountBalanceInput<'_>,
 ) -> Result<UpsertOutcome, StorageError> {
-    validate_allowed_currency(pool, input.currency).await?;
     validate_decimal_20_8(input.amount)?;
 
     let updated_at = current_utc_timestamp()?;
@@ -19,7 +17,7 @@ pub async fn upsert_account_balance(
         "SELECT EXISTS(SELECT 1 FROM account_balances WHERE account_id = ? AND currency = ?)",
     )
     .bind(input.account_id)
-    .bind(input.currency)
+    .bind(input.currency.as_str())
     .fetch_one(&mut *transaction)
     .await?
         != 0;
@@ -34,7 +32,7 @@ pub async fn upsert_account_balance(
         "#,
     )
     .bind(input.account_id)
-    .bind(input.currency)
+    .bind(input.currency.as_str())
     .bind(input.amount)
     .bind(updated_at)
     .execute(&mut *transaction)
@@ -73,7 +71,8 @@ pub async fn list_account_balances(
         .into_iter()
         .map(|row| AccountBalanceRecord {
             account_id: row.get("account_id"),
-            currency: row.get("currency"),
+            currency: Currency::try_from(row.get::<&str, _>("currency"))
+                .expect("stored currency should be valid"),
             amount: row.get("amount"),
             updated_at: row.get("updated_at"),
         })
@@ -107,7 +106,7 @@ pub async fn list_account_summaries(
 pub(crate) struct AccountTotalSummaryInternal {
     pub(crate) status: AccountSummaryStatus,
     pub(crate) total_amount: Option<String>,
-    pub(crate) total_currency: Option<String>,
+    pub(crate) total_currency: Option<Currency>,
 }
 
 async fn summarize_account(
@@ -119,7 +118,7 @@ async fn summarize_account(
         return Ok(AccountTotalSummaryInternal {
             status: AccountSummaryStatus::Ok,
             total_amount: Some("0.00000000".to_string()),
-            total_currency: Some(account.base_currency.clone()),
+            total_currency: Some(account.base_currency),
         });
     }
 
@@ -134,7 +133,7 @@ async fn summarize_account(
         }
 
         let Some(rate) =
-            get_direct_fx_rate(pool, &balance.currency, &account.base_currency).await?
+            get_direct_fx_rate(pool, balance.currency, account.base_currency).await?
         else {
             return Ok(AccountTotalSummaryInternal {
                 status: AccountSummaryStatus::ConversionUnavailable,
@@ -149,7 +148,7 @@ async fn summarize_account(
     Ok(AccountTotalSummaryInternal {
         status: AccountSummaryStatus::Ok,
         total_amount: Some(crate::format_decimal_amount(total)),
-        total_currency: Some(account.base_currency.clone()),
+        total_currency: Some(account.base_currency),
     })
 }
 
@@ -162,13 +161,11 @@ pub(crate) fn parse_stored_decimal(value: &str) -> Result<Decimal, StorageError>
 pub async fn delete_account_balance(
     pool: &SqlitePool,
     account_id: i64,
-    currency: &str,
+    currency: Currency,
 ) -> Result<(), StorageError> {
-    validate_allowed_currency(pool, currency).await?;
-
     let result = sqlx::query("DELETE FROM account_balances WHERE account_id = ? AND currency = ?")
         .bind(account_id)
-        .bind(currency)
+        .bind(currency.as_str())
         .execute(pool)
         .await?;
 

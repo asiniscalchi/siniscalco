@@ -6,13 +6,12 @@ pub async fn create_account(
     input: CreateAccountInput<'_>,
 ) -> Result<i64, StorageError> {
     validate_name(input.name)?;
-    validate_allowed_currency(pool, input.base_currency).await?;
 
     let result =
         sqlx::query("INSERT INTO accounts (name, account_type, base_currency) VALUES (?, ?, ?)")
             .bind(input.name)
             .bind(input.account_type.as_str())
-            .bind(input.base_currency)
+            .bind(input.base_currency.as_str())
             .execute(pool)
             .await?;
 
@@ -36,7 +35,7 @@ pub async fn list_accounts(pool: &SqlitePool) -> Result<Vec<AccountRecord>, Stor
                 id: row.get("id"),
                 name: row.get("name"),
                 account_type: AccountType::try_from(row.get::<&str, _>("account_type"))?,
-                base_currency: row.get("base_currency"),
+                base_currency: Currency::try_from(row.get::<&str, _>("base_currency"))?,
                 created_at: row.get("created_at"),
             })
         })
@@ -62,7 +61,7 @@ pub async fn get_account(
         id: row.get("id"),
         name: row.get("name"),
         account_type: AccountType::try_from(row.get::<&str, _>("account_type"))?,
-        base_currency: row.get("base_currency"),
+        base_currency: Currency::try_from(row.get::<&str, _>("base_currency"))?,
         created_at: row.get("created_at"),
     })
 }
@@ -83,26 +82,6 @@ pub async fn delete_account(pool: &SqlitePool, account_id: i64) -> Result<(), St
 pub(crate) fn validate_name(name: &str) -> Result<(), StorageError> {
     if name.trim().is_empty() {
         return Err(StorageError::Validation("name must not be empty"));
-    }
-
-    Ok(())
-}
-
-pub(crate) async fn validate_allowed_currency(
-    pool: &SqlitePool,
-    currency: &str,
-) -> Result<(), StorageError> {
-    let exists =
-        sqlx::query_scalar::<_, i64>("SELECT EXISTS(SELECT 1 FROM currencies WHERE code = ?)")
-            .bind(currency)
-            .fetch_one(pool)
-            .await?
-            != 0;
-
-    if !exists {
-        return Err(StorageError::Validation(
-            "currency must be one of: EUR, USD, GBP, CHF",
-        ));
     }
 
     Ok(())

@@ -7,7 +7,7 @@ use axum::{
 use crate::api::models::*;
 use crate::{
     AccountBalanceRecord, AccountRecord, AccountSummaryRecord, AccountSummaryStatus, AccountType,
-    CreateAccountInput, CurrencyRecord, FxRateSummaryItemRecord, FxRateSummaryRecord,
+    CreateAccountInput, Currency, CurrencyRecord, FxRateSummaryItemRecord, FxRateSummaryRecord,
     UpsertAccountBalanceInput, UpsertOutcome, delete_account, delete_account_balance, get_account,
     list_account_balances, list_account_summaries, list_currencies, list_fx_rate_summary,
     normalize_amount_output, storage::StorageError, upsert_account_balance,
@@ -23,13 +23,14 @@ pub(crate) async fn create_account_handler(
 ) -> Result<(StatusCode, Json<AccountSummaryResponse>), ApiError> {
     let account_type =
         AccountType::try_from(request.account_type.as_str()).map_err(ApiError::from)?;
+    let base_currency = Currency::try_from(request.base_currency.as_str()).map_err(ApiError::from)?;
 
     let account_id = crate::create_account(
         &state.pool,
         CreateAccountInput {
             name: &request.name,
             account_type,
-            base_currency: &request.base_currency,
+            base_currency,
         },
     )
     .await
@@ -73,7 +74,7 @@ pub(crate) async fn list_accounts_handler(
 pub(crate) async fn get_fx_rate_summary_handler(
     State(state): State<AppState>,
 ) -> Result<Json<FxRateSummaryResponse>, ApiError> {
-    let summary = list_fx_rate_summary(&state.pool, "EUR")
+    let summary = list_fx_rate_summary(&state.pool, Currency::Eur)
         .await
         .map_err(ApiError::from)?;
 
@@ -104,6 +105,8 @@ pub(crate) async fn upsert_account_balance_handler(
     AxumPath((account_id, currency)): AxumPath<(i64, String)>,
     Json(request): Json<UpsertBalanceRequest>,
 ) -> Result<(StatusCode, Json<BalanceResponse>), ApiError> {
+    let currency = Currency::try_from(currency.as_str()).map_err(ApiError::from)?;
+
     get_account(&state.pool, account_id)
         .await
         .map_err(|error| match error {
@@ -117,7 +120,7 @@ pub(crate) async fn upsert_account_balance_handler(
         &state.pool,
         UpsertAccountBalanceInput {
             account_id,
-            currency: &currency,
+            currency,
             amount: &request.amount,
         },
     )
@@ -143,6 +146,8 @@ pub(crate) async fn delete_account_balance_handler(
     State(state): State<AppState>,
     AxumPath((account_id, currency)): AxumPath<(i64, String)>,
 ) -> Result<StatusCode, ApiError> {
+    let currency = Currency::try_from(currency.as_str()).map_err(ApiError::from)?;
+
     get_account(&state.pool, account_id)
         .await
         .map_err(|error| match error {
@@ -152,7 +157,7 @@ pub(crate) async fn delete_account_balance_handler(
             other => ApiError::from(other),
         })?;
 
-    delete_account_balance(&state.pool, account_id, &currency)
+    delete_account_balance(&state.pool, account_id, currency)
         .await
         .map_err(|error| match error {
             StorageError::Database(sqlx::Error::RowNotFound) => {
@@ -185,10 +190,12 @@ fn to_account_summary_response(account: AccountSummaryRecord) -> AccountSummaryR
         id: account.id,
         name: account.name,
         account_type: account.account_type.as_str().to_string(),
-        base_currency: account.base_currency,
+        base_currency: account.base_currency.as_str().to_string(),
         summary_status: account.summary_status.as_str().to_string(),
         total_amount: account.total_amount,
-        total_currency: account.total_currency,
+        total_currency: account
+            .total_currency
+            .map(|currency| currency.as_str().to_string()),
     }
 }
 
@@ -197,10 +204,10 @@ fn to_created_account_summary_response(account: AccountRecord) -> AccountSummary
         id: account.id,
         name: account.name,
         account_type: account.account_type.as_str().to_string(),
-        base_currency: account.base_currency.clone(),
+        base_currency: account.base_currency.as_str().to_string(),
         summary_status: AccountSummaryStatus::Ok.as_str().to_string(),
         total_amount: Some("0.00000000".to_string()),
-        total_currency: Some(account.base_currency),
+        total_currency: Some(account.base_currency.as_str().to_string()),
     }
 }
 
@@ -212,7 +219,7 @@ fn to_account_detail_response(
         id: account.id,
         name: account.name,
         account_type: account.account_type.as_str().to_string(),
-        base_currency: account.base_currency,
+        base_currency: account.base_currency.as_str().to_string(),
         created_at: account.created_at,
         balances: balances.into_iter().map(to_balance_response).collect(),
     }
@@ -220,7 +227,7 @@ fn to_account_detail_response(
 
 fn to_balance_response(balance: AccountBalanceRecord) -> BalanceResponse {
     BalanceResponse {
-        currency: balance.currency,
+        currency: balance.currency.as_str().to_string(),
         amount: normalize_amount_output(&balance.amount),
         updated_at: balance.updated_at,
     }
@@ -228,13 +235,13 @@ fn to_balance_response(balance: AccountBalanceRecord) -> BalanceResponse {
 
 fn to_currency_response(currency: CurrencyRecord) -> CurrencyResponse {
     CurrencyResponse {
-        code: currency.code,
+        code: currency.code.as_str().to_string(),
     }
 }
 
 fn to_fx_rate_summary_response(summary: FxRateSummaryRecord) -> FxRateSummaryResponse {
     FxRateSummaryResponse {
-        target_currency: summary.target_currency,
+        target_currency: summary.target_currency.as_str().to_string(),
         rates: summary
             .rates
             .into_iter()
@@ -246,7 +253,7 @@ fn to_fx_rate_summary_response(summary: FxRateSummaryRecord) -> FxRateSummaryRes
 
 fn to_fx_rate_summary_item_response(rate: FxRateSummaryItemRecord) -> FxRateSummaryItemResponse {
     FxRateSummaryItemResponse {
-        currency: rate.from_currency,
+        currency: rate.from_currency.as_str().to_string(),
         rate: rate.rate,
     }
 }

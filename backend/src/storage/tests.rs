@@ -36,7 +36,7 @@ async fn creates_account_without_balance() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -62,16 +62,16 @@ async fn lists_currencies_in_code_order() {
         currencies,
         vec![
             CurrencyRecord {
-                code: "CHF".to_string(),
+                code: Currency::Chf,
             },
             CurrencyRecord {
-                code: "EUR".to_string(),
+                code: Currency::Eur,
             },
             CurrencyRecord {
-                code: "GBP".to_string(),
+                code: Currency::Gbp,
             },
             CurrencyRecord {
-                code: "USD".to_string(),
+                code: Currency::Usd,
             },
         ]
     );
@@ -86,7 +86,7 @@ async fn reads_accounts_in_insert_order() {
         CreateAccountInput {
             name: "Main Bank",
             account_type: AccountType::Bank,
-            base_currency: "USD",
+            base_currency: Currency::Usd,
         },
     )
     .await
@@ -97,7 +97,7 @@ async fn reads_accounts_in_insert_order() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -123,7 +123,7 @@ async fn gets_single_account_by_id() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -136,7 +136,7 @@ async fn gets_single_account_by_id() {
     assert_eq!(account.id, account_id);
     assert_eq!(account.name, "IBKR");
     assert_eq!(account.account_type, AccountType::Broker);
-    assert_eq!(account.base_currency, "EUR");
+    assert_eq!(account.base_currency, Currency::Eur);
 }
 
 #[tokio::test]
@@ -148,7 +148,7 @@ async fn allows_multiple_currencies_per_account() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -159,7 +159,7 @@ async fn allows_multiple_currencies_per_account() {
             &pool,
             UpsertAccountBalanceInput {
                 account_id,
-                currency,
+                currency: Currency::try_from(currency).unwrap(),
                 amount,
             },
         )
@@ -176,13 +176,13 @@ async fn allows_multiple_currencies_per_account() {
         vec![
             AccountBalanceRecord {
                 account_id,
-                currency: "EUR".to_string(),
+                currency: Currency::Eur,
                 amount: "12000".to_string(),
                 updated_at: balances[0].updated_at.clone(),
             },
             AccountBalanceRecord {
                 account_id,
-                currency: "USD".to_string(),
+                currency: Currency::Usd,
                 amount: "3500".to_string(),
                 updated_at: balances[1].updated_at.clone(),
             }
@@ -201,7 +201,7 @@ async fn upsert_updates_existing_balance() {
         CreateAccountInput {
             name: "Main Bank",
             account_type: AccountType::Bank,
-            base_currency: "USD",
+            base_currency: Currency::Usd,
         },
     )
     .await
@@ -211,7 +211,7 @@ async fn upsert_updates_existing_balance() {
         &pool,
         UpsertAccountBalanceInput {
             account_id,
-            currency: "USD",
+            currency: Currency::Usd,
             amount: "10.00000000",
         },
     )
@@ -223,7 +223,7 @@ async fn upsert_updates_existing_balance() {
         &pool,
         UpsertAccountBalanceInput {
             account_id,
-            currency: "USD",
+            currency: Currency::Usd,
             amount: "12.00000000",
         },
     )
@@ -249,7 +249,7 @@ async fn deletes_single_balance() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -259,14 +259,14 @@ async fn deletes_single_balance() {
         &pool,
         UpsertAccountBalanceInput {
             account_id,
-            currency: "EUR",
+            currency: Currency::Eur,
             amount: "12000.00000000",
         },
     )
     .await
     .expect("balance insert should succeed");
 
-    delete_account_balance(&pool, account_id, "EUR")
+    delete_account_balance(&pool, account_id, Currency::Eur)
         .await
         .expect("balance delete should succeed");
 
@@ -286,13 +286,13 @@ async fn deleting_missing_balance_returns_not_found() {
         CreateAccountInput {
             name: "Main Bank",
             account_type: AccountType::Bank,
-            base_currency: "USD",
+            base_currency: Currency::Usd,
         },
     )
     .await
     .expect("account insert should succeed");
 
-    let error = delete_account_balance(&pool, account_id, "USD")
+    let error = delete_account_balance(&pool, account_id, Currency::Usd)
         .await
         .expect_err("missing balance delete should fail");
 
@@ -311,7 +311,7 @@ async fn deletes_account_and_cascades_balances() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -321,7 +321,7 @@ async fn deletes_account_and_cascades_balances() {
         &pool,
         UpsertAccountBalanceInput {
             account_id,
-            currency: "EUR",
+            currency: Currency::Eur,
             amount: "12000.00000000",
         },
     )
@@ -369,7 +369,7 @@ async fn preserves_created_account_fields() {
         CreateAccountInput {
             name: "Joint Bank",
             account_type: AccountType::Bank,
-            base_currency: "GBP",
+            base_currency: Currency::Gbp,
         },
     )
     .await
@@ -385,7 +385,7 @@ async fn preserves_created_account_fields() {
             id: account_id,
             name: "Joint Bank".to_string(),
             account_type: AccountType::Bank,
-            base_currency: "GBP".to_string(),
+            base_currency: Currency::Gbp,
             created_at: accounts[0].created_at.clone(),
         }]
     );
@@ -421,28 +421,23 @@ fn rejects_invalid_currency_codes() {
 }
 
 #[tokio::test]
-async fn rejects_invalid_account_currency_input() {
+async fn accepts_typed_account_currency_input() {
     let pool = test_pool().await;
 
-    let error = create_account(
+    create_account(
         &pool,
         CreateAccountInput {
             name: "Main Bank",
             account_type: AccountType::Bank,
-            base_currency: "usd",
+            base_currency: Currency::Usd,
         },
     )
     .await
-    .expect_err("lowercase currency should fail");
-
-    assert_eq!(
-        error.to_string(),
-        "currency must be one of: EUR, USD, GBP, CHF"
-    );
+    .expect("typed currency should succeed");
 }
 
 #[tokio::test]
-async fn rejects_invalid_balance_currency_input() {
+async fn accepts_typed_balance_currency_input() {
     let pool = test_pool().await;
 
     let account_id = create_account(
@@ -450,27 +445,24 @@ async fn rejects_invalid_balance_currency_input() {
         CreateAccountInput {
             name: "Main Bank",
             account_type: AccountType::Bank,
-            base_currency: "USD",
+            base_currency: Currency::Usd,
         },
     )
     .await
     .expect("account insert should succeed");
 
-    let error = upsert_account_balance(
+    let outcome = upsert_account_balance(
         &pool,
         UpsertAccountBalanceInput {
             account_id,
-            currency: "us",
+            currency: Currency::Usd,
             amount: "10.00000000",
         },
     )
     .await
-    .expect_err("invalid currency should fail");
+    .expect("typed currency should succeed");
 
-    assert_eq!(
-        error.to_string(),
-        "currency must be one of: EUR, USD, GBP, CHF"
-    );
+    assert_eq!(outcome, UpsertOutcome::Created);
 }
 
 #[tokio::test]
@@ -482,7 +474,7 @@ async fn rejects_invalid_amount_input() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -492,7 +484,7 @@ async fn rejects_invalid_amount_input() {
         &pool,
         UpsertAccountBalanceInput {
             account_id,
-            currency: "EUR",
+            currency: Currency::Eur,
             amount: "1.123456789",
         },
     )
@@ -510,7 +502,7 @@ async fn rejects_balance_for_missing_account() {
         &pool,
         UpsertAccountBalanceInput {
             account_id: 999_i64,
-            currency: "USD",
+            currency: Currency::Usd,
             amount: "10.00000000",
         },
     )
@@ -535,8 +527,8 @@ async fn upserts_fx_rates() {
     let outcome = upsert_fx_rate(
         &pool,
         UpsertFxRateInput {
-            from_currency: "USD",
-            to_currency: "EUR",
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
             rate: "0.92000000",
         },
     )
@@ -547,8 +539,8 @@ async fn upserts_fx_rates() {
     assert_eq!(
         list_fx_rates(&pool).await.expect("fx rates should list"),
         vec![FxRateRecord {
-            from_currency: "USD".to_string(),
-            to_currency: "EUR".to_string(),
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
             rate: "0.92".to_string(),
         }]
     );
@@ -561,8 +553,8 @@ async fn updates_existing_fx_rate() {
     upsert_fx_rate(
         &pool,
         UpsertFxRateInput {
-            from_currency: "USD",
-            to_currency: "EUR",
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
             rate: "0.92000000",
         },
     )
@@ -572,8 +564,8 @@ async fn updates_existing_fx_rate() {
     let outcome = upsert_fx_rate(
         &pool,
         UpsertFxRateInput {
-            from_currency: "USD",
-            to_currency: "EUR",
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
             rate: "0.91000000",
         },
     )
@@ -584,8 +576,8 @@ async fn updates_existing_fx_rate() {
     assert_eq!(
         list_fx_rates(&pool).await.expect("fx rates should list"),
         vec![FxRateRecord {
-            from_currency: "USD".to_string(),
-            to_currency: "EUR".to_string(),
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
             rate: "0.91".to_string(),
         }]
     );
@@ -598,8 +590,8 @@ async fn rejects_non_positive_fx_rates() {
     let error = upsert_fx_rate(
         &pool,
         UpsertFxRateInput {
-            from_currency: "USD",
-            to_currency: "EUR",
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
             rate: "0.00000000",
         },
     )
@@ -614,11 +606,11 @@ async fn lists_fx_rate_summary_for_a_single_target_currency() {
     let pool = test_pool().await;
 
     for (from_currency, to_currency, rate) in [
-        ("USD", "EUR", "0.92000000"),
-        ("GBP", "EUR", "1.17000000"),
-        ("CHF", "EUR", "1.04000000"),
-        ("EUR", "EUR", "1.00000000"),
-        ("USD", "GBP", "0.78000000"),
+        (Currency::Usd, Currency::Eur, "0.92000000"),
+        (Currency::Gbp, Currency::Eur, "1.17000000"),
+        (Currency::Chf, Currency::Eur, "1.04000000"),
+        (Currency::Eur, Currency::Eur, "1.00000000"),
+        (Currency::Usd, Currency::Gbp, "0.78000000"),
     ] {
         upsert_fx_rate(
             &pool,
@@ -649,24 +641,24 @@ async fn lists_fx_rate_summary_for_a_single_target_currency() {
     }
 
     assert_eq!(
-        list_fx_rate_summary(&pool, "EUR")
+        list_fx_rate_summary(&pool, Currency::Eur)
             .await
             .expect("fx summary should succeed"),
         FxRateSummaryRecord {
-            target_currency: "EUR".to_string(),
+            target_currency: Currency::Eur,
             rates: vec![
                 FxRateSummaryItemRecord {
-                    from_currency: "CHF".to_string(),
+                    from_currency: Currency::Chf,
                     rate: "1.04".to_string(),
                     updated_at: "2026-03-22 08:30:00".to_string(),
                 },
                 FxRateSummaryItemRecord {
-                    from_currency: "GBP".to_string(),
+                    from_currency: Currency::Gbp,
                     rate: "1.17".to_string(),
                     updated_at: "2026-03-22 10:00:00".to_string(),
                 },
                 FxRateSummaryItemRecord {
-                    from_currency: "USD".to_string(),
+                    from_currency: Currency::Usd,
                     rate: "0.92".to_string(),
                     updated_at: "2026-03-22 09:00:00".to_string(),
                 },
@@ -681,11 +673,11 @@ async fn returns_empty_fx_rate_summary_when_target_has_no_rates() {
     let pool = test_pool().await;
 
     assert_eq!(
-        list_fx_rate_summary(&pool, "EUR")
+        list_fx_rate_summary(&pool, Currency::Eur)
             .await
             .expect("fx summary should succeed"),
         FxRateSummaryRecord {
-            target_currency: "EUR".to_string(),
+            target_currency: Currency::Eur,
             rates: vec![],
             last_updated: None,
         }
@@ -701,7 +693,7 @@ async fn lists_account_summaries_with_zero_total_for_empty_accounts() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -715,10 +707,10 @@ async fn lists_account_summaries_with_zero_total_for_empty_accounts() {
             id: account_id,
             name: "IBKR".to_string(),
             account_type: AccountType::Broker,
-            base_currency: "EUR".to_string(),
+            base_currency: Currency::Eur,
             summary_status: AccountSummaryStatus::Ok,
             total_amount: Some("0.00000000".to_string()),
-            total_currency: Some("EUR".to_string()),
+            total_currency: Some(Currency::Eur),
         }]
     );
 }
@@ -732,7 +724,7 @@ async fn lists_account_summaries_with_single_base_currency_balance() {
         CreateAccountInput {
             name: "Main Bank",
             account_type: AccountType::Bank,
-            base_currency: "USD",
+            base_currency: Currency::Usd,
         },
     )
     .await
@@ -742,7 +734,7 @@ async fn lists_account_summaries_with_single_base_currency_balance() {
         &pool,
         UpsertAccountBalanceInput {
             account_id,
-            currency: "USD",
+            currency: Currency::Usd,
             amount: "123.45000000",
         },
     )
@@ -755,7 +747,7 @@ async fn lists_account_summaries_with_single_base_currency_balance() {
 
     assert_eq!(summaries[0].summary_status, AccountSummaryStatus::Ok);
     assert_eq!(summaries[0].total_amount.as_deref(), Some("123.45000000"));
-    assert_eq!(summaries[0].total_currency.as_deref(), Some("USD"));
+    assert_eq!(summaries[0].total_currency, Some(Currency::Usd));
 }
 
 #[tokio::test]
@@ -767,16 +759,16 @@ async fn lists_account_summaries_with_direct_fx_conversion() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
     .expect("account insert should succeed");
 
     for (currency, amount) in [
-        ("EUR", "10.00000000"),
-        ("USD", "20.00000000"),
-        ("GBP", "30.00000000"),
+        (Currency::Eur, "10.00000000"),
+        (Currency::Usd, "20.00000000"),
+        (Currency::Gbp, "30.00000000"),
     ] {
         upsert_account_balance(
             &pool,
@@ -790,12 +782,15 @@ async fn lists_account_summaries_with_direct_fx_conversion() {
         .expect("balance insert should succeed");
     }
 
-    for (from_currency, rate) in [("USD", "0.50000000"), ("GBP", "1.20000000")] {
+    for (from_currency, rate) in [
+        (Currency::Usd, "0.50000000"),
+        (Currency::Gbp, "1.20000000"),
+    ] {
         upsert_fx_rate(
             &pool,
             UpsertFxRateInput {
                 from_currency,
-                to_currency: "EUR",
+                to_currency: Currency::Eur,
                 rate,
             },
         )
@@ -809,7 +804,7 @@ async fn lists_account_summaries_with_direct_fx_conversion() {
 
     assert_eq!(summaries[0].summary_status, AccountSummaryStatus::Ok);
     assert_eq!(summaries[0].total_amount.as_deref(), Some("56.00000000"));
-    assert_eq!(summaries[0].total_currency.as_deref(), Some("EUR"));
+    assert_eq!(summaries[0].total_currency, Some(Currency::Eur));
 }
 
 #[tokio::test]
@@ -821,7 +816,7 @@ async fn marks_summary_unavailable_when_direct_fx_rate_is_missing() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -831,7 +826,7 @@ async fn marks_summary_unavailable_when_direct_fx_rate_is_missing() {
         &pool,
         UpsertAccountBalanceInput {
             account_id,
-            currency: "USD",
+            currency: Currency::Usd,
             amount: "20.00000000",
         },
     )
@@ -848,7 +843,7 @@ async fn marks_summary_unavailable_when_direct_fx_rate_is_missing() {
             id: account_id,
             name: "IBKR".to_string(),
             account_type: AccountType::Broker,
-            base_currency: "EUR".to_string(),
+            base_currency: Currency::Eur,
             summary_status: AccountSummaryStatus::ConversionUnavailable,
             total_amount: None,
             total_currency: None,
@@ -865,7 +860,7 @@ async fn does_not_use_inverse_fx_rates() {
         CreateAccountInput {
             name: "IBKR",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -875,7 +870,7 @@ async fn does_not_use_inverse_fx_rates() {
         &pool,
         UpsertAccountBalanceInput {
             account_id,
-            currency: "USD",
+            currency: Currency::Usd,
             amount: "20.00000000",
         },
     )
@@ -885,8 +880,8 @@ async fn does_not_use_inverse_fx_rates() {
     upsert_fx_rate(
         &pool,
         UpsertFxRateInput {
-            from_currency: "EUR",
-            to_currency: "USD",
+            from_currency: Currency::Eur,
+            to_currency: Currency::Usd,
             rate: "1.10000000",
         },
     )
@@ -912,7 +907,7 @@ async fn does_not_use_multi_hop_fx_rates() {
         CreateAccountInput {
             name: "Swiss Cash",
             account_type: AccountType::Bank,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
@@ -922,7 +917,7 @@ async fn does_not_use_multi_hop_fx_rates() {
         &pool,
         UpsertAccountBalanceInput {
             account_id,
-            currency: "CHF",
+            currency: Currency::Chf,
             amount: "20.00000000",
         },
     )
@@ -930,7 +925,10 @@ async fn does_not_use_multi_hop_fx_rates() {
     .expect("balance insert should succeed");
 
     for (from_currency, to_currency, rate) in
-        [("CHF", "USD", "1.10000000"), ("USD", "EUR", "0.80000000")]
+        [
+            (Currency::Chf, Currency::Usd, "1.10000000"),
+            (Currency::Usd, Currency::Eur, "0.80000000"),
+        ]
     {
         upsert_fx_rate(
             &pool,
@@ -963,13 +961,13 @@ async fn rounds_after_summing_converted_balances() {
         CreateAccountInput {
             name: "Precise FX",
             account_type: AccountType::Broker,
-            base_currency: "EUR",
+            base_currency: Currency::Eur,
         },
     )
     .await
     .expect("account insert should succeed");
 
-    for currency in ["USD", "GBP"] {
+    for currency in [Currency::Usd, Currency::Gbp] {
         upsert_account_balance(
             &pool,
             UpsertAccountBalanceInput {
@@ -982,12 +980,15 @@ async fn rounds_after_summing_converted_balances() {
         .expect("balance insert should succeed");
     }
 
-    for (from_currency, rate) in [("USD", "0.33333333"), ("GBP", "0.33333333")] {
+    for (from_currency, rate) in [
+        (Currency::Usd, "0.33333333"),
+        (Currency::Gbp, "0.33333333"),
+    ] {
         upsert_fx_rate(
             &pool,
             UpsertFxRateInput {
                 from_currency,
-                to_currency: "EUR",
+                to_currency: Currency::Eur,
                 rate,
             },
         )

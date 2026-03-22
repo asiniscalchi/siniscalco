@@ -1,7 +1,6 @@
 use rust_decimal::Decimal;
 use sqlx::{Row, SqlitePool};
 
-use crate::storage::accounts::validate_allowed_currency;
 use crate::storage::balances::{parse_stored_decimal, validate_decimal_20_8};
 use crate::storage::models::*;
 
@@ -9,8 +8,6 @@ pub async fn upsert_fx_rate(
     pool: &SqlitePool,
     input: UpsertFxRateInput<'_>,
 ) -> Result<UpsertOutcome, StorageError> {
-    validate_allowed_currency(pool, input.from_currency).await?;
-    validate_allowed_currency(pool, input.to_currency).await?;
     validate_decimal_20_8(input.rate)?;
     validate_positive_decimal(input.rate)?;
 
@@ -20,8 +17,8 @@ pub async fn upsert_fx_rate(
     let existed = sqlx::query_scalar::<_, i64>(
         "SELECT EXISTS(SELECT 1 FROM fx_rates WHERE from_currency = ? AND to_currency = ?)",
     )
-    .bind(input.from_currency)
-    .bind(input.to_currency)
+    .bind(input.from_currency.as_str())
+    .bind(input.to_currency.as_str())
     .fetch_one(&mut *transaction)
     .await?
         != 0;
@@ -35,8 +32,8 @@ pub async fn upsert_fx_rate(
             updated_at = excluded.updated_at
         "#,
     )
-    .bind(input.from_currency)
-    .bind(input.to_currency)
+    .bind(input.from_currency.as_str())
+    .bind(input.to_currency.as_str())
     .bind(input.rate)
     .bind(updated_at)
     .execute(&mut *transaction)
@@ -65,7 +62,7 @@ pub async fn list_currencies(pool: &SqlitePool) -> Result<Vec<CurrencyRecord>, S
     Ok(rows
         .into_iter()
         .map(|row| CurrencyRecord {
-            code: row.get("code"),
+            code: Currency::try_from(row.get::<&str, _>("code")).expect("stored currency is valid"),
         })
         .collect())
 }
@@ -87,8 +84,10 @@ pub async fn list_fx_rates(pool: &SqlitePool) -> Result<Vec<FxRateRecord>, Stora
     Ok(rows
         .into_iter()
         .map(|row| FxRateRecord {
-            from_currency: row.get("from_currency"),
-            to_currency: row.get("to_currency"),
+            from_currency: Currency::try_from(row.get::<&str, _>("from_currency"))
+                .expect("stored currency is valid"),
+            to_currency: Currency::try_from(row.get::<&str, _>("to_currency"))
+                .expect("stored currency is valid"),
             rate: row.get("rate"),
         })
         .collect())
@@ -96,10 +95,8 @@ pub async fn list_fx_rates(pool: &SqlitePool) -> Result<Vec<FxRateRecord>, Stora
 
 pub async fn list_fx_rate_summary(
     pool: &SqlitePool,
-    target_currency: &str,
+    target_currency: Currency,
 ) -> Result<FxRateSummaryRecord, StorageError> {
-    validate_allowed_currency(pool, target_currency).await?;
-
     let rows = sqlx::query(
         r#"
         SELECT
@@ -111,15 +108,16 @@ pub async fn list_fx_rate_summary(
         ORDER BY from_currency
         "#,
     )
-    .bind(target_currency)
-    .bind(target_currency)
+    .bind(target_currency.as_str())
+    .bind(target_currency.as_str())
     .fetch_all(pool)
     .await?;
 
     let rates: Vec<FxRateSummaryItemRecord> = rows
         .into_iter()
         .map(|row| FxRateSummaryItemRecord {
-            from_currency: row.get("from_currency"),
+            from_currency: Currency::try_from(row.get::<&str, _>("from_currency"))
+                .expect("stored currency is valid"),
             rate: row.get("rate"),
             updated_at: row.get("updated_at"),
         })
@@ -128,7 +126,7 @@ pub async fn list_fx_rate_summary(
     let last_updated = rates.iter().map(|rate| rate.updated_at.clone()).max();
 
     Ok(FxRateSummaryRecord {
-        target_currency: target_currency.to_string(),
+        target_currency,
         rates,
         last_updated,
     })
@@ -136,8 +134,8 @@ pub async fn list_fx_rate_summary(
 
 pub(crate) async fn get_direct_fx_rate(
     pool: &SqlitePool,
-    from_currency: &str,
-    to_currency: &str,
+    from_currency: Currency,
+    to_currency: Currency,
 ) -> Result<Option<Decimal>, StorageError> {
     let rate = sqlx::query_scalar::<_, String>(
         r#"
@@ -146,8 +144,8 @@ pub(crate) async fn get_direct_fx_rate(
         WHERE from_currency = ? AND to_currency = ?
         "#,
     )
-    .bind(from_currency)
-    .bind(to_currency)
+    .bind(from_currency.as_str())
+    .bind(to_currency.as_str())
     .fetch_optional(pool)
     .await?;
 
