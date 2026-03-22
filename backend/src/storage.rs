@@ -120,7 +120,7 @@ pub async fn upsert_account_balance(
     pool: &SqlitePool,
     input: UpsertAccountBalanceInput<'_>,
 ) -> Result<UpsertOutcome, StorageError> {
-    validate_currency_code(input.currency)?;
+    validate_allowed_currency(pool, input.currency).await?;
     validate_decimal_20_8(input.amount)?;
 
     let updated_at = current_utc_timestamp()?;
@@ -263,7 +263,7 @@ pub async fn delete_account_balance(
     account_id: i64,
     currency: &str,
 ) -> Result<(), StorageError> {
-    validate_currency_code(currency)?;
+    validate_allowed_currency(pool, currency).await?;
 
     let result = sqlx::query("DELETE FROM account_balances WHERE account_id = ? AND currency = ?")
         .bind(account_id)
@@ -294,18 +294,6 @@ pub async fn delete_account(pool: &SqlitePool, account_id: i64) -> Result<(), St
 fn validate_name(name: &str) -> Result<(), StorageError> {
     if name.trim().is_empty() {
         return Err(StorageError::Validation("name must not be empty"));
-    }
-
-    Ok(())
-}
-
-fn validate_currency_code(currency: &str) -> Result<(), StorageError> {
-    let is_valid = currency.len() == 3 && currency.bytes().all(|byte| byte.is_ascii_uppercase());
-
-    if !is_valid {
-        return Err(StorageError::Validation(
-            "currency must be a 3-letter uppercase code",
-        ));
     }
 
     Ok(())
@@ -820,7 +808,7 @@ mod tests {
 
         assert_eq!(
             error.to_string(),
-            "currency must be a 3-letter uppercase code"
+            "currency must be one of: EUR, USD, GBP, CHF"
         );
     }
 
