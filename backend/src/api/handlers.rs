@@ -1,6 +1,6 @@
 use axum::{
     Json,
-    extract::{Path as AxumPath, State},
+    extract::{Path as AxumPath, State, rejection::JsonRejection},
     http::StatusCode,
 };
 
@@ -20,8 +20,9 @@ pub(crate) async fn health() -> &'static str {
 
 pub(crate) async fn create_account_handler(
     State(state): State<AppState>,
-    Json(request): Json<CreateAccountRequest>,
+    request: Result<Json<CreateAccountRequest>, JsonRejection>,
 ) -> Result<(StatusCode, Json<AccountSummaryResponse>), ApiError> {
+    let Json(request) = request.map_err(map_json_rejection)?;
     let name = AccountName::try_from(request.name.as_str()).map_err(ApiError::from)?;
     let account_type =
         AccountType::try_from(request.account_type.as_str()).map_err(ApiError::from)?;
@@ -108,8 +109,9 @@ pub(crate) async fn get_account_handler(
 pub(crate) async fn upsert_account_balance_handler(
     State(state): State<AppState>,
     AxumPath((account_id, currency)): AxumPath<(i64, String)>,
-    Json(request): Json<UpsertBalanceRequest>,
+    request: Result<Json<UpsertBalanceRequest>, JsonRejection>,
 ) -> Result<(StatusCode, Json<BalanceResponse>), ApiError> {
+    let Json(request) = request.map_err(map_json_rejection)?;
     let account_id = AccountId::try_from(account_id).map_err(ApiError::from)?;
     let currency = Currency::try_from(currency.as_str()).map_err(ApiError::from)?;
     let amount = Amount::try_from(request.amount.as_str()).map_err(ApiError::from)?;
@@ -258,6 +260,16 @@ fn to_fx_rate_summary_response(summary: FxRateSummaryRecord) -> FxRateSummaryRes
             .map(to_fx_rate_summary_item_response)
             .collect(),
         last_updated: summary.last_updated,
+    }
+}
+
+fn map_json_rejection(rejection: JsonRejection) -> ApiError {
+    match rejection {
+        JsonRejection::JsonSyntaxError(_) | JsonRejection::JsonDataError(_) => {
+            ApiError::validation("Malformed JSON body")
+        }
+        JsonRejection::MissingJsonContentType(_) => ApiError::validation("Expected JSON body"),
+        _ => ApiError::validation("Invalid JSON body"),
     }
 }
 

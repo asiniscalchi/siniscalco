@@ -31,10 +31,8 @@ pub async fn list_accounts(pool: &SqlitePool) -> Result<Vec<AccountRecord>, Stor
     rows.into_iter()
         .map(|row| {
             Ok(AccountRecord {
-                id: AccountId::try_from(row.get::<i64, _>("id"))
-                    .expect("stored account id should be valid"),
-                name: AccountName::try_from(row.get::<&str, _>("name"))
-                    .expect("stored account name should be valid"),
+                id: AccountId::try_from(row.get::<i64, _>("id"))?,
+                name: AccountName::try_from(row.get::<&str, _>("name"))?,
                 account_type: AccountType::try_from(row.get::<&str, _>("account_type"))?,
                 base_currency: Currency::try_from(row.get::<&str, _>("base_currency"))?,
                 created_at: row.get("created_at"),
@@ -59,10 +57,8 @@ pub async fn get_account(
     .await?;
 
     Ok(AccountRecord {
-        id: AccountId::try_from(row.get::<i64, _>("id"))
-            .expect("stored account id should be valid"),
-        name: AccountName::try_from(row.get::<&str, _>("name"))
-            .expect("stored account name should be valid"),
+        id: AccountId::try_from(row.get::<i64, _>("id"))?,
+        name: AccountName::try_from(row.get::<&str, _>("name"))?,
         account_type: AccountType::try_from(row.get::<&str, _>("account_type"))?,
         base_currency: Currency::try_from(row.get::<&str, _>("base_currency"))?,
         created_at: row.get("created_at"),

@@ -68,16 +68,15 @@ pub async fn list_account_balances(
 
     Ok(rows
         .into_iter()
-        .map(|row| AccountBalanceRecord {
-            account_id: AccountId::try_from(row.get::<i64, _>("account_id"))
-                .expect("stored account id should be valid"),
-            currency: Currency::try_from(row.get::<&str, _>("currency"))
-                .expect("stored currency should be valid"),
-            amount: Amount::try_from(row.get::<&str, _>("amount"))
-                .expect("stored amount should be valid"),
-            updated_at: row.get("updated_at"),
+        .map(|row| {
+            Ok(AccountBalanceRecord {
+                account_id: AccountId::try_from(row.get::<i64, _>("account_id"))?,
+                currency: Currency::try_from(row.get::<&str, _>("currency"))?,
+                amount: Amount::try_from(row.get::<&str, _>("amount"))?,
+                updated_at: row.get("updated_at"),
+            })
         })
-        .collect())
+        .collect::<Result<Vec<_>, StorageError>>()?)
 }
 
 pub async fn list_account_summaries(

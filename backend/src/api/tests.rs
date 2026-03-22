@@ -780,6 +780,38 @@ async fn rejects_invalid_base_currency_through_api() {
 }
 
 #[tokio::test]
+async fn returns_standard_error_payload_for_malformed_json() {
+    let pool = test_pool().await;
+    let app = build_router(pool);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/accounts")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"name":"IBKR","account_type":"broker""#))
+                .expect("request should build"),
+        )
+        .await
+        .expect("create request should succeed");
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+
+    assert_eq!(
+        std::str::from_utf8(&body).expect("json body should be utf8"),
+        r#"{"error":"validation_error","message":"Malformed JSON body"}"#
+    );
+}
+
+#[tokio::test]
 async fn lists_account_summaries_with_totals_through_api() {
     let pool = test_pool().await;
     create_account(
