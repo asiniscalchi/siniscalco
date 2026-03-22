@@ -406,11 +406,6 @@ mod tests {
     async fn lists_currencies_in_code_order() {
         let pool = test_pool().await;
 
-        sqlx::query("INSERT INTO currencies (code) VALUES ('USD'), ('EUR')")
-            .execute(&pool)
-            .await
-            .expect("currency inserts should succeed");
-
         let currencies = list_currencies(&pool)
             .await
             .expect("currency list should succeed");
@@ -419,7 +414,13 @@ mod tests {
             currencies,
             vec![
                 CurrencyRecord {
+                    code: "CHF".to_string(),
+                },
+                CurrencyRecord {
                     code: "EUR".to_string(),
+                },
+                CurrencyRecord {
+                    code: "GBP".to_string(),
                 },
                 CurrencyRecord {
                     code: "USD".to_string(),

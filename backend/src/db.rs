@@ -97,11 +97,23 @@ mod tests {
     async fn migration_metadata_contains_the_initial_migration() {
         let pool = test_pool().await;
 
-        let version: i64 = sqlx::query_scalar("SELECT version FROM _sqlx_migrations")
-            .fetch_one(&pool)
+        let versions: Vec<i64> = sqlx::query_scalar("SELECT version FROM _sqlx_migrations ORDER BY version")
+            .fetch_all(&pool)
             .await
             .expect("migration metadata query should succeed");
 
-        assert_eq!(version, 1);
+        assert_eq!(versions, vec![1, 2, 3]);
+    }
+
+    #[tokio::test]
+    async fn seeds_supported_currencies() {
+        let pool = test_pool().await;
+
+        let codes: Vec<String> = sqlx::query_scalar("SELECT code FROM currencies ORDER BY code")
+            .fetch_all(&pool)
+            .await
+            .expect("currency seed query should succeed");
+
+        assert_eq!(codes, vec!["CHF", "EUR", "GBP", "USD"]);
     }
 }
