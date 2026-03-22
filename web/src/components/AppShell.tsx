@@ -40,10 +40,7 @@ export function AppShell() {
     <div className="min-h-svh bg-muted/30">
       <header className="border-b bg-background/95">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-6 px-6 py-4">
-          <div className="space-y-1">
-            <p className="text-sm font-medium uppercase tracking-[0.22em] text-muted-foreground">
-              Portfolio App
-            </p>
+          <div className="flex items-center gap-2">
             <p className="text-lg font-semibold tracking-tight">Siniscalco</p>
           </div>
 
