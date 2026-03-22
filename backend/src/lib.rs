@@ -2,7 +2,7 @@ use std::{error::Error, fmt, fs, path::Path, str::FromStr};
 
 use axum::{
     Json, Router,
-    extract::Path as AxumPath,
+    extract::{Path as AxumPath, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, post, put},
@@ -509,18 +509,64 @@ async fn health() -> &'static str {
     "ok"
 }
 
-async fn create_account_handler() -> Result<StatusCode, ApiError> {
-    Err(ApiError::not_implemented())
+async fn create_account_handler(
+    State(state): State<AppState>,
+    Json(request): Json<CreateAccountRequest>,
+) -> Result<(StatusCode, Json<AccountSummaryResponse>), ApiError> {
+    let account_type =
+        AccountType::try_from(request.account_type.as_str()).map_err(ApiError::from)?;
+
+    let account_id = create_account(
+        &state.pool,
+        CreateAccountInput {
+            name: &request.name,
+            account_type,
+            base_currency: &request.base_currency,
+        },
+    )
+    .await
+    .map_err(ApiError::from)?;
+
+    let account = get_account(&state.pool, account_id)
+        .await
+        .map_err(ApiError::from)?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(to_account_summary_response(account)),
+    ))
 }
 
-async fn list_accounts_handler() -> Result<StatusCode, ApiError> {
-    Err(ApiError::not_implemented())
+async fn list_accounts_handler(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<AccountSummaryResponse>>, ApiError> {
+    let accounts = list_accounts(&state.pool).await.map_err(ApiError::from)?;
+
+    Ok(Json(
+        accounts
+            .into_iter()
+            .map(to_account_summary_response)
+            .collect(),
+    ))
 }
 
 async fn get_account_handler(
-    AxumPath((_account_id,)): AxumPath<(i64,)>,
-) -> Result<StatusCode, ApiError> {
-    Err(ApiError::not_implemented())
+    State(state): State<AppState>,
+    AxumPath((account_id,)): AxumPath<(i64,)>,
+) -> Result<Json<AccountDetailResponse>, ApiError> {
+    let account = get_account(&state.pool, account_id)
+        .await
+        .map_err(|error| match error {
+            StorageError::Database(sqlx::Error::RowNotFound) => {
+                ApiError::not_found("Account not found")
+            }
+            other => ApiError::from(other),
+        })?;
+    let balances = list_account_balances(&state.pool, account_id)
+        .await
+        .map_err(ApiError::from)?;
+
+    Ok(Json(to_account_detail_response(account, balances)))
 }
 
 async fn upsert_account_balance_handler(
@@ -541,6 +587,62 @@ async fn delete_account_handler(
     Err(ApiError::not_implemented())
 }
 
+fn to_account_summary_response(account: AccountRecord) -> AccountSummaryResponse {
+    AccountSummaryResponse {
+        id: account.id,
+        name: account.name,
+        account_type: account.account_type.as_str().to_string(),
+        base_currency: account.base_currency,
+        created_at: account.created_at,
+    }
+}
+
+fn to_account_detail_response(
+    account: AccountRecord,
+    balances: Vec<AccountBalanceRecord>,
+) -> AccountDetailResponse {
+    AccountDetailResponse {
+        id: account.id,
+        name: account.name,
+        account_type: account.account_type.as_str().to_string(),
+        base_currency: account.base_currency,
+        created_at: account.created_at,
+        balances: balances.into_iter().map(to_balance_response).collect(),
+    }
+}
+
+fn to_balance_response(balance: AccountBalanceRecord) -> BalanceResponse {
+    BalanceResponse {
+        currency: balance.currency,
+        amount: normalize_amount_output(&balance.amount),
+        updated_at: balance.updated_at,
+    }
+}
+
+fn normalize_amount_output(amount: &str) -> String {
+    let (sign, unsigned) = match amount.strip_prefix('-') {
+        Some(rest) => ("-", rest),
+        None => ("", amount),
+    };
+
+    let (integer_part, fractional_part) = match unsigned.split_once('.') {
+        Some((integer_part, fractional_part)) => (integer_part, fractional_part),
+        None => (unsigned, ""),
+    };
+
+    let mut normalized = String::with_capacity(sign.len() + integer_part.len() + 9);
+    normalized.push_str(sign);
+    normalized.push_str(integer_part);
+    normalized.push('.');
+    normalized.push_str(fractional_part);
+
+    for _ in fractional_part.len()..8 {
+        normalized.push('0');
+    }
+
+    normalized
+}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -551,6 +653,7 @@ mod tests {
         response::IntoResponse,
     };
     use http_body_util::BodyExt;
+    use serde_json::Value;
     use sqlx::sqlite::SqlitePoolOptions;
     use tempfile::NamedTempFile;
     use tower::ServiceExt;
@@ -615,9 +718,6 @@ mod tests {
         let app = build_router(pool);
 
         for (method, uri) in [
-            ("POST", "/accounts"),
-            ("GET", "/accounts"),
-            ("GET", "/accounts/1"),
             ("DELETE", "/accounts/1"),
             ("PUT", "/accounts/1/balances/USD"),
             ("DELETE", "/accounts/1/balances/USD"),
@@ -646,8 +746,8 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .method("GET")
-                    .uri("/accounts")
+                    .method("DELETE")
+                    .uri("/accounts/1")
                     .body(Body::empty())
                     .expect("request should build"),
             )
@@ -666,6 +766,187 @@ mod tests {
         assert_eq!(
             std::str::from_utf8(&body).expect("json body should be utf8"),
             r#"{"error":"not_implemented","message":"Endpoint not implemented yet"}"#
+        );
+    }
+
+    #[tokio::test]
+    async fn creates_account_through_api() {
+        let pool = test_pool().await;
+        let app = build_router(pool);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/accounts")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"name":"IBKR","account_type":"broker","base_currency":"EUR"}"#,
+                    ))
+                    .expect("request should build"),
+            )
+            .await
+            .expect("create request should succeed");
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("response body should collect")
+            .to_bytes();
+        let json: Value =
+            serde_json::from_slice(&body).expect("account create body should be valid json");
+
+        assert_eq!(json["name"], "IBKR");
+        assert_eq!(json["account_type"], "broker");
+        assert_eq!(json["base_currency"], "EUR");
+        assert!(json["id"].is_i64());
+        assert!(json["created_at"].is_string());
+    }
+
+    #[tokio::test]
+    async fn lists_account_summaries_without_balances_through_api() {
+        let pool = test_pool().await;
+
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency: "EUR",
+                amount: "12000.00000000",
+            },
+        )
+        .await
+        .expect("balance insert should succeed");
+
+        let app = build_router(pool);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/accounts")
+                    .body(Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("list request should succeed");
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("response body should collect")
+            .to_bytes();
+        let json: Value =
+            serde_json::from_slice(&body).expect("account list body should be valid json");
+
+        assert_eq!(
+            json.as_array()
+                .expect("list response should be an array")
+                .len(),
+            1
+        );
+        assert!(json[0].get("balances").is_none());
+        assert_eq!(json[0]["name"], "IBKR");
+    }
+
+    #[tokio::test]
+    async fn gets_account_detail_with_balances_through_api() {
+        let pool = test_pool().await;
+
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: "IBKR",
+                account_type: AccountType::Broker,
+                base_currency: "EUR",
+            },
+        )
+        .await
+        .expect("account insert should succeed");
+
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency: "USD",
+                amount: "12.3",
+            },
+        )
+        .await
+        .expect("balance insert should succeed");
+
+        let app = build_router(pool);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(&format!("/accounts/{account_id}"))
+                    .body(Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("detail request should succeed");
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("response body should collect")
+            .to_bytes();
+        let json: Value =
+            serde_json::from_slice(&body).expect("account detail body should be valid json");
+
+        assert_eq!(json["name"], "IBKR");
+        assert_eq!(json["balances"][0]["currency"], "USD");
+        assert_eq!(json["balances"][0]["amount"], "12.30000000");
+    }
+
+    #[tokio::test]
+    async fn returns_not_found_for_missing_account_detail() {
+        let pool = test_pool().await;
+        let app = build_router(pool);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/accounts/999")
+                    .body(Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("detail request should succeed");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("response body should collect")
+            .to_bytes();
+
+        assert_eq!(
+            std::str::from_utf8(&body).expect("json body should be utf8"),
+            r#"{"error":"not_found","message":"Account not found"}"#
         );
     }
 
