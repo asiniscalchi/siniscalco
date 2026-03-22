@@ -258,4 +258,65 @@ describe('AccountDetailPage', () => {
       })
     )
   })
+
+  it('resets the balance form when the loaded account changes', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 11,
+            name: 'First Account',
+            account_type: 'broker',
+            base_currency: 'EUR',
+            created_at: '2026-03-22 00:00:00',
+            balances: [],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 12,
+            name: 'Second Account',
+            account_type: 'bank',
+            base_currency: 'USD',
+            created_at: '2026-03-22 00:00:00',
+            balances: [],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+
+    const firstRender = render(
+      <MemoryRouter initialEntries={['/accounts/11']}>
+        <Routes>
+          <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    expect(await screen.findByText('First Account')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('Currency'), {
+      target: { value: 'GBP' },
+    })
+    fireEvent.change(screen.getByLabelText('Amount'), {
+      target: { value: '99.5' },
+    })
+
+    firstRender.unmount()
+
+    render(
+      <MemoryRouter initialEntries={['/accounts/12']}>
+        <Routes>
+          <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    expect(await screen.findByText('Second Account')).toBeTruthy()
+    expect((screen.getByLabelText('Currency') as HTMLInputElement).value).toBe('USD')
+    expect((screen.getByLabelText('Amount') as HTMLInputElement).value).toBe('')
+  })
 })

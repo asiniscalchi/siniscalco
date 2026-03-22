@@ -184,6 +184,13 @@ function AccountDetailReadyState({
   >({ status: 'idle' })
   const [deletingCurrency, setDeletingCurrency] = useState<string | null>(null)
 
+  useEffect(() => {
+    setCurrency(account.base_currency)
+    setAmount('')
+    setRequestState({ status: 'idle' })
+    setDeletingCurrency(null)
+  }, [account.id, account.base_currency])
+
   async function handleBalanceSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
