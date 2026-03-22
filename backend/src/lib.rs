@@ -3,27 +3,9 @@ use std::{error::Error, fmt};
 use sqlx::{Executor, SqlitePool};
 use time::{OffsetDateTime, format_description::FormatItem, macros::format_description};
 
-pub const SCHEMA_SQL: &str = r#"
-CREATE TABLE IF NOT EXISTS accounts (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL,
-    account_type TEXT NOT NULL CHECK (account_type IN ('bank', 'broker')),
-    base_currency TEXT NOT NULL CHECK (base_currency GLOB '[A-Z][A-Z][A-Z]'),
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS account_balances (
-    account_id INTEGER NOT NULL,
-    currency TEXT NOT NULL CHECK (currency GLOB '[A-Z][A-Z][A-Z]'),
-    amount DECIMAL(20,8) NOT NULL,
-    updated_at TEXT NOT NULL,
-    PRIMARY KEY (account_id, currency),
-    FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
-);
-"#;
-
 const UTC_TIMESTAMP_FORMAT: &[FormatItem<'static>] =
     format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
+static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AccountType {
@@ -91,7 +73,7 @@ pub struct UpsertAccountBalanceInput<'a> {
 
 pub async fn init_db(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     pool.execute("PRAGMA foreign_keys = ON;").await?;
-    pool.execute(SCHEMA_SQL).await?;
+    MIGRATOR.run(pool).await?;
 
     Ok(())
 }
