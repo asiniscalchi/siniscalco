@@ -190,12 +190,10 @@ fn to_account_summary_response(account: AccountSummaryRecord) -> AccountSummaryR
         id: account.id,
         name: account.name,
         account_type: account.account_type.as_str().to_string(),
-        base_currency: account.base_currency.as_str().to_string(),
+        base_currency: account.base_currency,
         summary_status: account.summary_status.as_str().to_string(),
         total_amount: account.total_amount,
-        total_currency: account
-            .total_currency
-            .map(|currency| currency.as_str().to_string()),
+        total_currency: account.total_currency,
     }
 }
 
@@ -204,10 +202,10 @@ fn to_created_account_summary_response(account: AccountRecord) -> AccountSummary
         id: account.id,
         name: account.name,
         account_type: account.account_type.as_str().to_string(),
-        base_currency: account.base_currency.as_str().to_string(),
+        base_currency: account.base_currency,
         summary_status: AccountSummaryStatus::Ok.as_str().to_string(),
         total_amount: Some("0.00000000".to_string()),
-        total_currency: Some(account.base_currency.as_str().to_string()),
+        total_currency: Some(account.base_currency),
     }
 }
 
@@ -219,7 +217,7 @@ fn to_account_detail_response(
         id: account.id,
         name: account.name,
         account_type: account.account_type.as_str().to_string(),
-        base_currency: account.base_currency.as_str().to_string(),
+        base_currency: account.base_currency,
         created_at: account.created_at,
         balances: balances.into_iter().map(to_balance_response).collect(),
     }
@@ -227,21 +225,19 @@ fn to_account_detail_response(
 
 fn to_balance_response(balance: AccountBalanceRecord) -> BalanceResponse {
     BalanceResponse {
-        currency: balance.currency.as_str().to_string(),
+        currency: balance.currency,
         amount: normalize_amount_output(&balance.amount),
         updated_at: balance.updated_at,
     }
 }
 
 fn to_currency_response(currency: CurrencyRecord) -> CurrencyResponse {
-    CurrencyResponse {
-        code: currency.code.as_str().to_string(),
-    }
+    CurrencyResponse { code: currency.code }
 }
 
 fn to_fx_rate_summary_response(summary: FxRateSummaryRecord) -> FxRateSummaryResponse {
     FxRateSummaryResponse {
-        target_currency: summary.target_currency.as_str().to_string(),
+        target_currency: summary.target_currency,
         rates: summary
             .rates
             .into_iter()
@@ -253,7 +249,7 @@ fn to_fx_rate_summary_response(summary: FxRateSummaryRecord) -> FxRateSummaryRes
 
 fn to_fx_rate_summary_item_response(rate: FxRateSummaryItemRecord) -> FxRateSummaryItemResponse {
     FxRateSummaryItemResponse {
-        currency: rate.from_currency.as_str().to_string(),
+        currency: rate.from_currency,
         rate: rate.rate,
     }
 }
