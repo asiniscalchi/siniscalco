@@ -14,11 +14,15 @@ use super::{ApiError, build_router};
 use crate::{
     AccountType, Amount, CreateAccountInput, Currency, UpsertAccountBalanceInput,
     UpsertFxRateInput, create_account, get_account, init_db, list_account_balances,
-    upsert_account_balance, upsert_fx_rate,
+    upsert_account_balance, upsert_fx_rate, FxRate,
 };
 
 fn amt(value: &str) -> Amount {
     Amount::try_from(value).expect("amount should parse")
+}
+
+fn fx_rate(value: &str) -> FxRate {
+    FxRate::try_from(value).expect("rate should parse")
 }
 
 async fn test_pool() -> sqlx::SqlitePool {
@@ -100,7 +104,7 @@ async fn lists_fx_rates_for_eur_through_api() {
             UpsertFxRateInput {
                 from_currency,
                 to_currency,
-                rate: amt(rate),
+                rate: fx_rate(rate),
             },
         )
         .await
@@ -914,7 +918,7 @@ async fn does_not_use_inverse_fx_rates_through_api() {
         UpsertFxRateInput {
             from_currency: Currency::Eur,
             to_currency: Currency::Usd,
-            rate: amt("1.10000000"),
+            rate: fx_rate("1.10000000"),
         },
     )
     .await
@@ -980,7 +984,7 @@ async fn rounds_converted_account_totals_through_api() {
             UpsertFxRateInput {
                 from_currency,
                 to_currency: Currency::Eur,
-                rate: amt(rate),
+                rate: fx_rate(rate),
             },
         )
         .await

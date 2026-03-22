@@ -2,14 +2,12 @@ use rust_decimal::Decimal;
 use sqlx::{Row, SqlitePool};
 
 use crate::storage::models::*;
-use crate::storage::{Amount, Currency};
+use crate::storage::{Currency, FxRate};
 
 pub async fn upsert_fx_rate(
     pool: &SqlitePool,
     input: UpsertFxRateInput,
 ) -> Result<UpsertOutcome, StorageError> {
-    validate_positive_amount(input.rate)?;
-
     let updated_at = current_utc_timestamp()?;
     let mut transaction = pool.begin().await?;
 
@@ -75,7 +73,7 @@ pub async fn list_fx_rates(pool: &SqlitePool) -> Result<Vec<FxRateRecord>, Stora
                 .expect("stored currency is valid"),
             to_currency: Currency::try_from(row.get::<&str, _>("to_currency"))
                 .expect("stored currency is valid"),
-            rate: Amount::try_from(row.get::<&str, _>("rate")).expect("stored rate is valid"),
+            rate: FxRate::try_from(row.get::<&str, _>("rate")).expect("stored rate is valid"),
         })
         .collect())
 }
@@ -105,7 +103,7 @@ pub async fn list_fx_rate_summary(
         .map(|row| FxRateSummaryItemRecord {
             from_currency: Currency::try_from(row.get::<&str, _>("from_currency"))
                 .expect("stored currency is valid"),
-            rate: Amount::try_from(row.get::<&str, _>("rate")).expect("stored rate is valid"),
+            rate: FxRate::try_from(row.get::<&str, _>("rate")).expect("stored rate is valid"),
             updated_at: row.get("updated_at"),
         })
         .collect();
@@ -136,14 +134,6 @@ pub(crate) async fn get_direct_fx_rate(
     .fetch_optional(pool)
     .await?;
 
-    rate.map(|value| Amount::try_from(value.as_str()).map(|amount| amount.as_decimal()))
+    rate.map(|value| FxRate::try_from(value.as_str()).map(|rate| rate.as_decimal()))
         .transpose()
-}
-
-fn validate_positive_amount(amount: Amount) -> Result<(), StorageError> {
-    if !amount.is_positive() {
-        return Err(StorageError::Validation("rate must be greater than zero"));
-    }
-
-    Ok(())
 }

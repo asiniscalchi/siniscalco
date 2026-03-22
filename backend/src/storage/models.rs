@@ -6,6 +6,7 @@ use time::macros::format_description;
 
 use super::amount::Amount;
 use super::currency::Currency;
+use super::fx_rate::FxRate;
 
 pub const UTC_TIMESTAMP_FORMAT: &[FormatItem<'static>] =
     format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
@@ -85,7 +86,7 @@ pub struct UpsertAccountBalanceInput {
 pub struct UpsertFxRateInput {
     pub from_currency: Currency,
     pub to_currency: Currency,
-    pub rate: Amount,
+    pub rate: FxRate,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -146,13 +147,13 @@ pub struct CurrencyRecord {
 pub struct FxRateRecord {
     pub from_currency: Currency,
     pub to_currency: Currency,
-    pub rate: Amount,
+    pub rate: FxRate,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct FxRateSummaryItemRecord {
     pub from_currency: Currency,
-    pub rate: Amount,
+    pub rate: FxRate,
     pub updated_at: String,
 }
 

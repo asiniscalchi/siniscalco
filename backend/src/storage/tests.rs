@@ -4,16 +4,20 @@ use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
 use super::{
     AccountBalanceRecord, AccountRecord, AccountSummaryRecord, AccountSummaryStatus, AccountType,
-    Amount, CreateAccountInput, Currency, CurrencyRecord, FxRateRecord, FxRateSummaryItemRecord,
-    FxRateSummaryRecord, StorageError, UpsertAccountBalanceInput, UpsertFxRateInput,
-    UpsertOutcome, create_account, delete_account, delete_account_balance, get_account,
-    list_account_balances, list_account_summaries, list_accounts, list_currencies,
+    Amount, CreateAccountInput, Currency, CurrencyRecord, FxRate, FxRateRecord,
+    FxRateSummaryItemRecord, FxRateSummaryRecord, StorageError, UpsertAccountBalanceInput,
+    UpsertFxRateInput, UpsertOutcome, create_account, delete_account, delete_account_balance,
+    get_account, list_account_balances, list_account_summaries, list_accounts, list_currencies,
     list_fx_rate_summary, list_fx_rates, upsert_account_balance, upsert_fx_rate,
 };
 use crate::db::init_db;
 
 fn amt(value: &str) -> Amount {
     Amount::try_from(value).expect("amount should parse")
+}
+
+fn fx_rate(value: &str) -> FxRate {
+    FxRate::try_from(value).expect("rate should parse")
 }
 
 async fn test_pool() -> sqlx::SqlitePool {
@@ -493,7 +497,7 @@ async fn upserts_fx_rates() {
         UpsertFxRateInput {
             from_currency: Currency::Usd,
             to_currency: Currency::Eur,
-            rate: amt("0.92000000"),
+            rate: fx_rate("0.92000000"),
         },
     )
     .await
@@ -505,7 +509,7 @@ async fn upserts_fx_rates() {
         vec![FxRateRecord {
             from_currency: Currency::Usd,
             to_currency: Currency::Eur,
-            rate: amt("0.92"),
+            rate: fx_rate("0.92"),
         }]
     );
 }
@@ -519,7 +523,7 @@ async fn updates_existing_fx_rate() {
         UpsertFxRateInput {
             from_currency: Currency::Usd,
             to_currency: Currency::Eur,
-            rate: amt("0.92000000"),
+            rate: fx_rate("0.92000000"),
         },
     )
     .await
@@ -530,7 +534,7 @@ async fn updates_existing_fx_rate() {
         UpsertFxRateInput {
             from_currency: Currency::Usd,
             to_currency: Currency::Eur,
-            rate: amt("0.91000000"),
+            rate: fx_rate("0.91000000"),
         },
     )
     .await
@@ -542,25 +546,14 @@ async fn updates_existing_fx_rate() {
         vec![FxRateRecord {
             from_currency: Currency::Usd,
             to_currency: Currency::Eur,
-            rate: amt("0.91"),
+            rate: fx_rate("0.91"),
         }]
     );
 }
 
-#[tokio::test]
-async fn rejects_non_positive_fx_rates() {
-    let pool = test_pool().await;
-
-    let error = upsert_fx_rate(
-        &pool,
-        UpsertFxRateInput {
-            from_currency: Currency::Usd,
-            to_currency: Currency::Eur,
-            rate: amt("0.00000000"),
-        },
-    )
-    .await
-    .expect_err("zero fx rate should fail");
+#[test]
+fn rejects_non_positive_fx_rates() {
+    let error = FxRate::try_from("0.00000000").expect_err("zero fx rate should fail");
 
     assert_eq!(error.to_string(), "rate must be greater than zero");
 }
@@ -581,7 +574,7 @@ async fn lists_fx_rate_summary_for_a_single_target_currency() {
             UpsertFxRateInput {
                 from_currency,
                 to_currency,
-                rate: amt(rate),
+                rate: fx_rate(rate),
             },
         )
         .await
@@ -613,17 +606,17 @@ async fn lists_fx_rate_summary_for_a_single_target_currency() {
             rates: vec![
                 FxRateSummaryItemRecord {
                     from_currency: Currency::Chf,
-                    rate: amt("1.04"),
+                    rate: fx_rate("1.04"),
                     updated_at: "2026-03-22 08:30:00".to_string(),
                 },
                 FxRateSummaryItemRecord {
                     from_currency: Currency::Gbp,
-                    rate: amt("1.17"),
+                    rate: fx_rate("1.17"),
                     updated_at: "2026-03-22 10:00:00".to_string(),
                 },
                 FxRateSummaryItemRecord {
                     from_currency: Currency::Usd,
-                    rate: amt("0.92"),
+                    rate: fx_rate("0.92"),
                     updated_at: "2026-03-22 09:00:00".to_string(),
                 },
             ],
@@ -752,7 +745,7 @@ async fn lists_account_summaries_with_direct_fx_conversion() {
             UpsertFxRateInput {
                 from_currency,
                 to_currency: Currency::Eur,
-                rate: amt(rate),
+                rate: fx_rate(rate),
             },
         )
         .await
@@ -843,7 +836,7 @@ async fn does_not_use_inverse_fx_rates() {
         UpsertFxRateInput {
             from_currency: Currency::Eur,
             to_currency: Currency::Usd,
-            rate: amt("1.10000000"),
+            rate: fx_rate("1.10000000"),
         },
     )
     .await
@@ -894,7 +887,7 @@ async fn does_not_use_multi_hop_fx_rates() {
             UpsertFxRateInput {
                 from_currency,
                 to_currency,
-                rate: amt(rate),
+                rate: fx_rate(rate),
             },
         )
         .await
@@ -945,7 +938,7 @@ async fn rounds_after_summing_converted_balances() {
             UpsertFxRateInput {
                 from_currency,
                 to_currency: Currency::Eur,
-                rate: amt(rate),
+                rate: fx_rate(rate),
             },
         )
         .await
