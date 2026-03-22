@@ -25,6 +25,7 @@ CREATE TABLE fx_rates (
     from_currency TEXT NOT NULL,
     to_currency TEXT NOT NULL,
     rate DECIMAL(20,8) NOT NULL CHECK (rate > 0),
+    updated_at TEXT NOT NULL,
     PRIMARY KEY (from_currency, to_currency),
     FOREIGN KEY (from_currency) REFERENCES currencies(code),
     FOREIGN KEY (to_currency) REFERENCES currencies(code)

@@ -49,6 +49,19 @@ pub struct CurrencyResponse {
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]
+pub struct FxRateSummaryItemResponse {
+    pub currency: String,
+    pub rate: String,
+}
+
+#[derive(Debug, Serialize, Eq, PartialEq)]
+pub struct FxRateSummaryResponse {
+    pub target_currency: String,
+    pub rates: Vec<FxRateSummaryItemResponse>,
+    pub last_updated: Option<String>,
+}
+
+#[derive(Debug, Serialize, Eq, PartialEq)]
 pub struct AccountDetailResponse {
     pub id: i64,
     pub name: String,

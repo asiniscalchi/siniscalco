@@ -12,7 +12,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { getAccountsApiUrl } from "@/lib/api";
+import {
+  getAccountsApiUrl,
+  getFxRatesApiUrl,
+  type FxRateSummaryResponse,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type AccountSummary = {
@@ -25,12 +29,20 @@ type AccountSummary = {
   total_currency: string | null;
 };
 
+type FxRateSummary = {
+  target_currency: string;
+  rates: {
+    currency: string;
+    rate: string;
+  }[];
+  last_updated: string | null;
+};
+
 export function AccountsListPage() {
   const [requestState, setRequestState] = useState<
     | { status: "loading" }
-    | { status: "empty" }
     | { status: "error" }
-    | { status: "ready"; accounts: AccountSummary[] }
+    | { status: "ready"; accounts: AccountSummary[]; fxRates: FxRateSummary }
   >({ status: "loading" });
   const [retryToken, setRetryToken] = useState(0);
 
@@ -41,26 +53,33 @@ export function AccountsListPage() {
       setRequestState({ status: "loading" });
 
       try {
-        const response = await fetch(getAccountsApiUrl());
+        const [accountsResponse, fxRatesResponse] = await Promise.all([
+          fetch(getAccountsApiUrl()),
+          fetch(getFxRatesApiUrl()),
+        ]);
 
-        if (!response.ok) {
+        if (!accountsResponse.ok) {
           throw new Error(
-            `accounts request failed with status ${response.status}`,
+            `accounts request failed with status ${accountsResponse.status}`,
           );
         }
 
-        const data = (await response.json()) as AccountSummary[];
+        if (!fxRatesResponse.ok) {
+          throw new Error(
+            `fx rates request failed with status ${fxRatesResponse.status}`,
+          );
+        }
+
+        const [accounts, fxRates] = await Promise.all([
+          accountsResponse.json() as Promise<AccountSummary[]>,
+          fxRatesResponse.json() as Promise<FxRateSummaryResponse>,
+        ]);
 
         if (cancelled) {
           return;
         }
 
-        if (data.length === 0) {
-          setRequestState({ status: "empty" });
-          return;
-        }
-
-        setRequestState({ status: "ready", accounts: data });
+        setRequestState({ status: "ready", accounts, fxRates });
       } catch {
         if (!cancelled) {
           setRequestState({ status: "error" });
@@ -91,14 +110,16 @@ export function AccountsListPage() {
 
       <section className="space-y-4">
         {requestState.status === "loading" ? <AccountsLoadingState /> : null}
-        {requestState.status === "empty" ? <AccountsEmptyState /> : null}
         {requestState.status === "error" ? (
           <AccountsErrorState
             onRetry={() => setRetryToken((value) => value + 1)}
           />
         ) : null}
         {requestState.status === "ready" ? (
-          <AccountsReadyState accounts={requestState.accounts} />
+          <AccountsReadyState
+            accounts={requestState.accounts}
+            fxRates={requestState.fxRates}
+          />
         ) : null}
       </section>
     </div>
@@ -165,22 +186,69 @@ function AccountsErrorState({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-function AccountsReadyState({ accounts }: { accounts: AccountSummary[] }) {
+function AccountsReadyState({
+  accounts,
+  fxRates,
+}: {
+  accounts: AccountSummary[];
+  fxRates: FxRateSummary;
+}) {
   return (
-    <div className="grid gap-3">
-      {accounts.map((account) => (
-        <AccountListItem
-          key={account.id}
-          id={String(account.id)}
-          name={account.name}
-          accountType={account.account_type}
-          baseCurrency={account.base_currency}
-          summaryStatus={account.summary_status}
-          totalAmount={account.total_amount}
-          totalCurrency={account.total_currency}
-        />
-      ))}
-    </div>
+    <>
+      <FxRatesCard summary={fxRates} />
+      {accounts.length === 0 ? (
+        <AccountsEmptyState />
+      ) : (
+        <div className="grid gap-3">
+          {accounts.map((account) => (
+            <AccountListItem
+              key={account.id}
+              id={String(account.id)}
+              name={account.name}
+              accountType={account.account_type}
+              baseCurrency={account.base_currency}
+              summaryStatus={account.summary_status}
+              totalAmount={account.total_amount}
+              totalCurrency={account.total_currency}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function FxRatesCard({ summary }: { summary: FxRateSummary }) {
+  return (
+    <Card className="bg-background">
+      <CardHeader>
+        <CardTitle>FX Rates</CardTitle>
+        <CardDescription>Against {summary.target_currency}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {summary.rates.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No FX data available</p>
+        ) : (
+          <ul className="space-y-2" aria-label="FX rates against EUR">
+            {summary.rates.map((rate) => (
+              <li
+                key={rate.currency}
+                className="flex items-center justify-between gap-4 font-mono text-sm"
+              >
+                <span>{rate.currency}</span>
+                <span>{formatFxRate(rate.rate)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+      <CardFooter>
+        <p className="text-sm text-muted-foreground">
+          Last updated:{" "}
+          {summary.last_updated ? formatTimestamp(summary.last_updated) : "-"}
+        </p>
+      </CardFooter>
+    </Card>
   );
 }
 
@@ -237,4 +305,18 @@ function AccountListItem({
       </Card>
     </Link>
   );
+}
+
+function formatFxRate(rate: string) {
+  const parsedRate = Number(rate);
+
+  if (Number.isNaN(parsedRate)) {
+    return rate;
+  }
+
+  return parsedRate.toFixed(4);
+}
+
+function formatTimestamp(timestamp: string) {
+  return timestamp.slice(0, 16);
 }

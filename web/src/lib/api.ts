@@ -7,6 +7,17 @@ export type CurrencyResponse = {
   code: string;
 };
 
+export type FxRateSummaryItemResponse = {
+  currency: string;
+  rate: string;
+};
+
+export type FxRateSummaryResponse = {
+  target_currency: string;
+  rates: FxRateSummaryItemResponse[];
+  last_updated: string | null;
+};
+
 export function getApiBaseUrl() {
   return import.meta.env.VITE_API_BASE_URL?.trim() || "http://127.0.0.1:3000";
 }
@@ -21,6 +32,10 @@ export function getAccountsApiUrl() {
 
 export function getCurrenciesApiUrl() {
   return new URL("/currencies", getApiBaseUrl()).toString();
+}
+
+export function getFxRatesApiUrl() {
+  return new URL("/fx-rates", getApiBaseUrl()).toString();
 }
 
 export function getAccountDetailApiUrl(accountId: string) {

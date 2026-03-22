@@ -23,6 +23,7 @@ pub fn build_router(pool: SqlitePool) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/currencies", get(list_currencies_handler))
+        .route("/fx-rates", get(get_fx_rate_summary_handler))
         .route(
             "/accounts",
             get(list_accounts_handler).post(create_account_handler),

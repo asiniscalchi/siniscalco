@@ -4,11 +4,52 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AccountsListPage } from "./AccountsListPage";
+
+function mockDashboardRequests({
+  accounts,
+  fxRates = {
+    target_currency: "EUR",
+    rates: [],
+    last_updated: null,
+  },
+}: {
+  accounts: unknown[];
+  fxRates?: {
+    target_currency: string;
+    rates: { currency: string; rate: string }[];
+    last_updated: string | null;
+  };
+}) {
+  vi.mocked(fetch).mockImplementation((input) => {
+    const url = String(input);
+
+    if (url.endsWith("/accounts")) {
+      return Promise.resolve(
+        new Response(JSON.stringify(accounts), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    }
+
+    if (url.endsWith("/fx-rates")) {
+      return Promise.resolve(
+        new Response(JSON.stringify(fxRates), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    }
+
+    throw new Error(`Unhandled fetch request: ${url}`);
+  });
+}
 
 describe("AccountsListPage", () => {
   beforeEach(() => {
@@ -38,22 +79,27 @@ describe("AccountsListPage", () => {
   });
 
   it("renders fetched account summaries", async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify([
-          {
-            id: 1,
-            name: "IBKR",
-            account_type: "broker",
-            base_currency: "EUR",
-            summary_status: "ok",
-            total_amount: "123.45000000",
-            total_currency: "EUR",
-          },
-        ]),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
-    );
+    mockDashboardRequests({
+      accounts: [
+        {
+          id: 1,
+          name: "IBKR",
+          account_type: "broker",
+          base_currency: "EUR",
+          summary_status: "ok",
+          total_amount: "123.45000000",
+          total_currency: "EUR",
+        },
+      ],
+      fxRates: {
+        target_currency: "EUR",
+        rates: [
+          { currency: "USD", rate: "0.92" },
+          { currency: "GBP", rate: "1.17" },
+        ],
+        last_updated: "2026-03-22 10:00:00",
+      },
+    });
 
     render(
       <MemoryRouter>
@@ -65,6 +111,11 @@ describe("AccountsListPage", () => {
     expect(screen.getByText(/broker/)).toBeTruthy();
     expect(screen.getAllByText(/EUR/).length).toBeGreaterThan(0);
     expect(screen.getByText("123.45000000 EUR")).toBeTruthy();
+    expect(screen.getByText("FX Rates")).toBeTruthy();
+    expect(screen.getByText("Against EUR")).toBeTruthy();
+    expect(screen.getByText("USD")).toBeTruthy();
+    expect(screen.getByText("0.9200")).toBeTruthy();
+    expect(screen.getByText("Last updated: 2026-03-22 10:00")).toBeTruthy();
     expect(
       screen
         .getByRole("link", { name: /IBKR.*broker.*EUR.*View details/ })
@@ -73,22 +124,19 @@ describe("AccountsListPage", () => {
   });
 
   it("renders conversion unavailable when the backend summary cannot be calculated", async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify([
-          {
-            id: 1,
-            name: "IBKR",
-            account_type: "broker",
-            base_currency: "EUR",
-            summary_status: "conversion_unavailable",
-            total_amount: null,
-            total_currency: null,
-          },
-        ]),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
-    );
+    mockDashboardRequests({
+      accounts: [
+        {
+          id: 1,
+          name: "IBKR",
+          account_type: "broker",
+          base_currency: "EUR",
+          summary_status: "conversion_unavailable",
+          total_amount: null,
+          total_currency: null,
+        },
+      ],
+    });
 
     render(
       <MemoryRouter>
@@ -100,12 +148,7 @@ describe("AccountsListPage", () => {
   });
 
   it("renders the empty state when no accounts exist", async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify([]), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
+    mockDashboardRequests({ accounts: [] });
 
     render(
       <MemoryRouter>
@@ -117,24 +160,51 @@ describe("AccountsListPage", () => {
   });
 
   it("renders an error state and retries the request", async () => {
-    vi.mocked(fetch)
-      .mockRejectedValueOnce(new Error("network error"))
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify([
-            {
-              id: 1,
-              name: "Main Bank",
-              account_type: "bank",
-              base_currency: "USD",
-              summary_status: "ok",
-              total_amount: "50.00000000",
-              total_currency: "USD",
-            },
-          ]),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
-      );
+    let accountsAttempt = 0;
+
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input);
+
+      if (url.endsWith("/accounts")) {
+        accountsAttempt += 1;
+
+        if (accountsAttempt === 1) {
+          return Promise.reject(new Error("network error"));
+        }
+
+        return Promise.resolve(
+          new Response(
+            JSON.stringify([
+              {
+                id: 1,
+                name: "Main Bank",
+                account_type: "bank",
+                base_currency: "USD",
+                summary_status: "ok",
+                total_amount: "50.00000000",
+                total_currency: "USD",
+              },
+            ]),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+
+      if (url.endsWith("/fx-rates")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              target_currency: "EUR",
+              rates: [],
+              last_updated: null,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+
+      throw new Error(`Unhandled fetch request: ${url}`);
+    });
 
     render(
       <MemoryRouter>
@@ -149,26 +219,23 @@ describe("AccountsListPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Main Bank")).toBeTruthy();
     });
-    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledTimes(4);
   });
 
   it("links to account detail and account creation routes", async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify([
-          {
-            id: 7,
-            name: "IBKR",
-            account_type: "broker",
-            base_currency: "EUR",
-            summary_status: "ok",
-            total_amount: "1.00000000",
-            total_currency: "EUR",
-          },
-        ]),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
-    );
+    mockDashboardRequests({
+      accounts: [
+        {
+          id: 7,
+          name: "IBKR",
+          account_type: "broker",
+          base_currency: "EUR",
+          summary_status: "ok",
+          total_amount: "1.00000000",
+          total_currency: "EUR",
+        },
+      ],
+    });
 
     render(
       <MemoryRouter>
@@ -186,5 +253,88 @@ describe("AccountsListPage", () => {
     expect(
       screen.getByRole("link", { name: "Create account" }).getAttribute("href"),
     ).toBe("/accounts/new");
+  });
+
+  it("renders sorted fx rates, excludes the identity rate, and keeps the card read-only", async () => {
+    mockDashboardRequests({
+      accounts: [
+        {
+          id: 1,
+          name: "IBKR",
+          account_type: "broker",
+          base_currency: "EUR",
+          summary_status: "ok",
+          total_amount: "123.45000000",
+          total_currency: "EUR",
+        },
+      ],
+      fxRates: {
+        target_currency: "EUR",
+        rates: [
+          { currency: "CHF", rate: "1.04" },
+          { currency: "GBP", rate: "1.17" },
+          { currency: "USD", rate: "0.92" },
+        ],
+        last_updated: "2026-03-22 10:00:00",
+      },
+    });
+
+    render(
+      <MemoryRouter>
+        <AccountsListPage />
+      </MemoryRouter>,
+    );
+
+    const fxHeading = await screen.findByText("FX Rates");
+    const fxCard = fxHeading.closest('[data-slot="card"]');
+
+    expect(fxCard).toBeTruthy();
+
+    const fxContent = within(fxCard as HTMLElement);
+    expect(fxContent.queryByText("Against EUR")).toBeTruthy();
+    expect(fxContent.queryByText("1.0400")).toBeTruthy();
+    expect(fxContent.queryByText("1.1700")).toBeTruthy();
+    expect(fxContent.queryByText("0.9200")).toBeTruthy();
+    expect(fxContent.queryByText(/^EUR$/)).toBeNull();
+    expect(fxContent.queryByText(/No FX data available/)).toBeNull();
+    expect(fxContent.queryByRole("button")).toBeNull();
+    expect(fxContent.queryByRole("textbox")).toBeNull();
+
+    const rateItems = screen.getAllByRole("listitem");
+    expect(rateItems.map((item) => item.textContent)).toEqual([
+      "CHF1.0400",
+      "GBP1.1700",
+      "USD0.9200",
+    ]);
+  });
+
+  it("renders the no-data state for fx rates", async () => {
+    mockDashboardRequests({
+      accounts: [
+        {
+          id: 1,
+          name: "IBKR",
+          account_type: "broker",
+          base_currency: "EUR",
+          summary_status: "ok",
+          total_amount: "123.45000000",
+          total_currency: "EUR",
+        },
+      ],
+      fxRates: {
+        target_currency: "EUR",
+        rates: [],
+        last_updated: null,
+      },
+    });
+
+    render(
+      <MemoryRouter>
+        <AccountsListPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("No FX data available")).toBeTruthy();
+    expect(screen.getByText("Last updated: -")).toBeTruthy();
   });
 });

@@ -81,6 +81,102 @@ async fn lists_allowed_currencies_through_api() {
 }
 
 #[tokio::test]
+async fn lists_fx_rates_for_eur_through_api() {
+    let pool = test_pool().await;
+
+    for (from_currency, to_currency, rate) in [
+        ("USD", "EUR", "0.92000000"),
+        ("GBP", "EUR", "1.17000000"),
+        ("CHF", "EUR", "1.04000000"),
+        ("EUR", "EUR", "1.00000000"),
+    ] {
+        upsert_fx_rate(
+            &pool,
+            UpsertFxRateInput {
+                from_currency,
+                to_currency,
+                rate,
+            },
+        )
+        .await
+        .expect("fx rate insert should succeed");
+    }
+
+    for (from_currency, updated_at) in [
+        ("USD", "2026-03-22 09:00:00"),
+        ("GBP", "2026-03-22 10:00:00"),
+        ("CHF", "2026-03-22 08:30:00"),
+        ("EUR", "2026-03-22 11:00:00"),
+    ] {
+        sqlx::query(
+            "UPDATE fx_rates SET updated_at = ? WHERE from_currency = ? AND to_currency = 'EUR'",
+        )
+        .bind(updated_at)
+        .bind(from_currency)
+        .execute(&pool)
+        .await
+        .expect("timestamp update should succeed");
+    }
+
+    let app = build_router(pool);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/fx-rates")
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("fx rates request should succeed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+
+    assert_eq!(
+        std::str::from_utf8(&body).expect("json body should be utf8"),
+        r#"{"target_currency":"EUR","rates":[{"currency":"CHF","rate":"1.04"},{"currency":"GBP","rate":"1.17"},{"currency":"USD","rate":"0.92"}],"last_updated":"2026-03-22 10:00:00"}"#
+    );
+}
+
+#[tokio::test]
+async fn returns_empty_fx_rates_payload_when_no_eur_rates_exist() {
+    let pool = test_pool().await;
+    let app = build_router(pool);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/fx-rates")
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("fx rates request should succeed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+
+    assert_eq!(
+        std::str::from_utf8(&body).expect("json body should be utf8"),
+        r#"{"target_currency":"EUR","rates":[],"last_updated":null}"#
+    );
+}
+
+#[tokio::test]
 async fn serves_account_route_skeletons() {
     let pool = test_pool().await;
     let app = build_router(pool);

@@ -7,9 +7,10 @@ use axum::{
 use crate::api::models::*;
 use crate::{
     AccountBalanceRecord, AccountRecord, AccountSummaryRecord, AccountSummaryStatus, AccountType,
-    CreateAccountInput, CurrencyRecord, UpsertAccountBalanceInput, UpsertOutcome, delete_account,
-    delete_account_balance, get_account, list_account_balances, list_account_summaries,
-    list_currencies, normalize_amount_output, storage::StorageError, upsert_account_balance,
+    CreateAccountInput, CurrencyRecord, FxRateSummaryItemRecord, FxRateSummaryRecord,
+    UpsertAccountBalanceInput, UpsertOutcome, delete_account, delete_account_balance, get_account,
+    list_account_balances, list_account_summaries, list_currencies, list_fx_rate_summary,
+    normalize_amount_output, storage::StorageError, upsert_account_balance,
 };
 
 pub(crate) async fn health() -> &'static str {
@@ -67,6 +68,16 @@ pub(crate) async fn list_accounts_handler(
             .map(to_account_summary_response)
             .collect(),
     ))
+}
+
+pub(crate) async fn get_fx_rate_summary_handler(
+    State(state): State<AppState>,
+) -> Result<Json<FxRateSummaryResponse>, ApiError> {
+    let summary = list_fx_rate_summary(&state.pool, "EUR")
+        .await
+        .map_err(ApiError::from)?;
+
+    Ok(Json(to_fx_rate_summary_response(summary)))
 }
 
 pub(crate) async fn get_account_handler(
@@ -218,5 +229,24 @@ fn to_balance_response(balance: AccountBalanceRecord) -> BalanceResponse {
 fn to_currency_response(currency: CurrencyRecord) -> CurrencyResponse {
     CurrencyResponse {
         code: currency.code,
+    }
+}
+
+fn to_fx_rate_summary_response(summary: FxRateSummaryRecord) -> FxRateSummaryResponse {
+    FxRateSummaryResponse {
+        target_currency: summary.target_currency,
+        rates: summary
+            .rates
+            .into_iter()
+            .map(to_fx_rate_summary_item_response)
+            .collect(),
+        last_updated: summary.last_updated,
+    }
+}
+
+fn to_fx_rate_summary_item_response(rate: FxRateSummaryItemRecord) -> FxRateSummaryItemResponse {
+    FxRateSummaryItemResponse {
+        currency: rate.from_currency,
+        rate: rate.rate,
     }
 }

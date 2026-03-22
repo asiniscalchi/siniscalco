@@ -37,6 +37,19 @@ describe("App shell", () => {
         );
       }
 
+      if (url.endsWith("/fx-rates")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              target_currency: "EUR",
+              rates: [],
+              last_updated: null,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+
       throw new Error(`Unhandled fetch request: ${url}`);
     });
 
@@ -64,6 +77,19 @@ describe("App shell", () => {
             status: 200,
             headers: { "Content-Type": "application/json" },
           }),
+        );
+      }
+
+      if (url.endsWith("/fx-rates")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              target_currency: "EUR",
+              rates: [],
+              last_updated: null,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
         );
       }
 
@@ -146,6 +172,19 @@ describe("App shell", () => {
                 total_currency: "EUR",
               },
             ]),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+
+      if (url.endsWith("/fx-rates")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              target_currency: "EUR",
+              rates: [],
+              last_updated: null,
+            }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
         );
