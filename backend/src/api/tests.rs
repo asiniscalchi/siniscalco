@@ -12,9 +12,9 @@ use tower::ServiceExt;
 
 use super::{ApiError, build_router};
 use crate::{
-    AccountId, AccountName, AccountType, Amount, CreateAccountInput, Currency,
+    AccountId, AccountName, AccountType, Amount, CreateAccountInput, Currency, FxRate,
     UpsertAccountBalanceInput, UpsertFxRateInput, create_account, get_account, init_db,
-    list_account_balances, upsert_account_balance, upsert_fx_rate, FxRate,
+    list_account_balances, upsert_account_balance, upsert_fx_rate,
 };
 
 fn amt(value: &str) -> Amount {

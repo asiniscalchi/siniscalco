@@ -48,7 +48,10 @@ mod tests {
     #[test]
     fn parses_positive_rates() {
         assert_eq!(FxRate::try_from("0.92").unwrap().to_string(), "0.92");
-        assert_eq!(FxRate::try_from("1.00000000").unwrap().to_string(), "1.00000000");
+        assert_eq!(
+            FxRate::try_from("1.00000000").unwrap().to_string(),
+            "1.00000000"
+        );
     }
 
     #[test]

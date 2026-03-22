@@ -22,7 +22,9 @@ impl TryFrom<i64> for AccountId {
 
     fn try_from(value: i64) -> Result<Self, Self::Error> {
         if value <= 0 {
-            return Err(StorageError::Validation("account_id must be greater than zero"));
+            return Err(StorageError::Validation(
+                "account_id must be greater than zero",
+            ));
         }
 
         Ok(Self(value))

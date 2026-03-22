@@ -36,7 +36,10 @@ mod tests {
     #[test]
     fn accepts_non_empty_names() {
         assert_eq!(AccountName::try_from("IBKR").unwrap().as_str(), "IBKR");
-        assert_eq!(AccountName::try_from("Main Bank").unwrap().as_str(), "Main Bank");
+        assert_eq!(
+            AccountName::try_from("Main Bank").unwrap().as_str(),
+            "Main Bank"
+        );
     }
 
     #[test]
