@@ -7,7 +7,7 @@ async fn main() {
     match connect_db_file("data/app.db").await {
         Ok(pool) => {
             let app = build_router(pool);
-            let address = SocketAddr::from(([127, 0, 0, 1], 3000));
+            let address = SocketAddr::from(([0, 0, 0, 0], 3000));
 
             println!("backend listening on http://{address}");
 
