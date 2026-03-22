@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import App from './App'
 
 describe('App', () => {
-  it('renders the accounts route shell', () => {
+  it('renders the accounts list skeleton', () => {
     const html = renderToStaticMarkup(
       <MemoryRouter initialEntries={['/accounts']}>
         <App />
@@ -13,6 +13,7 @@ describe('App', () => {
     )
 
     expect(html).toContain('Accounts')
-    expect(html).toContain('Accounts list page placeholder.')
+    expect(html).toContain('Create account')
+    expect(html).toContain('Cash Accounts')
   })
 })
