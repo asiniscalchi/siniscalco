@@ -70,6 +70,12 @@ pub struct UpsertAccountBalanceInput<'a> {
     pub amount: &'a str,
 }
 
+pub struct UpsertFxRateInput<'a> {
+    pub from_currency: &'a str,
+    pub to_currency: &'a str,
+    pub rate: &'a str,
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum UpsertOutcome {
     Created,
@@ -96,6 +102,13 @@ pub struct AccountBalanceRecord {
 #[derive(Debug, Eq, PartialEq)]
 pub struct CurrencyRecord {
     pub code: String,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct FxRateRecord {
+    pub from_currency: String,
+    pub to_currency: String,
+    pub rate: String,
 }
 
 pub async fn create_account(
@@ -160,6 +173,49 @@ pub async fn upsert_account_balance(
     }
 }
 
+pub async fn upsert_fx_rate(
+    pool: &SqlitePool,
+    input: UpsertFxRateInput<'_>,
+) -> Result<UpsertOutcome, StorageError> {
+    validate_allowed_currency(pool, input.from_currency).await?;
+    validate_allowed_currency(pool, input.to_currency).await?;
+    validate_decimal_20_8(input.rate)?;
+    validate_positive_decimal(input.rate)?;
+
+    let mut transaction = pool.begin().await?;
+
+    let existed = sqlx::query_scalar::<_, i64>(
+        "SELECT EXISTS(SELECT 1 FROM fx_rates WHERE from_currency = ? AND to_currency = ?)",
+    )
+    .bind(input.from_currency)
+    .bind(input.to_currency)
+    .fetch_one(&mut *transaction)
+    .await?
+        != 0;
+
+    sqlx::query(
+        r#"
+        INSERT INTO fx_rates (from_currency, to_currency, rate)
+        VALUES (?, ?, ?)
+        ON CONFLICT(from_currency, to_currency) DO UPDATE SET
+            rate = excluded.rate
+        "#,
+    )
+    .bind(input.from_currency)
+    .bind(input.to_currency)
+    .bind(input.rate)
+    .execute(&mut *transaction)
+    .await?;
+
+    transaction.commit().await?;
+
+    if existed {
+        Ok(UpsertOutcome::Updated)
+    } else {
+        Ok(UpsertOutcome::Created)
+    }
+}
+
 pub async fn list_accounts(pool: &SqlitePool) -> Result<Vec<AccountRecord>, StorageError> {
     let rows = sqlx::query(
         r#"
@@ -199,6 +255,30 @@ pub async fn list_currencies(pool: &SqlitePool) -> Result<Vec<CurrencyRecord>, S
         .into_iter()
         .map(|row| CurrencyRecord {
             code: row.get("code"),
+        })
+        .collect())
+}
+
+pub async fn list_fx_rates(pool: &SqlitePool) -> Result<Vec<FxRateRecord>, StorageError> {
+    let rows = sqlx::query(
+        r#"
+        SELECT
+            from_currency,
+            to_currency,
+            CAST(rate AS TEXT) AS rate
+        FROM fx_rates
+        ORDER BY from_currency, to_currency
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|row| FxRateRecord {
+            from_currency: row.get("from_currency"),
+            to_currency: row.get("to_currency"),
+            rate: row.get("rate"),
         })
         .collect())
 }
@@ -349,6 +429,17 @@ fn validate_decimal_20_8(amount: &str) -> Result<(), StorageError> {
     Ok(())
 }
 
+fn validate_positive_decimal(amount: &str) -> Result<(), StorageError> {
+    if amount.starts_with('-')
+        || amount == "0"
+        || amount.starts_with("0.") && amount[2..].bytes().all(|byte| byte == b'0')
+    {
+        return Err(StorageError::Validation("rate must be greater than zero"));
+    }
+
+    Ok(())
+}
+
 fn current_utc_timestamp() -> Result<String, StorageError> {
     OffsetDateTime::now_utc()
         .format(UTC_TIMESTAMP_FORMAT)
@@ -363,9 +454,9 @@ mod tests {
 
     use super::{
         AccountBalanceRecord, AccountRecord, AccountType, CreateAccountInput, CurrencyRecord,
-        StorageError, UpsertAccountBalanceInput, UpsertOutcome, create_account, delete_account,
-        delete_account_balance, get_account, list_account_balances, list_accounts, list_currencies,
-        upsert_account_balance,
+        FxRateRecord, StorageError, UpsertAccountBalanceInput, UpsertFxRateInput, UpsertOutcome,
+        create_account, delete_account, delete_account_balance, get_account, list_account_balances,
+        list_accounts, list_currencies, list_fx_rates, upsert_account_balance, upsert_fx_rate,
     };
     use crate::db::init_db;
 
@@ -864,5 +955,86 @@ mod tests {
             }
             StorageError::Validation(_) => panic!("expected database error"),
         }
+    }
+
+    #[tokio::test]
+    async fn upserts_fx_rates() {
+        let pool = test_pool().await;
+
+        let outcome = upsert_fx_rate(
+            &pool,
+            UpsertFxRateInput {
+                from_currency: "USD",
+                to_currency: "EUR",
+                rate: "0.92000000",
+            },
+        )
+        .await
+        .expect("fx rate insert should succeed");
+
+        assert_eq!(outcome, UpsertOutcome::Created);
+        assert_eq!(
+            list_fx_rates(&pool).await.expect("fx rates should list"),
+            vec![FxRateRecord {
+                from_currency: "USD".to_string(),
+                to_currency: "EUR".to_string(),
+                rate: "0.92".to_string(),
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn updates_existing_fx_rate() {
+        let pool = test_pool().await;
+
+        upsert_fx_rate(
+            &pool,
+            UpsertFxRateInput {
+                from_currency: "USD",
+                to_currency: "EUR",
+                rate: "0.92000000",
+            },
+        )
+        .await
+        .expect("initial fx rate insert should succeed");
+
+        let outcome = upsert_fx_rate(
+            &pool,
+            UpsertFxRateInput {
+                from_currency: "USD",
+                to_currency: "EUR",
+                rate: "0.91000000",
+            },
+        )
+        .await
+        .expect("fx rate update should succeed");
+
+        assert_eq!(outcome, UpsertOutcome::Updated);
+        assert_eq!(
+            list_fx_rates(&pool).await.expect("fx rates should list"),
+            vec![FxRateRecord {
+                from_currency: "USD".to_string(),
+                to_currency: "EUR".to_string(),
+                rate: "0.91".to_string(),
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_non_positive_fx_rates() {
+        let pool = test_pool().await;
+
+        let error = upsert_fx_rate(
+            &pool,
+            UpsertFxRateInput {
+                from_currency: "USD",
+                to_currency: "EUR",
+                rate: "0.00000000",
+            },
+        )
+        .await
+        .expect_err("zero fx rate should fail");
+
+        assert_eq!(error.to_string(), "rate must be greater than zero");
     }
 }
