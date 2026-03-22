@@ -1,14 +1,7 @@
 name: Web CI
 
 on:
-  pull_request:
-    paths:
-      - "web/**"
-      - ".github/workflows/web.yml"
   push:
-    paths:
-      - "web/**"
-      - ".github/workflows/web.yml"
 
 jobs:
   web:
