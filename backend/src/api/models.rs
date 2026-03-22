@@ -6,7 +6,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
-use crate::storage::StorageError;
+use crate::{Currency, storage::StorageError};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -30,33 +30,33 @@ pub struct AccountSummaryResponse {
     pub id: i64,
     pub name: String,
     pub account_type: String,
-    pub base_currency: String,
+    pub base_currency: Currency,
     pub summary_status: String,
     pub total_amount: Option<String>,
-    pub total_currency: Option<String>,
+    pub total_currency: Option<Currency>,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]
 pub struct BalanceResponse {
-    pub currency: String,
+    pub currency: Currency,
     pub amount: String,
     pub updated_at: String,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]
 pub struct CurrencyResponse {
-    pub code: String,
+    pub code: Currency,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]
 pub struct FxRateSummaryItemResponse {
-    pub currency: String,
+    pub currency: Currency,
     pub rate: String,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]
 pub struct FxRateSummaryResponse {
-    pub target_currency: String,
+    pub target_currency: Currency,
     pub rates: Vec<FxRateSummaryItemResponse>,
     pub last_updated: Option<String>,
 }
@@ -66,7 +66,7 @@ pub struct AccountDetailResponse {
     pub id: i64,
     pub name: String,
     pub account_type: String,
-    pub base_currency: String,
+    pub base_currency: Currency,
     pub created_at: String,
     pub balances: Vec<BalanceResponse>,
 }

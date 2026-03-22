@@ -1,27 +1,21 @@
 use rust_decimal::Decimal;
 use sqlx::{Row, SqlitePool};
 
-use crate::storage::accounts::validate_allowed_currency;
-use crate::storage::balances::{parse_stored_decimal, validate_decimal_20_8};
-use crate::storage::models::*;
+use crate::storage::records::*;
+use crate::storage::{Currency, FxRate, StorageError};
 
 pub async fn upsert_fx_rate(
     pool: &SqlitePool,
-    input: UpsertFxRateInput<'_>,
+    input: UpsertFxRateInput,
 ) -> Result<UpsertOutcome, StorageError> {
-    validate_allowed_currency(pool, input.from_currency).await?;
-    validate_allowed_currency(pool, input.to_currency).await?;
-    validate_decimal_20_8(input.rate)?;
-    validate_positive_decimal(input.rate)?;
-
     let updated_at = current_utc_timestamp()?;
     let mut transaction = pool.begin().await?;
 
     let existed = sqlx::query_scalar::<_, i64>(
         "SELECT EXISTS(SELECT 1 FROM fx_rates WHERE from_currency = ? AND to_currency = ?)",
     )
-    .bind(input.from_currency)
-    .bind(input.to_currency)
+    .bind(input.from_currency.as_str())
+    .bind(input.to_currency.as_str())
     .fetch_one(&mut *transaction)
     .await?
         != 0;
@@ -35,9 +29,9 @@ pub async fn upsert_fx_rate(
             updated_at = excluded.updated_at
         "#,
     )
-    .bind(input.from_currency)
-    .bind(input.to_currency)
-    .bind(input.rate)
+    .bind(input.from_currency.as_str())
+    .bind(input.to_currency.as_str())
+    .bind(input.rate.to_string())
     .bind(updated_at)
     .execute(&mut *transaction)
     .await?;
@@ -51,22 +45,10 @@ pub async fn upsert_fx_rate(
     }
 }
 
-pub async fn list_currencies(pool: &SqlitePool) -> Result<Vec<CurrencyRecord>, StorageError> {
-    let rows = sqlx::query(
-        r#"
-        SELECT code
-        FROM currencies
-        ORDER BY code
-        "#,
-    )
-    .fetch_all(pool)
-    .await?;
-
-    Ok(rows
+pub async fn list_currencies(_pool: &SqlitePool) -> Result<Vec<CurrencyRecord>, StorageError> {
+    Ok(Currency::all()
         .into_iter()
-        .map(|row| CurrencyRecord {
-            code: row.get("code"),
-        })
+        .map(|code| CurrencyRecord { code })
         .collect())
 }
 
@@ -87,19 +69,19 @@ pub async fn list_fx_rates(pool: &SqlitePool) -> Result<Vec<FxRateRecord>, Stora
     Ok(rows
         .into_iter()
         .map(|row| FxRateRecord {
-            from_currency: row.get("from_currency"),
-            to_currency: row.get("to_currency"),
-            rate: row.get("rate"),
+            from_currency: Currency::try_from(row.get::<&str, _>("from_currency"))
+                .expect("stored currency is valid"),
+            to_currency: Currency::try_from(row.get::<&str, _>("to_currency"))
+                .expect("stored currency is valid"),
+            rate: FxRate::try_from(row.get::<&str, _>("rate")).expect("stored rate is valid"),
         })
         .collect())
 }
 
 pub async fn list_fx_rate_summary(
     pool: &SqlitePool,
-    target_currency: &str,
+    target_currency: Currency,
 ) -> Result<FxRateSummaryRecord, StorageError> {
-    validate_allowed_currency(pool, target_currency).await?;
-
     let rows = sqlx::query(
         r#"
         SELECT
@@ -111,16 +93,17 @@ pub async fn list_fx_rate_summary(
         ORDER BY from_currency
         "#,
     )
-    .bind(target_currency)
-    .bind(target_currency)
+    .bind(target_currency.as_str())
+    .bind(target_currency.as_str())
     .fetch_all(pool)
     .await?;
 
     let rates: Vec<FxRateSummaryItemRecord> = rows
         .into_iter()
         .map(|row| FxRateSummaryItemRecord {
-            from_currency: row.get("from_currency"),
-            rate: row.get("rate"),
+            from_currency: Currency::try_from(row.get::<&str, _>("from_currency"))
+                .expect("stored currency is valid"),
+            rate: FxRate::try_from(row.get::<&str, _>("rate")).expect("stored rate is valid"),
             updated_at: row.get("updated_at"),
         })
         .collect();
@@ -128,7 +111,7 @@ pub async fn list_fx_rate_summary(
     let last_updated = rates.iter().map(|rate| rate.updated_at.clone()).max();
 
     Ok(FxRateSummaryRecord {
-        target_currency: target_currency.to_string(),
+        target_currency,
         rates,
         last_updated,
     })
@@ -136,8 +119,8 @@ pub async fn list_fx_rate_summary(
 
 pub(crate) async fn get_direct_fx_rate(
     pool: &SqlitePool,
-    from_currency: &str,
-    to_currency: &str,
+    from_currency: Currency,
+    to_currency: Currency,
 ) -> Result<Option<Decimal>, StorageError> {
     let rate = sqlx::query_scalar::<_, String>(
         r#"
@@ -146,21 +129,11 @@ pub(crate) async fn get_direct_fx_rate(
         WHERE from_currency = ? AND to_currency = ?
         "#,
     )
-    .bind(from_currency)
-    .bind(to_currency)
+    .bind(from_currency.as_str())
+    .bind(to_currency.as_str())
     .fetch_optional(pool)
     .await?;
 
-    rate.map(|value| parse_stored_decimal(&value)).transpose()
-}
-
-fn validate_positive_decimal(amount: &str) -> Result<(), StorageError> {
-    if amount.starts_with('-')
-        || amount == "0"
-        || amount.starts_with("0.") && amount[2..].bytes().all(|byte| byte == b'0')
-    {
-        return Err(StorageError::Validation("rate must be greater than zero"));
-    }
-
-    Ok(())
+    rate.map(|value| FxRate::try_from(value.as_str()).map(|rate| rate.as_decimal()))
+        .transpose()
 }
