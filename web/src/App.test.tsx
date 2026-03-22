@@ -48,7 +48,6 @@ describe('App shell', () => {
 
     expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:3000/health')
     expect(await screen.findByText('connected')).toBeTruthy()
-    expect(screen.getByText('http://127.0.0.1:3000')).toBeTruthy()
   })
 
   it('shows unavailable when the health request returns a non-success status', async () => {
@@ -93,7 +92,6 @@ describe('App shell', () => {
     expect(screen.getByRole('navigation', { name: 'Primary' })).toBeTruthy()
     expect(screen.getByText('checking')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Accounts' })).toBeTruthy()
-    expect(screen.getByText('http://127.0.0.1:3000')).toBeTruthy()
   })
 
   it('keeps the shell rendered while navigating between wrapped routes', async () => {
@@ -148,11 +146,10 @@ describe('App shell', () => {
 
     const accountsLink = screen.getByRole('link', { name: 'Accounts' })
     expect(accountsLink.getAttribute('aria-current')).toBe('page')
-    expect(accountsLink.className).toContain('bg-foreground')
+    expect(accountsLink.className).toContain('border-foreground')
 
     expect(await screen.findByText('IBKR')).toBeTruthy()
     expect(screen.getByText('connected')).toBeTruthy()
-    expect(screen.getByText('http://127.0.0.1:3000')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('link', { name: 'Create account' }))
 
@@ -167,7 +164,7 @@ describe('App shell', () => {
 
     expect(await screen.findByText('IBKR')).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('link', { name: 'Open' }))
+    fireEvent.click(screen.getByRole('link', { name: /IBKR.*broker.*EUR.*View details/ }))
 
     expect(await screen.findByText('Account Summary')).toBeTruthy()
     expect(screen.getByText('Siniscalco')).toBeTruthy()

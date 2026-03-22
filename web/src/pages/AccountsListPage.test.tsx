@@ -26,7 +26,6 @@ describe('AccountsListPage', () => {
 
     expect(screen.getByText('Accounts')).toBeTruthy()
     expect(screen.getByText('Create account')).toBeTruthy()
-    expect(screen.getByText('Cash Accounts')).toBeTruthy()
     expect(document.querySelectorAll('[data-slot="card"]').length).toBeGreaterThan(0)
   })
 
@@ -53,9 +52,9 @@ describe('AccountsListPage', () => {
     )
 
     expect(await screen.findByText('IBKR')).toBeTruthy()
-    expect(screen.getByText('broker')).toBeTruthy()
-    expect(screen.getByText('EUR')).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Open' }).getAttribute('href')).toBe(
+    expect(screen.getByText(/broker/)).toBeTruthy()
+    expect(screen.getByText(/EUR/)).toBeTruthy()
+    expect(screen.getByRole('link', { name: /IBKR.*broker.*EUR.*View details/ }).getAttribute('href')).toBe(
       '/accounts/1'
     )
   })
@@ -133,7 +132,7 @@ describe('AccountsListPage', () => {
       </MemoryRouter>
     )
 
-    expect((await screen.findByRole('link', { name: 'Open' })).getAttribute('href')).toBe(
+    expect((await screen.findByRole('link', { name: /IBKR.*broker.*EUR.*View details/ })).getAttribute('href')).toBe(
       '/accounts/7'
     )
     expect(screen.getByRole('link', { name: 'Create account' }).getAttribute('href')).toBe(
