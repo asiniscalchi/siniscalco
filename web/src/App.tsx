@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link, Navigate, Route, Routes } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
@@ -13,6 +14,14 @@ import {
 import { buttonVariants } from '@/components/ui/button-variants'
 import { cn } from '@/lib/utils'
 
+type AccountSummary = {
+  id: number
+  name: string
+  account_type: string
+  base_currency: string
+  created_at: string
+}
+
 function App() {
   return (
     <Routes>
@@ -25,7 +34,52 @@ function App() {
 }
 
 function AccountsListPage() {
-  const state = getAccountsPageState()
+  const [requestState, setRequestState] = useState<
+    | { status: 'loading' }
+    | { status: 'empty' }
+    | { status: 'error' }
+    | { status: 'ready'; accounts: AccountSummary[] }
+  >({ status: 'loading' })
+  const [retryToken, setRetryToken] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadAccounts() {
+      setRequestState({ status: 'loading' })
+
+      try {
+        const response = await fetch(getAccountsApiUrl())
+
+        if (!response.ok) {
+          throw new Error(`accounts request failed with status ${response.status}`)
+        }
+
+        const data = (await response.json()) as AccountSummary[]
+
+        if (cancelled) {
+          return
+        }
+
+        if (data.length === 0) {
+          setRequestState({ status: 'empty' })
+          return
+        }
+
+        setRequestState({ status: 'ready', accounts: data })
+      } catch {
+        if (!cancelled) {
+          setRequestState({ status: 'error' })
+        }
+      }
+    }
+
+    void loadAccounts()
+
+    return () => {
+      cancelled = true
+    }
+  }, [retryToken])
 
   return (
     <main className="min-h-svh bg-muted/30 px-6 py-10">
@@ -50,18 +104,25 @@ function AccountsListPage() {
         </header>
 
         <section className="space-y-4">
-          {state === 'loading' ? <AccountsLoadingState /> : null}
-          {state === 'empty' ? <AccountsEmptyState /> : null}
-          {state === 'error' ? <AccountsErrorState /> : null}
-          {state === 'ready' ? <AccountsReadyState /> : null}
+          {requestState.status === 'loading' ? <AccountsLoadingState /> : null}
+          {requestState.status === 'empty' ? <AccountsEmptyState /> : null}
+          {requestState.status === 'error' ? (
+            <AccountsErrorState onRetry={() => setRetryToken((value) => value + 1)} />
+          ) : null}
+          {requestState.status === 'ready' ? (
+            <AccountsReadyState accounts={requestState.accounts} />
+          ) : null}
         </section>
       </div>
     </main>
   )
 }
 
-function getAccountsPageState(): 'loading' | 'empty' | 'error' | 'ready' {
-  return 'loading'
+function getAccountsApiUrl() {
+  const baseUrl =
+    import.meta.env.VITE_API_BASE_URL?.trim() || 'http://127.0.0.1:3000'
+
+  return new URL('/accounts', baseUrl).toString()
 }
 
 function AccountDetailPage() {
@@ -139,7 +200,7 @@ function AccountsEmptyState() {
   )
 }
 
-function AccountsErrorState() {
+function AccountsErrorState({ onRetry }: { onRetry: () => void }) {
   return (
     <Card className="border-destructive/30 bg-background">
       <CardHeader>
@@ -155,27 +216,26 @@ function AccountsErrorState() {
         >
           Create account
         </Link>
-        <Button type="button">Retry</Button>
+        <Button onClick={onRetry} type="button">
+          Retry
+        </Button>
       </CardFooter>
     </Card>
   )
 }
 
-function AccountsReadyState() {
+function AccountsReadyState({ accounts }: { accounts: AccountSummary[] }) {
   return (
     <div className="grid gap-3">
-      <AccountListItem
-        id="1"
-        name="IBKR"
-        accountType="broker"
-        baseCurrency="EUR"
-      />
-      <AccountListItem
-        id="2"
-        name="Main Bank"
-        accountType="bank"
-        baseCurrency="USD"
-      />
+      {accounts.map((account) => (
+        <AccountListItem
+          key={account.id}
+          id={String(account.id)}
+          name={account.name}
+          accountType={account.account_type}
+          baseCurrency={account.base_currency}
+        />
+      ))}
     </div>
   )
 }
