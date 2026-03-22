@@ -300,11 +300,12 @@ fn validate_name(name: &str) -> Result<(), StorageError> {
 }
 
 async fn validate_allowed_currency(pool: &SqlitePool, currency: &str) -> Result<(), StorageError> {
-    let exists = sqlx::query_scalar::<_, i64>("SELECT EXISTS(SELECT 1 FROM currencies WHERE code = ?)")
-        .bind(currency)
-        .fetch_one(pool)
-        .await?
-        != 0;
+    let exists =
+        sqlx::query_scalar::<_, i64>("SELECT EXISTS(SELECT 1 FROM currencies WHERE code = ?)")
+            .bind(currency)
+            .fetch_one(pool)
+            .await?
+            != 0;
 
     if !exists {
         return Err(StorageError::Validation(
@@ -363,8 +364,8 @@ mod tests {
     use super::{
         AccountBalanceRecord, AccountRecord, AccountType, CreateAccountInput, CurrencyRecord,
         StorageError, UpsertAccountBalanceInput, UpsertOutcome, create_account, delete_account,
-        delete_account_balance, get_account, list_account_balances, list_accounts,
-        list_currencies, upsert_account_balance,
+        delete_account_balance, get_account, list_account_balances, list_accounts, list_currencies,
+        upsert_account_balance,
     };
     use crate::db::init_db;
 

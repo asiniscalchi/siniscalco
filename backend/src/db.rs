@@ -97,10 +97,11 @@ mod tests {
     async fn migration_metadata_contains_the_initial_migration() {
         let pool = test_pool().await;
 
-        let versions: Vec<i64> = sqlx::query_scalar("SELECT version FROM _sqlx_migrations ORDER BY version")
-            .fetch_all(&pool)
-            .await
-            .expect("migration metadata query should succeed");
+        let versions: Vec<i64> =
+            sqlx::query_scalar("SELECT version FROM _sqlx_migrations ORDER BY version")
+                .fetch_all(&pool)
+                .await
+                .expect("migration metadata query should succeed");
 
         assert_eq!(versions, vec![1, 2, 3, 4, 5]);
     }
@@ -120,10 +121,11 @@ mod tests {
     #[tokio::test]
     async fn account_currency_migration_preserves_existing_records() {
         let file = NamedTempFile::new().expect("temp db file should be created");
-        let options = SqliteConnectOptions::from_str(&format!("sqlite://{}", file.path().display()))
-            .expect("sqlite connect options should parse")
-            .create_if_missing(true)
-            .foreign_keys(true);
+        let options =
+            SqliteConnectOptions::from_str(&format!("sqlite://{}", file.path().display()))
+                .expect("sqlite connect options should parse")
+                .create_if_missing(true)
+                .foreign_keys(true);
 
         let pool = SqlitePoolOptions::new()
             .max_connections(1)
@@ -151,10 +153,12 @@ mod tests {
         .await
         .expect("legacy account insert should succeed");
 
-        sqlx::raw_sql(include_str!("../migrations/0004_link_account_currencies.sql"))
-            .execute(&pool)
-            .await
-            .expect("account currency migration should apply");
+        sqlx::raw_sql(include_str!(
+            "../migrations/0004_link_account_currencies.sql"
+        ))
+        .execute(&pool)
+        .await
+        .expect("account currency migration should apply");
 
         let currency: String =
             sqlx::query_scalar("SELECT base_currency FROM accounts WHERE id = 1")
@@ -168,10 +172,11 @@ mod tests {
     #[tokio::test]
     async fn balance_currency_migration_preserves_existing_records() {
         let file = NamedTempFile::new().expect("temp db file should be created");
-        let options = SqliteConnectOptions::from_str(&format!("sqlite://{}", file.path().display()))
-            .expect("sqlite connect options should parse")
-            .create_if_missing(true)
-            .foreign_keys(true);
+        let options =
+            SqliteConnectOptions::from_str(&format!("sqlite://{}", file.path().display()))
+                .expect("sqlite connect options should parse")
+                .create_if_missing(true)
+                .foreign_keys(true);
 
         let pool = SqlitePoolOptions::new()
             .max_connections(1)
@@ -191,10 +196,12 @@ mod tests {
             .execute(&pool)
             .await
             .expect("currency seeds should apply");
-        sqlx::raw_sql(include_str!("../migrations/0004_link_account_currencies.sql"))
-            .execute(&pool)
-            .await
-            .expect("account currency migration should apply");
+        sqlx::raw_sql(include_str!(
+            "../migrations/0004_link_account_currencies.sql"
+        ))
+        .execute(&pool)
+        .await
+        .expect("account currency migration should apply");
 
         sqlx::query(
             "INSERT INTO accounts (id, name, account_type, base_currency, created_at) VALUES (1, 'IBKR', 'broker', 'EUR', '2026-03-22 00:00:00')",
@@ -209,10 +216,12 @@ mod tests {
         .await
         .expect("legacy balance insert should succeed");
 
-        sqlx::raw_sql(include_str!("../migrations/0005_link_balance_currencies.sql"))
-            .execute(&pool)
-            .await
-            .expect("balance currency migration should apply");
+        sqlx::raw_sql(include_str!(
+            "../migrations/0005_link_balance_currencies.sql"
+        ))
+        .execute(&pool)
+        .await
+        .expect("balance currency migration should apply");
 
         let currency: String =
             sqlx::query_scalar("SELECT currency FROM account_balances WHERE account_id = 1")

@@ -10,9 +10,9 @@ use sqlx::SqlitePool;
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::{
-    AccountBalanceRecord, AccountRecord, AccountType, CreateAccountInput,
-    CurrencyRecord, UpsertAccountBalanceInput, UpsertOutcome, delete_account, delete_account_balance,
-    get_account, list_account_balances, list_accounts, list_currencies, normalize_amount_output,
+    AccountBalanceRecord, AccountRecord, AccountType, CreateAccountInput, CurrencyRecord,
+    UpsertAccountBalanceInput, UpsertOutcome, delete_account, delete_account_balance, get_account,
+    list_account_balances, list_accounts, list_currencies, normalize_amount_output,
     storage::StorageError, upsert_account_balance,
 };
 
@@ -187,7 +187,9 @@ async fn list_currencies_handler(
 ) -> Result<Json<Vec<CurrencyResponse>>, ApiError> {
     let currencies = list_currencies(&state.pool).await.map_err(ApiError::from)?;
 
-    Ok(Json(currencies.into_iter().map(to_currency_response).collect()))
+    Ok(Json(
+        currencies.into_iter().map(to_currency_response).collect(),
+    ))
 }
 
 async fn list_accounts_handler(
