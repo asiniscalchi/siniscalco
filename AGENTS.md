@@ -43,6 +43,7 @@ Frontend: React + Vite + Tailwind + shadcn
 - modify existing code when possible; rewrite only if necessary
 - keep changes small and focused
 - add or update tests for every change
+- when fixing a bug, first add or update a test that reproduces the bug and fails, then implement the fix and verify the test passes
 
 ## Done criteria
 - project builds successfully
