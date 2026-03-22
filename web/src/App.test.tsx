@@ -46,7 +46,7 @@ describe('App shell', () => {
       </MemoryRouter>
     )
 
-    expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:3000/health')
+    expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/health$/))
     expect(await screen.findByText('connected')).toBeTruthy()
   })
 
@@ -113,6 +113,20 @@ describe('App shell', () => {
               created_at: '2026-03-22 00:00:00',
               balances: [],
             }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      }
+
+      if (url.endsWith('/currencies')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify([
+              { code: 'CHF' },
+              { code: 'EUR' },
+              { code: 'GBP' },
+              { code: 'USD' },
+            ]),
             { status: 200, headers: { 'Content-Type': 'application/json' } }
           )
         )

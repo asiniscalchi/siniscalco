@@ -1,11 +1,16 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { buttonVariants } from '@/components/ui/button-variants'
-import { getAccountsApiUrl, readApiErrorMessage } from '@/lib/api'
+import {
+  getAccountsApiUrl,
+  getCurrenciesApiUrl,
+  readApiErrorMessage,
+  type CurrencyResponse,
+} from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 export function AccountNewPage() {
@@ -13,11 +18,62 @@ export function AccountNewPage() {
   const [name, setName] = useState('')
   const [accountType, setAccountType] = useState<'bank' | 'broker'>('bank')
   const [baseCurrency, setBaseCurrency] = useState('EUR')
+  const [currenciesState, setCurrenciesState] = useState<
+    | { status: 'loading' }
+    | { status: 'error'; message: string }
+    | { status: 'ready'; codes: string[] }
+  >({ status: 'loading' })
   const [requestState, setRequestState] = useState<
     | { status: 'idle' }
     | { status: 'submitting' }
     | { status: 'error'; message: string }
   >({ status: 'idle' })
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadCurrencies() {
+      setCurrenciesState({ status: 'loading' })
+
+      try {
+        const response = await fetch(getCurrenciesApiUrl())
+
+        if (!response.ok) {
+          const message = await readApiErrorMessage(
+            response,
+            'Could not load currencies.'
+          )
+          throw new Error(message)
+        }
+
+        const data = (await response.json()) as CurrencyResponse[]
+        const codes = data.map((currency) => currency.code)
+
+        if (!cancelled) {
+          setCurrenciesState({ status: 'ready', codes })
+          setBaseCurrency((current) =>
+            codes.length > 0 && !codes.includes(current) ? codes[0] : current
+          )
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setCurrenciesState({
+            status: 'error',
+            message:
+              error instanceof Error
+                ? error.message
+                : 'Could not load currencies.',
+          })
+        }
+      }
+    }
+
+    void loadCurrencies()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -33,7 +89,7 @@ export function AccountNewPage() {
         body: JSON.stringify({
           name: name.trim(),
           account_type: accountType,
-          base_currency: baseCurrency.trim().toUpperCase(),
+          base_currency: baseCurrency,
         }),
       })
 
@@ -108,20 +164,27 @@ export function AccountNewPage() {
               <label className="text-sm font-medium" htmlFor="base-currency">
                 Base currency
               </label>
-              <input
-                className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm uppercase outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              <select
+                className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 id="base-currency"
-                maxLength={3}
                 name="base_currency"
-                onChange={(event) =>
-                  setBaseCurrency(event.target.value.toUpperCase())
-                }
-                placeholder="EUR"
+                onChange={(event) => setBaseCurrency(event.target.value)}
                 required
-                type="text"
                 value={baseCurrency}
-              />
+              >
+                {currenciesState.status === 'ready'
+                  ? currenciesState.codes.map((code) => (
+                      <option key={code} value={code}>
+                        {code}
+                      </option>
+                    ))
+                  : null}
+              </select>
             </div>
+
+            {currenciesState.status === 'error' ? (
+              <p className="text-sm text-destructive">{currenciesState.message}</p>
+            ) : null}
 
             {requestState.status === 'error' ? (
               <p className="text-sm text-destructive">{requestState.message}</p>
@@ -134,7 +197,13 @@ export function AccountNewPage() {
               >
                 Cancel
               </Link>
-              <Button disabled={requestState.status === 'submitting'} type="submit">
+              <Button
+                disabled={
+                  requestState.status === 'submitting' ||
+                  currenciesState.status !== 'ready'
+                }
+                type="submit"
+              >
                 {requestState.status === 'submitting'
                   ? 'Creating...'
                   : 'Create account'}

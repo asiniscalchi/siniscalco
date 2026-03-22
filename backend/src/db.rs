@@ -67,13 +67,13 @@ mod tests {
         let pool = test_pool().await;
 
         let tables: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('accounts', 'account_balances', '_sqlx_migrations')",
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('accounts', 'account_balances', 'currencies', '_sqlx_migrations')",
         )
         .fetch_one(&pool)
         .await
         .expect("table lookup should succeed");
 
-        assert_eq!(tables, 3);
+        assert_eq!(tables, 4);
     }
 
     #[tokio::test]
@@ -84,24 +84,151 @@ mod tests {
             .expect("file database should initialize");
 
         let tables: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('accounts', 'account_balances')",
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('accounts', 'account_balances', 'currencies')",
         )
         .fetch_one(&pool)
         .await
         .expect("table lookup should succeed");
 
-        assert_eq!(tables, 2);
+        assert_eq!(tables, 3);
     }
 
     #[tokio::test]
     async fn migration_metadata_contains_the_initial_migration() {
         let pool = test_pool().await;
 
-        let version: i64 = sqlx::query_scalar("SELECT version FROM _sqlx_migrations")
-            .fetch_one(&pool)
-            .await
-            .expect("migration metadata query should succeed");
+        let versions: Vec<i64> =
+            sqlx::query_scalar("SELECT version FROM _sqlx_migrations ORDER BY version")
+                .fetch_all(&pool)
+                .await
+                .expect("migration metadata query should succeed");
 
-        assert_eq!(version, 1);
+        assert_eq!(versions, vec![1, 2, 3, 4, 5]);
+    }
+
+    #[tokio::test]
+    async fn seeds_supported_currencies() {
+        let pool = test_pool().await;
+
+        let codes: Vec<String> = sqlx::query_scalar("SELECT code FROM currencies ORDER BY code")
+            .fetch_all(&pool)
+            .await
+            .expect("currency seed query should succeed");
+
+        assert_eq!(codes, vec!["CHF", "EUR", "GBP", "USD"]);
+    }
+
+    #[tokio::test]
+    async fn account_currency_migration_preserves_existing_records() {
+        let file = NamedTempFile::new().expect("temp db file should be created");
+        let options =
+            SqliteConnectOptions::from_str(&format!("sqlite://{}", file.path().display()))
+                .expect("sqlite connect options should parse")
+                .create_if_missing(true)
+                .foreign_keys(true);
+
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(options)
+            .await
+            .expect("sqlite pool should connect");
+
+        sqlx::raw_sql(include_str!("../migrations/0001_initial_cash_storage.sql"))
+            .execute(&pool)
+            .await
+            .expect("initial schema should apply");
+        sqlx::raw_sql(include_str!("../migrations/0002_create_currencies.sql"))
+            .execute(&pool)
+            .await
+            .expect("currencies schema should apply");
+        sqlx::raw_sql(include_str!("../migrations/0003_seed_currencies.sql"))
+            .execute(&pool)
+            .await
+            .expect("currency seeds should apply");
+
+        sqlx::query(
+            "INSERT INTO accounts (id, name, account_type, base_currency, created_at) VALUES (1, 'IBKR', 'broker', 'EUR', '2026-03-22 00:00:00')",
+        )
+        .execute(&pool)
+        .await
+        .expect("legacy account insert should succeed");
+
+        sqlx::raw_sql(include_str!(
+            "../migrations/0004_link_account_currencies.sql"
+        ))
+        .execute(&pool)
+        .await
+        .expect("account currency migration should apply");
+
+        let currency: String =
+            sqlx::query_scalar("SELECT base_currency FROM accounts WHERE id = 1")
+                .fetch_one(&pool)
+                .await
+                .expect("migrated account query should succeed");
+
+        assert_eq!(currency, "EUR");
+    }
+
+    #[tokio::test]
+    async fn balance_currency_migration_preserves_existing_records() {
+        let file = NamedTempFile::new().expect("temp db file should be created");
+        let options =
+            SqliteConnectOptions::from_str(&format!("sqlite://{}", file.path().display()))
+                .expect("sqlite connect options should parse")
+                .create_if_missing(true)
+                .foreign_keys(true);
+
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(options)
+            .await
+            .expect("sqlite pool should connect");
+
+        sqlx::raw_sql(include_str!("../migrations/0001_initial_cash_storage.sql"))
+            .execute(&pool)
+            .await
+            .expect("initial schema should apply");
+        sqlx::raw_sql(include_str!("../migrations/0002_create_currencies.sql"))
+            .execute(&pool)
+            .await
+            .expect("currencies schema should apply");
+        sqlx::raw_sql(include_str!("../migrations/0003_seed_currencies.sql"))
+            .execute(&pool)
+            .await
+            .expect("currency seeds should apply");
+        sqlx::raw_sql(include_str!(
+            "../migrations/0004_link_account_currencies.sql"
+        ))
+        .execute(&pool)
+        .await
+        .expect("account currency migration should apply");
+
+        sqlx::query(
+            "INSERT INTO accounts (id, name, account_type, base_currency, created_at) VALUES (1, 'IBKR', 'broker', 'EUR', '2026-03-22 00:00:00')",
+        )
+        .execute(&pool)
+        .await
+        .expect("account insert should succeed");
+        sqlx::query(
+            "INSERT INTO account_balances (account_id, currency, amount, updated_at) VALUES (1, 'USD', 12.3, '2026-03-22 00:00:00')",
+        )
+        .execute(&pool)
+        .await
+        .expect("legacy balance insert should succeed");
+
+        sqlx::raw_sql(include_str!(
+            "../migrations/0005_link_balance_currencies.sql"
+        ))
+        .execute(&pool)
+        .await
+        .expect("balance currency migration should apply");
+
+        let currency: String =
+            sqlx::query_scalar("SELECT currency FROM account_balances WHERE account_id = 1")
+                .fetch_one(&pool)
+                .await
+                .expect("migrated balance query should succeed");
+
+        assert_eq!(currency, "USD");
     }
 }

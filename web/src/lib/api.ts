@@ -3,6 +3,10 @@ type ApiErrorResponse = {
   message: string
 }
 
+export type CurrencyResponse = {
+  code: string
+}
+
 export function getApiBaseUrl() {
   return import.meta.env.VITE_API_BASE_URL?.trim() || 'http://127.0.0.1:3000'
 }
@@ -13,6 +17,10 @@ export function getHealthApiUrl() {
 
 export function getAccountsApiUrl() {
   return new URL('/accounts', getApiBaseUrl()).toString()
+}
+
+export function getCurrenciesApiUrl() {
+  return new URL('/currencies', getApiBaseUrl()).toString()
 }
 
 export function getAccountDetailApiUrl(accountId: string) {
