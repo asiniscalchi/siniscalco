@@ -48,10 +48,10 @@ export function AppShell() {
             <NavLink
               className={({ isActive }) =>
                 cn(
-                  'inline-flex items-center rounded-full border px-4 py-2 text-sm font-medium transition-colors',
+                  'inline-flex items-center px-1 py-1 text-sm font-medium transition-colors border-b-2',
                   isActive
-                    ? 'border-foreground bg-foreground text-background'
-                    : 'border-border bg-background text-muted-foreground hover:text-foreground'
+                    ? 'border-foreground text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
                 )
               }
               to="/accounts"
