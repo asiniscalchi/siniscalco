@@ -23,6 +23,21 @@ type AccountSummary = {
   created_at: string
 }
 
+type AccountBalance = {
+  currency: string
+  amount: string
+  updated_at: string
+}
+
+type AccountDetail = {
+  id: number
+  name: string
+  account_type: string
+  base_currency: string
+  created_at: string
+  balances: AccountBalance[]
+}
+
 type ApiErrorResponse = {
   error: string
   message: string
@@ -135,15 +150,143 @@ function getCreateAccountApiUrl() {
   return getAccountsApiUrl()
 }
 
+function getAccountDetailApiUrl(accountId: string) {
+  return new URL(`/accounts/${accountId}`, getAccountsApiUrl()).toString()
+}
+
 function AccountDetailPage() {
   const { accountId } = useParams<{ accountId: string }>()
+  const [requestState, setRequestState] = useState<
+    | { status: 'loading' }
+    | { status: 'error'; message: string }
+    | { status: 'ready'; account: AccountDetail }
+  >({ status: 'loading' })
+  const [retryToken, setRetryToken] = useState(0)
 
-  return (
-    <PageShell
-      title="Account Detail"
-      description={`Account detail route placeholder for account ${accountId ?? 'unknown'}.`}
-    />
-  )
+  useEffect(() => {
+    if (!accountId) {
+      setRequestState({ status: 'error', message: 'Account not found.' })
+      return
+    }
+
+    const resolvedAccountId = accountId
+
+    let cancelled = false
+
+    async function loadAccount() {
+      setRequestState({ status: 'loading' })
+
+      try {
+        const response = await fetch(getAccountDetailApiUrl(resolvedAccountId))
+
+        if (!response.ok) {
+          let message = 'Could not load account.'
+
+          try {
+            const data = (await response.json()) as ApiErrorResponse
+            if (data.message) {
+              message = data.message
+            }
+          } catch {
+            // Keep the fallback message when the error body is unavailable.
+          }
+
+          throw new Error(message)
+        }
+
+        const data = (await response.json()) as AccountDetail
+
+        if (!cancelled) {
+          setRequestState({ status: 'ready', account: data })
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setRequestState({
+            status: 'error',
+            message:
+              error instanceof Error ? error.message : 'Could not load account.',
+          })
+        }
+      }
+    }
+
+    void loadAccount()
+
+    return () => {
+      cancelled = true
+    }
+  }, [accountId, retryToken])
+
+  if (requestState.status === 'loading') {
+    return (
+      <main className="min-h-svh bg-muted/30 px-6 py-10">
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+          <header className="rounded-2xl border bg-background p-6 shadow-sm">
+            <p className="text-sm font-medium uppercase tracking-[0.22em] text-muted-foreground">
+              Cash Accounts
+            </p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+              Account Detail
+            </h1>
+          </header>
+          <div className="grid gap-3">
+            {Array.from({ length: 2 }).map((_, index) => (
+              <Card key={index} className="border-dashed bg-background/70">
+                <CardHeader>
+                  <div className="h-5 w-40 rounded-full bg-muted" />
+                  <div className="h-4 w-24 rounded-full bg-muted" />
+                </CardHeader>
+                <CardContent>
+                  <div className="h-4 w-32 rounded-full bg-muted" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </main>
+    )
+  }
+
+  if (requestState.status === 'error') {
+    return (
+      <main className="min-h-svh bg-muted/30 px-6 py-10">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+          <header className="flex items-start justify-between gap-4 rounded-2xl border bg-background p-6 shadow-sm">
+            <div>
+              <p className="text-sm font-medium uppercase tracking-[0.22em] text-muted-foreground">
+                Cash Accounts
+              </p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+                Account Detail
+              </h1>
+            </div>
+            <Link className={cn(buttonVariants({ variant: 'outline' }))} to="/accounts">
+              Back to accounts
+            </Link>
+          </header>
+          <Card className="border-destructive/30 bg-background">
+            <CardHeader>
+              <CardTitle>Could not load account</CardTitle>
+              <CardDescription>{requestState.message}</CardDescription>
+            </CardHeader>
+            <CardFooter className="justify-end gap-3">
+              <Link
+                className={cn(buttonVariants({ variant: 'outline' }))}
+                to="/accounts"
+              >
+                Back to accounts
+              </Link>
+              <Button onClick={() => setRetryToken((value) => value + 1)} type="button">
+                Retry
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      </main>
+    )
+  }
+
+  return <AccountDetailReadyState account={requestState.account} />
 }
 
 function AccountNewPage() {
@@ -294,23 +437,86 @@ function AccountNewPage() {
   )
 }
 
-function PageShell({
-  title,
-  description,
-}: {
-  title: string
-  description: string
-}) {
+function AccountDetailReadyState({ account }: { account: AccountDetail }) {
   return (
-    <main className="flex min-h-svh items-center justify-center p-6">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-3xl">{title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">{description}</p>
-        </CardContent>
-      </Card>
+    <main className="min-h-svh bg-muted/30 px-6 py-10">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+        <header className="flex flex-col gap-4 rounded-2xl border bg-background p-6 shadow-sm sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2">
+            <p className="text-sm font-medium uppercase tracking-[0.22em] text-muted-foreground">
+              Cash Accounts
+            </p>
+            <h1 className="text-3xl font-semibold tracking-tight">{account.name}</h1>
+            <p className="text-sm text-muted-foreground">
+              {account.account_type} · base currency {account.base_currency}
+            </p>
+          </div>
+          <Link className={cn(buttonVariants({ variant: 'outline' }))} to="/accounts">
+            Back to accounts
+          </Link>
+        </header>
+
+        <Card className="bg-background">
+          <CardHeader>
+            <CardTitle>Account Summary</CardTitle>
+            <CardDescription>
+              Created at {account.created_at}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 text-sm sm:grid-cols-3">
+            <div className="rounded-xl border p-4">
+              <p className="text-muted-foreground">Account type</p>
+              <p className="mt-2 font-medium">{account.account_type}</p>
+            </div>
+            <div className="rounded-xl border p-4">
+              <p className="text-muted-foreground">Base currency</p>
+              <p className="mt-2 font-medium">{account.base_currency}</p>
+            </div>
+            <div className="rounded-xl border p-4">
+              <p className="text-muted-foreground">Balances</p>
+              <p className="mt-2 font-medium">{account.balances.length}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <section className="space-y-4">
+          <div className="space-y-1">
+            <h2 className="text-xl font-semibold tracking-tight">Balances</h2>
+            <p className="text-sm text-muted-foreground">
+              Current cash balance state for this account.
+            </p>
+          </div>
+
+          {account.balances.length === 0 ? (
+            <Card className="border-dashed bg-background">
+              <CardHeader>
+                <CardTitle>No balances yet</CardTitle>
+                <CardDescription>
+                  This account does not have any stored balances yet.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          ) : (
+            <div className="grid gap-3">
+              {account.balances.map((balance) => (
+                <Card className="bg-background" key={balance.currency}>
+                  <CardHeader>
+                    <CardTitle>{balance.currency}</CardTitle>
+                    <CardDescription>
+                      Updated at {balance.updated_at}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-semibold tracking-tight">
+                      {balance.amount}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </main>
   )
 }

@@ -114,20 +114,40 @@ describe('App', () => {
   })
 
   it('navigates from an account item to the account detail route', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify([
-          {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              id: 7,
+              name: 'IBKR',
+              account_type: 'broker',
+              base_currency: 'EUR',
+              created_at: '2026-03-22 00:00:00',
+            },
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
             id: 7,
             name: 'IBKR',
             account_type: 'broker',
             base_currency: 'EUR',
             created_at: '2026-03-22 00:00:00',
-          },
-        ]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
+            balances: [
+              {
+                currency: 'USD',
+                amount: '12.30000000',
+                updated_at: '2026-03-22 00:00:00',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
       )
-    )
 
     render(
       <MemoryRouter initialEntries={['/accounts']}>
@@ -137,10 +157,9 @@ describe('App', () => {
 
     fireEvent.click(await screen.findByRole('link', { name: 'Open' }))
 
-    expect(await screen.findByText('Account Detail')).toBeTruthy()
-    expect(
-      screen.getByText('Account detail route placeholder for account 7.')
-    ).toBeTruthy()
+    expect(await screen.findByText('IBKR')).toBeTruthy()
+    expect(screen.getByText('broker · base currency EUR')).toBeTruthy()
+    expect(screen.getByText('12.30000000')).toBeTruthy()
   })
 
   it('navigates from the create account action to the new account route', async () => {
@@ -252,5 +271,78 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
     expect(await screen.findByText('Invalid currency format')).toBeTruthy()
+  })
+
+  it('renders account detail with empty balances', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 3,
+          name: 'Main Bank',
+          account_type: 'bank',
+          base_currency: 'USD',
+          created_at: '2026-03-22 00:00:00',
+          balances: [],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    render(
+      <MemoryRouter initialEntries={['/accounts/3']}>
+        <App />
+      </MemoryRouter>
+    )
+
+    expect(await screen.findByText('Main Bank')).toBeTruthy()
+    expect(screen.getByText('No balances yet')).toBeTruthy()
+    expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:3000/accounts/3')
+  })
+
+  it('renders an account detail error and retries the request', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: 'not_found',
+            message: 'Account not found',
+          }),
+          { status: 404, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 8,
+            name: 'Broker',
+            account_type: 'broker',
+            base_currency: 'EUR',
+            created_at: '2026-03-22 00:00:00',
+            balances: [
+              {
+                currency: 'EUR',
+                amount: '100.00000000',
+                updated_at: '2026-03-22 00:00:00',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+
+    render(
+      <MemoryRouter initialEntries={['/accounts/8']}>
+        <App />
+      </MemoryRouter>
+    )
+
+    expect(await screen.findByText('Could not load account')).toBeTruthy()
+    expect(screen.getByText('Account not found')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(await screen.findByText('Broker')).toBeTruthy()
+    expect(screen.getByText('100.00000000')).toBeTruthy()
+    expect(fetch).toHaveBeenCalledTimes(2)
   })
 })
