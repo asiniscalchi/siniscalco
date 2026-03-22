@@ -138,12 +138,7 @@ pub fn build_router(pool: SqlitePool) -> Router {
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
-                .allow_methods([
-                    Method::GET,
-                    Method::POST,
-                    Method::PUT,
-                    Method::DELETE,
-                ])
+                .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
                 .allow_headers([CONTENT_TYPE]),
         )
         .with_state(AppState { pool })
