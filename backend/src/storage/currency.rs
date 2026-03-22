@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::models::StorageError;
+use super::storage_error::StorageError;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Currency {

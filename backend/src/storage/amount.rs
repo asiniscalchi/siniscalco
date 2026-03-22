@@ -2,7 +2,7 @@ use std::fmt;
 
 use rust_decimal::Decimal;
 
-use super::models::StorageError;
+use super::storage_error::StorageError;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Amount(Decimal);

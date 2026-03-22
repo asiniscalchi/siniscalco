@@ -1,6 +1,6 @@
 use std::fmt;
 
-use super::models::StorageError;
+use super::storage_error::StorageError;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct AccountId(i64);

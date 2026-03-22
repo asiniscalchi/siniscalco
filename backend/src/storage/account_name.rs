@@ -1,6 +1,6 @@
 use std::fmt;
 
-use super::models::StorageError;
+use super::storage_error::StorageError;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AccountName(String);

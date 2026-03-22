@@ -2,7 +2,7 @@ use std::fmt;
 
 use rust_decimal::Decimal;
 
-use super::{amount::Amount, models::StorageError};
+use super::{amount::Amount, storage_error::StorageError};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct FxRate(Amount);
