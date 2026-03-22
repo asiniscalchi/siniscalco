@@ -11,9 +11,9 @@ use tower_http::cors::{Any, CorsLayer};
 
 use crate::{
     AccountBalanceRecord, AccountRecord, AccountType, CreateAccountInput,
-    UpsertAccountBalanceInput, UpsertOutcome, delete_account, delete_account_balance, get_account,
-    list_account_balances, list_accounts, normalize_amount_output, storage::StorageError,
-    upsert_account_balance,
+    CurrencyRecord, UpsertAccountBalanceInput, UpsertOutcome, delete_account, delete_account_balance,
+    get_account, list_account_balances, list_accounts, list_currencies, normalize_amount_output,
+    storage::StorageError, upsert_account_balance,
 };
 
 #[derive(Clone)]
@@ -47,6 +47,11 @@ pub struct BalanceResponse {
     pub currency: String,
     pub amount: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Serialize, Eq, PartialEq)]
+pub struct CurrencyResponse {
+    pub code: String,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]
@@ -123,6 +128,7 @@ impl IntoResponse for ApiError {
 pub fn build_router(pool: SqlitePool) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/currencies", get(list_currencies_handler))
         .route(
             "/accounts",
             post(create_account_handler).get(list_accounts_handler),
@@ -174,6 +180,14 @@ async fn create_account_handler(
         StatusCode::CREATED,
         Json(to_account_summary_response(account)),
     ))
+}
+
+async fn list_currencies_handler(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<CurrencyResponse>>, ApiError> {
+    let currencies = list_currencies(&state.pool).await.map_err(ApiError::from)?;
+
+    Ok(Json(currencies.into_iter().map(to_currency_response).collect()))
 }
 
 async fn list_accounts_handler(
@@ -321,6 +335,12 @@ fn to_balance_response(balance: AccountBalanceRecord) -> BalanceResponse {
     }
 }
 
+fn to_currency_response(currency: CurrencyRecord) -> CurrencyResponse {
+    CurrencyResponse {
+        code: currency.code,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -372,6 +392,37 @@ mod tests {
             .expect("health request should succeed");
 
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn lists_allowed_currencies_through_api() {
+        let pool = test_pool().await;
+        let app = build_router(pool);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/currencies")
+                    .body(Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("currencies request should succeed");
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("response body should collect")
+            .to_bytes();
+
+        assert_eq!(
+            std::str::from_utf8(&body).expect("json body should be utf8"),
+            r#"[{"code":"CHF"},{"code":"EUR"},{"code":"GBP"},{"code":"USD"}]"#
+        );
     }
 
     #[tokio::test]
