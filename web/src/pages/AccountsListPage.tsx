@@ -20,7 +20,9 @@ type AccountSummary = {
   name: string
   account_type: string
   base_currency: string
-  created_at: string
+  summary_status: 'ok' | 'conversion_unavailable'
+  total_amount: string | null
+  total_currency: string | null
 }
 
 export function AccountsListPage() {
@@ -172,6 +174,9 @@ function AccountsReadyState({ accounts }: { accounts: AccountSummary[] }) {
           name={account.name}
           accountType={account.account_type}
           baseCurrency={account.base_currency}
+          summaryStatus={account.summary_status}
+          totalAmount={account.total_amount}
+          totalCurrency={account.total_currency}
         />
       ))}
     </div>
@@ -183,11 +188,17 @@ function AccountListItem({
   name,
   accountType,
   baseCurrency,
+  summaryStatus,
+  totalAmount,
+  totalCurrency,
 }: {
   id: string
   name: string
   accountType: string
   baseCurrency: string
+  summaryStatus: 'ok' | 'conversion_unavailable'
+  totalAmount: string | null
+  totalCurrency: string | null
 }) {
   return (
     <Link className="block" to={`/accounts/${id}`}>
@@ -205,6 +216,18 @@ function AccountListItem({
             </div>
           </CardAction>
         </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">Total</p>
+          {summaryStatus === 'ok' ? (
+            <p className="mt-1 text-lg font-semibold">
+              {totalAmount} {totalCurrency}
+            </p>
+          ) : (
+            <p className="mt-1 text-sm font-medium text-muted-foreground">
+              Conversion unavailable
+            </p>
+          )}
+        </CardContent>
       </Card>
     </Link>
   )

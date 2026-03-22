@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 axum = "0.8.6"
 if-addrs = "0.13.4"
+rust_decimal = "1.39.0"
 serde = { version = "1.0.228", features = ["derive"] }
 sqlx = { version = "0.8.6", features = ["migrate", "runtime-tokio-rustls", "sqlite"] }
 time = { version = "0.3.44", features = ["formatting", "macros"] }

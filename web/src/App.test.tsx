@@ -141,7 +141,9 @@ describe('App shell', () => {
                 name: 'IBKR',
                 account_type: 'broker',
                 base_currency: 'EUR',
-                created_at: '2026-03-22 00:00:00',
+                summary_status: 'ok',
+                total_amount: '1.00000000',
+                total_currency: 'EUR',
               },
             ]),
             { status: 200, headers: { 'Content-Type': 'application/json' } }

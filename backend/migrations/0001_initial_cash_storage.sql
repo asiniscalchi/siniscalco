@@ -21,5 +21,14 @@ CREATE TABLE account_balances (
     FOREIGN KEY (currency) REFERENCES currencies(code)
 );
 
+CREATE TABLE fx_rates (
+    from_currency TEXT NOT NULL,
+    to_currency TEXT NOT NULL,
+    rate DECIMAL(20,8) NOT NULL CHECK (rate > 0),
+    PRIMARY KEY (from_currency, to_currency),
+    FOREIGN KEY (from_currency) REFERENCES currencies(code),
+    FOREIGN KEY (to_currency) REFERENCES currencies(code)
+);
+
 INSERT INTO currencies (code)
 VALUES ('EUR'), ('USD'), ('GBP'), ('CHF');

@@ -38,7 +38,9 @@ describe('AccountsListPage', () => {
             name: 'IBKR',
             account_type: 'broker',
             base_currency: 'EUR',
-            created_at: '2026-03-22 00:00:00',
+            summary_status: 'ok',
+            total_amount: '123.45000000',
+            total_currency: 'EUR',
           },
         ]),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
@@ -53,10 +55,38 @@ describe('AccountsListPage', () => {
 
     expect(await screen.findByText('IBKR')).toBeTruthy()
     expect(screen.getByText(/broker/)).toBeTruthy()
-    expect(screen.getByText(/EUR/)).toBeTruthy()
+    expect(screen.getAllByText(/EUR/).length).toBeGreaterThan(0)
+    expect(screen.getByText('123.45000000 EUR')).toBeTruthy()
     expect(screen.getByRole('link', { name: /IBKR.*broker.*EUR.*View details/ }).getAttribute('href')).toBe(
       '/accounts/1'
     )
+  })
+
+  it('renders conversion unavailable when the backend summary cannot be calculated', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          {
+            id: 1,
+            name: 'IBKR',
+            account_type: 'broker',
+            base_currency: 'EUR',
+            summary_status: 'conversion_unavailable',
+            total_amount: null,
+            total_currency: null,
+          },
+        ]),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    render(
+      <MemoryRouter>
+        <AccountsListPage />
+      </MemoryRouter>
+    )
+
+    expect(await screen.findByText('Conversion unavailable')).toBeTruthy()
   })
 
   it('renders the empty state when no accounts exist', async () => {
@@ -87,7 +117,9 @@ describe('AccountsListPage', () => {
               name: 'Main Bank',
               account_type: 'bank',
               base_currency: 'USD',
-              created_at: '2026-03-22 00:00:00',
+              summary_status: 'ok',
+              total_amount: '50.00000000',
+              total_currency: 'USD',
             },
           ]),
           { status: 200, headers: { 'Content-Type': 'application/json' } }
@@ -119,7 +151,9 @@ describe('AccountsListPage', () => {
             name: 'IBKR',
             account_type: 'broker',
             base_currency: 'EUR',
-            created_at: '2026-03-22 00:00:00',
+            summary_status: 'ok',
+            total_amount: '1.00000000',
+            total_currency: 'EUR',
           },
         ]),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
