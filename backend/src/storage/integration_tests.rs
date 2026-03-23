@@ -1155,7 +1155,7 @@ async fn ensures_portfolio_total_matches_sum_of_cash_by_currency() {
     // If we sum first: (1+1) * 0.33333333 = 0.66666666
     // To see a difference, we need something more subtle.
     // 0.123456789 -> 0.12345679
-    
+
     upsert_fx_rate(
         &pool,
         UpsertFxRateInput {
@@ -1171,14 +1171,14 @@ async fn ensures_portfolio_total_matches_sum_of_cash_by_currency() {
     // Account 2: 1.1 USD -> 0.135802458 -> 0.13580246
     // Sum of accounts: 0.27160492
     // Sum of currency: (1.1 + 1.1) * 0.12345678 = 2.2 * 0.12345678 = 0.271604916 -> 0.27160492
-    
+
     // Let's try:
     // Rate: 0.11111111
     // Acc 1: 0.5 USD -> 0.055555555 -> 0.05555556
     // Acc 2: 0.5 USD -> 0.055555555 -> 0.05555556
     // Sum accounts: 0.11111112
     // Sum currency: (0.5 + 0.5) * 0.11111111 = 0.11111111
-    
+
     upsert_fx_rate(
         &pool,
         UpsertFxRateInput {
@@ -1218,13 +1218,20 @@ async fn ensures_portfolio_total_matches_sum_of_cash_by_currency() {
         .await
         .unwrap();
 
-    let sum_of_accounts = summary.account_totals.iter()
-        .map(|a| a.total_amount.as_ref().map(|am| am.as_decimal()).unwrap_or(rust_decimal::Decimal::ZERO))
+    let sum_of_currency = summary
+        .cash_by_currency
+        .iter()
+        .map(|c| {
+            c.converted_amount
+                .as_ref()
+                .map(|am| am.as_decimal())
+                .unwrap_or(rust_decimal::Decimal::ZERO)
+        })
         .sum::<rust_decimal::Decimal>();
 
-    let sum_of_currency = summary.cash_by_currency.iter()
-        .map(|c| c.converted_amount.as_ref().map(|am| am.as_decimal()).unwrap_or(rust_decimal::Decimal::ZERO))
-        .sum::<rust_decimal::Decimal>();
-
-    assert_eq!(summary.total_value_amount.unwrap().as_decimal(), sum_of_currency, "Portfolio total should match sum of converted currency amounts");
+    assert_eq!(
+        summary.total_value_amount.unwrap().as_decimal(),
+        sum_of_currency,
+        "Portfolio total should match sum of converted currency amounts"
+    );
 }

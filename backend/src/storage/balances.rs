@@ -67,8 +67,7 @@ pub async fn list_account_balances(
     .fetch_all(pool)
     .await?;
 
-    Ok(rows
-        .into_iter()
+    rows.into_iter()
         .map(|row| {
             Ok(AccountBalanceRecord {
                 account_id: AccountId::try_from(row.get::<i64, _>("account_id"))?,
@@ -77,7 +76,7 @@ pub async fn list_account_balances(
                 updated_at: row.get("updated_at"),
             })
         })
-        .collect::<Result<Vec<_>, StorageError>>()?)
+        .collect::<Result<Vec<_>, StorageError>>()
 }
 
 pub async fn list_account_summaries(

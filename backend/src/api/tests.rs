@@ -1366,7 +1366,7 @@ async fn gets_account_detail_with_balances_through_api() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/accounts/{account_id}"))
+                .uri(format!("/accounts/{account_id}"))
                 .body(Body::empty())
                 .expect("request should build"),
         )
