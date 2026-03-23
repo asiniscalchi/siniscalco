@@ -1023,3 +1023,69 @@ async fn rejects_invalid_fx_rates_at_the_schema_level() {
 
     assert!(zero_error.to_string().contains("CHECK constraint failed"));
 }
+
+#[tokio::test]
+async fn calculates_portfolio_summary_with_currency_breakdown_and_converted_amounts() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Portfolio"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    for (currency, value) in [
+        (Currency::Eur, "100.00000000"),
+        (Currency::Usd, "100.00000000"),
+    ] {
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency,
+                amount: amt(value),
+            },
+        )
+        .await
+        .expect("balance insert should succeed");
+    }
+
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate("0.90000000"),
+        },
+    )
+    .await
+    .expect("fx rate insert should succeed");
+
+    let summary = super::get_portfolio_summary(&pool, Currency::Eur)
+        .await
+        .expect("portfolio summary should succeed");
+
+    assert_eq!(summary.total_value_amount, Some(amt("190.00000000")));
+    assert_eq!(summary.cash_by_currency.len(), 2);
+
+    // EUR breakdown
+    assert_eq!(summary.cash_by_currency[0].currency, Currency::Eur);
+    assert_eq!(summary.cash_by_currency[0].amount, amt("100.00000000"));
+    assert_eq!(
+        summary.cash_by_currency[0].converted_amount,
+        Some(amt("100.00000000"))
+    );
+
+    // USD breakdown
+    assert_eq!(summary.cash_by_currency[1].currency, Currency::Usd);
+    assert_eq!(summary.cash_by_currency[1].amount, amt("100.00000000"));
+    assert_eq!(
+        summary.cash_by_currency[1].converted_amount,
+        Some(amt("90.00000000"))
+    );
+}

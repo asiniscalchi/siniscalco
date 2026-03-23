@@ -77,9 +77,9 @@ describe("PortfolioPage", () => {
         },
       ],
       cash_by_currency: [
-        { currency: "EUR", amount: "50.00000000" },
-        { currency: "GBP", amount: "10.00000000" },
-        { currency: "USD", amount: "100.00000000" },
+        { currency: "EUR", amount: "50.00000000", converted_amount: "50.00000000" },
+        { currency: "GBP", amount: "10.00000000", converted_amount: "11.70000000" },
+        { currency: "USD", amount: "100.00000000", converted_amount: "92.00000000" },
       ],
       fx_last_updated: "2026-03-22 11:30:00",
     });
@@ -147,8 +147,8 @@ describe("PortfolioPage", () => {
         },
       ],
       cash_by_currency: [
-        { currency: "GBP", amount: "10.00000000" },
-        { currency: "USD", amount: "100.00000000" },
+        { currency: "GBP", amount: "10.00000000", converted_amount: null },
+        { currency: "USD", amount: "100.00000000", converted_amount: null },
       ],
       fx_last_updated: "2026-03-22 10:00:00",
     });
@@ -185,7 +185,7 @@ describe("PortfolioPage", () => {
               total_value_status: "ok",
               total_value_amount: "1.00000000",
               account_totals: [],
-              cash_by_currency: [{ currency: "EUR", amount: "1.00000000" }],
+              cash_by_currency: [{ currency: "EUR", amount: "1.00000000", converted_amount: "1.00000000" }],
               fx_last_updated: null,
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },

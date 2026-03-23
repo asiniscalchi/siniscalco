@@ -85,6 +85,7 @@ pub struct PortfolioAccountTotalResponse {
 pub struct PortfolioCashByCurrencyResponse {
     pub currency: Currency,
     pub amount: String,
+    pub converted_amount: Option<String>,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]

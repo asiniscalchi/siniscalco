@@ -128,6 +128,14 @@ pub async fn get_portfolio_summary(
         }
 
         for balance in balances {
+            let converted_balance_amount = if balance.currency == display_currency {
+                Some(balance.amount.clone())
+            } else {
+                get_direct_fx_rate(pool, balance.currency, display_currency)
+                    .await?
+                    .map(|rate| parse_decimal_amount(balance.amount.as_decimal() * rate))
+            };
+
             if let Some(existing_balance) = cash_by_currency
                 .iter_mut()
                 .find(|existing_balance| existing_balance.currency == balance.currency)
@@ -135,10 +143,21 @@ pub async fn get_portfolio_summary(
                 existing_balance.amount = parse_decimal_amount(
                     existing_balance.amount.as_decimal() + balance.amount.as_decimal(),
                 );
+                if let (Some(existing_converted), Some(new_converted)) = (
+                    &existing_balance.converted_amount,
+                    &converted_balance_amount,
+                ) {
+                    existing_balance.converted_amount = Some(parse_decimal_amount(
+                        existing_converted.as_decimal() + new_converted.as_decimal(),
+                    ));
+                } else {
+                    existing_balance.converted_amount = None;
+                }
             } else {
                 cash_by_currency.push(PortfolioCashByCurrencyRecord {
                     currency: balance.currency,
                     amount: balance.amount,
+                    converted_amount: converted_balance_amount,
                 });
             }
         }
