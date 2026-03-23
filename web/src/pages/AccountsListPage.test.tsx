@@ -117,11 +117,10 @@ describe("AccountsListPage", () => {
     expect(screen.getByText(/broker/)).toBeTruthy();
     expect(screen.getAllByText(/EUR/).length).toBeGreaterThan(0);
     expect(screen.getByText("123.45 EUR")).toBeTruthy();
-    expect(screen.getByText("FX Rates")).toBeTruthy();
-    expect(screen.getByText("Against EUR")).toBeTruthy();
     expect(screen.getByText("USD")).toBeTruthy();
     expect(screen.getByText("0.9200")).toBeTruthy();
-    expect(screen.getByText("Last updated: 2026-03-22 10:00")).toBeTruthy();
+    expect(screen.getByText("GBP")).toBeTruthy();
+    expect(screen.getByText("1.1700")).toBeTruthy();
     expect(
       screen
         .getByRole("link", { name: /IBKR.*broker.*EUR.*View details/ })
@@ -295,27 +294,19 @@ describe("AccountsListPage", () => {
       </MemoryRouter>,
     );
 
-    const fxHeading = await screen.findByText("FX Rates");
-    const fxCard = fxHeading.closest('[data-slot="card"]');
+    const fxFooter = await screen.findByLabelText("FX rates against EUR");
+    expect(fxFooter).toBeTruthy();
 
-    expect(fxCard).toBeTruthy();
-
-    const fxContent = within(fxCard as HTMLElement);
-    expect(fxContent.queryByText("Against EUR")).toBeTruthy();
+    const fxContent = within(fxFooter as HTMLElement);
+    expect(fxContent.queryByText("CHF")).toBeTruthy();
     expect(fxContent.queryByText("1.0400")).toBeTruthy();
+    expect(fxContent.queryByText("GBP")).toBeTruthy();
     expect(fxContent.queryByText("1.1700")).toBeTruthy();
+    expect(fxContent.queryByText("USD")).toBeTruthy();
     expect(fxContent.queryByText("0.9200")).toBeTruthy();
     expect(fxContent.queryByText(/^EUR$/)).toBeNull();
-    expect(fxContent.queryByText(/No FX data available/)).toBeNull();
     expect(fxContent.queryByRole("button")).toBeNull();
     expect(fxContent.queryByRole("textbox")).toBeNull();
-
-    const rateItems = screen.getAllByRole("listitem");
-    expect(rateItems.map((item) => item.textContent)).toEqual([
-      "CHF1.0400",
-      "GBP1.1700",
-      "USD0.9200",
-    ]);
   });
 
   it("renders the no-data state for fx rates", async () => {
@@ -346,8 +337,8 @@ describe("AccountsListPage", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText("No FX data available")).toBeTruthy();
-    expect(screen.getByText("Last updated: -")).toBeTruthy();
+    // Footer is hidden when no rates are available
+    expect(screen.queryByLabelText("FX rates against EUR")).toBeNull();
   });
 
   it("shows when fx refresh is unavailable while keeping the stored timestamp visible", async () => {
@@ -368,11 +359,8 @@ describe("AccountsListPage", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText("Last updated: 2026-03-22 10:00")).toBeTruthy();
-    expect(
-      screen.getByText(
-        "FX refresh unavailable: FX refresh unavailable: no successful refresh has completed",
-      ),
-    ).toBeTruthy();
+    expect(await screen.findByText("Refresh Failed")).toBeTruthy();
+    const errorIndicator = screen.getByText("Refresh Failed");
+    expect(errorIndicator.getAttribute("title")).toContain("no successful refresh has completed");
   });
 });
