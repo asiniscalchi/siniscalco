@@ -57,6 +57,17 @@ pub struct CreateAssetTransactionInput {
     pub notes: Option<String>,
 }
 
+pub struct UpdateAssetTransactionInput {
+    pub account_id: AccountId,
+    pub asset_id: AssetId,
+    pub transaction_type: AssetTransactionType,
+    pub trade_date: TradeDate,
+    pub quantity: AssetQuantity,
+    pub unit_price: AssetUnitPrice,
+    pub currency_code: Currency,
+    pub notes: Option<String>,
+}
+
 pub struct UpsertAccountBalanceInput {
     pub account_id: AccountId,
     pub currency: Currency,
