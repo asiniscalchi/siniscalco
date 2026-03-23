@@ -197,7 +197,6 @@ function AccountsReadyState({
 }) {
   return (
     <>
-      <FxRatesCard summary={fxRates} />
       {accounts.length === 0 ? (
         <AccountsEmptyState />
       ) : (
@@ -216,6 +215,7 @@ function AccountsReadyState({
           ))}
         </div>
       )}
+      <FxRatesFooter summary={fxRates} />
     </>
   );
 }
@@ -235,45 +235,31 @@ function formatAmount(amount: number | string, currency: string) {
   return `${formatted} ${currency}`;
 }
 
-function FxRatesCard({ summary }: { summary: FxRateSummary }) {
+function FxRatesFooter({ summary }: { summary: FxRateSummary }) {
+  if (summary.rates.length === 0) {
+    return null;
+  }
+
   return (
-    <Card className="bg-background">
-      <CardHeader>
-        <CardTitle>FX Rates</CardTitle>
-        <CardDescription>Against {summary.target_currency}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {summary.rates.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No FX data available</p>
-        ) : (
-          <ul className="space-y-2" aria-label="FX rates against EUR">
-            {summary.rates.map((rate) => (
-              <li
-                key={rate.currency}
-                className="flex items-center justify-between gap-4 font-mono text-sm"
-              >
-                <span>{rate.currency}</span>
-                <span>{formatFxRate(rate.rate)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-      <CardFooter>
-        <div className="space-y-1 text-sm text-muted-foreground">
-          <p>
-            Last updated:{" "}
-            {summary.last_updated ? formatTimestamp(summary.last_updated) : "-"}
-          </p>
-          {summary.refresh_status === "unavailable" ? (
-            <p className="text-destructive">
-              FX refresh unavailable
-              {summary.refresh_error ? `: ${summary.refresh_error}` : ""}
-            </p>
-          ) : null}
+    <footer
+      className="mt-8 flex flex-wrap items-center justify-between border-t py-4 text-[11px] font-mono text-muted-foreground/60"
+      aria-label={`FX rates against ${summary.target_currency}`}
+    >
+      {summary.rates.map((rate) => (
+        <div key={rate.currency} className="flex items-center gap-1.5">
+          <span className="font-bold">{rate.currency}</span>
+          <span>{formatFxRate(rate.rate)}</span>
         </div>
-      </CardFooter>
-    </Card>
+      ))}
+      {summary.refresh_status === "unavailable" && (
+        <div
+          className="text-destructive/80 font-bold uppercase tracking-wider"
+          title={summary.refresh_error || "FX refresh unavailable"}
+        >
+          Refresh Failed
+        </div>
+      )}
+    </footer>
   );
 }
 
@@ -340,8 +326,4 @@ function formatFxRate(rate: string) {
   }
 
   return parsedRate.toFixed(4);
-}
-
-function formatTimestamp(timestamp: string) {
-  return timestamp.slice(0, 16);
 }
