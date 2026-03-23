@@ -256,6 +256,8 @@ describe("AccountsListPage", () => {
         target_currency: "EUR",
         rates: [{ currency: "USD", rate: "0.5" }], // 200 USD * 0.5 = 100 EUR
         last_updated: "2026-03-22 10:00:00",
+        refresh_status: "available",
+        refresh_error: null,
       },
     });
 
