@@ -1039,7 +1039,10 @@ async fn calculates_portfolio_summary_with_currency_breakdown_and_converted_amou
     .await
     .expect("account insert should succeed");
 
-    for (currency, value) in [(Currency::Eur, "100.00000000"), (Currency::Usd, "100.00000000")] {
+    for (currency, value) in [
+        (Currency::Eur, "100.00000000"),
+        (Currency::Usd, "100.00000000"),
+    ] {
         upsert_account_balance(
             &pool,
             UpsertAccountBalanceInput {
@@ -1069,14 +1072,20 @@ async fn calculates_portfolio_summary_with_currency_breakdown_and_converted_amou
 
     assert_eq!(summary.total_value_amount, Some(amt("190.00000000")));
     assert_eq!(summary.cash_by_currency.len(), 2);
-    
+
     // EUR breakdown
     assert_eq!(summary.cash_by_currency[0].currency, Currency::Eur);
     assert_eq!(summary.cash_by_currency[0].amount, amt("100.00000000"));
-    assert_eq!(summary.cash_by_currency[0].converted_amount, Some(amt("100.00000000")));
+    assert_eq!(
+        summary.cash_by_currency[0].converted_amount,
+        Some(amt("100.00000000"))
+    );
 
     // USD breakdown
     assert_eq!(summary.cash_by_currency[1].currency, Currency::Usd);
     assert_eq!(summary.cash_by_currency[1].amount, amt("100.00000000"));
-    assert_eq!(summary.cash_by_currency[1].converted_amount, Some(amt("90.00000000")));
+    assert_eq!(
+        summary.cash_by_currency[1].converted_amount,
+        Some(amt("90.00000000"))
+    );
 }
