@@ -255,6 +255,98 @@ async fn rejects_invalid_asset_creation_with_field_errors() {
 }
 
 #[tokio::test]
+async fn rejects_duplicate_asset_symbol_through_api() {
+    let pool = test_pool().await;
+
+    create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            isin: Some("US0378331005".to_string()),
+        },
+    )
+    .await
+    .expect("first asset insert should succeed");
+
+    let app = build_router_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/assets")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"symbol":"AAPL","name":"Apple Common Stock","asset_type":"STOCK","isin":"US0378331006"}"#,
+                ))
+                .expect("request should build"),
+        )
+        .await
+        .expect("create asset request should succeed");
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+
+    assert_eq!(
+        std::str::from_utf8(&body).expect("json body should be utf8"),
+        r#"{"field_errors":{"symbol":["Symbol must be unique"]},"message":"Asset validation failed"}"#
+    );
+}
+
+#[tokio::test]
+async fn rejects_duplicate_asset_isin_through_api() {
+    let pool = test_pool().await;
+
+    create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("VTI"),
+            name: asset_name("Vanguard Total Stock Market ETF"),
+            asset_type: AssetType::Etf,
+            isin: Some("US9229087690".to_string()),
+        },
+    )
+    .await
+    .expect("first asset insert should succeed");
+
+    let app = build_router_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/assets")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"symbol":"VWCE","name":"Vanguard FTSE All-World UCITS ETF","asset_type":"ETF","isin":"US9229087690"}"#,
+                ))
+                .expect("request should build"),
+        )
+        .await
+        .expect("create asset request should succeed");
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+
+    assert_eq!(
+        std::str::from_utf8(&body).expect("json body should be utf8"),
+        r#"{"field_errors":{"isin":["ISIN must be unique"]},"message":"Asset validation failed"}"#
+    );
+}
+
+#[tokio::test]
 async fn lists_fx_rates_for_eur_through_api() {
     let pool = test_pool().await;
 

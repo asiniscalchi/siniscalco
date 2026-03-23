@@ -42,7 +42,7 @@ CREATE TABLE account_balances (
 
 CREATE TABLE assets (
     id INTEGER PRIMARY KEY,
-    symbol TEXT NOT NULL CHECK (length(trim(symbol)) > 0),
+    symbol TEXT NOT NULL UNIQUE CHECK (length(trim(symbol)) > 0),
     name TEXT NOT NULL CHECK (length(trim(name)) > 0),
     asset_type TEXT NOT NULL CHECK (
         asset_type IN ('STOCK', 'ETF', 'BOND', 'CRYPTO', 'CASH_EQUIVALENT', 'OTHER')
@@ -51,6 +51,8 @@ CREATE TABLE assets (
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
+
+CREATE UNIQUE INDEX assets_isin_unique_idx ON assets(isin) WHERE isin IS NOT NULL;
 
 CREATE TABLE asset_transactions (
     id INTEGER PRIMARY KEY,
