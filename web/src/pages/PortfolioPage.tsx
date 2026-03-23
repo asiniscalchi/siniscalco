@@ -222,7 +222,7 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
                           <div className="text-right">
                             {account.summary_status === "ok" &&
                             account.total_amount ? (
-                              <span className="font-mono font-medium">
+                              <span className="font-mono text-xs text-muted-foreground">
                                 {formatDisplayAmount(
                                   account.total_amount,
                                   account.total_currency,
