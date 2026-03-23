@@ -17,6 +17,8 @@ import {
   getFxRatesApiUrl,
   type FxRateSummaryResponse,
 } from "@/lib/api";
+import { MoneyText } from "@/lib/money";
+import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
 
 type AccountSummary = {
@@ -195,6 +197,8 @@ function AccountsReadyState({
   accounts: AccountSummary[];
   fxRates: FxRateSummary;
 }) {
+  const { hideValues } = useUiState();
+
   return (
     <>
       {accounts.length === 0 ? (
@@ -211,6 +215,7 @@ function AccountsReadyState({
               summaryStatus={account.summary_status}
               totalAmount={account.total_amount}
               totalCurrency={account.total_currency}
+              hideValues={hideValues}
             />
           ))}
         </div>
@@ -218,21 +223,6 @@ function AccountsReadyState({
       <FxRatesFooter summary={fxRates} />
     </>
   );
-}
-
-function formatAmount(amount: number | string, currency: string) {
-  const value = typeof amount === "string" ? Number(amount) : amount;
-
-  if (Number.isNaN(value)) {
-    return `${amount} ${currency}`;
-  }
-
-  const formatted = new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-
-  return `${formatted} ${currency}`;
 }
 
 function FxRatesFooter({ summary }: { summary: FxRateSummary }) {
@@ -271,6 +261,7 @@ function AccountListItem({
   summaryStatus,
   totalAmount,
   totalCurrency,
+  hideValues,
 }: {
   id: string;
   name: string;
@@ -279,6 +270,7 @@ function AccountListItem({
   summaryStatus: "ok" | "conversion_unavailable";
   totalAmount: string | null;
   totalCurrency: string | null;
+  hideValues: boolean;
 }) {
   return (
     <Link className="block" to={`/accounts/${id}`}>
@@ -305,7 +297,12 @@ function AccountListItem({
           <p className="text-sm text-muted-foreground">Total</p>
           {summaryStatus === "ok" && totalAmount && totalCurrency ? (
             <p className="mt-1 text-lg font-semibold">
-              {formatAmount(totalAmount, totalCurrency)}
+              <MoneyText
+                className="text-right"
+                currency={totalCurrency}
+                hidden={hideValues}
+                value={totalAmount}
+              />
             </p>
           ) : (
             <p className="mt-1 text-sm font-medium text-muted-foreground">
