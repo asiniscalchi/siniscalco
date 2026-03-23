@@ -6,11 +6,12 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
-use crate::{Currency, storage::StorageError};
+use crate::{Currency, SharedFxRefreshStatus, storage::StorageError};
 
 #[derive(Clone)]
 pub struct AppState {
     pub pool: SqlitePool,
+    pub fx_refresh_status: SharedFxRefreshStatus,
 }
 
 #[derive(Debug, Deserialize, Eq, PartialEq)]
@@ -59,6 +60,18 @@ pub struct FxRateSummaryResponse {
     pub target_currency: Currency,
     pub rates: Vec<FxRateSummaryItemResponse>,
     pub last_updated: Option<String>,
+    pub refresh_status: String,
+    pub refresh_error: Option<String>,
+}
+
+#[derive(Debug, Serialize, Eq, PartialEq)]
+pub struct FxRateDetailResponse {
+    pub from_currency: Currency,
+    pub to_currency: Currency,
+    pub rate: String,
+    pub updated_at: String,
+    pub refresh_status: String,
+    pub refresh_error: Option<String>,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]
@@ -69,6 +82,8 @@ pub struct PortfolioSummaryResponse {
     pub account_totals: Vec<PortfolioAccountTotalResponse>,
     pub cash_by_currency: Vec<PortfolioCashByCurrencyResponse>,
     pub fx_last_updated: Option<String>,
+    pub fx_refresh_status: String,
+    pub fx_refresh_error: Option<String>,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]
@@ -158,4 +173,12 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         (self.status, Json(self.body)).into_response()
     }
+}
+
+pub async fn read_fx_refresh_status(status: &SharedFxRefreshStatus) -> (String, Option<String>) {
+    let status = status.read().await;
+    (
+        status.availability.as_str().to_string(),
+        status.last_error.clone(),
+    )
 }

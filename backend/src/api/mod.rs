@@ -13,8 +13,14 @@ use sqlx::SqlitePool;
 use tower_http::cors::{Any, CorsLayer};
 
 pub fn build_router(pool: SqlitePool) -> Router {
-    let state = AppState { pool };
+    let state = AppState {
+        pool,
+        fx_refresh_status: crate::new_shared_fx_refresh_status(),
+    };
+    build_router_with_state(state)
+}
 
+pub fn build_router_with_state(state: AppState) -> Router {
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
         .allow_origin(Any)
@@ -24,6 +30,10 @@ pub fn build_router(pool: SqlitePool) -> Router {
         .route("/health", get(health))
         .route("/currencies", get(list_currencies_handler))
         .route("/fx-rates", get(get_fx_rate_summary_handler))
+        .route(
+            "/fx-rates/{from_currency}/{to_currency}",
+            get(get_fx_rate_handler),
+        )
         .route("/portfolio", get(get_portfolio_summary_handler))
         .route(
             "/accounts",

@@ -17,6 +17,8 @@ function mockDashboardRequests({
     target_currency: "EUR",
     rates: [],
     last_updated: null,
+    refresh_status: "available",
+    refresh_error: null,
   },
 }: {
   accounts: unknown[];
@@ -24,6 +26,8 @@ function mockDashboardRequests({
     target_currency: string;
     rates: { currency: string; rate: string }[];
     last_updated: string | null;
+    refresh_status: "available" | "unavailable";
+    refresh_error: string | null;
   };
 }) {
   vi.mocked(fetch).mockImplementation((input) => {
@@ -98,6 +102,8 @@ describe("AccountsListPage", () => {
           { currency: "GBP", rate: "1.17" },
         ],
         last_updated: "2026-03-22 10:00:00",
+        refresh_status: "available",
+        refresh_error: null,
       },
     });
 
@@ -197,6 +203,8 @@ describe("AccountsListPage", () => {
               target_currency: "EUR",
               rates: [],
               last_updated: null,
+              refresh_status: "available",
+              refresh_error: null,
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
@@ -276,6 +284,8 @@ describe("AccountsListPage", () => {
           { currency: "USD", rate: "0.92" },
         ],
         last_updated: "2026-03-22 10:00:00",
+        refresh_status: "available",
+        refresh_error: null,
       },
     });
 
@@ -325,6 +335,8 @@ describe("AccountsListPage", () => {
         target_currency: "EUR",
         rates: [],
         last_updated: null,
+        refresh_status: "available",
+        refresh_error: null,
       },
     });
 
@@ -336,5 +348,31 @@ describe("AccountsListPage", () => {
 
     expect(await screen.findByText("No FX data available")).toBeTruthy();
     expect(screen.getByText("Last updated: -")).toBeTruthy();
+  });
+
+  it("shows when fx refresh is unavailable while keeping the stored timestamp visible", async () => {
+    mockDashboardRequests({
+      accounts: [],
+      fxRates: {
+        target_currency: "EUR",
+        rates: [{ currency: "USD", rate: "0.92" }],
+        last_updated: "2026-03-22 10:00:00",
+        refresh_status: "unavailable",
+        refresh_error: "FX refresh unavailable: no successful refresh has completed",
+      },
+    });
+
+    render(
+      <MemoryRouter>
+        <AccountsListPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Last updated: 2026-03-22 10:00")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "FX refresh unavailable: FX refresh unavailable: no successful refresh has completed",
+      ),
+    ).toBeTruthy();
   });
 });
