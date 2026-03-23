@@ -211,7 +211,7 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
                         : 0;
 
                     return (
-                      <div key={account.id} className="space-y-2">
+                      <div key={account.id} className="space-y-1">
                         <div className="flex items-center justify-between text-sm">
                           <div className="flex flex-col">
                             <span className="font-medium">{account.name}</span>
@@ -271,7 +271,7 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
                     totalValue && balanceValue ? (balanceValue / totalValue) * 100 : 0;
 
                   return (
-                    <div key={balance.currency} className="space-y-2">
+                    <div key={balance.currency} className="space-y-1">
                       <div className="flex items-center justify-between text-sm">
                         <span className="font-medium">{balance.currency}</span>
                         <span className="font-mono text-xs text-muted-foreground">
