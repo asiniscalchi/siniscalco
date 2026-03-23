@@ -20,15 +20,11 @@ use super::fx_rate::FxRate;
 use super::storage_error::StorageError;
 use super::trade_date::TradeDate;
 
-pub const UTC_TIMESTAMP_FORMAT: &[FormatItem<'static>] =
-    format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
 pub const UTC_ISO8601_TIMESTAMP_FORMAT: &[FormatItem<'static>] =
     format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]Z");
 
 pub fn current_utc_timestamp() -> Result<String, StorageError> {
-    OffsetDateTime::now_utc()
-        .format(UTC_TIMESTAMP_FORMAT)
-        .map_err(|_| StorageError::Validation("failed to generate UTC timestamp"))
+    current_utc_timestamp_iso8601()
 }
 
 pub fn current_utc_timestamp_iso8601() -> Result<String, StorageError> {
