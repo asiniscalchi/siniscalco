@@ -39,6 +39,10 @@ pub fn build_router_with_state(state: AppState) -> Router {
             "/asset-transactions",
             get(list_asset_transactions_handler).post(create_asset_transaction_handler),
         )
+        .route(
+            "/asset-transactions/{transaction_id}",
+            put(update_asset_transaction_handler).delete(delete_asset_transaction_handler),
+        )
         .route("/currencies", get(list_currencies_handler))
         .route("/fx-rates", get(get_fx_rate_summary_handler))
         .route(

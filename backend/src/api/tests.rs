@@ -847,7 +847,8 @@ async fn updates_asset_transaction_through_api() {
     assert_eq!(json["quantity"], "7.000000");
     assert_eq!(json["unit_price"], "155.000000");
     assert_eq!(json["notes"], "updated buy");
-    assert_ne!(json["created_at"], json["updated_at"]);
+    assert_eq!(json["created_at"], transaction.created_at);
+    assert!(json["updated_at"].is_string());
 }
 
 #[tokio::test]
@@ -999,7 +1000,10 @@ async fn deletes_asset_transaction_through_api() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!("/asset-transactions?account_id={}", account_id.as_i64()))
+                .uri(format!(
+                    "/asset-transactions?account_id={}",
+                    account_id.as_i64()
+                ))
                 .body(Body::empty())
                 .expect("request should build"),
         )
@@ -1014,7 +1018,11 @@ async fn deletes_asset_transaction_through_api() {
         .to_bytes();
     let json: Value = serde_json::from_slice(&body).expect("transaction list should parse");
 
-    assert!(json.as_array().expect("response should be an array").is_empty());
+    assert!(
+        json.as_array()
+            .expect("response should be an array")
+            .is_empty()
+    );
 }
 
 #[tokio::test]

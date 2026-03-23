@@ -14,11 +14,12 @@ use crate::{
     CreateAccountInput, CreateAssetInput, CreateAssetTransactionInput, Currency, CurrencyRecord,
     FxRateDetailRecord, FxRateSummaryItemRecord, FxRateSummaryRecord, PRODUCT_BASE_CURRENCY,
     PortfolioAccountTotalRecord, PortfolioCashByCurrencyRecord, PortfolioSummaryRecord, TradeDate,
-    UpsertAccountBalanceInput, UpsertOutcome, compact_decimal_output, create_asset,
-    create_asset_transaction, delete_account, delete_account_balance, get_account, get_asset,
-    get_latest_fx_rate, get_portfolio_summary, list_account_balances, list_account_positions,
-    list_account_summaries, list_asset_transactions, list_assets, list_currencies,
-    list_fx_rate_summary, normalize_amount_output, storage::StorageError, upsert_account_balance,
+    UpdateAssetTransactionInput, UpsertAccountBalanceInput, UpsertOutcome, compact_decimal_output,
+    create_asset, create_asset_transaction, delete_account, delete_account_balance,
+    delete_asset_transaction, get_account, get_asset, get_latest_fx_rate, get_portfolio_summary,
+    list_account_balances, list_account_positions, list_account_summaries, list_asset_transactions,
+    list_assets, list_currencies, list_fx_rate_summary, normalize_amount_output,
+    storage::StorageError, update_asset_transaction, upsert_account_balance,
 };
 use std::collections::BTreeMap;
 
@@ -193,6 +194,82 @@ pub(crate) async fn list_asset_transactions_handler(
             .map(to_asset_transaction_response)
             .collect(),
     ))
+}
+
+pub(crate) async fn update_asset_transaction_handler(
+    State(state): State<AppState>,
+    AxumPath((transaction_id,)): AxumPath<(i64,)>,
+    request: Result<Json<CreateAssetTransactionRequest>, JsonRejection>,
+) -> Result<Json<AssetTransactionResponse>, ApiError> {
+    let Json(request) = request.map_err(map_json_rejection)?;
+    let account_id = AccountId::try_from(request.account_id).map_err(ApiError::from)?;
+    let asset_id = AssetId::try_from(request.asset_id).map_err(ApiError::from)?;
+    let transaction_type = AssetTransactionType::try_from(request.transaction_type.as_str())
+        .map_err(ApiError::from)?;
+    let trade_date = TradeDate::try_from(request.trade_date.as_str()).map_err(ApiError::from)?;
+    let quantity = AssetQuantity::try_from(request.quantity.as_str()).map_err(ApiError::from)?;
+    let unit_price =
+        AssetUnitPrice::try_from(request.unit_price.as_str()).map_err(ApiError::from)?;
+    let currency_code =
+        Currency::try_from(request.currency_code.as_str()).map_err(ApiError::from)?;
+
+    get_account(&state.pool, account_id)
+        .await
+        .map_err(|error| match error {
+            StorageError::Database(sqlx::Error::RowNotFound) => {
+                ApiError::not_found("Account not found")
+            }
+            other => ApiError::from(other),
+        })?;
+
+    get_asset(&state.pool, asset_id)
+        .await
+        .map_err(|error| match error {
+            StorageError::Database(sqlx::Error::RowNotFound) => {
+                ApiError::not_found("Asset not found")
+            }
+            other => ApiError::from(other),
+        })?;
+
+    let transaction = update_asset_transaction(
+        &state.pool,
+        transaction_id,
+        UpdateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type,
+            trade_date,
+            quantity,
+            unit_price,
+            currency_code,
+            notes: request.notes,
+        },
+    )
+    .await
+    .map_err(|error| match error {
+        StorageError::Database(sqlx::Error::RowNotFound) => {
+            ApiError::not_found("Asset transaction not found")
+        }
+        other => ApiError::from(other),
+    })?;
+
+    Ok(Json(to_asset_transaction_response(transaction)))
+}
+
+pub(crate) async fn delete_asset_transaction_handler(
+    State(state): State<AppState>,
+    AxumPath((transaction_id,)): AxumPath<(i64,)>,
+) -> Result<StatusCode, ApiError> {
+    delete_asset_transaction(&state.pool, transaction_id)
+        .await
+        .map_err(|error| match error {
+            StorageError::Database(sqlx::Error::RowNotFound) => {
+                ApiError::not_found("Asset transaction not found")
+            }
+            other => ApiError::from(other),
+        })?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub(crate) async fn get_fx_rate_summary_handler(

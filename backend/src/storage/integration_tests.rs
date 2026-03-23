@@ -501,7 +501,7 @@ async fn updating_asset_transaction_rejects_oversell_and_keeps_original_transact
     let error = super::update_asset_transaction(
         &pool,
         sell_transaction.id,
-        CreateAssetTransactionInput {
+        super::UpdateAssetTransactionInput {
             account_id,
             asset_id,
             transaction_type: AssetTransactionType::Sell,
