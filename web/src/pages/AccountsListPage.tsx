@@ -195,9 +195,14 @@ function AccountsReadyState({
   accounts: AccountSummary[];
   fxRates: FxRateSummary;
 }) {
+  const hasAccounts = accounts.length > 0;
+
   return (
     <>
       <FxRatesCard summary={fxRates} />
+      {hasAccounts && (
+        <CashByAccountChart accounts={accounts} fxRates={fxRates} />
+      )}
       {accounts.length === 0 ? (
         <AccountsEmptyState />
       ) : (
@@ -218,6 +223,136 @@ function AccountsReadyState({
       )}
     </>
   );
+}
+
+function CashByAccountChart({
+  accounts,
+  fxRates,
+}: {
+  accounts: AccountSummary[];
+  fxRates: FxRateSummary;
+}) {
+  const targetCurrency = fxRates.target_currency;
+
+  const accountsWithValues = accounts.map((account) => {
+    let amountInTarget = 0;
+    let conversionAvailable = account.summary_status === "ok";
+
+    if (conversionAvailable && account.total_amount && account.total_currency) {
+      if (account.total_currency === targetCurrency) {
+        amountInTarget = Number(account.total_amount);
+      } else {
+        const rate = fxRates.rates.find(
+          (r) => r.currency === account.total_currency,
+        );
+        if (rate) {
+          amountInTarget = Number(account.total_amount) * Number(rate.rate);
+        } else {
+          conversionAvailable = false;
+        }
+      }
+    }
+
+    return {
+      ...account,
+      amountInTarget,
+      conversionAvailable,
+    };
+  });
+
+  const totalInTarget = accountsWithValues.reduce(
+    (acc, curr) => acc + (curr.conversionAvailable ? curr.amountInTarget : 0),
+    0,
+  );
+
+  const anyConversionUnavailable = accountsWithValues.some(
+    (a) => !a.conversionAvailable,
+  );
+
+  // Sort by amount descending
+  const sortedAccounts = [...accountsWithValues].sort(
+    (a, b) => b.amountInTarget - a.amountInTarget,
+  );
+
+  return (
+    <Card className="bg-background">
+      <CardHeader>
+        <CardTitle>Cash by account</CardTitle>
+        <CardDescription>
+          Distribution across accounts in {targetCurrency}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {totalInTarget === 0 && !anyConversionUnavailable ? (
+          <p className="text-sm text-muted-foreground">No cash to display</p>
+        ) : (
+          <div className="space-y-4">
+            <div className="space-y-3">
+              {sortedAccounts.map((account) => {
+                const percentage =
+                  totalInTarget > 0 && account.conversionAvailable
+                    ? (account.amountInTarget / totalInTarget) * 100
+                    : 0;
+
+                return (
+                  <div key={account.id} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium truncate mr-2">
+                        {account.name}
+                      </span>
+                      <span className="font-mono text-muted-foreground shrink-0">
+                        {account.conversionAvailable
+                          ? formatAmount(
+                              account.amountInTarget,
+                              targetCurrency,
+                            )
+                          : "Unavailable"}
+                      </span>
+                    </div>
+                    <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary transition-all duration-500"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {anyConversionUnavailable && (
+              <p className="text-xs text-muted-foreground italic">
+                * Some accounts are hidden or incomplete due to missing
+                conversion rates.
+              </p>
+            )}
+          </div>
+        )}
+      </CardContent>
+      <CardFooter>
+        <div className="flex w-full items-center justify-between border-t pt-4">
+          <span className="text-sm font-medium">Total</span>
+          <span className="text-lg font-bold">
+            {formatAmount(totalInTarget, targetCurrency)}
+          </span>
+        </div>
+      </CardFooter>
+    </Card>
+  );
+}
+
+function formatAmount(amount: number | string, currency: string) {
+  const value = typeof amount === "string" ? Number(amount) : amount;
+
+  if (Number.isNaN(value)) {
+    return `${amount} ${currency}`;
+  }
+
+  const formatted = new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+
+  return `${formatted} ${currency}`;
 }
 
 function FxRatesCard({ summary }: { summary: FxRateSummary }) {
@@ -302,9 +437,9 @@ function AccountListItem({
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">Total</p>
-          {summaryStatus === "ok" ? (
+          {summaryStatus === "ok" && totalAmount && totalCurrency ? (
             <p className="mt-1 text-lg font-semibold">
-              {totalAmount} {totalCurrency}
+              {formatAmount(totalAmount, totalCurrency)}
             </p>
           ) : (
             <p className="mt-1 text-sm font-medium text-muted-foreground">
