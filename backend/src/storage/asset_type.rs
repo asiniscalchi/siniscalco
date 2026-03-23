@@ -1,12 +1,20 @@
+use serde::{Deserialize, Serialize};
+
 use super::storage_error::StorageError;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum AssetType {
+    #[serde(rename = "STOCK")]
     Stock,
+    #[serde(rename = "ETF")]
     Etf,
+    #[serde(rename = "BOND")]
     Bond,
+    #[serde(rename = "CRYPTO")]
     Crypto,
+    #[serde(rename = "CASH_EQUIVALENT")]
     CashEquivalent,
+    #[serde(rename = "OTHER")]
     Other,
 }
 

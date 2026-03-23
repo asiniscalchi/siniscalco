@@ -31,6 +31,11 @@ pub fn build_router_with_state(state: AppState) -> Router {
 
     Router::new()
         .route("/health", get(health))
+        .route("/assets", get(list_assets_handler))
+        .route(
+            "/asset-transactions",
+            get(list_asset_transactions_handler).post(create_asset_transaction_handler),
+        )
         .route("/currencies", get(list_currencies_handler))
         .route("/fx-rates", get(get_fx_rate_summary_handler))
         .route(
@@ -45,6 +50,10 @@ pub fn build_router_with_state(state: AppState) -> Router {
         .route(
             "/accounts/{account_id}",
             get(get_account_handler).delete(delete_account_handler),
+        )
+        .route(
+            "/accounts/{account_id}/positions",
+            get(list_account_positions_handler),
         )
         .route(
             "/accounts/{account_id}/balances/{currency}",

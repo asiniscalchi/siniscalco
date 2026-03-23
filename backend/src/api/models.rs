@@ -6,7 +6,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
-use crate::{Currency, SharedFxRefreshStatus, storage::StorageError};
+use crate::{AssetType, Currency, SharedFxRefreshStatus, storage::StorageError};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -24,6 +24,23 @@ pub struct CreateAccountRequest {
 #[derive(Debug, Deserialize, Eq, PartialEq)]
 pub struct UpsertBalanceRequest {
     pub amount: String,
+}
+
+#[derive(Debug, Deserialize, Eq, PartialEq)]
+pub struct CreateAssetTransactionRequest {
+    pub account_id: i64,
+    pub asset_id: i64,
+    pub transaction_type: String,
+    pub trade_date: String,
+    pub quantity: String,
+    pub unit_price: String,
+    pub currency_code: String,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Eq, PartialEq)]
+pub struct AssetTransactionListQuery {
+    pub account_id: Option<i64>,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]
@@ -47,6 +64,37 @@ pub struct BalanceResponse {
 #[derive(Debug, Serialize, Eq, PartialEq)]
 pub struct CurrencyResponse {
     pub code: Currency,
+}
+
+#[derive(Debug, Serialize, Eq, PartialEq)]
+pub struct AssetResponse {
+    pub id: i64,
+    pub symbol: String,
+    pub name: String,
+    pub asset_type: AssetType,
+    pub isin: Option<String>,
+}
+
+#[derive(Debug, Serialize, Eq, PartialEq)]
+pub struct AssetTransactionResponse {
+    pub id: i64,
+    pub account_id: i64,
+    pub asset_id: i64,
+    pub transaction_type: String,
+    pub trade_date: String,
+    pub quantity: String,
+    pub unit_price: String,
+    pub currency_code: Currency,
+    pub notes: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Serialize, Eq, PartialEq)]
+pub struct AssetPositionResponse {
+    pub account_id: i64,
+    pub asset_id: i64,
+    pub quantity: String,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]

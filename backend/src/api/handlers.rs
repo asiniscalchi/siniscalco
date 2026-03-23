@@ -1,18 +1,21 @@
 use axum::{
     Json,
-    extract::{Path as AxumPath, State, rejection::JsonRejection},
+    extract::{Path as AxumPath, Query, State, rejection::JsonRejection, rejection::QueryRejection},
     http::StatusCode,
 };
 
 use crate::api::models::*;
 use crate::{
     AccountBalanceRecord, AccountId, AccountName, AccountRecord, AccountSummaryRecord,
-    AccountSummaryStatus, AccountType, Amount, CreateAccountInput, Currency, CurrencyRecord,
-    FxRateDetailRecord, FxRateSummaryItemRecord, FxRateSummaryRecord, PRODUCT_BASE_CURRENCY,
-    PortfolioAccountTotalRecord, PortfolioCashByCurrencyRecord, PortfolioSummaryRecord,
-    UpsertAccountBalanceInput, UpsertOutcome, compact_decimal_output, delete_account,
-    delete_account_balance, get_account, get_latest_fx_rate, get_portfolio_summary,
-    list_account_balances, list_account_summaries, list_currencies, list_fx_rate_summary,
+    AccountSummaryStatus, AccountType, Amount, AssetId, AssetPositionRecord, AssetRecord,
+    AssetTransactionRecord, AssetTransactionType, CreateAccountInput, CreateAssetTransactionInput,
+    Currency, CurrencyRecord, FxRateDetailRecord, FxRateSummaryItemRecord, FxRateSummaryRecord,
+    PRODUCT_BASE_CURRENCY, PortfolioAccountTotalRecord, PortfolioCashByCurrencyRecord,
+    PortfolioSummaryRecord, TradeDate, UpsertAccountBalanceInput, UpsertOutcome, AssetQuantity,
+    AssetUnitPrice, compact_decimal_output, create_asset_transaction, delete_account,
+    delete_account_balance, get_account, get_asset, get_latest_fx_rate, get_portfolio_summary,
+    list_account_balances, list_account_positions, list_account_summaries,
+    list_asset_transactions, list_assets, list_currencies, list_fx_rate_summary,
     normalize_amount_output, storage::StorageError, upsert_account_balance,
 };
 
@@ -62,6 +65,14 @@ pub(crate) async fn list_currencies_handler(
     ))
 }
 
+pub(crate) async fn list_assets_handler(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<AssetResponse>>, ApiError> {
+    let assets = list_assets(&state.pool).await.map_err(ApiError::from)?;
+
+    Ok(Json(assets.into_iter().map(to_asset_response).collect()))
+}
+
 pub(crate) async fn list_accounts_handler(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<AccountSummaryResponse>>, ApiError> {
@@ -73,6 +84,88 @@ pub(crate) async fn list_accounts_handler(
         accounts
             .into_iter()
             .map(to_account_summary_response)
+            .collect(),
+    ))
+}
+
+pub(crate) async fn create_asset_transaction_handler(
+    State(state): State<AppState>,
+    request: Result<Json<CreateAssetTransactionRequest>, JsonRejection>,
+) -> Result<(StatusCode, Json<AssetTransactionResponse>), ApiError> {
+    let Json(request) = request.map_err(map_json_rejection)?;
+    let account_id = AccountId::try_from(request.account_id).map_err(ApiError::from)?;
+    let asset_id = AssetId::try_from(request.asset_id).map_err(ApiError::from)?;
+    let transaction_type =
+        AssetTransactionType::try_from(request.transaction_type.as_str()).map_err(ApiError::from)?;
+    let trade_date = TradeDate::try_from(request.trade_date.as_str()).map_err(ApiError::from)?;
+    let quantity = AssetQuantity::try_from(request.quantity.as_str()).map_err(ApiError::from)?;
+    let unit_price =
+        AssetUnitPrice::try_from(request.unit_price.as_str()).map_err(ApiError::from)?;
+    let currency_code =
+        Currency::try_from(request.currency_code.as_str()).map_err(ApiError::from)?;
+
+    get_account(&state.pool, account_id)
+        .await
+        .map_err(|error| match error {
+            StorageError::Database(sqlx::Error::RowNotFound) => {
+                ApiError::not_found("Account not found")
+            }
+            other => ApiError::from(other),
+        })?;
+
+    get_asset(&state.pool, asset_id)
+        .await
+        .map_err(|error| match error {
+            StorageError::Database(sqlx::Error::RowNotFound) => ApiError::not_found("Asset not found"),
+            other => ApiError::from(other),
+        })?;
+
+    let transaction = create_asset_transaction(
+        &state.pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type,
+            trade_date,
+            quantity,
+            unit_price,
+            currency_code,
+            notes: request.notes,
+        },
+    )
+    .await
+    .map_err(ApiError::from)?;
+
+    Ok((StatusCode::CREATED, Json(to_asset_transaction_response(transaction))))
+}
+
+pub(crate) async fn list_asset_transactions_handler(
+    State(state): State<AppState>,
+    query: Result<Query<AssetTransactionListQuery>, QueryRejection>,
+) -> Result<Json<Vec<AssetTransactionResponse>>, ApiError> {
+    let Query(query) = query.map_err(map_query_rejection)?;
+    let account_id = query
+        .account_id
+        .ok_or_else(|| ApiError::validation("account_id is required"))?;
+    let account_id = AccountId::try_from(account_id).map_err(ApiError::from)?;
+
+    get_account(&state.pool, account_id)
+        .await
+        .map_err(|error| match error {
+            StorageError::Database(sqlx::Error::RowNotFound) => {
+                ApiError::not_found("Account not found")
+            }
+            other => ApiError::from(other),
+        })?;
+
+    let transactions = list_asset_transactions(&state.pool, account_id)
+        .await
+        .map_err(ApiError::from)?;
+
+    Ok(Json(
+        transactions
+            .into_iter()
+            .map(to_asset_transaction_response)
             .collect(),
     ))
 }
@@ -145,6 +238,33 @@ pub(crate) async fn get_account_handler(
         .map_err(ApiError::from)?;
 
     Ok(Json(to_account_detail_response(account, balances)))
+}
+
+pub(crate) async fn list_account_positions_handler(
+    State(state): State<AppState>,
+    AxumPath((account_id,)): AxumPath<(i64,)>,
+) -> Result<Json<Vec<AssetPositionResponse>>, ApiError> {
+    let account_id = AccountId::try_from(account_id).map_err(ApiError::from)?;
+
+    get_account(&state.pool, account_id)
+        .await
+        .map_err(|error| match error {
+            StorageError::Database(sqlx::Error::RowNotFound) => {
+                ApiError::not_found("Account not found")
+            }
+            other => ApiError::from(other),
+        })?;
+
+    let positions = list_account_positions(&state.pool, account_id)
+        .await
+        .map_err(ApiError::from)?;
+
+    Ok(Json(
+        positions
+            .into_iter()
+            .map(to_asset_position_response)
+            .collect(),
+    ))
 }
 
 pub(crate) async fn upsert_account_balance_handler(
@@ -292,6 +412,40 @@ fn to_currency_response(currency: CurrencyRecord) -> CurrencyResponse {
     }
 }
 
+fn to_asset_response(asset: AssetRecord) -> AssetResponse {
+    AssetResponse {
+        id: asset.id.as_i64(),
+        symbol: asset.symbol.to_string(),
+        name: asset.name.to_string(),
+        asset_type: asset.asset_type,
+        isin: asset.isin,
+    }
+}
+
+fn to_asset_transaction_response(transaction: AssetTransactionRecord) -> AssetTransactionResponse {
+    AssetTransactionResponse {
+        id: transaction.id,
+        account_id: transaction.account_id.as_i64(),
+        asset_id: transaction.asset_id.as_i64(),
+        transaction_type: transaction.transaction_type.as_str().to_string(),
+        trade_date: transaction.trade_date.to_string(),
+        quantity: normalize_amount_output(&transaction.quantity.to_string()),
+        unit_price: normalize_amount_output(&transaction.unit_price.to_string()),
+        currency_code: transaction.currency_code,
+        notes: transaction.notes,
+        created_at: transaction.created_at,
+        updated_at: transaction.updated_at,
+    }
+}
+
+fn to_asset_position_response(position: AssetPositionRecord) -> AssetPositionResponse {
+    AssetPositionResponse {
+        account_id: position.account_id.as_i64(),
+        asset_id: position.asset_id.as_i64(),
+        quantity: normalize_amount_output(&position.quantity.to_string()),
+    }
+}
+
 fn to_fx_rate_summary_response(
     summary: FxRateSummaryRecord,
     refresh_status: String,
@@ -360,6 +514,10 @@ fn map_json_rejection(rejection: JsonRejection) -> ApiError {
         JsonRejection::MissingJsonContentType(_) => ApiError::validation("Expected JSON body"),
         _ => ApiError::validation("Invalid JSON body"),
     }
+}
+
+fn map_query_rejection(_: QueryRejection) -> ApiError {
+    ApiError::validation("Invalid query parameters")
 }
 
 fn to_fx_rate_summary_item_response(rate: FxRateSummaryItemRecord) -> FxRateSummaryItemResponse {
