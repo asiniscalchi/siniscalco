@@ -10,16 +10,17 @@ use crate::api::models::*;
 use crate::{
     AccountBalanceRecord, AccountId, AccountName, AccountRecord, AccountSummaryRecord,
     AccountSummaryStatus, AccountType, Amount, AssetId, AssetPositionRecord, AssetQuantity,
-    AssetRecord, AssetTransactionRecord, AssetTransactionType, AssetUnitPrice, CreateAccountInput,
-    CreateAssetTransactionInput, Currency, CurrencyRecord, FxRateDetailRecord,
-    FxRateSummaryItemRecord, FxRateSummaryRecord, PRODUCT_BASE_CURRENCY,
+    AssetRecord, AssetTransactionRecord, AssetTransactionType, AssetType, AssetUnitPrice,
+    CreateAccountInput, CreateAssetInput, CreateAssetTransactionInput, Currency, CurrencyRecord,
+    FxRateDetailRecord, FxRateSummaryItemRecord, FxRateSummaryRecord, PRODUCT_BASE_CURRENCY,
     PortfolioAccountTotalRecord, PortfolioCashByCurrencyRecord, PortfolioSummaryRecord, TradeDate,
-    UpsertAccountBalanceInput, UpsertOutcome, compact_decimal_output, create_asset_transaction,
-    delete_account, delete_account_balance, get_account, get_asset, get_latest_fx_rate,
-    get_portfolio_summary, list_account_balances, list_account_positions, list_account_summaries,
-    list_asset_transactions, list_assets, list_currencies, list_fx_rate_summary,
-    normalize_amount_output, storage::StorageError, upsert_account_balance,
+    UpsertAccountBalanceInput, UpsertOutcome, compact_decimal_output, create_asset,
+    create_asset_transaction, delete_account, delete_account_balance, get_account, get_asset,
+    get_latest_fx_rate, get_portfolio_summary, list_account_balances, list_account_positions,
+    list_account_summaries, list_asset_transactions, list_assets, list_currencies,
+    list_fx_rate_summary, normalize_amount_output, storage::StorageError, upsert_account_balance,
 };
+use std::collections::BTreeMap;
 
 pub(crate) async fn health() -> &'static str {
     "ok"
@@ -73,6 +74,23 @@ pub(crate) async fn list_assets_handler(
     let assets = list_assets(&state.pool).await.map_err(ApiError::from)?;
 
     Ok(Json(assets.into_iter().map(to_asset_response).collect()))
+}
+
+pub(crate) async fn create_asset_handler(
+    State(state): State<AppState>,
+    request: Result<Json<CreateAssetRequest>, JsonRejection>,
+) -> Result<(StatusCode, Json<CreatedAssetResponse>), CreateAssetApiError> {
+    let Json(request) = request.map_err(map_create_asset_json_rejection)?;
+    let input = validate_create_asset_request(request)?;
+
+    let asset_id = create_asset(&state.pool, input)
+        .await
+        .map_err(CreateAssetApiError::from)?;
+    let asset = get_asset(&state.pool, asset_id)
+        .await
+        .map_err(CreateAssetApiError::from)?;
+
+    Ok((StatusCode::CREATED, Json(to_created_asset_response(asset))))
 }
 
 pub(crate) async fn list_accounts_handler(
@@ -429,6 +447,18 @@ fn to_asset_response(asset: AssetRecord) -> AssetResponse {
     }
 }
 
+fn to_created_asset_response(asset: AssetRecord) -> CreatedAssetResponse {
+    CreatedAssetResponse {
+        id: asset.id.as_i64(),
+        symbol: asset.symbol.to_string(),
+        name: asset.name.to_string(),
+        asset_type: asset.asset_type,
+        isin: asset.isin,
+        created_at: asset.created_at,
+        updated_at: asset.updated_at,
+    }
+}
+
 fn to_asset_transaction_response(transaction: AssetTransactionRecord) -> AssetTransactionResponse {
     AssetTransactionResponse {
         id: transaction.id,
@@ -523,8 +553,80 @@ fn map_json_rejection(rejection: JsonRejection) -> ApiError {
     }
 }
 
+fn map_create_asset_json_rejection(rejection: JsonRejection) -> CreateAssetApiError {
+    match rejection {
+        JsonRejection::JsonSyntaxError(_) | JsonRejection::JsonDataError(_) => {
+            CreateAssetApiError::bad_request("Malformed JSON body")
+        }
+        JsonRejection::MissingJsonContentType(_) => {
+            CreateAssetApiError::bad_request("Expected JSON body")
+        }
+        _ => CreateAssetApiError::bad_request("Invalid JSON body"),
+    }
+}
+
 fn map_query_rejection(_: QueryRejection) -> ApiError {
     ApiError::validation("Invalid query parameters")
+}
+
+fn validate_create_asset_request(
+    request: CreateAssetRequest,
+) -> Result<CreateAssetInput, CreateAssetApiError> {
+    let mut field_errors = BTreeMap::new();
+
+    let symbol = request.symbol.trim().to_uppercase();
+    if symbol.is_empty() {
+        field_errors.insert("symbol".to_string(), vec!["Symbol is required".to_string()]);
+    }
+
+    let name = request.name.trim().to_string();
+    if name.is_empty() {
+        field_errors.insert("name".to_string(), vec!["Name is required".to_string()]);
+    }
+
+    let asset_type_value = request.asset_type.trim().to_string();
+    if asset_type_value.is_empty() {
+        field_errors.insert(
+            "asset_type".to_string(),
+            vec!["Asset type is required".to_string()],
+        );
+    }
+
+    let normalized_isin = request.isin.and_then(|isin| {
+        let trimmed = isin.trim().to_string();
+        (!trimmed.is_empty()).then_some(trimmed)
+    });
+
+    let asset_type = match AssetType::try_from(asset_type_value.as_str()) {
+        Ok(asset_type) => Some(asset_type),
+        Err(_) if !asset_type_value.is_empty() => {
+            field_errors.insert(
+                "asset_type".to_string(),
+                vec![format!(
+                    "Asset type must be one of: STOCK, ETF, BOND, CRYPTO, CASH_EQUIVALENT, OTHER"
+                )],
+            );
+            None
+        }
+        Err(_) => None,
+    };
+
+    if !field_errors.is_empty() {
+        return Err(CreateAssetApiError::validation(field_errors));
+    }
+
+    Ok(CreateAssetInput {
+        symbol: symbol
+            .as_str()
+            .try_into()
+            .map_err(CreateAssetApiError::from)?,
+        name: name
+            .as_str()
+            .try_into()
+            .map_err(CreateAssetApiError::from)?,
+        asset_type: asset_type.expect("validated asset type should exist"),
+        isin: normalized_isin,
+    })
 }
 
 fn to_fx_rate_summary_item_response(rate: FxRateSummaryItemRecord) -> FxRateSummaryItemResponse {

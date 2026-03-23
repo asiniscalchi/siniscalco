@@ -7,6 +7,7 @@ use axum::{
 };
 use http_body_util::BodyExt;
 use serde_json::Value;
+use sqlx::Row;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use tokio::sync::RwLock;
 use tower::ServiceExt;
@@ -166,6 +167,90 @@ async fn lists_assets_through_api() {
     assert_eq!(
         std::str::from_utf8(&body).expect("json body should be utf8"),
         r#"[{"id":1,"symbol":"AAPL","name":"Apple Inc.","asset_type":"STOCK","isin":null}]"#
+    );
+}
+
+#[tokio::test]
+async fn creates_assets_through_api_with_normalized_fields() {
+    let pool = test_pool().await;
+    let app = build_router_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/assets")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"symbol":"  vwce  ","name":"  Vanguard FTSE All-World UCITS ETF  ","asset_type":"ETF","isin":"   "}"#,
+                ))
+                .expect("request should build"),
+        )
+        .await
+        .expect("create asset request should succeed");
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+
+    let json: Value = serde_json::from_slice(&body).expect("asset body should parse");
+    assert_eq!(json["symbol"], "VWCE");
+    assert_eq!(json["name"], "Vanguard FTSE All-World UCITS ETF");
+    assert_eq!(json["asset_type"], "ETF");
+    assert_eq!(json["isin"], Value::Null);
+    assert!(json["created_at"].as_str().is_some());
+    assert!(json["updated_at"].as_str().is_some());
+
+    let row = sqlx::query("SELECT symbol, name, asset_type, isin FROM assets WHERE id = 1")
+        .fetch_one(&pool)
+        .await
+        .expect("asset row should exist");
+
+    assert_eq!(row.get::<String, _>("symbol"), "VWCE");
+    assert_eq!(
+        row.get::<String, _>("name"),
+        "Vanguard FTSE All-World UCITS ETF"
+    );
+    assert_eq!(row.get::<String, _>("asset_type"), "ETF");
+    assert_eq!(row.get::<Option<String>, _>("isin"), None);
+}
+
+#[tokio::test]
+async fn rejects_invalid_asset_creation_with_field_errors() {
+    let pool = test_pool().await;
+    let app = build_router_with_fx_status(pool, FxRefreshAvailability::Available, None);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/assets")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"symbol":"   ","name":"   ","asset_type":"stock","isin":null}"#,
+                ))
+                .expect("request should build"),
+        )
+        .await
+        .expect("create asset request should succeed");
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+
+    assert_eq!(
+        std::str::from_utf8(&body).expect("json body should be utf8"),
+        r#"{"field_errors":{"asset_type":["Asset type must be one of: STOCK, ETF, BOND, CRYPTO, CASH_EQUIVALENT, OTHER"],"name":["Name is required"],"symbol":["Symbol is required"]},"message":"Asset validation failed"}"#
     );
 }
 

@@ -31,7 +31,10 @@ pub fn build_router_with_state(state: AppState) -> Router {
 
     Router::new()
         .route("/health", get(health))
-        .route("/assets", get(list_assets_handler))
+        .route(
+            "/assets",
+            get(list_assets_handler).post(create_asset_handler),
+        )
         .route(
             "/asset-transactions",
             get(list_asset_transactions_handler).post(create_asset_transaction_handler),
