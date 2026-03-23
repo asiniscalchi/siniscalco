@@ -4,7 +4,6 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardContent,
   CardDescription,
   CardFooter,
   CardHeader,
@@ -61,17 +60,17 @@ export function PortfolioPage() {
   }, [retryToken]);
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      <header className="rounded-xl border bg-background px-6 py-5 shadow-sm">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Portfolio</h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Review total cash exposure across accounts and currencies.
-          </p>
-        </div>
-      </header>
-
-      {requestState.status === "loading" ? <PortfolioLoadingState /> : null}
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
+      {requestState.status === "loading" ? (
+        <>
+          <header className="px-1">
+            <h1 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+              Portfolio
+            </h1>
+          </header>
+          <PortfolioLoadingState />
+        </>
+      ) : null}
       {requestState.status === "error" ? (
         <PortfolioErrorState onRetry={() => setRetryToken((value) => value + 1)} />
       ) : null}
@@ -91,9 +90,6 @@ function PortfolioLoadingState() {
             <div className="h-5 w-32 rounded-full bg-muted" />
             <div className="h-4 w-48 rounded-full bg-muted" />
           </CardHeader>
-          <CardContent>
-            <div className="h-8 w-40 rounded-full bg-muted" />
-          </CardContent>
         </Card>
       ))}
     </div>
@@ -126,18 +122,118 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
   const hasCashData = summary.cash_by_currency.length > 0;
 
   if (!hasCashData) {
-    return <PortfolioEmptyState />;
+    return (
+      <>
+        <header className="px-1">
+          <h1 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+            Portfolio
+          </h1>
+        </header>
+        <PortfolioEmptyState />
+      </>
+    );
   }
 
+  const totalValue = summary.total_value_amount ? Number(summary.total_value_amount) : null;
+
   return (
-    <div className="grid gap-4 lg:grid-cols-[1.3fr_0.9fr]">
-      <div className="grid gap-4">
-        <TotalValueCard summary={summary} />
-        <AccountBreakdownCard summary={summary} />
-      </div>
-      <div className="grid gap-4">
-        <CashByCurrencyCard summary={summary} />
-        <FxStatusCard summary={summary} />
+    <div className="flex flex-col gap-8">
+      {/* Portfolio Summary Area */}
+      <section className="space-y-4">
+        <div className="flex flex-col gap-1.5 px-1">
+          <h1 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+            Portfolio
+          </h1>
+          <div className="flex items-baseline gap-4">
+            {summary.total_value_status === "ok" && summary.total_value_amount ? (
+              <span className="text-4xl font-bold tracking-tight">
+                {formatDisplayAmount(summary.total_value_amount, summary.display_currency)}
+              </span>
+            ) : (
+              <span className="text-2xl font-semibold text-muted-foreground">
+                Conversion unavailable
+              </span>
+            )}
+            <span className="text-sm text-muted-foreground font-medium">Total Cash Value</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            {summary.total_value_status === "conversion_unavailable" && (
+              <span className="text-destructive font-medium">Conversion data unavailable</span>
+            )}
+            {summary.total_value_status === "ok" && (
+              <span>Converted to {summary.display_currency}</span>
+            )}
+            <span>•</span>
+            <span>
+              Last FX update:{" "}
+              {summary.fx_last_updated ? formatTimestamp(summary.fx_last_updated) : "unavailable"}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-8 lg:grid-cols-[1fr_300px]">
+        {/* Account breakdown */}
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold tracking-tight px-1">By Account</h2>
+          <Card size="sm">
+            <div className="divide-y divide-border">
+              {summary.account_totals.map((account) => {
+                const accountValue = account.total_amount ? Number(account.total_amount) : null;
+                const percentage =
+                  totalValue && accountValue && account.summary_status === "ok"
+                    ? (accountValue / totalValue) * 100
+                    : null;
+
+                return (
+                  <div key={account.id} className="flex items-center justify-between px-4 py-3 first:pt-2 last:pb-2">
+                    <div className="flex flex-col">
+                      <span className="font-medium text-sm">{account.name}</span>
+                      <span className="text-xs text-muted-foreground opacity-80">
+                        {account.account_type}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-6">
+                      {percentage !== null && (
+                        <span className="text-xs font-medium text-muted-foreground w-12 text-right">
+                          {percentage.toFixed(1)}%
+                        </span>
+                      )}
+                      <div className="text-right min-w-[100px]">
+                        {account.summary_status === "ok" && account.total_amount ? (
+                          <span className="font-semibold text-sm">
+                            {formatDisplayAmount(account.total_amount, account.total_currency)}
+                          </span>
+                        ) : (
+                          <span className="text-xs font-medium text-muted-foreground">
+                            Conversion unavailable
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </section>
+
+        {/* Cash by currency */}
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold tracking-tight px-1">Cash By Currency</h2>
+          <Card size="sm">
+            <div className="divide-y divide-border">
+              {summary.cash_by_currency.map((balance) => (
+                <div key={balance.currency} className="flex items-center justify-between px-4 py-3 first:pt-2 last:pb-2">
+                  <span className="font-medium text-sm">{balance.currency}</span>
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {formatOriginalAmount(balance.amount)} {balance.currency}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </section>
       </div>
     </div>
   );
@@ -162,123 +258,6 @@ function PortfolioEmptyState() {
   );
 }
 
-function TotalValueCard({ summary }: { summary: PortfolioSummary }) {
-  return (
-    <Card className="bg-background">
-      <CardHeader>
-        <CardTitle>Total Cash Value</CardTitle>
-        <CardDescription>Converted to {summary.display_currency}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {summary.total_value_status === "ok" && summary.total_value_amount ? (
-          <>
-            <p className="text-sm text-muted-foreground">Portfolio total</p>
-            <p className="mt-2 text-3xl font-semibold tracking-tight">
-              {formatDisplayAmount(
-                summary.total_value_amount,
-                summary.display_currency,
-              )}
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="text-sm text-muted-foreground">Portfolio total</p>
-            <p className="mt-2 text-lg font-semibold">Conversion unavailable</p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Some balances cannot be converted into {summary.display_currency}.
-            </p>
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function AccountBreakdownCard({ summary }: { summary: PortfolioSummary }) {
-  return (
-    <Card className="bg-background">
-      <CardHeader>
-        <CardTitle>By Account</CardTitle>
-        <CardDescription>Aggregated account totals in EUR</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <ul className="space-y-3" aria-label="Portfolio breakdown by account">
-          {summary.account_totals.map((account) => (
-            <li
-              key={account.id}
-              className="flex items-center justify-between gap-4 border-b pb-3 last:border-b-0 last:pb-0"
-            >
-              <div>
-                <p className="font-medium">{account.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {account.account_type}
-                </p>
-              </div>
-              {account.summary_status === "ok" && account.total_amount ? (
-                <p className="font-semibold">
-                  {formatDisplayAmount(account.total_amount, account.total_currency)}
-                </p>
-              ) : (
-                <p className="text-sm font-medium text-muted-foreground">
-                  Conversion unavailable
-                </p>
-              )}
-            </li>
-          ))}
-        </ul>
-      </CardContent>
-    </Card>
-  );
-}
-
-function CashByCurrencyCard({ summary }: { summary: PortfolioSummary }) {
-  return (
-    <Card className="bg-background">
-      <CardHeader>
-        <CardTitle>Cash By Currency</CardTitle>
-        <CardDescription>Original balances across all accounts</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <ul className="space-y-3" aria-label="Cash grouped by currency">
-          {summary.cash_by_currency.map((balance) => (
-            <li
-              key={balance.currency}
-              className="flex items-center justify-between gap-4"
-            >
-              <span className="font-medium">{balance.currency}</span>
-              <span className="font-mono text-sm">
-                {formatOriginalAmount(balance.amount)} {balance.currency}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </CardContent>
-    </Card>
-  );
-}
-
-function FxStatusCard({ summary }: { summary: PortfolioSummary }) {
-  return (
-    <Card className="bg-background">
-      <CardHeader>
-        <CardTitle>FX Status</CardTitle>
-        <CardDescription>Portfolio-wide EUR conversion status</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {summary.total_value_status === "conversion_unavailable" ? (
-          <p className="text-sm font-medium text-destructive">
-            Conversion data unavailable
-          </p>
-        ) : null}
-        <p className="text-sm text-muted-foreground">
-          Last FX update:{" "}
-          {summary.fx_last_updated ? formatTimestamp(summary.fx_last_updated) : "-"}
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
-
 function formatDisplayAmount(amount: string, currency: string) {
   const value = Number(amount);
 
@@ -293,7 +272,12 @@ function formatDisplayAmount(amount: string, currency: string) {
 }
 
 function formatOriginalAmount(amount: string) {
-  return amount.replace(/\.?0+$/, "").replace(/\.$/, "");
+  const value = Number(amount);
+  if (Number.isNaN(value)) return amount;
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 8,
+  }).format(value);
 }
 
 function formatTimestamp(timestamp: string) {
