@@ -188,95 +188,51 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
 
       <div className="grid gap-8 lg:grid-cols-[1fr_350px]">
         {/* Account breakdown */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold tracking-tight px-1">
-            Cash By Account
-          </h2>
-          <Card className="bg-background">
-            <CardContent className="pt-6">
-              <div className="space-y-6">
-                {[...summary.account_totals]
-                  .sort((a, b) => {
-                    const valA = a.total_amount ? Number(a.total_amount) : 0;
-                    const valB = b.total_amount ? Number(b.total_amount) : 0;
-                    return valB - valA;
-                  })
-                  .map((account) => {
-                    const accountValue = account.total_amount
-                      ? Number(account.total_amount)
-                      : 0;
-                    const percentage =
-                      totalValue && account.summary_status === "ok"
-                        ? (accountValue / totalValue) * 100
-                        : 0;
-
-                    return (
-                      <div key={account.id} className="space-y-1">
-                        <div className="flex items-end justify-between text-sm">
-                          <div className="flex flex-col">
-                            <span className="font-medium">{account.name}</span>
-                            <span className="text-xs text-muted-foreground opacity-80">
-                              {account.account_type}
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            {account.summary_status === "ok" &&
-                            account.total_amount ? (
-                              <span className="font-mono text-xs text-muted-foreground">
-                                {formatDisplayAmount(
-                                  account.total_amount,
-                                  account.total_currency,
-                                )}
-                              </span>
-                            ) : (
-                              <span className="text-xs font-medium text-muted-foreground">
-                                Conversion unavailable
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary transition-all duration-500"
-                            style={{ width: `${percentage}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            </CardContent>
-            {summary.account_totals.some(
-              (a) => a.summary_status !== "ok",
-            ) && (
-              <CardFooter className="pt-0">
-                <p className="text-xs text-muted-foreground italic">
-                  * Some accounts are hidden or incomplete due to missing
-                  conversion rates.
-                </p>
-              </CardFooter>
-            )}
-          </Card>
-        </section>
-
-        {/* Cash by currency */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold tracking-tight px-1">Cash By Currency</h2>
-          <Card className="bg-background">
-            <CardContent className="pt-6 pb-6">
-              <div className="space-y-6">
-                {summary.cash_by_currency.map((balance) => {
-                  const balanceValue = balance.converted_amount ? Number(balance.converted_amount) : null;
+        <Card className="bg-background self-start">
+          <CardHeader className="border-b">
+            <CardTitle>Cash By Account</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="space-y-6">
+              {[...summary.account_totals]
+                .sort((a, b) => {
+                  const valA = a.total_amount ? Number(a.total_amount) : 0;
+                  const valB = b.total_amount ? Number(b.total_amount) : 0;
+                  return valB - valA;
+                })
+                .map((account) => {
+                  const accountValue = account.total_amount
+                    ? Number(account.total_amount)
+                    : 0;
                   const percentage =
-                    totalValue && balanceValue ? (balanceValue / totalValue) * 100 : 0;
+                    totalValue && account.summary_status === "ok"
+                      ? (accountValue / totalValue) * 100
+                      : 0;
 
                   return (
-                    <div key={balance.currency} className="space-y-1">
+                    <div key={account.id} className="space-y-1">
                       <div className="flex items-end justify-between text-sm">
-                        <span className="font-medium">{balance.currency}</span>
-                        <span className="font-mono text-xs text-muted-foreground">
-                          {formatOriginalAmount(balance.amount)} {balance.currency}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{account.name}</span>
+                          <span className="text-xs text-muted-foreground opacity-80">
+                            {account.account_type}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          {account.summary_status === "ok" &&
+                          account.total_amount ? (
+                            <span className="font-mono text-xs text-muted-foreground">
+                              {formatDisplayAmount(
+                                account.total_amount,
+                                account.total_currency,
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-xs font-medium text-muted-foreground">
+                              Conversion unavailable
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                         <div
@@ -287,15 +243,56 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
                     </div>
                   );
                 })}
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-      </div>
-    </div>
-  );
-}
+            </div>
+          </CardContent>
+          {summary.account_totals.some(
+            (a) => a.summary_status !== "ok",
+          ) && (
+            <CardFooter className="pt-0">
+              <p className="text-xs text-muted-foreground italic">
+                * Some accounts are hidden or incomplete due to missing
+                conversion rates.
+              </p>
+            </CardFooter>
+          )}
+        </Card>
 
+        {/* Cash by currency */}
+        <Card className="bg-background self-start">
+          <CardHeader className="border-b">
+            <CardTitle>Cash By Currency</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6 pb-6">
+            <div className="space-y-6">
+              {summary.cash_by_currency.map((balance) => {
+                const balanceValue = balance.converted_amount ? Number(balance.converted_amount) : null;
+                const percentage =
+                  totalValue && balanceValue ? (balanceValue / totalValue) * 100 : 0;
+
+                return (
+                  <div key={balance.currency} className="space-y-1">
+                    <div className="flex items-end justify-between text-sm">
+                      <span className="font-medium">{balance.currency}</span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {formatOriginalAmount(balance.amount)} {balance.currency}
+                      </span>
+                    </div>
+                      <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-all duration-500"
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              </CardContent>
+              </Card>
+              </div>
+              </div>
+              );
+              }
 function PortfolioEmptyState() {
   return (
     <Card className="border-dashed bg-background">
