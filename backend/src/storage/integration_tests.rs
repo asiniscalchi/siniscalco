@@ -171,6 +171,68 @@ async fn lists_assets_in_symbol_order() {
 }
 
 #[tokio::test]
+async fn rejects_duplicate_asset_symbols() {
+    let pool = test_pool().await;
+
+    create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            isin: Some("US0378331005".to_string()),
+        },
+    )
+    .await
+    .expect("first asset insert should succeed");
+
+    let error = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Common Stock"),
+            asset_type: AssetType::Stock,
+            isin: Some("US0378331006".to_string()),
+        },
+    )
+    .await
+    .expect_err("duplicate asset symbol should be rejected");
+
+    assert!(error.to_string().contains("UNIQUE constraint failed"));
+}
+
+#[tokio::test]
+async fn rejects_duplicate_asset_isins() {
+    let pool = test_pool().await;
+
+    create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("VTI"),
+            name: asset_name("Vanguard Total Stock Market ETF"),
+            asset_type: AssetType::Etf,
+            isin: Some("US9229087690".to_string()),
+        },
+    )
+    .await
+    .expect("first asset insert should succeed");
+
+    let error = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("VWCE"),
+            name: asset_name("Vanguard FTSE All-World UCITS ETF"),
+            asset_type: AssetType::Etf,
+            isin: Some("US9229087690".to_string()),
+        },
+    )
+    .await
+    .expect_err("duplicate asset isin should be rejected");
+
+    assert!(error.to_string().contains("UNIQUE constraint failed"));
+}
+
+#[tokio::test]
 async fn creates_asset_transactions_and_derives_positions() {
     let pool = test_pool().await;
 

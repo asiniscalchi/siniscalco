@@ -254,6 +254,12 @@ impl CreateAssetApiError {
             body: json!({ "message": "Failed to create asset" }),
         }
     }
+
+    pub(crate) fn duplicate(field: &str, message: &str) -> Self {
+        let mut field_errors = BTreeMap::new();
+        field_errors.insert(field.to_string(), vec![message.to_string()]);
+        Self::validation(field_errors)
+    }
 }
 
 impl From<StorageError> for ApiError {
@@ -274,6 +280,19 @@ impl From<StorageError> for CreateAssetApiError {
         match value {
             StorageError::Validation(_) => Self::internal_server_error(),
             StorageError::Internal(_) => Self::internal_server_error(),
+            StorageError::Database(sqlx::Error::Database(error)) => {
+                let message = error.message();
+
+                if message.contains("UNIQUE constraint failed: assets.symbol") {
+                    return Self::duplicate("symbol", "Symbol must be unique");
+                }
+
+                if message.contains("UNIQUE constraint failed: assets.isin") {
+                    return Self::duplicate("isin", "ISIN must be unique");
+                }
+
+                Self::internal_server_error()
+            }
             StorageError::Database(_) => Self::internal_server_error(),
         }
     }
