@@ -9,7 +9,18 @@ import {
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { UiStateProvider } from "@/lib/ui-state-provider";
 import { AccountsListPage } from "./AccountsListPage";
+
+function renderAccountsListPage() {
+  return render(
+    <UiStateProvider>
+      <MemoryRouter>
+        <AccountsListPage />
+      </MemoryRouter>
+    </UiStateProvider>,
+  );
+}
 
 function mockDashboardRequests({
   accounts,
@@ -62,6 +73,7 @@ describe("AccountsListPage", () => {
 
   afterEach(() => {
     cleanup();
+    window.localStorage.clear();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -69,11 +81,7 @@ describe("AccountsListPage", () => {
   it("shows a loading state before accounts resolve", () => {
     vi.mocked(fetch).mockImplementation(() => new Promise(() => {}));
 
-    render(
-      <MemoryRouter>
-        <AccountsListPage />
-      </MemoryRouter>,
-    );
+    renderAccountsListPage();
 
     expect(screen.getByText("Accounts")).toBeTruthy();
     expect(screen.getByText("Create account")).toBeTruthy();
@@ -107,11 +115,7 @@ describe("AccountsListPage", () => {
       },
     });
 
-    render(
-      <MemoryRouter>
-        <AccountsListPage />
-      </MemoryRouter>,
-    );
+    renderAccountsListPage();
 
     expect(await screen.findByText("IBKR")).toBeTruthy();
     expect(screen.getByText(/broker/)).toBeTruthy();
@@ -143,11 +147,7 @@ describe("AccountsListPage", () => {
       ],
     });
 
-    render(
-      <MemoryRouter>
-        <AccountsListPage />
-      </MemoryRouter>,
-    );
+    renderAccountsListPage();
 
     expect(await screen.findByText("Conversion unavailable")).toBeTruthy();
   });
@@ -155,11 +155,7 @@ describe("AccountsListPage", () => {
   it("renders the empty state when no accounts exist", async () => {
     mockDashboardRequests({ accounts: [] });
 
-    render(
-      <MemoryRouter>
-        <AccountsListPage />
-      </MemoryRouter>,
-    );
+    renderAccountsListPage();
 
     expect(await screen.findByText("No accounts yet")).toBeTruthy();
   });
@@ -213,11 +209,7 @@ describe("AccountsListPage", () => {
       throw new Error(`Unhandled fetch request: ${url}`);
     });
 
-    render(
-      <MemoryRouter>
-        <AccountsListPage />
-      </MemoryRouter>,
-    );
+    renderAccountsListPage();
 
     expect(await screen.findByText("Could not load accounts")).toBeTruthy();
 
@@ -244,11 +236,7 @@ describe("AccountsListPage", () => {
       ],
     });
 
-    render(
-      <MemoryRouter>
-        <AccountsListPage />
-      </MemoryRouter>,
-    );
+    renderAccountsListPage();
 
     expect(
       (
@@ -288,11 +276,7 @@ describe("AccountsListPage", () => {
       },
     });
 
-    render(
-      <MemoryRouter>
-        <AccountsListPage />
-      </MemoryRouter>,
-    );
+    renderAccountsListPage();
 
     const fxFooter = await screen.findByLabelText("FX rates against EUR");
     expect(fxFooter).toBeTruthy();
@@ -331,11 +315,7 @@ describe("AccountsListPage", () => {
       },
     });
 
-    render(
-      <MemoryRouter>
-        <AccountsListPage />
-      </MemoryRouter>,
-    );
+    renderAccountsListPage();
 
     // Footer is hidden when no rates are available
     expect(screen.queryByLabelText("FX rates against EUR")).toBeNull();
@@ -353,14 +333,39 @@ describe("AccountsListPage", () => {
       },
     });
 
-    render(
-      <MemoryRouter>
-        <AccountsListPage />
-      </MemoryRouter>,
-    );
+    renderAccountsListPage();
 
     expect(await screen.findByText("Refresh Failed")).toBeTruthy();
     const errorIndicator = screen.getByText("Refresh Failed");
     expect(errorIndicator.getAttribute("title")).toContain("no successful refresh has completed");
+  });
+
+  it("masks account totals when hidden mode is enabled", async () => {
+    window.localStorage.setItem("ui.hide_values", "true");
+
+    mockDashboardRequests({
+      accounts: [
+        {
+          id: 1,
+          name: "IBKR",
+          account_type: "broker",
+          base_currency: "EUR",
+          summary_status: "ok",
+          total_amount: "123.45000000",
+          total_currency: "EUR",
+        },
+      ],
+    });
+
+    renderAccountsListPage();
+
+    const accountLink = await screen.findByRole("link", {
+      name: /IBKR.*broker.*EUR.*View details/,
+    });
+
+    expect(screen.getByText("•••• EUR")).toBeTruthy();
+    expect(screen.queryByText("123.45 EUR")).toBeNull();
+    expect(accountLink.textContent).toContain("•••• EUR");
+    expect(accountLink.textContent).not.toContain("123.45 EUR");
   });
 });

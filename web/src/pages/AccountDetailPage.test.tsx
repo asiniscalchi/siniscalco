@@ -1,8 +1,24 @@
+import type { ReactNode } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { UiStateProvider } from "@/lib/ui-state-provider";
 import { AccountDetailPage } from "./AccountDetailPage";
+
+function renderAccountDetailPage(initialEntry: string, routes?: ReactNode) {
+  return render(
+    <UiStateProvider>
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <Routes>
+          {routes ?? (
+            <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
+          )}
+        </Routes>
+      </MemoryRouter>
+    </UiStateProvider>,
+  );
+}
 
 describe("AccountDetailPage", () => {
   beforeEach(() => {
@@ -11,6 +27,7 @@ describe("AccountDetailPage", () => {
 
   afterEach(() => {
     cleanup();
+    window.localStorage.clear();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -58,13 +75,7 @@ describe("AccountDetailPage", () => {
       throw new Error(`Unhandled fetch request: ${url}`);
     });
 
-    render(
-      <MemoryRouter initialEntries={["/accounts/7"]}>
-        <Routes>
-          <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderAccountDetailPage("/accounts/7");
 
     expect(await screen.findByText("IBKR")).toBeTruthy();
     expect(screen.getByText("broker · base currency EUR")).toBeTruthy();
@@ -108,13 +119,7 @@ describe("AccountDetailPage", () => {
       throw new Error(`Unhandled fetch request: ${url}`);
     });
 
-    render(
-      <MemoryRouter initialEntries={["/accounts/3"]}>
-        <Routes>
-          <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderAccountDetailPage("/accounts/3");
 
     expect(await screen.findByText("Main Bank")).toBeTruthy();
     expect(screen.getByText("No balances yet")).toBeTruthy();
@@ -174,13 +179,7 @@ describe("AccountDetailPage", () => {
         ),
       );
 
-    render(
-      <MemoryRouter initialEntries={["/accounts/8"]}>
-        <Routes>
-          <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderAccountDetailPage("/accounts/8");
 
     expect(await screen.findByText("Could not load account")).toBeTruthy();
     expect(screen.getByText("Account not found")).toBeTruthy();
@@ -259,13 +258,7 @@ describe("AccountDetailPage", () => {
         ),
       );
 
-    render(
-      <MemoryRouter initialEntries={["/accounts/9"]}>
-        <Routes>
-          <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderAccountDetailPage("/accounts/9");
 
     expect(await screen.findByText("No balances yet")).toBeTruthy();
 
@@ -347,13 +340,7 @@ describe("AccountDetailPage", () => {
         ),
       );
 
-    render(
-      <MemoryRouter initialEntries={["/accounts/10"]}>
-        <Routes>
-          <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderAccountDetailPage("/accounts/10");
 
     expect(await screen.findByText("100.00000000")).toBeTruthy();
 
@@ -397,13 +384,12 @@ describe("AccountDetailPage", () => {
       )
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
 
-    render(
-      <MemoryRouter initialEntries={["/accounts/13"]}>
-        <Routes>
-          <Route path="/accounts" element={<div>Accounts Route</div>} />
-          <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
-        </Routes>
-      </MemoryRouter>,
+    renderAccountDetailPage(
+      "/accounts/13",
+      <>
+        <Route path="/accounts" element={<div>Accounts Route</div>} />
+        <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
+      </>,
     );
 
     expect(await screen.findByText("Broker Account")).toBeTruthy();
@@ -456,13 +442,7 @@ describe("AccountDetailPage", () => {
         ),
       );
 
-    render(
-      <MemoryRouter initialEntries={["/accounts/14"]}>
-        <Routes>
-          <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderAccountDetailPage("/accounts/14");
 
     expect(await screen.findByText("Checking")).toBeTruthy();
 
@@ -522,13 +502,7 @@ describe("AccountDetailPage", () => {
         ),
       );
 
-    const firstRender = render(
-      <MemoryRouter initialEntries={["/accounts/11"]}>
-        <Routes>
-          <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    const firstRender = renderAccountDetailPage("/accounts/11");
 
     expect(await screen.findByText("First Account")).toBeTruthy();
 
@@ -541,13 +515,7 @@ describe("AccountDetailPage", () => {
 
     firstRender.unmount();
 
-    render(
-      <MemoryRouter initialEntries={["/accounts/12"]}>
-        <Routes>
-          <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderAccountDetailPage("/accounts/12");
 
     expect(await screen.findByText("Second Account")).toBeTruthy();
     expect((screen.getByLabelText("Currency") as HTMLSelectElement).value).toBe(
@@ -556,5 +524,57 @@ describe("AccountDetailPage", () => {
     expect((screen.getByLabelText("Amount") as HTMLInputElement).value).toBe(
       "",
     );
+  });
+
+  it("masks account balances when hidden mode is enabled", async () => {
+    window.localStorage.setItem("ui.hide_values", "true");
+
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input);
+
+      if (url.endsWith("/currencies")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify([
+              { code: "CHF" },
+              { code: "EUR" },
+              { code: "GBP" },
+              { code: "USD" },
+            ]),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+
+      if (url.endsWith("/accounts/7")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: 7,
+              name: "IBKR",
+              account_type: "broker",
+              base_currency: "EUR",
+              created_at: "2026-03-22 00:00:00",
+              balances: [
+                {
+                  currency: "USD",
+                  amount: "12.30000000",
+                  updated_at: "2026-03-22 00:00:00",
+                },
+              ],
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+
+      throw new Error(`Unhandled fetch request: ${url}`);
+    });
+
+    renderAccountDetailPage("/accounts/7");
+
+    expect(await screen.findByText("IBKR")).toBeTruthy();
+    expect(screen.getByText("••••")).toBeTruthy();
+    expect(screen.queryByText("12.30000000")).toBeNull();
   });
 });
