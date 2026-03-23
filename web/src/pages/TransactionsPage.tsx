@@ -754,7 +754,7 @@ export function TransactionsPage() {
                               {t.notes}
                             </td>
                             <td className="py-3 text-right">
-                              <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex justify-end gap-1 transition-opacity">
                                 <Button
                                   disabled={isDeleting !== null}
                                   onClick={() => handleEdit(t)}
