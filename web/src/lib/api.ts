@@ -30,6 +30,7 @@ export type PortfolioAccountTotalResponse = {
 export type PortfolioCashByCurrencyResponse = {
   currency: string;
   amount: string;
+  converted_amount: string | null;
 };
 
 export type PortfolioSummaryResponse = {

@@ -172,7 +172,7 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
         </div>
       </section>
 
-      <div className="grid gap-8 lg:grid-cols-[1fr_300px]">
+      <div className="grid gap-8 lg:grid-cols-[1fr_350px]">
         {/* Account breakdown */}
         <section className="space-y-4">
           <h2 className="text-lg font-semibold tracking-tight px-1">By Account</h2>
@@ -194,11 +194,21 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
                       </span>
                     </div>
                     <div className="flex items-center gap-6">
-                      {percentage !== null && (
-                        <span className="text-xs font-medium text-muted-foreground w-12 text-right">
-                          {percentage.toFixed(1)}%
-                        </span>
-                      )}
+                      <div className="flex items-center gap-3">
+                        {percentage !== null && (
+                          <>
+                            <div className="h-1.5 w-16 bg-muted rounded-full overflow-hidden hidden sm:block">
+                              <div
+                                className="h-full bg-primary/30 rounded-full"
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                            <span className="text-xs font-medium text-muted-foreground w-12 text-right">
+                              {percentage.toFixed(1)}%
+                            </span>
+                          </>
+                        )}
+                      </div>
                       <div className="text-right min-w-[100px]">
                         {account.summary_status === "ok" && account.total_amount ? (
                           <span className="font-semibold text-sm">
@@ -223,14 +233,32 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
           <h2 className="text-lg font-semibold tracking-tight px-1">Cash By Currency</h2>
           <Card size="sm">
             <div className="divide-y divide-border">
-              {summary.cash_by_currency.map((balance) => (
-                <div key={balance.currency} className="flex items-center justify-between px-4 py-3 first:pt-2 last:pb-2">
-                  <span className="font-medium text-sm">{balance.currency}</span>
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {formatOriginalAmount(balance.amount)} {balance.currency}
-                  </span>
-                </div>
-              ))}
+              {summary.cash_by_currency.map((balance) => {
+                const balanceValue = balance.converted_amount ? Number(balance.converted_amount) : null;
+                const percentage =
+                  totalValue && balanceValue ? (balanceValue / totalValue) * 100 : null;
+
+                return (
+                  <div key={balance.currency} className="flex items-center justify-between px-4 py-3 first:pt-2 last:pb-2">
+                    <div className="flex flex-col gap-1.5 flex-1 pr-4">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-sm">{balance.currency}</span>
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {formatOriginalAmount(balance.amount)} {balance.currency}
+                        </span>
+                      </div>
+                      {percentage !== null && (
+                        <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary/20 rounded-full"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </Card>
         </section>
