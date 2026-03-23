@@ -390,5 +390,8 @@ fn to_portfolio_cash_by_currency_response(
     PortfolioCashByCurrencyResponse {
         currency: balance.currency,
         amount: normalize_amount_output(&balance.amount.to_string()),
+        converted_amount: balance
+            .converted_amount
+            .map(|amount| normalize_amount_output(&amount.to_string())),
     }
 }

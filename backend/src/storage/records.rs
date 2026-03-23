@@ -130,4 +130,5 @@ pub struct PortfolioAccountTotalRecord {
 pub struct PortfolioCashByCurrencyRecord {
     pub currency: Currency,
     pub amount: Amount,
+    pub converted_amount: Option<Amount>,
 }

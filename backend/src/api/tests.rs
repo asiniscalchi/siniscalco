@@ -351,7 +351,7 @@ async fn returns_portfolio_summary_through_api() {
 
     assert_eq!(
         std::str::from_utf8(&body).expect("json body should be utf8"),
-        r#"{"display_currency":"EUR","total_value_status":"ok","total_value_amount":"153.70000000","account_totals":[{"id":1,"name":"IBKR","account_type":"broker","summary_status":"ok","total_amount":"103.70000000","total_currency":"EUR"},{"id":2,"name":"Main Bank","account_type":"bank","summary_status":"ok","total_amount":"50.00000000","total_currency":"EUR"}],"cash_by_currency":[{"currency":"EUR","amount":"50.00000000"},{"currency":"GBP","amount":"10.00000000"},{"currency":"USD","amount":"100.00000000"}],"fx_last_updated":"2026-03-22 11:30:00","fx_refresh_status":"available","fx_refresh_error":null}"#
+        r#"{"display_currency":"EUR","total_value_status":"ok","total_value_amount":"153.70000000","account_totals":[{"id":1,"name":"IBKR","account_type":"broker","summary_status":"ok","total_amount":"103.70000000","total_currency":"EUR"},{"id":2,"name":"Main Bank","account_type":"bank","summary_status":"ok","total_amount":"50.00000000","total_currency":"EUR"}],"cash_by_currency":[{"currency":"EUR","amount":"50.00000000","converted_amount":"50.00000000"},{"currency":"GBP","amount":"10.00000000","converted_amount":"11.70000000"},{"currency":"USD","amount":"100.00000000","converted_amount":"92.00000000"}],"fx_last_updated":"2026-03-22 11:30:00","fx_refresh_status":"available","fx_refresh_error":null}"#
     );
 }
 
@@ -477,7 +477,7 @@ async fn returns_conversion_unavailable_portfolio_summary_when_fx_is_missing() {
 
     assert_eq!(
         std::str::from_utf8(&body).expect("json body should be utf8"),
-        r#"{"display_currency":"EUR","total_value_status":"conversion_unavailable","total_value_amount":null,"account_totals":[{"id":1,"name":"IBKR","account_type":"broker","summary_status":"conversion_unavailable","total_amount":null,"total_currency":"EUR"}],"cash_by_currency":[{"currency":"GBP","amount":"10.00000000"},{"currency":"USD","amount":"100.00000000"}],"fx_last_updated":"2026-03-22 10:00:00","fx_refresh_status":"available","fx_refresh_error":null}"#
+        r#"{"display_currency":"EUR","total_value_status":"conversion_unavailable","total_value_amount":null,"account_totals":[{"id":1,"name":"IBKR","account_type":"broker","summary_status":"conversion_unavailable","total_amount":null,"total_currency":"EUR"}],"cash_by_currency":[{"currency":"GBP","amount":"10.00000000","converted_amount":null},{"currency":"USD","amount":"100.00000000","converted_amount":"92.00000000"}],"fx_last_updated":"2026-03-22 10:00:00","fx_refresh_status":"available","fx_refresh_error":null}"#
     );
 }
 
