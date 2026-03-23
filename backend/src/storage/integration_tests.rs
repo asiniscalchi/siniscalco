@@ -1144,3 +1144,94 @@ async fn calculates_portfolio_summary_with_currency_breakdown_and_converted_amou
         Some(amt("90.00000000"))
     );
 }
+
+#[tokio::test]
+async fn ensures_portfolio_total_matches_sum_of_cash_by_currency() {
+    let pool = test_pool().await;
+
+    // Use a rate that causes rounding after 8 digits
+    // 0.33333333 * 2 = 0.66666666
+    // If we have 2 accounts with 1 unit each, total is 0.66666666
+    // If we sum first: (1+1) * 0.33333333 = 0.66666666
+    // To see a difference, we need something more subtle.
+    // 0.123456789 -> 0.12345679
+
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate("0.12345678"),
+        },
+    )
+    .await
+    .expect("fx rate insert should succeed");
+
+    // Account 1: 1.1 USD -> 0.135802458 -> 0.13580246
+    // Account 2: 1.1 USD -> 0.135802458 -> 0.13580246
+    // Sum of accounts: 0.27160492
+    // Sum of currency: (1.1 + 1.1) * 0.12345678 = 2.2 * 0.12345678 = 0.271604916 -> 0.27160492
+
+    // Let's try:
+    // Rate: 0.11111111
+    // Acc 1: 0.5 USD -> 0.055555555 -> 0.05555556
+    // Acc 2: 0.5 USD -> 0.055555555 -> 0.05555556
+    // Sum accounts: 0.11111112
+    // Sum currency: (0.5 + 0.5) * 0.11111111 = 0.11111111
+
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate("0.11111111"),
+        },
+    )
+    .await
+    .ok(); // overwrite
+
+    for name in ["A1", "A2"] {
+        let account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: account_name(name),
+                account_type: AccountType::Broker,
+                base_currency: Currency::Eur,
+            },
+        )
+        .await
+        .unwrap();
+
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency: Currency::Usd,
+                amount: amt("0.5"),
+            },
+        )
+        .await
+        .unwrap();
+    }
+
+    let summary = super::get_portfolio_summary(&pool, Currency::Eur)
+        .await
+        .unwrap();
+
+    let sum_of_currency = summary
+        .cash_by_currency
+        .iter()
+        .map(|c| {
+            c.converted_amount
+                .as_ref()
+                .map(|am| am.as_decimal())
+                .unwrap_or(rust_decimal::Decimal::ZERO)
+        })
+        .sum::<rust_decimal::Decimal>();
+
+    assert_eq!(
+        summary.total_value_amount.unwrap().as_decimal(),
+        sum_of_currency,
+        "Portfolio total should match sum of converted currency amounts"
+    );
+}

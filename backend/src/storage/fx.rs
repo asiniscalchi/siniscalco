@@ -132,8 +132,7 @@ pub async fn list_fx_rates(pool: &SqlitePool) -> Result<Vec<FxRateRecord>, Stora
     .fetch_all(pool)
     .await?;
 
-    Ok(rows
-        .into_iter()
+    rows.into_iter()
         .map(|row| {
             Ok(FxRateRecord {
                 from_currency: Currency::try_from(row.get::<&str, _>("from_currency"))?,
@@ -141,7 +140,7 @@ pub async fn list_fx_rates(pool: &SqlitePool) -> Result<Vec<FxRateRecord>, Stora
                 rate: FxRate::try_from(row.get::<&str, _>("rate"))?,
             })
         })
-        .collect::<Result<Vec<_>, StorageError>>()?)
+        .collect::<Result<Vec<_>, StorageError>>()
 }
 
 pub async fn get_latest_fx_rate(
