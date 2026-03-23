@@ -212,6 +212,12 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
 
                     return (
                       <div key={account.id} className="space-y-1">
+                        <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary transition-all duration-500"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
                         <div className="flex items-center justify-between text-sm">
                           <div className="flex flex-col">
                             <span className="font-medium">{account.name}</span>
@@ -234,12 +240,6 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
                               </span>
                             )}
                           </div>
-                        </div>
-                        <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary transition-all duration-500"
-                            style={{ width: `${percentage}%` }}
-                          />
                         </div>
                       </div>
                     );
@@ -272,17 +272,17 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
 
                   return (
                     <div key={balance.currency} className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium">{balance.currency}</span>
-                        <span className="font-mono text-xs text-muted-foreground">
-                          {formatOriginalAmount(balance.amount)} {balance.currency}
-                        </span>
-                      </div>
                       <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                         <div
                           className="h-full bg-primary transition-all duration-500"
                           style={{ width: `${percentage}%` }}
                         />
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">{balance.currency}</span>
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {formatOriginalAmount(balance.amount)} {balance.currency}
+                        </span>
                       </div>
                     </div>
                   );
