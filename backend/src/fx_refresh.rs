@@ -299,7 +299,7 @@ mod tests {
         assert_eq!(rates.len(), 3);
         assert_eq!(rates[0].from_currency, Currency::Chf);
         assert_eq!(rates[0].to_currency, Currency::Eur);
-        assert_eq!(rates[0].rate, FxRate::try_from("1.05263158").unwrap());
+        assert_eq!(rates[0].rate, FxRate::try_from("1.052632").unwrap());
         assert_eq!(rates[1].from_currency, Currency::Gbp);
         assert_eq!(rates[2].from_currency, Currency::Usd);
     }
@@ -357,7 +357,7 @@ mod tests {
             .expect("fx lookup should succeed")
             .expect("usd eur rate should exist");
 
-        assert_eq!(replaced_rate.rate, FxRate::try_from("0.80000000").unwrap());
+        assert_eq!(replaced_rate.rate, FxRate::try_from("0.800000").unwrap());
         assert_ne!(first_rate.rate, replaced_rate.rate);
 
         let failing_address = start_test_server(json!({ "error": "boom" }), 500).await;

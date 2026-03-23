@@ -404,7 +404,7 @@ fn to_created_account_summary_response(account: AccountRecord) -> AccountSummary
         account_type: account.account_type.as_str().to_string(),
         base_currency: account.base_currency,
         summary_status: AccountSummaryStatus::Ok.as_str().to_string(),
-        total_amount: Some("0.00000000".to_string()),
+        total_amount: Some("0.000000".to_string()),
         total_currency: Some(account.base_currency),
     }
 }

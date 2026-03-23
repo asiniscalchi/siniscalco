@@ -14,26 +14,7 @@ CREATE TABLE accounts (
 CREATE TABLE account_balances (
     account_id INTEGER NOT NULL,
     currency TEXT NOT NULL,
-    amount TEXT NOT NULL CHECK (
-        length(amount) > 0
-        AND trim(amount) = amount
-        AND amount NOT LIKE '%.%.%'
-        AND (instr(amount, '-') = 0 OR instr(amount, '-') = 1)
-        AND length(amount) - length(replace(amount, '-', '')) <= 1
-        AND replace(replace(amount, '-', ''), '.', '') NOT GLOB '*[^0-9]*'
-        AND length(replace(replace(amount, '-', ''), '.', '')) BETWEEN 1 AND 20
-        AND (
-            (
-                instr(replace(amount, '-', ''), '.') = 0
-                AND length(replace(amount, '-', '')) BETWEEN 1 AND 12
-            )
-            OR (
-                instr(replace(amount, '-', ''), '.') > 0
-                AND length(substr(replace(amount, '-', ''), 1, instr(replace(amount, '-', ''), '.') - 1)) BETWEEN 1 AND 12
-                AND length(substr(replace(amount, '-', ''), instr(replace(amount, '-', ''), '.') + 1)) BETWEEN 1 AND 8
-            )
-        )
-    ),
+    amount INTEGER NOT NULL CHECK (typeof(amount) = 'integer'),
     updated_at TEXT NOT NULL,
     PRIMARY KEY (account_id, currency),
     FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
@@ -63,8 +44,8 @@ CREATE TABLE asset_transactions (
         length(trade_date) = 10
         AND trade_date GLOB '????-??-??'
     ),
-    quantity TEXT NOT NULL,
-    unit_price TEXT NOT NULL,
+    quantity INTEGER NOT NULL CHECK (typeof(quantity) = 'integer' AND quantity > 0),
+    unit_price INTEGER NOT NULL CHECK (typeof(unit_price) = 'integer' AND unit_price >= 0),
     currency_code TEXT NOT NULL,
     notes TEXT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
@@ -83,22 +64,7 @@ ON asset_transactions(account_id, asset_id);
 CREATE TABLE fx_rates (
     from_currency TEXT NOT NULL,
     to_currency TEXT NOT NULL,
-    rate TEXT NOT NULL CHECK (
-        length(rate) > 0
-        AND trim(rate) = rate
-        AND rate NOT LIKE '%.%.%'
-        AND rate NOT GLOB '*[^0-9.]*'
-        AND length(replace(rate, '.', '')) BETWEEN 1 AND 20
-        AND (
-            (instr(rate, '.') = 0 AND length(rate) BETWEEN 1 AND 12)
-            OR (
-                instr(rate, '.') > 0
-                AND length(substr(rate, 1, instr(rate, '.') - 1)) BETWEEN 1 AND 12
-                AND length(substr(rate, instr(rate, '.') + 1)) BETWEEN 1 AND 8
-            )
-        )
-        AND CAST(rate AS REAL) > 0
-    ),
+    rate INTEGER NOT NULL CHECK (typeof(rate) = 'integer' AND rate > 0),
     updated_at TEXT NOT NULL,
     PRIMARY KEY (from_currency, to_currency),
     FOREIGN KEY (from_currency) REFERENCES currencies(code),

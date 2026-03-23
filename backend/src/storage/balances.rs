@@ -33,7 +33,7 @@ pub async fn upsert_account_balance(
     )
     .bind(input.account_id.as_i64())
     .bind(input.currency.as_str())
-    .bind(input.amount.to_string())
+    .bind(input.amount.as_scaled_i64())
     .bind(updated_at)
     .execute(&mut *transaction)
     .await?;
@@ -56,7 +56,7 @@ pub async fn list_account_balances(
         SELECT
             account_id,
             currency,
-            CAST(amount AS TEXT) AS amount,
+            amount,
             updated_at
         FROM account_balances
         WHERE account_id = ?
@@ -72,7 +72,7 @@ pub async fn list_account_balances(
             Ok(AccountBalanceRecord {
                 account_id: AccountId::try_from(row.get::<i64, _>("account_id"))?,
                 currency: Currency::try_from(row.get::<&str, _>("currency"))?,
-                amount: Amount::try_from(row.get::<&str, _>("amount"))?,
+                amount: Amount::from_scaled_i64(row.get::<i64, _>("amount")),
                 updated_at: row.get("updated_at"),
             })
         })
