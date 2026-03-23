@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use rust_decimal::Decimal;
 use sqlx::{Row, SqlitePool};
 
@@ -110,32 +112,9 @@ pub async fn list_account_positions(
 ) -> Result<Vec<AssetPositionRecord>, StorageError> {
     let rows = sqlx::query(
         r#"
-        WITH normalized_transactions AS (
-            SELECT
-                asset_id,
-                transaction_type,
-                CASE
-                    WHEN instr(quantity, '.') = 0 THEN CAST(quantity || '00000000' AS INTEGER)
-                    ELSE CAST(
-                        substr(quantity, 1, instr(quantity, '.') - 1) ||
-                        substr(substr(quantity, instr(quantity, '.') + 1) || '00000000', 1, 8)
-                        AS INTEGER
-                    )
-                END AS scaled_quantity
-            FROM asset_transactions
-            WHERE account_id = ?
-        )
-        SELECT
-            asset_id,
-            SUM(
-                CASE
-                    WHEN transaction_type = 'BUY' THEN scaled_quantity
-                    ELSE -scaled_quantity
-                END
-            ) AS net_scaled_quantity
-        FROM normalized_transactions
-        GROUP BY asset_id
-        HAVING net_scaled_quantity > 0
+        SELECT asset_id, transaction_type, quantity
+        FROM asset_transactions
+        WHERE account_id = ?
         ORDER BY asset_id
         "#,
     )
@@ -143,18 +122,31 @@ pub async fn list_account_positions(
     .fetch_all(pool)
     .await?;
 
-    rows.into_iter()
-        .map(|row| {
-            let net_scaled_quantity = row.get::<i64, _>("net_scaled_quantity");
-            let quantity = Decimal::new(net_scaled_quantity, 8).normalize();
+    let mut positions_by_asset = BTreeMap::<AssetId, Decimal>::new();
 
+    for row in rows {
+        let asset_id = AssetId::try_from(row.get::<i64, _>("asset_id"))?;
+        let transaction_type =
+            AssetTransactionType::try_from(row.get::<&str, _>("transaction_type"))?;
+        let quantity = AssetQuantity::try_from(row.get::<&str, _>("quantity"))?.as_decimal();
+        let signed_quantity = signed_quantity_delta(transaction_type, quantity);
+
+        positions_by_asset
+            .entry(asset_id)
+            .and_modify(|current_quantity| *current_quantity += signed_quantity)
+            .or_insert(signed_quantity);
+    }
+
+    positions_by_asset
+        .into_iter()
+        .filter(|(_, quantity)| *quantity > Decimal::ZERO)
+        .map(|(asset_id, quantity)| {
             Ok(AssetPositionRecord {
                 account_id,
-                asset_id: AssetId::try_from(row.get::<i64, _>("asset_id"))?,
+                asset_id,
                 quantity: AssetPosition::try_from(quantity)?,
             })
         })
-        .into_iter()
         .collect()
 }
 
@@ -163,41 +155,33 @@ async fn load_current_quantity(
     account_id: AccountId,
     asset_id: AssetId,
 ) -> Result<Decimal, StorageError> {
-    let row = sqlx::query(
+    let rows = sqlx::query(
         r#"
-        WITH normalized_transactions AS (
-            SELECT
-                transaction_type,
-                CASE
-                    WHEN instr(quantity, '.') = 0 THEN CAST(quantity || '00000000' AS INTEGER)
-                    ELSE CAST(
-                        substr(quantity, 1, instr(quantity, '.') - 1) ||
-                        substr(substr(quantity, instr(quantity, '.') + 1) || '00000000', 1, 8)
-                        AS INTEGER
-                    )
-                END AS scaled_quantity
-            FROM asset_transactions
-            WHERE account_id = ? AND asset_id = ?
-        )
-        SELECT
-            COALESCE(
-                SUM(
-                    CASE
-                        WHEN transaction_type = 'BUY' THEN scaled_quantity
-                        ELSE -scaled_quantity
-                    END
-                ),
-                0
-            ) AS net_scaled_quantity
-        FROM normalized_transactions
+        SELECT transaction_type, quantity
+        FROM asset_transactions
+        WHERE account_id = ? AND asset_id = ?
         "#,
     )
     .bind(account_id.as_i64())
     .bind(asset_id.as_i64())
-    .fetch_one(&mut **connection)
+    .fetch_all(&mut **connection)
     .await?;
 
-    Ok(Decimal::new(row.get::<i64, _>("net_scaled_quantity"), 8).normalize())
+    rows.into_iter()
+        .try_fold(Decimal::ZERO, |current_quantity, row| {
+            let transaction_type =
+                AssetTransactionType::try_from(row.get::<&str, _>("transaction_type"))?;
+            let quantity = AssetQuantity::try_from(row.get::<&str, _>("quantity"))?.as_decimal();
+
+            Ok(current_quantity + signed_quantity_delta(transaction_type, quantity))
+        })
+}
+
+fn signed_quantity_delta(transaction_type: AssetTransactionType, quantity: Decimal) -> Decimal {
+    match transaction_type {
+        AssetTransactionType::Buy => quantity,
+        AssetTransactionType::Sell => -quantity,
+    }
 }
 
 fn map_transaction_row(
