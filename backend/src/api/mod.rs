@@ -10,7 +10,10 @@ use axum::{
     routing::{get, put},
 };
 use sqlx::SqlitePool;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::{
+    cors::{Any, CorsLayer},
+    trace::TraceLayer,
+};
 
 pub fn build_router(pool: SqlitePool) -> Router {
     let state = AppState {
@@ -47,6 +50,7 @@ pub fn build_router_with_state(state: AppState) -> Router {
             "/accounts/{account_id}/balances/{currency}",
             put(upsert_account_balance_handler).delete(delete_account_balance_handler),
         )
+        .layer(TraceLayer::new_for_http())
         .layer(cors)
         .with_state(state)
 }

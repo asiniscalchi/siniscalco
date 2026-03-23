@@ -5,6 +5,7 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 use sqlx::SqlitePool;
 use tokio::{sync::RwLock, time::sleep};
+use tracing::{info, warn};
 
 use crate::storage::StorageError;
 use crate::{
@@ -118,10 +119,21 @@ pub async fn spawn_fx_refresh_task(
         let client = Client::new();
 
         loop {
+            info!(
+                endpoint = %config.base_url,
+                refresh_interval_seconds = config.refresh_interval.as_secs(),
+                "starting fx refresh"
+            );
             let refresh_result = refresh_fx_rates(&pool, &client, &config).await;
             let next_status = match refresh_result {
-                Ok(()) => FxRefreshStatus::available(),
-                Err(error) => FxRefreshStatus::unavailable(error.to_string()),
+                Ok(()) => {
+                    info!("fx refresh succeeded");
+                    FxRefreshStatus::available()
+                }
+                Err(error) => {
+                    warn!(error = %error, "fx refresh failed");
+                    FxRefreshStatus::unavailable(error.to_string())
+                }
             };
 
             *status.write().await = next_status;
@@ -137,6 +149,7 @@ pub async fn refresh_fx_rates(
 ) -> Result<(), FxRefreshError> {
     let fetched_at = current_utc_timestamp()?;
     let rates = fetch_frankfurter_rates(client, config).await?;
+    info!(fetched_at = %fetched_at, pair_count = rates.len(), "storing refreshed fx rates");
     replace_fx_rates(pool, rates, &fetched_at).await?;
     Ok(())
 }
