@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardContent,
   CardDescription,
   CardFooter,
   CardHeader,
@@ -188,56 +189,73 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
       <div className="grid gap-8 lg:grid-cols-[1fr_350px]">
         {/* Account breakdown */}
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold tracking-tight px-1">By Account</h2>
-          <Card size="sm">
-            <div className="divide-y divide-border">
-              {summary.account_totals.map((account) => {
-                const accountValue = account.total_amount ? Number(account.total_amount) : null;
-                const percentage =
-                  totalValue && accountValue && account.summary_status === "ok"
-                    ? (accountValue / totalValue) * 100
-                    : null;
+          <h2 className="text-lg font-semibold tracking-tight px-1">
+            Cash By Account
+          </h2>
+          <Card className="bg-background">
+            <CardContent className="pt-6">
+              <div className="space-y-6">
+                {[...summary.account_totals]
+                  .sort((a, b) => {
+                    const valA = a.total_amount ? Number(a.total_amount) : 0;
+                    const valB = b.total_amount ? Number(b.total_amount) : 0;
+                    return valB - valA;
+                  })
+                  .map((account) => {
+                    const accountValue = account.total_amount
+                      ? Number(account.total_amount)
+                      : 0;
+                    const percentage =
+                      totalValue && account.summary_status === "ok"
+                        ? (accountValue / totalValue) * 100
+                        : 0;
 
-                return (
-                  <div key={account.id} className="flex items-center justify-between px-4 py-3 first:pt-2 last:pb-2">
-                    <div className="flex flex-col">
-                      <span className="font-medium text-sm">{account.name}</span>
-                      <span className="text-xs text-muted-foreground opacity-80">
-                        {account.account_type}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-6">
-                      <div className="flex items-center gap-3">
-                        {percentage !== null && (
-                          <>
-                            <div className="h-1.5 w-16 bg-muted rounded-full overflow-hidden hidden sm:block">
-                              <div
-                                className="h-full bg-primary/30 rounded-full"
-                                style={{ width: `${percentage}%` }}
-                              />
-                            </div>
-                            <span className="text-xs font-medium text-muted-foreground w-12 text-right">
-                              {percentage.toFixed(1)}%
+                    return (
+                      <div key={account.id} className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex flex-col">
+                            <span className="font-medium">{account.name}</span>
+                            <span className="text-xs text-muted-foreground opacity-80">
+                              {account.account_type}
                             </span>
-                          </>
-                        )}
+                          </div>
+                          <div className="text-right">
+                            {account.summary_status === "ok" &&
+                            account.total_amount ? (
+                              <span className="font-mono font-medium">
+                                {formatDisplayAmount(
+                                  account.total_amount,
+                                  account.total_currency,
+                                )}
+                              </span>
+                            ) : (
+                              <span className="text-xs font-medium text-muted-foreground">
+                                Conversion unavailable
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary transition-all duration-500"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
                       </div>
-                      <div className="text-right min-w-[100px]">
-                        {account.summary_status === "ok" && account.total_amount ? (
-                          <span className="font-semibold text-sm">
-                            {formatDisplayAmount(account.total_amount, account.total_currency)}
-                          </span>
-                        ) : (
-                          <span className="text-xs font-medium text-muted-foreground">
-                            Conversion unavailable
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                    );
+                  })}
+              </div>
+            </CardContent>
+            {summary.account_totals.some(
+              (a) => a.summary_status !== "ok",
+            ) && (
+              <CardFooter className="pt-0">
+                <p className="text-xs text-muted-foreground italic">
+                  * Some accounts are hidden or incomplete due to missing
+                  conversion rates.
+                </p>
+              </CardFooter>
+            )}
           </Card>
         </section>
 

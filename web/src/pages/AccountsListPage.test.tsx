@@ -113,10 +113,10 @@ describe("AccountsListPage", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findAllByText("IBKR")).toHaveLength(2);
+    expect(await screen.findByText("IBKR")).toBeTruthy();
     expect(screen.getByText(/broker/)).toBeTruthy();
     expect(screen.getAllByText(/EUR/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("123.45 EUR").length).toBeGreaterThan(0);
+    expect(screen.getByText("123.45 EUR")).toBeTruthy();
     expect(screen.getByText("FX Rates")).toBeTruthy();
     expect(screen.getByText("Against EUR")).toBeTruthy();
     expect(screen.getByText("USD")).toBeTruthy();
@@ -225,65 +225,9 @@ describe("AccountsListPage", () => {
     fireEvent.click(screen.getByText("Retry"));
 
     await waitFor(() => {
-      expect(screen.getAllByText("Main Bank").length).toBeGreaterThan(0);
+      expect(screen.getByText("Main Bank")).toBeTruthy();
     });
     expect(fetch).toHaveBeenCalledTimes(4);
-  });
-
-  it("renders the 'Cash by account' chart with correctly converted and sorted amounts", async () => {
-    mockDashboardRequests({
-      accounts: [
-        {
-          id: 1,
-          name: "EUR Account",
-          account_type: "bank",
-          base_currency: "EUR",
-          summary_status: "ok",
-          total_amount: "100.00",
-          total_currency: "EUR",
-        },
-        {
-          id: 2,
-          name: "USD Account",
-          account_type: "bank",
-          base_currency: "USD",
-          summary_status: "ok",
-          total_amount: "200.00",
-          total_currency: "USD",
-        },
-      ],
-      fxRates: {
-        target_currency: "EUR",
-        rates: [{ currency: "USD", rate: "0.5" }], // 200 USD * 0.5 = 100 EUR
-        last_updated: "2026-03-22 10:00:00",
-        refresh_status: "available",
-        refresh_error: null,
-      },
-    });
-
-    render(
-      <MemoryRouter>
-        <AccountsListPage />
-      </MemoryRouter>,
-    );
-
-    expect(await screen.findByText("Cash by account")).toBeTruthy();
-    const chartCard = screen.getByText("Cash by account").closest('[data-slot="card"]')!;
-    const chartWithin = within(chartCard as HTMLElement);
-
-    expect(chartWithin.getByText("Distribution across accounts in EUR")).toBeTruthy();
-
-    // Total should be 100 (EUR) + 100 (converted USD) = 200 EUR
-    expect(chartWithin.getByText("Total")).toBeTruthy();
-    expect(chartWithin.getByText("200.00 EUR")).toBeTruthy();
-
-    // Account list should show original amounts
-    expect(screen.getAllByText("100.00 EUR").length).toBeGreaterThan(0);
-    expect(screen.getByText("200.00 USD")).toBeTruthy();
-
-    // Chart should show converted amounts (both 100.00 EUR)
-    const chartLabels = chartWithin.getAllByText("100.00 EUR");
-    expect(chartLabels.length).toBe(2);
   });
 
   it("links to account detail and account creation routes", async () => {
