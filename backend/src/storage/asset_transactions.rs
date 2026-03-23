@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use rust_decimal::Decimal;
 use sqlx::{Row, SqlitePool};
 
@@ -112,40 +110,51 @@ pub async fn list_account_positions(
 ) -> Result<Vec<AssetPositionRecord>, StorageError> {
     let rows = sqlx::query(
         r#"
-        SELECT asset_id, transaction_type, quantity
-        FROM asset_transactions
-        WHERE account_id = ?
-        ORDER BY asset_id, id
+        WITH normalized_transactions AS (
+            SELECT
+                asset_id,
+                transaction_type,
+                CASE
+                    WHEN instr(quantity, '.') = 0 THEN CAST(quantity || '00000000' AS INTEGER)
+                    ELSE CAST(
+                        substr(quantity, 1, instr(quantity, '.') - 1) ||
+                        substr(substr(quantity, instr(quantity, '.') + 1) || '00000000', 1, 8)
+                        AS INTEGER
+                    )
+                END AS scaled_quantity
+            FROM asset_transactions
+            WHERE account_id = ?
+        )
+        SELECT
+            asset_id,
+            SUM(
+                CASE
+                    WHEN transaction_type = 'BUY' THEN scaled_quantity
+                    ELSE -scaled_quantity
+                END
+            ) AS net_scaled_quantity
+        FROM normalized_transactions
+        GROUP BY asset_id
+        HAVING net_scaled_quantity > 0
+        ORDER BY asset_id
         "#,
     )
     .bind(account_id.as_i64())
     .fetch_all(pool)
     .await?;
 
-    let mut positions = BTreeMap::<AssetId, Decimal>::new();
-    for row in rows {
-        let asset_id = AssetId::try_from(row.get::<i64, _>("asset_id"))?;
-        let transaction_type =
-            AssetTransactionType::try_from(row.get::<&str, _>("transaction_type"))?;
-        let quantity = AssetQuantity::try_from(row.get::<&str, _>("quantity"))?;
+    rows.into_iter()
+        .map(|row| {
+            let net_scaled_quantity = row.get::<i64, _>("net_scaled_quantity");
+            let quantity = Decimal::new(net_scaled_quantity, 8).normalize();
 
-        let entry = positions.entry(asset_id).or_insert(Decimal::ZERO);
-        match transaction_type {
-            AssetTransactionType::Buy => *entry += quantity.as_decimal(),
-            AssetTransactionType::Sell => *entry -= quantity.as_decimal(),
-        }
-    }
-
-    positions
-        .into_iter()
-        .filter(|(_, quantity)| *quantity > Decimal::ZERO)
-        .map(|(asset_id, quantity)| {
             Ok(AssetPositionRecord {
                 account_id,
-                asset_id,
+                asset_id: AssetId::try_from(row.get::<i64, _>("asset_id"))?,
                 quantity: AssetPosition::try_from(quantity)?,
             })
         })
+        .into_iter()
         .collect()
 }
 
