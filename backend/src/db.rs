@@ -106,6 +106,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn creates_asset_transaction_indexes() {
+        let pool = test_pool().await;
+
+        let indexes: Vec<String> = sqlx::query_scalar(
+            "SELECT name FROM sqlite_master WHERE type = 'index' AND name IN ('asset_transactions_account_trade_date_idx', 'asset_transactions_account_asset_idx') ORDER BY name",
+        )
+        .fetch_all(&pool)
+        .await
+        .expect("index lookup should succeed");
+
+        assert_eq!(
+            indexes,
+            vec![
+                "asset_transactions_account_asset_idx".to_string(),
+                "asset_transactions_account_trade_date_idx".to_string(),
+            ]
+        );
+    }
+
+    #[tokio::test]
     async fn seeds_supported_currencies() {
         let pool = test_pool().await;
 

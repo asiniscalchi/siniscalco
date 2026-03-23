@@ -74,6 +74,12 @@ CREATE TABLE asset_transactions (
     FOREIGN KEY (currency_code) REFERENCES currencies(code)
 );
 
+CREATE INDEX asset_transactions_account_trade_date_idx
+ON asset_transactions(account_id, trade_date DESC, id DESC);
+
+CREATE INDEX asset_transactions_account_asset_idx
+ON asset_transactions(account_id, asset_id);
+
 CREATE TABLE fx_rates (
     from_currency TEXT NOT NULL,
     to_currency TEXT NOT NULL,
