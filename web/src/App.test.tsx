@@ -44,6 +44,8 @@ describe("App shell", () => {
               target_currency: "EUR",
               rates: [],
               last_updated: null,
+              refresh_status: "available",
+              refresh_error: null,
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
@@ -60,6 +62,8 @@ describe("App shell", () => {
               account_totals: [],
               cash_by_currency: [],
               fx_last_updated: null,
+              fx_refresh_status: "available",
+              fx_refresh_error: null,
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
@@ -103,6 +107,8 @@ describe("App shell", () => {
               target_currency: "EUR",
               rates: [],
               last_updated: null,
+              refresh_status: "available",
+              refresh_error: null,
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
@@ -119,6 +125,8 @@ describe("App shell", () => {
               account_totals: [],
               cash_by_currency: [],
               fx_last_updated: null,
+              fx_refresh_status: "available",
+              fx_refresh_error: null,
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
@@ -196,6 +204,8 @@ describe("App shell", () => {
               ],
               cash_by_currency: [{ currency: "EUR", amount: "1.00000000" }],
               fx_last_updated: null,
+              fx_refresh_status: "available",
+              fx_refresh_error: null,
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
@@ -242,6 +252,8 @@ describe("App shell", () => {
               target_currency: "EUR",
               rates: [],
               last_updated: null,
+              refresh_status: "available",
+              refresh_error: null,
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
@@ -263,7 +275,7 @@ describe("App shell", () => {
     expect(accountsLink.getAttribute("aria-current")).toBe("page");
     expect(accountsLink.className).toContain("border-foreground");
 
-    expect(await screen.findAllByText("IBKR")).toHaveLength(2);
+    expect(await screen.findByText("IBKR")).toBeTruthy();
     expect(screen.getByText("connected")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("link", { name: "Create account" }));
@@ -279,7 +291,7 @@ describe("App shell", () => {
 
     fireEvent.click(screen.getByRole("link", { name: "Cancel" }));
 
-    expect(await screen.findAllByText("IBKR")).toHaveLength(2);
+    expect(await screen.findByText("IBKR")).toBeTruthy();
 
     fireEvent.click(
       screen.getByRole("link", { name: /IBKR.*broker.*EUR.*View details/ }),

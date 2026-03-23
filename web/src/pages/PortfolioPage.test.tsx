@@ -82,6 +82,8 @@ describe("PortfolioPage", () => {
         { currency: "USD", amount: "100.00000000", converted_amount: "92.00000000" },
       ],
       fx_last_updated: "2026-03-22 11:30:00",
+      fx_refresh_status: "available",
+      fx_refresh_error: null,
     });
 
     render(
@@ -92,7 +94,7 @@ describe("PortfolioPage", () => {
 
     expect(await screen.findByText("Total Cash Value")).toBeTruthy();
     expect(screen.getByText("153.70 EUR")).toBeTruthy();
-    expect(screen.getByText("By Account")).toBeTruthy();
+    expect(screen.getByText("Cash By Account")).toBeTruthy();
     expect(screen.getByText("103.70 EUR")).toBeTruthy();
     expect(screen.getByText("50.00 EUR")).toBeTruthy();
     expect(screen.getByText("Cash By Currency")).toBeTruthy();
@@ -119,6 +121,8 @@ describe("PortfolioPage", () => {
       ],
       cash_by_currency: [],
       fx_last_updated: null,
+      fx_refresh_status: "unavailable",
+      fx_refresh_error: "FX refresh unavailable: no successful refresh has completed",
     });
 
     render(
@@ -151,6 +155,8 @@ describe("PortfolioPage", () => {
         { currency: "USD", amount: "100.00000000", converted_amount: null },
       ],
       fx_last_updated: "2026-03-22 10:00:00",
+      fx_refresh_status: "unavailable",
+      fx_refresh_error: "FX refresh unavailable: provider returned status 500",
     });
 
     render(
@@ -163,6 +169,10 @@ describe("PortfolioPage", () => {
     expect(screen.getByText("Conversion data unavailable")).toBeTruthy();
     expect(screen.getByText("10 GBP")).toBeTruthy();
     expect(screen.getByText("100 USD")).toBeTruthy();
+    expect(screen.getByText("FX refresh unavailable")).toBeTruthy();
+    expect(
+      screen.getByText("FX refresh unavailable: provider returned status 500"),
+    ).toBeTruthy();
   });
 
   it("renders an error state and retries the request", async () => {
@@ -187,6 +197,8 @@ describe("PortfolioPage", () => {
               account_totals: [],
               cash_by_currency: [{ currency: "EUR", amount: "1.00000000", converted_amount: "1.00000000" }],
               fx_last_updated: null,
+              fx_refresh_status: "available",
+              fx_refresh_error: null,
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),

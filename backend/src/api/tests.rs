@@ -8,13 +8,15 @@ use axum::{
 use http_body_util::BodyExt;
 use serde_json::Value;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use tokio::sync::RwLock;
 use tower::ServiceExt;
 
-use super::{ApiError, build_router};
+use super::{ApiError, AppState, build_router, build_router_with_state};
 use crate::{
     AccountId, AccountName, AccountType, Amount, CreateAccountInput, Currency, FxRate,
-    UpsertAccountBalanceInput, UpsertFxRateInput, create_account, get_account, init_db,
-    list_account_balances, upsert_account_balance, upsert_fx_rate,
+    FxRefreshAvailability, FxRefreshStatus, UpsertAccountBalanceInput, UpsertFxRateInput,
+    create_account, get_account, init_db, list_account_balances, upsert_account_balance,
+    upsert_fx_rate,
 };
 
 fn amt(value: &str) -> Amount {
@@ -48,10 +50,24 @@ async fn test_pool() -> sqlx::SqlitePool {
     pool
 }
 
+fn build_router_with_fx_status(
+    pool: sqlx::SqlitePool,
+    availability: FxRefreshAvailability,
+    last_error: Option<&str>,
+) -> axum::Router {
+    build_router_with_state(AppState {
+        pool,
+        fx_refresh_status: std::sync::Arc::new(RwLock::new(FxRefreshStatus {
+            availability,
+            last_error: last_error.map(str::to_string),
+        })),
+    })
+}
+
 #[tokio::test]
 async fn serves_health_route() {
     let pool = test_pool().await;
-    let app = build_router(pool);
+    let app = build_router_with_fx_status(pool, FxRefreshAvailability::Available, None);
 
     let response = app
         .oneshot(
@@ -69,7 +85,7 @@ async fn serves_health_route() {
 #[tokio::test]
 async fn lists_allowed_currencies_through_api() {
     let pool = test_pool().await;
-    let app = build_router(pool);
+    let app = build_router_with_fx_status(pool, FxRefreshAvailability::Available, None);
 
     let response = app
         .oneshot(
@@ -101,17 +117,16 @@ async fn lists_allowed_currencies_through_api() {
 async fn lists_fx_rates_for_eur_through_api() {
     let pool = test_pool().await;
 
-    for (from_currency, to_currency, rate) in [
-        (Currency::Usd, Currency::Eur, "0.92000000"),
-        (Currency::Gbp, Currency::Eur, "1.17000000"),
-        (Currency::Chf, Currency::Eur, "1.04000000"),
-        (Currency::Eur, Currency::Eur, "1.00000000"),
+    for (from_currency, rate) in [
+        (Currency::Usd, "0.92000000"),
+        (Currency::Gbp, "1.17000000"),
+        (Currency::Chf, "1.04000000"),
     ] {
         upsert_fx_rate(
             &pool,
             UpsertFxRateInput {
                 from_currency,
-                to_currency,
+                to_currency: Currency::Eur,
                 rate: fx_rate(rate),
             },
         )
@@ -123,7 +138,6 @@ async fn lists_fx_rates_for_eur_through_api() {
         ("USD", "2026-03-22 09:00:00"),
         ("GBP", "2026-03-22 10:00:00"),
         ("CHF", "2026-03-22 08:30:00"),
-        ("EUR", "2026-03-22 11:00:00"),
     ] {
         sqlx::query(
             "UPDATE fx_rates SET updated_at = ? WHERE from_currency = ? AND to_currency = 'EUR'",
@@ -135,7 +149,7 @@ async fn lists_fx_rates_for_eur_through_api() {
         .expect("timestamp update should succeed");
     }
 
-    let app = build_router(pool);
+    let app = build_router_with_fx_status(pool, FxRefreshAvailability::Available, None);
     let response = app
         .oneshot(
             Request::builder()
@@ -158,14 +172,18 @@ async fn lists_fx_rates_for_eur_through_api() {
 
     assert_eq!(
         std::str::from_utf8(&body).expect("json body should be utf8"),
-        r#"{"target_currency":"EUR","rates":[{"currency":"CHF","rate":"1.04"},{"currency":"GBP","rate":"1.17"},{"currency":"USD","rate":"0.92"}],"last_updated":"2026-03-22 10:00:00"}"#
+        r#"{"target_currency":"EUR","rates":[{"currency":"CHF","rate":"1.04"},{"currency":"GBP","rate":"1.17"},{"currency":"USD","rate":"0.92"}],"last_updated":"2026-03-22 10:00:00","refresh_status":"available","refresh_error":null}"#
     );
 }
 
 #[tokio::test]
 async fn returns_empty_fx_rates_payload_when_no_eur_rates_exist() {
     let pool = test_pool().await;
-    let app = build_router(pool);
+    let app = build_router_with_fx_status(
+        pool,
+        FxRefreshAvailability::Unavailable,
+        Some("FX refresh unavailable: no successful refresh has completed"),
+    );
 
     let response = app
         .oneshot(
@@ -189,7 +207,56 @@ async fn returns_empty_fx_rates_payload_when_no_eur_rates_exist() {
 
     assert_eq!(
         std::str::from_utf8(&body).expect("json body should be utf8"),
-        r#"{"target_currency":"EUR","rates":[],"last_updated":null}"#
+        r#"{"target_currency":"EUR","rates":[],"last_updated":null,"refresh_status":"unavailable","refresh_error":"FX refresh unavailable: no successful refresh has completed"}"#
+    );
+}
+
+#[tokio::test]
+async fn gets_single_fx_rate_pair_through_api() {
+    let pool = test_pool().await;
+
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate("0.92000000"),
+        },
+    )
+    .await
+    .expect("fx rate insert should succeed");
+
+    sqlx::query(
+        "UPDATE fx_rates SET updated_at = '2026-03-22 10:00:00' WHERE from_currency = 'USD' AND to_currency = 'EUR'",
+    )
+    .execute(&pool)
+    .await
+    .expect("timestamp update should succeed");
+
+    let app = build_router_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/fx-rates/USD/EUR")
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("fx rate request should succeed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+
+    assert_eq!(
+        std::str::from_utf8(&body).expect("json body should be utf8"),
+        r#"{"from_currency":"USD","to_currency":"EUR","rate":"0.92","updated_at":"2026-03-22 10:00:00","refresh_status":"available","refresh_error":null}"#
     );
 }
 
@@ -261,7 +328,7 @@ async fn returns_portfolio_summary_through_api() {
         .expect("balance insert should succeed");
     }
 
-    let app = build_router(pool);
+    let app = build_router_with_fx_status(pool, FxRefreshAvailability::Available, None);
     let response = app
         .oneshot(
             Request::builder()
@@ -284,7 +351,7 @@ async fn returns_portfolio_summary_through_api() {
 
     assert_eq!(
         std::str::from_utf8(&body).expect("json body should be utf8"),
-        r#"{"display_currency":"EUR","total_value_status":"ok","total_value_amount":"153.70000000","account_totals":[{"id":1,"name":"IBKR","account_type":"broker","summary_status":"ok","total_amount":"103.70000000","total_currency":"EUR"},{"id":2,"name":"Main Bank","account_type":"bank","summary_status":"ok","total_amount":"50.00000000","total_currency":"EUR"}],"cash_by_currency":[{"currency":"EUR","amount":"50.00000000","converted_amount":"50.00000000"},{"currency":"GBP","amount":"10.00000000","converted_amount":"11.70000000"},{"currency":"USD","amount":"100.00000000","converted_amount":"92.00000000"}],"fx_last_updated":"2026-03-22 11:30:00"}"#
+        r#"{"display_currency":"EUR","total_value_status":"ok","total_value_amount":"153.70000000","account_totals":[{"id":1,"name":"IBKR","account_type":"broker","summary_status":"ok","total_amount":"103.70000000","total_currency":"EUR"},{"id":2,"name":"Main Bank","account_type":"bank","summary_status":"ok","total_amount":"50.00000000","total_currency":"EUR"}],"cash_by_currency":[{"currency":"EUR","amount":"50.00000000","converted_amount":"50.00000000"},{"currency":"GBP","amount":"10.00000000","converted_amount":"11.70000000"},{"currency":"USD","amount":"100.00000000","converted_amount":"92.00000000"}],"fx_last_updated":"2026-03-22 11:30:00","fx_refresh_status":"available","fx_refresh_error":null}"#
     );
 }
 
@@ -303,7 +370,11 @@ async fn returns_empty_portfolio_summary_when_no_cash_exists() {
     .await
     .expect("account insert should succeed");
 
-    let app = build_router(pool);
+    let app = build_router_with_fx_status(
+        pool,
+        FxRefreshAvailability::Unavailable,
+        Some("FX refresh unavailable: no successful refresh has completed"),
+    );
     let response = app
         .oneshot(
             Request::builder()
@@ -326,7 +397,7 @@ async fn returns_empty_portfolio_summary_when_no_cash_exists() {
 
     assert_eq!(
         std::str::from_utf8(&body).expect("json body should be utf8"),
-        r#"{"display_currency":"EUR","total_value_status":"ok","total_value_amount":"0.00000000","account_totals":[{"id":1,"name":"IBKR","account_type":"broker","summary_status":"ok","total_amount":"0.00000000","total_currency":"EUR"}],"cash_by_currency":[],"fx_last_updated":null}"#
+        r#"{"display_currency":"EUR","total_value_status":"ok","total_value_amount":"0.00000000","account_totals":[{"id":1,"name":"IBKR","account_type":"broker","summary_status":"ok","total_amount":"0.00000000","total_currency":"EUR"}],"cash_by_currency":[],"fx_last_updated":null,"fx_refresh_status":"unavailable","fx_refresh_error":"FX refresh unavailable: no successful refresh has completed"}"#
     );
 }
 
@@ -383,7 +454,7 @@ async fn returns_conversion_unavailable_portfolio_summary_when_fx_is_missing() {
         .await
         .expect("fx timestamp update should succeed");
 
-    let app = build_router(pool);
+    let app = build_router_with_fx_status(pool, FxRefreshAvailability::Available, None);
     let response = app
         .oneshot(
             Request::builder()
@@ -406,7 +477,7 @@ async fn returns_conversion_unavailable_portfolio_summary_when_fx_is_missing() {
 
     assert_eq!(
         std::str::from_utf8(&body).expect("json body should be utf8"),
-        r#"{"display_currency":"EUR","total_value_status":"conversion_unavailable","total_value_amount":null,"account_totals":[{"id":1,"name":"IBKR","account_type":"broker","summary_status":"conversion_unavailable","total_amount":null,"total_currency":"EUR"}],"cash_by_currency":[{"currency":"GBP","amount":"10.00000000","converted_amount":null},{"currency":"USD","amount":"100.00000000","converted_amount":"92.00000000"}],"fx_last_updated":"2026-03-22 10:00:00"}"#
+        r#"{"display_currency":"EUR","total_value_status":"conversion_unavailable","total_value_amount":null,"account_totals":[{"id":1,"name":"IBKR","account_type":"broker","summary_status":"conversion_unavailable","total_amount":null,"total_currency":"EUR"}],"cash_by_currency":[{"currency":"GBP","amount":"10.00000000","converted_amount":null},{"currency":"USD","amount":"100.00000000","converted_amount":"92.00000000"}],"fx_last_updated":"2026-03-22 10:00:00","fx_refresh_status":"available","fx_refresh_error":null}"#
     );
 }
 
@@ -1169,17 +1240,6 @@ async fn does_not_use_inverse_fx_rates_through_api() {
     )
     .await
     .expect("balance insert should succeed");
-
-    upsert_fx_rate(
-        &pool,
-        UpsertFxRateInput {
-            from_currency: Currency::Eur,
-            to_currency: Currency::Usd,
-            rate: fx_rate("1.10000000"),
-        },
-    )
-    .await
-    .expect("inverse fx rate insert should succeed");
 
     let app = build_router(pool);
     let response = app

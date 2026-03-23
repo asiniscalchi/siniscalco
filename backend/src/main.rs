@@ -1,43 +1,59 @@
 use std::{collections::BTreeSet, net::SocketAddr};
 
 use if_addrs::get_if_addrs;
+use tracing::{error, info};
 
-use backend::{build_router, connect_db_file};
+use backend::{
+    AppState, FxRefreshConfig, build_router_with_state, connect_db_file, init_tracing,
+    new_shared_fx_refresh_status, spawn_fx_refresh_task,
+};
 
 #[tokio::main]
 async fn main() {
+    if let Err(error) = init_tracing() {
+        eprintln!("failed to initialize tracing subscriber: {error}");
+        std::process::exit(1);
+    }
+
     match connect_db_file("data/app.db").await {
         Ok(pool) => {
-            let app = build_router(pool);
+            let fx_refresh_status = new_shared_fx_refresh_status();
+            let app = build_router_with_state(AppState {
+                pool: pool.clone(),
+                fx_refresh_status: fx_refresh_status.clone(),
+            });
             let address = SocketAddr::from(([0, 0, 0, 0], 3000));
+            let fx_refresh_config = FxRefreshConfig::load();
+
+            log_fx_refresh_configuration(&fx_refresh_config);
+
+            spawn_fx_refresh_task(pool, fx_refresh_status, fx_refresh_config).await;
 
             log_listening_addresses(address);
 
             match tokio::net::TcpListener::bind(address).await {
                 Ok(listener) => {
                     if let Err(error) = axum::serve(listener, app).await {
-                        eprintln!("backend server error: {error}");
+                        error!(error = %error, "backend server error");
                         std::process::exit(1);
                     }
                 }
                 Err(error) => {
-                    eprintln!("failed to bind backend server: {error}");
+                    error!(error = %error, "failed to bind backend server");
                     std::process::exit(1);
                 }
             }
         }
         Err(error) => {
-            eprintln!("failed to initialize backend database: {error}");
+            error!(error = %error, "failed to initialize backend database");
             std::process::exit(1);
         }
     }
 }
 
 fn log_listening_addresses(address: SocketAddr) {
-    println!("backend listening on:");
-
     for url in listening_urls(address) {
-        println!("- {url}");
+        info!(url = %url, "backend listening");
     }
 }
 
@@ -63,4 +79,14 @@ fn listening_urls(address: SocketAddr) -> Vec<String> {
     }
 
     vec![format!("http://{address}")]
+}
+
+fn log_fx_refresh_configuration(config: &FxRefreshConfig) {
+    info!(
+        provider = "frankfurter",
+        base_currency = "EUR",
+        refresh_interval_seconds = config.refresh_interval.as_secs(),
+        endpoint = %config.base_url,
+        "fx refresh configuration"
+    );
 }

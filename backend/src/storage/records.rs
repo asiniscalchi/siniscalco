@@ -14,7 +14,7 @@ use super::storage_error::StorageError;
 pub const UTC_TIMESTAMP_FORMAT: &[FormatItem<'static>] =
     format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
 
-pub(crate) fn current_utc_timestamp() -> Result<String, StorageError> {
+pub fn current_utc_timestamp() -> Result<String, StorageError> {
     OffsetDateTime::now_utc()
         .format(UTC_TIMESTAMP_FORMAT)
         .map_err(|_| StorageError::Validation("failed to generate UTC timestamp"))
@@ -82,6 +82,14 @@ pub struct FxRateRecord {
     pub from_currency: Currency,
     pub to_currency: Currency,
     pub rate: FxRate,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct FxRateDetailRecord {
+    pub from_currency: Currency,
+    pub to_currency: Currency,
+    pub rate: FxRate,
+    pub updated_at: String,
 }
 
 #[derive(Debug, Eq, PartialEq)]

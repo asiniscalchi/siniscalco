@@ -8,11 +8,12 @@ use crate::api::models::*;
 use crate::{
     AccountBalanceRecord, AccountId, AccountName, AccountRecord, AccountSummaryRecord,
     AccountSummaryStatus, AccountType, Amount, CreateAccountInput, Currency, CurrencyRecord,
-    FxRateSummaryItemRecord, FxRateSummaryRecord, PortfolioAccountTotalRecord,
-    PortfolioCashByCurrencyRecord, PortfolioSummaryRecord, UpsertAccountBalanceInput,
-    UpsertOutcome, compact_decimal_output, delete_account, delete_account_balance, get_account,
-    get_portfolio_summary, list_account_balances, list_account_summaries, list_currencies,
-    list_fx_rate_summary, normalize_amount_output, storage::StorageError, upsert_account_balance,
+    FxRateDetailRecord, FxRateSummaryItemRecord, FxRateSummaryRecord, PRODUCT_BASE_CURRENCY,
+    PortfolioAccountTotalRecord, PortfolioCashByCurrencyRecord, PortfolioSummaryRecord,
+    UpsertAccountBalanceInput, UpsertOutcome, compact_decimal_output, delete_account,
+    delete_account_balance, get_account, get_latest_fx_rate, get_portfolio_summary,
+    list_account_balances, list_account_summaries, list_currencies, list_fx_rate_summary,
+    normalize_amount_output, storage::StorageError, upsert_account_balance,
 };
 
 pub(crate) async fn health() -> &'static str {
@@ -79,21 +80,50 @@ pub(crate) async fn list_accounts_handler(
 pub(crate) async fn get_fx_rate_summary_handler(
     State(state): State<AppState>,
 ) -> Result<Json<FxRateSummaryResponse>, ApiError> {
-    let summary = list_fx_rate_summary(&state.pool, Currency::Eur)
+    let summary = list_fx_rate_summary(&state.pool, PRODUCT_BASE_CURRENCY)
         .await
         .map_err(ApiError::from)?;
+    let (refresh_status, refresh_error) = read_fx_refresh_status(&state.fx_refresh_status).await;
 
-    Ok(Json(to_fx_rate_summary_response(summary)))
+    Ok(Json(to_fx_rate_summary_response(
+        summary,
+        refresh_status,
+        refresh_error,
+    )))
+}
+
+pub(crate) async fn get_fx_rate_handler(
+    State(state): State<AppState>,
+    AxumPath((from_currency, to_currency)): AxumPath<(String, String)>,
+) -> Result<Json<FxRateDetailResponse>, ApiError> {
+    let from_currency = Currency::try_from(from_currency.as_str()).map_err(ApiError::from)?;
+    let to_currency = Currency::try_from(to_currency.as_str()).map_err(ApiError::from)?;
+    let rate = get_latest_fx_rate(&state.pool, from_currency, to_currency)
+        .await
+        .map_err(ApiError::from)?
+        .ok_or_else(|| ApiError::not_found("FX rate not found"))?;
+    let (refresh_status, refresh_error) = read_fx_refresh_status(&state.fx_refresh_status).await;
+
+    Ok(Json(to_fx_rate_detail_response(
+        rate,
+        refresh_status,
+        refresh_error,
+    )))
 }
 
 pub(crate) async fn get_portfolio_summary_handler(
     State(state): State<AppState>,
 ) -> Result<Json<PortfolioSummaryResponse>, ApiError> {
-    let summary = get_portfolio_summary(&state.pool, Currency::Eur)
+    let summary = get_portfolio_summary(&state.pool, PRODUCT_BASE_CURRENCY)
         .await
         .map_err(ApiError::from)?;
+    let (refresh_status, refresh_error) = read_fx_refresh_status(&state.fx_refresh_status).await;
 
-    Ok(Json(to_portfolio_summary_response(summary)))
+    Ok(Json(to_portfolio_summary_response(
+        summary,
+        refresh_status,
+        refresh_error,
+    )))
 }
 
 pub(crate) async fn get_account_handler(
@@ -262,7 +292,11 @@ fn to_currency_response(currency: CurrencyRecord) -> CurrencyResponse {
     }
 }
 
-fn to_fx_rate_summary_response(summary: FxRateSummaryRecord) -> FxRateSummaryResponse {
+fn to_fx_rate_summary_response(
+    summary: FxRateSummaryRecord,
+    refresh_status: String,
+    refresh_error: Option<String>,
+) -> FxRateSummaryResponse {
     FxRateSummaryResponse {
         target_currency: summary.target_currency,
         rates: summary
@@ -271,10 +305,31 @@ fn to_fx_rate_summary_response(summary: FxRateSummaryRecord) -> FxRateSummaryRes
             .map(to_fx_rate_summary_item_response)
             .collect(),
         last_updated: summary.last_updated,
+        refresh_status,
+        refresh_error,
     }
 }
 
-fn to_portfolio_summary_response(summary: PortfolioSummaryRecord) -> PortfolioSummaryResponse {
+fn to_fx_rate_detail_response(
+    rate: FxRateDetailRecord,
+    refresh_status: String,
+    refresh_error: Option<String>,
+) -> FxRateDetailResponse {
+    FxRateDetailResponse {
+        from_currency: rate.from_currency,
+        to_currency: rate.to_currency,
+        rate: compact_decimal_output(&rate.rate.to_string()),
+        updated_at: rate.updated_at,
+        refresh_status,
+        refresh_error,
+    }
+}
+
+fn to_portfolio_summary_response(
+    summary: PortfolioSummaryRecord,
+    refresh_status: String,
+    refresh_error: Option<String>,
+) -> PortfolioSummaryResponse {
     PortfolioSummaryResponse {
         display_currency: summary.display_currency,
         total_value_status: summary.total_value_status.as_str().to_string(),
@@ -292,6 +347,8 @@ fn to_portfolio_summary_response(summary: PortfolioSummaryRecord) -> PortfolioSu
             .map(to_portfolio_cash_by_currency_response)
             .collect(),
         fx_last_updated: summary.fx_last_updated,
+        fx_refresh_status: refresh_status,
+        fx_refresh_error: refresh_error,
     }
 }
 
