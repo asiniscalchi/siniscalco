@@ -188,11 +188,11 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
 
       <div className="grid gap-8 lg:grid-cols-[1fr_350px]">
         {/* Account breakdown */}
-        <Card className="bg-background">
-          <CardHeader>
+        <Card className="bg-background self-start">
+          <CardHeader className="border-b">
             <CardTitle>Cash By Account</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="space-y-6">
               {[...summary.account_totals]
                 .sort((a, b) => {
@@ -258,11 +258,11 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
         </Card>
 
         {/* Cash by currency */}
-        <Card className="bg-background">
-          <CardHeader>
+        <Card className="bg-background self-start">
+          <CardHeader className="border-b">
             <CardTitle>Cash By Currency</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6 pb-6">
             <div className="space-y-6">
               {summary.cash_by_currency.map((balance) => {
                 const balanceValue = balance.converted_amount ? Number(balance.converted_amount) : null;
