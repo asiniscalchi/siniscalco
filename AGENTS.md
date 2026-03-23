@@ -48,6 +48,7 @@ Frontend: React + Vite + Tailwind + shadcn
 ## Task Workflow
 - always read existing code before editing
 - create a short plan with concrete steps for each task before making changes
+- create one git commit each time a plan step is completed
 - modify existing code when possible; rewrite only if necessary
 - keep changes small and focused
 - add or update tests for every change
@@ -58,3 +59,4 @@ Frontend: React + Vite + Tailwind + shadcn
 - tests pass
 - before pushing, check formatting and linting
 - no unused code
+- push only after all plan steps are completed
