@@ -81,6 +81,18 @@ export function getAccountBalanceApiUrl(accountId: string, currency: string) {
   ).toString();
 }
 
+export function getAssetsApiUrl() {
+  return new URL("/assets", getApiBaseUrl()).toString();
+}
+
+export function getAssetTransactionsApiUrl(accountId?: string) {
+  const url = new URL("/asset-transactions", getApiBaseUrl());
+  if (accountId) {
+    url.searchParams.append("account_id", accountId);
+  }
+  return url.toString();
+}
+
 export async function readApiErrorMessage(
   response: Response,
   fallbackMessage: string,

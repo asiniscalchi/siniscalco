@@ -6,6 +6,7 @@ import {
   AccountNewPage,
   AccountsListPage,
   PortfolioPage,
+  TransactionsPage,
 } from "./pages";
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
         <Route path="/accounts" element={<AccountsListPage />} />
         <Route path="/accounts/new" element={<AccountNewPage />} />
         <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
+        <Route path="/transactions" element={<TransactionsPage />} />
       </Route>
     </Routes>
   );
