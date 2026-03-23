@@ -262,35 +262,33 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
         {/* Cash by currency */}
         <section className="space-y-4">
           <h2 className="text-lg font-semibold tracking-tight px-1">Cash By Currency</h2>
-          <Card size="sm">
-            <div className="divide-y divide-border">
-              {summary.cash_by_currency.map((balance) => {
-                const balanceValue = balance.converted_amount ? Number(balance.converted_amount) : null;
-                const percentage =
-                  totalValue && balanceValue ? (balanceValue / totalValue) * 100 : null;
+          <Card className="bg-background">
+            <CardContent className="pt-6 pb-6">
+              <div className="space-y-6">
+                {summary.cash_by_currency.map((balance) => {
+                  const balanceValue = balance.converted_amount ? Number(balance.converted_amount) : null;
+                  const percentage =
+                    totalValue && balanceValue ? (balanceValue / totalValue) * 100 : 0;
 
-                return (
-                  <div key={balance.currency} className="flex items-center justify-between px-4 py-3 first:pt-2 last:pb-2">
-                    <div className="flex flex-col gap-1.5 flex-1 pr-4">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-sm">{balance.currency}</span>
+                  return (
+                    <div key={balance.currency} className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">{balance.currency}</span>
                         <span className="font-mono text-xs text-muted-foreground">
                           {formatOriginalAmount(balance.amount)} {balance.currency}
                         </span>
                       </div>
-                      {percentage !== null && (
-                        <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary/20 rounded-full"
-                            style={{ width: `${percentage}%` }}
-                          />
-                        </div>
-                      )}
+                      <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-all duration-500"
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            </CardContent>
           </Card>
         </section>
       </div>
