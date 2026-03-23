@@ -2,6 +2,7 @@ mod api;
 mod db;
 mod format;
 mod fx_refresh;
+mod logging;
 mod storage;
 
 pub use api::{ApiError, ApiErrorResponse, AppState, build_router, build_router_with_state};
@@ -12,6 +13,7 @@ pub use fx_refresh::{
     SharedFxRefreshStatus, fetch_frankfurter_rates, new_shared_fx_refresh_status, refresh_fx_rates,
     spawn_fx_refresh_task,
 };
+pub use logging::{default_log_filter, init_tracing};
 pub use storage::{
     AccountBalanceRecord, AccountId, AccountName, AccountRecord, AccountSummaryRecord,
     AccountSummaryStatus, AccountType, Amount, CreateAccountInput, Currency, CurrencyRecord,
