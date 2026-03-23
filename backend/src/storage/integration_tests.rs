@@ -441,6 +441,96 @@ async fn rejects_oversell_and_keeps_transactions_unchanged() {
 }
 
 #[tokio::test]
+async fn updating_asset_transaction_rejects_oversell_and_keeps_original_transaction() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("BTC"),
+            name: asset_name("Bitcoin"),
+            asset_type: AssetType::Crypto,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2026-03-20"),
+            quantity: asset_quantity("5"),
+            unit_price: asset_unit_price("80000"),
+            currency_code: Currency::Usd,
+            notes: None,
+        },
+    )
+    .await
+    .expect("buy insert should succeed");
+
+    let sell_transaction = create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Sell,
+            trade_date: trade_date("2026-03-21"),
+            quantity: asset_quantity("2"),
+            unit_price: asset_unit_price("81000"),
+            currency_code: Currency::Usd,
+            notes: Some("original sell".to_string()),
+        },
+    )
+    .await
+    .expect("sell insert should succeed");
+
+    let error = super::update_asset_transaction(
+        &pool,
+        sell_transaction.id,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Sell,
+            trade_date: trade_date("2026-03-21"),
+            quantity: asset_quantity("6"),
+            unit_price: asset_unit_price("81000"),
+            currency_code: Currency::Usd,
+            notes: Some("updated sell".to_string()),
+        },
+    )
+    .await
+    .expect_err("oversell update should fail");
+
+    assert_eq!(
+        error.to_string(),
+        "sell transaction would make position negative"
+    );
+
+    let transactions = list_asset_transactions(&pool, account_id)
+        .await
+        .expect("transaction list should succeed");
+
+    assert_eq!(transactions.len(), 2);
+    assert_eq!(transactions[0].id, sell_transaction.id);
+    assert_eq!(transactions[0].quantity.to_string(), "2");
+    assert_eq!(transactions[0].notes.as_deref(), Some("original sell"));
+}
+
+#[tokio::test]
 async fn omits_zero_positions_and_isolates_accounts() {
     let pool = test_pool().await;
 

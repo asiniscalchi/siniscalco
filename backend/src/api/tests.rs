@@ -774,6 +774,281 @@ async fn rejects_unfiltered_asset_transaction_listing_through_api() {
 }
 
 #[tokio::test]
+async fn updates_asset_transaction_through_api() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    let transaction = create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2026-03-20"),
+            quantity: crate::AssetQuantity::try_from("10").unwrap(),
+            unit_price: crate::AssetUnitPrice::try_from("150.25").unwrap(),
+            currency_code: Currency::Usd,
+            notes: Some("initial buy".to_string()),
+        },
+    )
+    .await
+    .expect("transaction insert should succeed");
+
+    let app = build_router_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(format!("/asset-transactions/{}", transaction.id))
+                .header("content-type", "application/json")
+                .body(Body::from(format!(
+                    r#"{{"account_id":{},"asset_id":{},"transaction_type":"BUY","trade_date":"2026-03-22","quantity":"7","unit_price":"155","currency_code":"USD","notes":"updated buy"}}"#,
+                    account_id.as_i64(),
+                    asset_id.as_i64()
+                )))
+                .expect("request should build"),
+        )
+        .await
+        .expect("update transaction request should succeed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+    let json: Value = serde_json::from_slice(&body).expect("transaction response should parse");
+
+    assert_eq!(json["id"], transaction.id);
+    assert_eq!(json["trade_date"], "2026-03-22");
+    assert_eq!(json["quantity"], "7.000000");
+    assert_eq!(json["unit_price"], "155.000000");
+    assert_eq!(json["notes"], "updated buy");
+    assert_ne!(json["created_at"], json["updated_at"]);
+}
+
+#[tokio::test]
+async fn rejects_asset_transaction_update_that_would_make_position_negative() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("BTC"),
+            name: asset_name("Bitcoin"),
+            asset_type: AssetType::Crypto,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2026-03-20"),
+            quantity: crate::AssetQuantity::try_from("5").unwrap(),
+            unit_price: crate::AssetUnitPrice::try_from("80000").unwrap(),
+            currency_code: Currency::Usd,
+            notes: None,
+        },
+    )
+    .await
+    .expect("buy insert should succeed");
+    let sell_transaction = create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Sell,
+            trade_date: trade_date("2026-03-21"),
+            quantity: crate::AssetQuantity::try_from("2").unwrap(),
+            unit_price: crate::AssetUnitPrice::try_from("81000").unwrap(),
+            currency_code: Currency::Usd,
+            notes: None,
+        },
+    )
+    .await
+    .expect("sell insert should succeed");
+
+    let app = build_router_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(format!("/asset-transactions/{}", sell_transaction.id))
+                .header("content-type", "application/json")
+                .body(Body::from(format!(
+                    r#"{{"account_id":{},"asset_id":{},"transaction_type":"SELL","trade_date":"2026-03-21","quantity":"6","unit_price":"81000","currency_code":"USD","notes":null}}"#,
+                    account_id.as_i64(),
+                    asset_id.as_i64()
+                )))
+                .expect("request should build"),
+        )
+        .await
+        .expect("update transaction request should succeed");
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+
+    assert_eq!(
+        std::str::from_utf8(&body).expect("json body should be utf8"),
+        r#"{"error":"validation_error","message":"sell transaction would make position negative"}"#
+    );
+}
+
+#[tokio::test]
+async fn deletes_asset_transaction_through_api() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("VTI"),
+            name: asset_name("Vanguard Total Stock Market ETF"),
+            asset_type: AssetType::Etf,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    let transaction = create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2026-03-20"),
+            quantity: crate::AssetQuantity::try_from("2").unwrap(),
+            unit_price: crate::AssetUnitPrice::try_from("100").unwrap(),
+            currency_code: Currency::Usd,
+            notes: Some("to be deleted".to_string()),
+        },
+    )
+    .await
+    .expect("transaction insert should succeed");
+
+    let app = build_router_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/asset-transactions/{}", transaction.id))
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("delete transaction request should succeed");
+
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    let list_response = build_router_with_fx_status(pool, FxRefreshAvailability::Available, None)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/asset-transactions?account_id={}", account_id.as_i64()))
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("list transactions request should succeed");
+
+    let body = list_response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+    let json: Value = serde_json::from_slice(&body).expect("transaction list should parse");
+
+    assert!(json.as_array().expect("response should be an array").is_empty());
+}
+
+#[tokio::test]
+async fn returns_not_found_when_deleting_missing_asset_transaction_through_api() {
+    let pool = test_pool().await;
+    let app = build_router_with_fx_status(pool, FxRefreshAvailability::Available, None);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri("/asset-transactions/999")
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("delete transaction request should succeed");
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+
+    assert_eq!(
+        std::str::from_utf8(&body).expect("json body should be utf8"),
+        r#"{"error":"not_found","message":"Asset transaction not found"}"#
+    );
+}
+
+#[tokio::test]
 async fn lists_active_positions_through_api() {
     let pool = test_pool().await;
 
