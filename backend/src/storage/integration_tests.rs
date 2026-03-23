@@ -731,8 +731,8 @@ async fn allows_multiple_currencies_per_account() {
             }
         ]
     );
-    assert_eq!(balances[0].updated_at.len(), 19);
-    assert_eq!(balances[1].updated_at.len(), 19);
+    assert_eq!(balances[0].updated_at.len(), 20);
+    assert_eq!(balances[1].updated_at.len(), 20);
 }
 
 #[tokio::test]
@@ -780,7 +780,7 @@ async fn upsert_updates_existing_balance() {
 
     assert_eq!(balances.len(), 1);
     assert_eq!(balances[0].amount, amt("12"));
-    assert_eq!(balances[0].updated_at.len(), 19);
+    assert_eq!(balances[0].updated_at.len(), 20);
 }
 
 #[tokio::test]
@@ -932,7 +932,7 @@ async fn preserves_created_account_fields() {
             created_at: accounts[0].created_at.clone(),
         }]
     );
-    assert_eq!(accounts[0].created_at.len(), 19);
+    assert_eq!(accounts[0].created_at.len(), 20);
 }
 
 #[tokio::test]
@@ -1081,7 +1081,7 @@ async fn gets_latest_fx_rate_with_timestamp() {
             updated_at: rate.updated_at.clone(),
         }
     );
-    assert_eq!(rate.updated_at.len(), 19);
+    assert_eq!(rate.updated_at.len(), 20);
 }
 
 #[tokio::test]

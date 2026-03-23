@@ -7,7 +7,7 @@ CREATE TABLE accounts (
     name TEXT NOT NULL CHECK (length(trim(name)) > 0),
     account_type TEXT NOT NULL CHECK (account_type IN ('bank', 'broker')),
     base_currency TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (base_currency) REFERENCES currencies(code)
 );
 
