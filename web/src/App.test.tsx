@@ -263,7 +263,7 @@ describe("App shell", () => {
     expect(accountsLink.getAttribute("aria-current")).toBe("page");
     expect(accountsLink.className).toContain("border-foreground");
 
-    expect(await screen.findByText("IBKR")).toBeTruthy();
+    expect(await screen.findAllByText("IBKR")).toHaveLength(2);
     expect(screen.getByText("connected")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("link", { name: "Create account" }));
@@ -279,7 +279,7 @@ describe("App shell", () => {
 
     fireEvent.click(screen.getByRole("link", { name: "Cancel" }));
 
-    expect(await screen.findByText("IBKR")).toBeTruthy();
+    expect(await screen.findAllByText("IBKR")).toHaveLength(2);
 
     fireEvent.click(
       screen.getByRole("link", { name: /IBKR.*broker.*EUR.*View details/ }),
