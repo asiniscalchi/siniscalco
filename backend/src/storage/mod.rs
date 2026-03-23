@@ -44,7 +44,7 @@ pub use balances::*;
 pub use currency::*;
 pub use fx::*;
 pub use fx_rate::*;
-pub use records::{current_utc_timestamp, current_utc_timestamp_iso8601};
 pub use records::*;
+pub use records::{current_utc_timestamp, current_utc_timestamp_iso8601};
 pub use storage_error::*;
 pub use trade_date::*;

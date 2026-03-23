@@ -13,9 +13,9 @@ use super::{
     FxRate, FxRateDetailRecord, FxRateRecord, FxRateSummaryItemRecord, FxRateSummaryRecord,
     StorageError, TradeDate, UpsertAccountBalanceInput, UpsertFxRateInput, UpsertOutcome,
     create_account, create_asset, create_asset_transaction, delete_account, delete_account_balance,
-    get_account, get_latest_fx_rate, list_account_balances, list_account_positions, list_account_summaries,
-    list_accounts, list_asset_transactions, list_assets, list_currencies, list_fx_rate_summary,
-    list_fx_rates, upsert_account_balance, upsert_fx_rate,
+    get_account, get_latest_fx_rate, list_account_balances, list_account_positions,
+    list_account_summaries, list_accounts, list_asset_transactions, list_assets, list_currencies,
+    list_fx_rate_summary, list_fx_rates, upsert_account_balance, upsert_fx_rate,
 };
 use crate::db::init_db;
 

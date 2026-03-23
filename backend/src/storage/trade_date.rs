@@ -31,8 +31,8 @@ impl TryFrom<&str> for TradeDate {
             .parse::<u8>()
             .map_err(|_| StorageError::Validation("trade_date must use YYYY-MM-DD"))?;
 
-        let month =
-            Month::try_from(month).map_err(|_| StorageError::Validation("trade_date must use YYYY-MM-DD"))?;
+        let month = Month::try_from(month)
+            .map_err(|_| StorageError::Validation("trade_date must use YYYY-MM-DD"))?;
         Date::from_calendar_date(year, month, day)
             .map_err(|_| StorageError::Validation("trade_date must use YYYY-MM-DD"))?;
 

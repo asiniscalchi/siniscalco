@@ -5,7 +5,7 @@ use sqlx::{Row, SqlitePool};
 
 use crate::storage::records::*;
 use crate::storage::{
-    Amount, AssetId, AssetPosition, AssetQuantity, AssetTransactionType, AssetUnitPrice, AccountId,
+    AccountId, Amount, AssetId, AssetPosition, AssetQuantity, AssetTransactionType, AssetUnitPrice,
     Currency, StorageError, TradeDate, current_utc_timestamp_iso8601,
 };
 
@@ -14,7 +14,9 @@ pub async fn create_asset_transaction(
     input: CreateAssetTransactionInput,
 ) -> Result<AssetTransactionRecord, StorageError> {
     let mut connection = pool.acquire().await?;
-    sqlx::query("BEGIN IMMEDIATE").execute(&mut *connection).await?;
+    sqlx::query("BEGIN IMMEDIATE")
+        .execute(&mut *connection)
+        .await?;
 
     let result = async {
         if input.transaction_type == AssetTransactionType::Sell {
@@ -179,7 +181,9 @@ async fn load_current_quantity(
     Ok(quantity)
 }
 
-fn map_transaction_row(row: sqlx::sqlite::SqliteRow) -> Result<AssetTransactionRecord, StorageError> {
+fn map_transaction_row(
+    row: sqlx::sqlite::SqliteRow,
+) -> Result<AssetTransactionRecord, StorageError> {
     Ok(AssetTransactionRecord {
         id: row.get("id"),
         account_id: AccountId::try_from(row.get::<i64, _>("account_id"))?,
