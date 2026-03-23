@@ -162,9 +162,13 @@ describe("TransactionsPage", () => {
     fireEvent.change(accountSelect, { target: { value: "1" } });
 
     expect(
-      await screen.findByText("Create an asset before recording a transaction."),
+      await screen.findByText("No assets yet. Create one to record a transaction."),
     ).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Create Asset" })).toBeTruthy();
+    
+    // There are two "Create Asset" buttons: one in header, one in empty state
+    const createAssetButtons = screen.getAllByRole("button", { name: "Create Asset" });
+    expect(createAssetButtons.length).toBe(2);
+    
     expect(
       (
         screen.getByRole("button", { name: "Add Transaction" }) as HTMLButtonElement
@@ -172,7 +176,7 @@ describe("TransactionsPage", () => {
     ).toBe(true);
   });
 
-  it("creates an asset, refreshes assets, and auto-selects it", async () => {
+  it("creates an asset via modal, refreshes assets, and auto-selects it", async () => {
     const accounts = [
       { id: 1, name: "Main Account", account_type: "bank", base_currency: "USD" },
     ];
@@ -249,15 +253,25 @@ describe("TransactionsPage", () => {
     const accountSelect = await screen.findByLabelText("Account:");
     fireEvent.change(accountSelect, { target: { value: "1" } });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Create Asset" }));
-    fireEvent.change(screen.getByLabelText("Symbol"), { target: { value: "vwce" } });
-    fireEvent.change(screen.getByLabelText("Name"), {
+    // Open modal using the first "Create Asset" button (in header)
+    fireEvent.click(screen.getAllByRole("button", { name: "Create Asset" })[0]);
+    
+    // Check for modal content
+    expect(await screen.findByRole("heading", { name: "Create Asset" })).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Symbol *"), { target: { value: "vwce" } });
+    fireEvent.change(screen.getByLabelText("Name *"), {
       target: { value: "Vanguard FTSE All-World UCITS ETF" },
     });
-    fireEvent.change(screen.getByLabelText("Asset Type"), {
+    fireEvent.change(screen.getByLabelText("Asset Type *"), {
       target: { value: "ETF" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save Asset" }));
+    
+    // Find the submit button in the modal
+    const createAssetButtons = screen.getAllByRole("button", { name: "Create Asset" });
+    const submitButton = createAssetButtons.find(btn => (btn as HTMLButtonElement).type === 'submit');
+    if (!submitButton) throw new Error("Submit button not found");
+    fireEvent.click(submitButton);
 
     await waitFor(() => {
       expect(vi.mocked(fetch)).toHaveBeenCalledWith(
@@ -295,7 +309,7 @@ describe("TransactionsPage", () => {
     });
   });
 
-  it("shows validation errors and preserves create-asset values", async () => {
+  it("shows validation errors and preserves create-asset values in modal", async () => {
     const accounts = [
       { id: 1, name: "Main Account", account_type: "bank", base_currency: "USD" },
     ];
@@ -352,20 +366,24 @@ describe("TransactionsPage", () => {
     const accountSelect = await screen.findByLabelText("Account:");
     fireEvent.change(accountSelect, { target: { value: "1" } });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Create Asset" }));
-    fireEvent.change(screen.getByLabelText("Symbol"), { target: { value: "   " } });
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Pending Asset" } });
-    fireEvent.change(screen.getByLabelText("Asset Type"), {
+    fireEvent.click(screen.getAllByRole("button", { name: "Create Asset" })[0]);
+    fireEvent.change(screen.getByLabelText("Symbol *"), { target: { value: "   " } });
+    fireEvent.change(screen.getByLabelText("Name *"), { target: { value: "Pending Asset" } });
+    fireEvent.change(screen.getByLabelText("Asset Type *"), {
       target: { value: "OTHER" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save Asset" }));
+    
+    const createAssetButtons = screen.getAllByRole("button", { name: "Create Asset" });
+    const submitButton = createAssetButtons.find(btn => (btn as HTMLButtonElement).type === 'submit');
+    if (!submitButton) throw new Error("Submit button not found");
+    fireEvent.click(submitButton);
 
     expect(await screen.findByText("Asset validation failed")).toBeTruthy();
     expect(screen.getByText("Symbol is required")).toBeTruthy();
-    expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe(
+    expect((screen.getByLabelText("Name *") as HTMLInputElement).value).toBe(
       "Pending Asset",
     );
-    expect((screen.getByLabelText("Asset Type") as HTMLSelectElement).value).toBe(
+    expect((screen.getByLabelText("Asset Type *") as HTMLSelectElement).value).toBe(
       "OTHER",
     );
   });
