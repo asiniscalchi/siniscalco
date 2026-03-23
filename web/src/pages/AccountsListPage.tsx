@@ -155,7 +155,7 @@ function AccountsEmptyState() {
           Create your first cash account to start managing account details.
         </CardDescription>
       </CardHeader>
-      <CardFooter className="justify-end">
+      <CardFooter className="justify-end pt-6">
         <Link className={cn(buttonVariants())} to="/accounts/new">
           Create account
         </Link>
@@ -173,7 +173,7 @@ function AccountsErrorState({ onRetry }: { onRetry: () => void }) {
           The accounts list request failed. Try again to reload the page data.
         </CardDescription>
       </CardHeader>
-      <CardFooter className="justify-end gap-3">
+      <CardFooter className="justify-end gap-3 pt-6">
         <Link
           className={cn(buttonVariants({ variant: "outline" }))}
           to="/accounts/new"

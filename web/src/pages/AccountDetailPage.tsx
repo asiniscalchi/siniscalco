@@ -167,7 +167,7 @@ export function AccountDetailPage() {
             <CardTitle>Could not load account</CardTitle>
             <CardDescription>{requestState.message}</CardDescription>
           </CardHeader>
-          <CardFooter className="justify-end gap-3">
+          <CardFooter className="justify-end gap-3 pt-6">
             <Link
               className={cn(buttonVariants({ variant: "outline" }))}
               to="/accounts"

@@ -107,7 +107,7 @@ function PortfolioErrorState({ onRetry }: { onRetry: () => void }) {
           data.
         </CardDescription>
       </CardHeader>
-      <CardFooter className="justify-end gap-3">
+      <CardFooter className="justify-end gap-3 pt-6">
         <Link className={cn(buttonVariants({ variant: "outline" }))} to="/accounts">
           View accounts
         </Link>
@@ -188,11 +188,11 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
 
       <div className="grid gap-8 lg:grid-cols-[1fr_350px]">
         {/* Account breakdown */}
-        <Card className="bg-background self-start">
-          <CardHeader className="border-b">
+        <Card className="bg-background">
+          <CardHeader>
             <CardTitle>Cash By Account</CardTitle>
           </CardHeader>
-          <CardContent className="pt-6">
+          <CardContent>
             <div className="space-y-6">
               {[...summary.account_totals]
                 .sort((a, b) => {
@@ -258,11 +258,11 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
         </Card>
 
         {/* Cash by currency */}
-        <Card className="bg-background self-start">
-          <CardHeader className="border-b">
+        <Card className="bg-background">
+          <CardHeader>
             <CardTitle>Cash By Currency</CardTitle>
           </CardHeader>
-          <CardContent className="pt-6 pb-6">
+          <CardContent>
             <div className="space-y-6">
               {summary.cash_by_currency.map((balance) => {
                 const balanceValue = balance.converted_amount ? Number(balance.converted_amount) : null;
@@ -303,7 +303,7 @@ function PortfolioEmptyState() {
           overview.
         </CardDescription>
       </CardHeader>
-      <CardFooter className="justify-end">
+      <CardFooter className="justify-end pt-6">
         <Link className={cn(buttonVariants())} to="/accounts">
           View accounts
         </Link>
