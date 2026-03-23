@@ -362,10 +362,12 @@ describe("AccountsListPage", () => {
     const accountLink = await screen.findByRole("link", {
       name: /IBKR.*broker.*EUR.*View details/,
     });
+    const maskedAmount = screen.getByText("•••• EUR");
 
-    expect(screen.getByText("•••• EUR")).toBeTruthy();
+    expect(maskedAmount).toBeTruthy();
     expect(screen.queryByText("123.45 EUR")).toBeNull();
     expect(accountLink.textContent).toContain("•••• EUR");
     expect(accountLink.textContent).not.toContain("123.45 EUR");
+    expect(maskedAmount.className).toContain("text-left");
   });
 });

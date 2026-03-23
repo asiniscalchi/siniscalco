@@ -298,7 +298,7 @@ function AccountListItem({
           {summaryStatus === "ok" && totalAmount && totalCurrency ? (
             <p className="mt-1 text-lg font-semibold">
               <MoneyText
-                className="text-right"
+                className="text-left"
                 currency={totalCurrency}
                 hidden={hideValues}
                 value={totalAmount}
