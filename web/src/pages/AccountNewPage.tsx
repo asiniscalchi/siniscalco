@@ -124,7 +124,7 @@ export function AccountNewPage() {
       </header>
 
       <Card className="bg-background">
-        <CardContent className="pt-4">
+        <CardContent>
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div className="space-y-2">
               <label className="text-sm font-medium" htmlFor="account-name">
