@@ -250,6 +250,66 @@ async fn creates_asset_transactions_and_derives_positions() {
 }
 
 #[tokio::test]
+async fn derives_positions_for_maximum_supported_transaction_quantities() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("BIG"),
+            name: asset_name("Big Asset"),
+            asset_type: AssetType::Stock,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2026-03-22"),
+            quantity: asset_quantity("999999999999.12345678"),
+            unit_price: asset_unit_price("1"),
+            currency_code: Currency::Usd,
+            notes: None,
+        },
+    )
+    .await
+    .expect("buy insert should succeed");
+
+    let positions = list_account_positions(&pool, account_id)
+        .await
+        .expect("position list should succeed");
+
+    assert_eq!(
+        positions,
+        vec![AssetPositionRecord {
+            account_id,
+            asset_id,
+            quantity: super::AssetPosition::try_from(
+                rust_decimal::Decimal::from_str("999999999999.12345678").unwrap(),
+            )
+            .unwrap(),
+        }]
+    );
+}
+
+#[tokio::test]
 async fn rejects_oversell_and_keeps_transactions_unchanged() {
     let pool = test_pool().await;
 
