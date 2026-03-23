@@ -4,7 +4,9 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 use sqlx::SqlitePool;
+use std::collections::BTreeMap;
 
 use crate::{AssetType, Currency, SharedFxRefreshStatus, storage::StorageError};
 
@@ -19,6 +21,14 @@ pub struct CreateAccountRequest {
     pub name: String,
     pub account_type: String,
     pub base_currency: String,
+}
+
+#[derive(Debug, Deserialize, Eq, PartialEq)]
+pub struct CreateAssetRequest {
+    pub symbol: String,
+    pub name: String,
+    pub asset_type: String,
+    pub isin: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Eq, PartialEq)]
@@ -73,6 +83,17 @@ pub struct AssetResponse {
     pub name: String,
     pub asset_type: AssetType,
     pub isin: Option<String>,
+}
+
+#[derive(Debug, Serialize, Eq, PartialEq)]
+pub struct CreatedAssetResponse {
+    pub id: i64,
+    pub symbol: String,
+    pub name: String,
+    pub asset_type: AssetType,
+    pub isin: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]
@@ -172,6 +193,11 @@ pub struct ApiError {
     pub(crate) body: ApiErrorResponse,
 }
 
+pub struct CreateAssetApiError {
+    pub(crate) status: StatusCode,
+    pub(crate) body: Value,
+}
+
 impl ApiError {
     pub(crate) fn validation(message: &'static str) -> Self {
         Self {
@@ -204,6 +230,32 @@ impl ApiError {
     }
 }
 
+impl CreateAssetApiError {
+    pub(crate) fn validation(field_errors: BTreeMap<String, Vec<String>>) -> Self {
+        Self {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            body: json!({
+                "message": "Asset validation failed",
+                "field_errors": field_errors,
+            }),
+        }
+    }
+
+    pub(crate) fn bad_request(message: &'static str) -> Self {
+        Self {
+            status: StatusCode::BAD_REQUEST,
+            body: json!({ "message": message }),
+        }
+    }
+
+    pub(crate) fn internal_server_error() -> Self {
+        Self {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            body: json!({ "message": "Failed to create asset" }),
+        }
+    }
+}
+
 impl From<StorageError> for ApiError {
     fn from(value: StorageError) -> Self {
         match value {
@@ -217,7 +269,23 @@ impl From<StorageError> for ApiError {
     }
 }
 
+impl From<StorageError> for CreateAssetApiError {
+    fn from(value: StorageError) -> Self {
+        match value {
+            StorageError::Validation(_) => Self::internal_server_error(),
+            StorageError::Internal(_) => Self::internal_server_error(),
+            StorageError::Database(_) => Self::internal_server_error(),
+        }
+    }
+}
+
 impl IntoResponse for ApiError {
+    fn into_response(self) -> Response {
+        (self.status, Json(self.body)).into_response()
+    }
+}
+
+impl IntoResponse for CreateAssetApiError {
     fn into_response(self) -> Response {
         (self.status, Json(self.body)).into_response()
     }

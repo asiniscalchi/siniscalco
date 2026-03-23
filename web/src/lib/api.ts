@@ -1,5 +1,5 @@
 type ApiErrorResponse = {
-  error: string;
+  error?: string;
   message: string;
 };
 
