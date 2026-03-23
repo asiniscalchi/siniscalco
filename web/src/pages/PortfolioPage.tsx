@@ -107,7 +107,7 @@ function PortfolioErrorState({ onRetry }: { onRetry: () => void }) {
           data.
         </CardDescription>
       </CardHeader>
-      <CardFooter className="justify-end gap-3 pt-6">
+      <CardFooter className="justify-end gap-3 pt-4">
         <Link className={cn(buttonVariants({ variant: "outline" }))} to="/accounts">
           View accounts
         </Link>
@@ -303,7 +303,7 @@ function PortfolioEmptyState() {
           overview.
         </CardDescription>
       </CardHeader>
-      <CardFooter className="justify-end pt-6">
+      <CardFooter className="justify-end pt-4">
         <Link className={cn(buttonVariants())} to="/accounts">
           View accounts
         </Link>
