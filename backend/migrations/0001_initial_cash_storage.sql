@@ -40,6 +40,38 @@ CREATE TABLE account_balances (
     FOREIGN KEY (currency) REFERENCES currencies(code)
 );
 
+CREATE TABLE assets (
+    id INTEGER PRIMARY KEY,
+    symbol TEXT NOT NULL CHECK (length(trim(symbol)) > 0),
+    name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+    asset_type TEXT NOT NULL CHECK (
+        asset_type IN ('STOCK', 'ETF', 'BOND', 'CRYPTO', 'CASH_EQUIVALENT', 'OTHER')
+    ),
+    isin TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
+CREATE TABLE asset_transactions (
+    id INTEGER PRIMARY KEY,
+    account_id INTEGER NOT NULL,
+    asset_id INTEGER NOT NULL,
+    transaction_type TEXT NOT NULL CHECK (transaction_type IN ('BUY', 'SELL')),
+    trade_date TEXT NOT NULL CHECK (
+        length(trade_date) = 10
+        AND trade_date GLOB '????-??-??'
+    ),
+    quantity TEXT NOT NULL,
+    unit_price TEXT NOT NULL,
+    currency_code TEXT NOT NULL,
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+    FOREIGN KEY (asset_id) REFERENCES assets(id),
+    FOREIGN KEY (currency_code) REFERENCES currencies(code)
+);
+
 CREATE TABLE fx_rates (
     from_currency TEXT NOT NULL,
     to_currency TEXT NOT NULL,

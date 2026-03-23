@@ -1,0 +1,219 @@
+use rust_decimal::Decimal;
+use sqlx::{Row, SqlitePool};
+
+use crate::storage::records::*;
+use crate::storage::{
+    AccountId, AssetId, AssetPosition, AssetQuantity, AssetTransactionType, AssetUnitPrice,
+    Currency, StorageError, TradeDate, current_utc_timestamp_iso8601,
+};
+
+pub async fn create_asset_transaction(
+    pool: &SqlitePool,
+    input: CreateAssetTransactionInput,
+) -> Result<AssetTransactionRecord, StorageError> {
+    let mut connection = pool.acquire().await?;
+    sqlx::query("BEGIN IMMEDIATE")
+        .execute(&mut *connection)
+        .await?;
+
+    let result = async {
+        if input.transaction_type == AssetTransactionType::Sell {
+            let current_quantity =
+                load_current_quantity(&mut connection, input.account_id, input.asset_id).await?;
+
+            if current_quantity < input.quantity.as_decimal() {
+                return Err(StorageError::Validation(
+                    "sell transaction would make position negative",
+                ));
+            }
+        }
+
+        let timestamp = current_utc_timestamp_iso8601()?;
+        let result = sqlx::query(
+            r#"
+            INSERT INTO asset_transactions (
+                account_id,
+                asset_id,
+                transaction_type,
+                trade_date,
+                quantity,
+                unit_price,
+                currency_code,
+                notes,
+                created_at,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(input.account_id.as_i64())
+        .bind(input.asset_id.as_i64())
+        .bind(input.transaction_type.as_str())
+        .bind(input.trade_date.as_str())
+        .bind(input.quantity.to_string())
+        .bind(input.unit_price.to_string())
+        .bind(input.currency_code.as_str())
+        .bind(input.notes.as_deref())
+        .bind(&timestamp)
+        .bind(&timestamp)
+        .execute(&mut *connection)
+        .await?;
+
+        let transaction_id = result.last_insert_rowid();
+        let row = sqlx::query(
+            r#"
+            SELECT id, account_id, asset_id, transaction_type, trade_date, quantity, unit_price,
+                   currency_code, notes, created_at, updated_at
+            FROM asset_transactions
+            WHERE id = ?
+            "#,
+        )
+        .bind(transaction_id)
+        .fetch_one(&mut *connection)
+        .await?;
+
+        sqlx::query("COMMIT").execute(&mut *connection).await?;
+        map_transaction_row(row)
+    }
+    .await;
+
+    if result.is_err() {
+        let _ = sqlx::query("ROLLBACK").execute(&mut *connection).await;
+    }
+
+    result
+}
+
+pub async fn list_asset_transactions(
+    pool: &SqlitePool,
+    account_id: AccountId,
+) -> Result<Vec<AssetTransactionRecord>, StorageError> {
+    let rows = sqlx::query(
+        r#"
+        SELECT id, account_id, asset_id, transaction_type, trade_date, quantity, unit_price,
+               currency_code, notes, created_at, updated_at
+        FROM asset_transactions
+        WHERE account_id = ?
+        ORDER BY trade_date DESC, created_at DESC, id DESC
+        "#,
+    )
+    .bind(account_id.as_i64())
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter().map(map_transaction_row).collect()
+}
+
+pub async fn list_account_positions(
+    pool: &SqlitePool,
+    account_id: AccountId,
+) -> Result<Vec<AssetPositionRecord>, StorageError> {
+    let rows = sqlx::query(
+        r#"
+        WITH normalized_transactions AS (
+            SELECT
+                asset_id,
+                transaction_type,
+                CASE
+                    WHEN instr(quantity, '.') = 0 THEN CAST(quantity || '00000000' AS INTEGER)
+                    ELSE CAST(
+                        substr(quantity, 1, instr(quantity, '.') - 1) ||
+                        substr(substr(quantity, instr(quantity, '.') + 1) || '00000000', 1, 8)
+                        AS INTEGER
+                    )
+                END AS scaled_quantity
+            FROM asset_transactions
+            WHERE account_id = ?
+        )
+        SELECT
+            asset_id,
+            SUM(
+                CASE
+                    WHEN transaction_type = 'BUY' THEN scaled_quantity
+                    ELSE -scaled_quantity
+                END
+            ) AS net_scaled_quantity
+        FROM normalized_transactions
+        GROUP BY asset_id
+        HAVING net_scaled_quantity > 0
+        ORDER BY asset_id
+        "#,
+    )
+    .bind(account_id.as_i64())
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter()
+        .map(|row| {
+            let net_scaled_quantity = row.get::<i64, _>("net_scaled_quantity");
+            let quantity = Decimal::new(net_scaled_quantity, 8).normalize();
+
+            Ok(AssetPositionRecord {
+                account_id,
+                asset_id: AssetId::try_from(row.get::<i64, _>("asset_id"))?,
+                quantity: AssetPosition::try_from(quantity)?,
+            })
+        })
+        .into_iter()
+        .collect()
+}
+
+async fn load_current_quantity(
+    connection: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
+    account_id: AccountId,
+    asset_id: AssetId,
+) -> Result<Decimal, StorageError> {
+    let row = sqlx::query(
+        r#"
+        WITH normalized_transactions AS (
+            SELECT
+                transaction_type,
+                CASE
+                    WHEN instr(quantity, '.') = 0 THEN CAST(quantity || '00000000' AS INTEGER)
+                    ELSE CAST(
+                        substr(quantity, 1, instr(quantity, '.') - 1) ||
+                        substr(substr(quantity, instr(quantity, '.') + 1) || '00000000', 1, 8)
+                        AS INTEGER
+                    )
+                END AS scaled_quantity
+            FROM asset_transactions
+            WHERE account_id = ? AND asset_id = ?
+        )
+        SELECT
+            COALESCE(
+                SUM(
+                    CASE
+                        WHEN transaction_type = 'BUY' THEN scaled_quantity
+                        ELSE -scaled_quantity
+                    END
+                ),
+                0
+            ) AS net_scaled_quantity
+        FROM normalized_transactions
+        "#,
+    )
+    .bind(account_id.as_i64())
+    .bind(asset_id.as_i64())
+    .fetch_one(&mut **connection)
+    .await?;
+
+    Ok(Decimal::new(row.get::<i64, _>("net_scaled_quantity"), 8).normalize())
+}
+
+fn map_transaction_row(
+    row: sqlx::sqlite::SqliteRow,
+) -> Result<AssetTransactionRecord, StorageError> {
+    Ok(AssetTransactionRecord {
+        id: row.get("id"),
+        account_id: AccountId::try_from(row.get::<i64, _>("account_id"))?,
+        asset_id: AssetId::try_from(row.get::<i64, _>("asset_id"))?,
+        transaction_type: AssetTransactionType::try_from(row.get::<&str, _>("transaction_type"))?,
+        trade_date: TradeDate::try_from(row.get::<&str, _>("trade_date"))?,
+        quantity: AssetQuantity::try_from(row.get::<&str, _>("quantity"))?,
+        unit_price: AssetUnitPrice::try_from(row.get::<&str, _>("unit_price"))?,
+        currency_code: Currency::try_from(row.get::<&str, _>("currency_code"))?,
+        notes: row.get::<Option<String>, _>("notes"),
+        created_at: row.get("created_at"),
+        updated_at: row.get("updated_at"),
+    })
+}

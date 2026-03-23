@@ -13,10 +13,11 @@ use tower::ServiceExt;
 
 use super::{ApiError, AppState, build_router, build_router_with_state};
 use crate::{
-    AccountId, AccountName, AccountType, Amount, CreateAccountInput, Currency, FxRate,
-    FxRefreshAvailability, FxRefreshStatus, UpsertAccountBalanceInput, UpsertFxRateInput,
-    create_account, get_account, init_db, list_account_balances, upsert_account_balance,
-    upsert_fx_rate,
+    AccountId, AccountName, AccountType, Amount, AssetName, AssetSymbol, AssetTransactionType,
+    AssetType, CreateAccountInput, CreateAssetInput, CreateAssetTransactionInput, Currency, FxRate,
+    FxRefreshAvailability, FxRefreshStatus, TradeDate, UpsertAccountBalanceInput,
+    UpsertFxRateInput, create_account, create_asset, create_asset_transaction, get_account,
+    init_db, list_account_balances, upsert_account_balance, upsert_fx_rate,
 };
 
 fn amt(value: &str) -> Amount {
@@ -33,6 +34,18 @@ fn account_id(value: i64) -> AccountId {
 
 fn account_name(value: &str) -> AccountName {
     AccountName::try_from(value).expect("account name should parse")
+}
+
+fn asset_symbol(value: &str) -> AssetSymbol {
+    AssetSymbol::try_from(value).expect("asset symbol should parse")
+}
+
+fn asset_name(value: &str) -> AssetName {
+    AssetName::try_from(value).expect("asset name should parse")
+}
+
+fn trade_date(value: &str) -> TradeDate {
+    TradeDate::try_from(value).expect("trade date should parse")
 }
 
 async fn test_pool() -> sqlx::SqlitePool {
@@ -110,6 +123,49 @@ async fn lists_allowed_currencies_through_api() {
     assert_eq!(
         std::str::from_utf8(&body).expect("json body should be utf8"),
         r#"[{"code":"CHF"},{"code":"EUR"},{"code":"GBP"},{"code":"USD"}]"#
+    );
+}
+
+#[tokio::test]
+async fn lists_assets_through_api() {
+    let pool = test_pool().await;
+
+    create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    let app = build_router_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/assets")
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("assets request should succeed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+
+    assert_eq!(
+        std::str::from_utf8(&body).expect("json body should be utf8"),
+        r#"[{"id":1,"symbol":"AAPL","name":"Apple Inc.","asset_type":"STOCK","isin":null}]"#
     );
 }
 
@@ -352,6 +408,270 @@ async fn returns_portfolio_summary_through_api() {
     assert_eq!(
         std::str::from_utf8(&body).expect("json body should be utf8"),
         r#"{"display_currency":"EUR","total_value_status":"ok","total_value_amount":"153.70000000","account_totals":[{"id":1,"name":"IBKR","account_type":"broker","summary_status":"ok","total_amount":"103.70000000","total_currency":"EUR"},{"id":2,"name":"Main Bank","account_type":"bank","summary_status":"ok","total_amount":"50.00000000","total_currency":"EUR"}],"cash_by_currency":[{"currency":"EUR","amount":"50.00000000","converted_amount":"50.00000000"},{"currency":"GBP","amount":"10.00000000","converted_amount":"11.70000000"},{"currency":"USD","amount":"100.00000000","converted_amount":"92.00000000"}],"fx_last_updated":"2026-03-22 11:30:00","fx_refresh_status":"available","fx_refresh_error":null}"#
+    );
+}
+
+#[tokio::test]
+async fn creates_asset_transaction_through_api() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    let app = build_router_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/asset-transactions")
+                .header("content-type", "application/json")
+                .body(Body::from(format!(
+                    r#"{{"account_id":{},"asset_id":{},"transaction_type":"BUY","trade_date":"2026-03-20","quantity":"10","unit_price":"150.25","currency_code":"USD","notes":"initial buy"}}"#,
+                    account_id.as_i64(),
+                    asset_id.as_i64()
+                )))
+                .expect("request should build"),
+        )
+        .await
+        .expect("create transaction request should succeed");
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+    let json: Value = serde_json::from_slice(&body).expect("transaction response should parse");
+
+    assert_eq!(json["account_id"], account_id.as_i64());
+    assert_eq!(json["asset_id"], asset_id.as_i64());
+    assert_eq!(json["transaction_type"], "BUY");
+    assert_eq!(json["trade_date"], "2026-03-20");
+    assert_eq!(json["quantity"], "10.00000000");
+    assert_eq!(json["unit_price"], "150.25000000");
+    assert_eq!(json["currency_code"], "USD");
+    assert_eq!(json["notes"], "initial buy");
+    assert_eq!(json["created_at"], json["updated_at"]);
+}
+
+#[tokio::test]
+async fn lists_asset_transactions_through_api_in_trade_date_order() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("VTI"),
+            name: asset_name("Vanguard Total Stock Market ETF"),
+            asset_type: AssetType::Etf,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2026-03-20"),
+            quantity: crate::AssetQuantity::try_from("2").unwrap(),
+            unit_price: crate::AssetUnitPrice::try_from("100").unwrap(),
+            currency_code: Currency::Usd,
+            notes: Some("older".to_string()),
+        },
+    )
+    .await
+    .expect("first transaction insert should succeed");
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Sell,
+            trade_date: trade_date("2026-03-21"),
+            quantity: crate::AssetQuantity::try_from("1").unwrap(),
+            unit_price: crate::AssetUnitPrice::try_from("101").unwrap(),
+            currency_code: Currency::Usd,
+            notes: Some("newer".to_string()),
+        },
+    )
+    .await
+    .expect("second transaction insert should succeed");
+
+    let app = build_router_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/asset-transactions?account_id={}",
+                    account_id.as_i64()
+                ))
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("list transactions request should succeed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+    let json: Value = serde_json::from_slice(&body).expect("transaction list should parse");
+
+    assert_eq!(json[0]["transaction_type"], "SELL");
+    assert_eq!(json[0]["trade_date"], "2026-03-21");
+    assert_eq!(json[1]["transaction_type"], "BUY");
+    assert_eq!(json[1]["trade_date"], "2026-03-20");
+}
+
+#[tokio::test]
+async fn rejects_unfiltered_asset_transaction_listing_through_api() {
+    let pool = test_pool().await;
+    let app = build_router_with_fx_status(pool, FxRefreshAvailability::Available, None);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/asset-transactions")
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("list transactions request should succeed");
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+
+    assert_eq!(
+        std::str::from_utf8(&body).expect("json body should be utf8"),
+        r#"{"error":"validation_error","message":"account_id is required"}"#
+    );
+}
+
+#[tokio::test]
+async fn lists_active_positions_through_api() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("BTC"),
+            name: asset_name("Bitcoin"),
+            asset_type: AssetType::Crypto,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    for transaction in [
+        (AssetTransactionType::Buy, "3"),
+        (AssetTransactionType::Sell, "3"),
+        (AssetTransactionType::Buy, "5"),
+    ] {
+        create_asset_transaction(
+            &pool,
+            CreateAssetTransactionInput {
+                account_id,
+                asset_id,
+                transaction_type: transaction.0,
+                trade_date: trade_date("2026-03-20"),
+                quantity: crate::AssetQuantity::try_from(transaction.1).unwrap(),
+                unit_price: crate::AssetUnitPrice::try_from("90000").unwrap(),
+                currency_code: Currency::Usd,
+                notes: None,
+            },
+        )
+        .await
+        .expect("transaction insert should succeed");
+    }
+
+    let app = build_router_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/accounts/{}/positions", account_id.as_i64()))
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("positions request should succeed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+
+    assert_eq!(
+        std::str::from_utf8(&body).expect("json body should be utf8"),
+        format!(
+            r#"[{{"account_id":{},"asset_id":{},"quantity":"5.00000000"}}]"#,
+            account_id.as_i64(),
+            asset_id.as_i64()
+        )
     );
 }
 
