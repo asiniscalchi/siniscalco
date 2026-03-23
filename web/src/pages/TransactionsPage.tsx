@@ -30,6 +30,7 @@ type Asset = {
   symbol: string;
   name: string;
   asset_type: string;
+  isin?: string | null;
 };
 
 type Transaction = {
@@ -65,25 +66,46 @@ export function TransactionsPage() {
   const [formNotes, setFormNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [showCreateAssetForm, setShowCreateAssetForm] = useState(false);
+  const [createAssetSymbol, setCreateAssetSymbol] = useState("");
+  const [createAssetName, setCreateAssetName] = useState("");
+  const [createAssetType, setCreateAssetType] = useState("STOCK");
+  const [createAssetIsin, setCreateAssetIsin] = useState("");
+  const [createAssetFieldErrors, setCreateAssetFieldErrors] = useState<
+    Record<string, string[]>
+  >({});
+  const [createAssetError, setCreateAssetError] = useState<string | null>(null);
+  const [isCreatingAsset, setIsCreatingAsset] = useState(false);
+
+  const transactionSubmitDisabled =
+    isSubmitting || assets.length === 0 || !formAssetId;
 
   useEffect(() => {
     let cancelled = false;
 
+    async function fetchAssets() {
+      const response = await fetch(getAssetsApiUrl());
+      if (!response.ok) {
+        throw new Error("Failed to load assets");
+      }
+
+      return (await response.json()) as Asset[];
+    }
+
     async function loadInitialData() {
       try {
-        const [accountsRes, assetsRes] = await Promise.all([
+        const [accountsRes, assetsData] = await Promise.all([
           fetch(getAccountsApiUrl()),
-          fetch(getAssetsApiUrl()),
+          fetchAssets(),
         ]);
 
         if (cancelled) return;
 
-        if (!accountsRes.ok || !assetsRes.ok) {
+        if (!accountsRes.ok) {
           throw new Error("Failed to load initial data");
         }
 
         const accountsData = (await accountsRes.json()) as Account[];
-        const assetsData = (await assetsRes.json()) as Asset[];
 
         setAccounts(accountsData);
         setAssets(assetsData);
@@ -104,6 +126,12 @@ export function TransactionsPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (formAssetId && !assets.some((asset) => String(asset.id) === formAssetId)) {
+      setFormAssetId("");
+    }
+  }, [assets, formAssetId]);
 
   useEffect(() => {
     if (!selectedAccountId) {
@@ -198,6 +226,71 @@ export function TransactionsPage() {
     }
   };
 
+  const resetCreateAssetForm = () => {
+    setCreateAssetSymbol("");
+    setCreateAssetName("");
+    setCreateAssetType("STOCK");
+    setCreateAssetIsin("");
+    setCreateAssetFieldErrors({});
+    setCreateAssetError(null);
+  };
+
+  const handleCreateAsset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateAssetFieldErrors({});
+    setCreateAssetError(null);
+    setIsCreatingAsset(true);
+
+    try {
+      const response = await fetch(getAssetsApiUrl(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          symbol: createAssetSymbol,
+          name: createAssetName,
+          asset_type: createAssetType,
+          isin: createAssetIsin || null,
+        }),
+      });
+
+      if (response.status === 422) {
+        const data = (await response.json()) as {
+          message: string;
+          field_errors: Record<string, string[]>;
+        };
+
+        setCreateAssetError(data.message);
+        setCreateAssetFieldErrors(data.field_errors ?? {});
+        return;
+      }
+
+      if (!response.ok) {
+        const message = await readApiErrorMessage(response, "Failed to create asset");
+        setCreateAssetError(message);
+        return;
+      }
+
+      const createdAsset = (await response.json()) as Asset;
+      const assetsResponse = await fetch(getAssetsApiUrl());
+      if (!assetsResponse.ok) {
+        setCreateAssetError("Asset created but failed to refresh assets");
+        return;
+      }
+
+      const assetsData = (await assetsResponse.json()) as Asset[];
+      setAssets(assetsData);
+      setFormAssetId(String(createdAsset.id));
+      resetCreateAssetForm();
+      setShowCreateAssetForm(false);
+    } catch {
+      setCreateAssetError("Failed to create asset");
+    } finally {
+      setIsCreatingAsset(false);
+    }
+  };
+
+  const fieldError = (field: string) => createAssetFieldErrors[field]?.[0] ?? null;
+
   if (loading) {
     return (
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 py-8">
@@ -268,12 +361,151 @@ export function TransactionsPage() {
         <>
           <Card className="bg-background">
             <CardHeader>
-              <CardTitle>Add Transaction</CardTitle>
-              <CardDescription>
-                Record a new BUY or SELL transaction for this account.
-              </CardDescription>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1">
+                  <CardTitle>Add Transaction</CardTitle>
+                  <CardDescription>
+                    Record a new BUY or SELL transaction for this account.
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={() => {
+                    setCreateAssetError(null);
+                    setCreateAssetFieldErrors({});
+                    setShowCreateAssetForm((value) => !value);
+                  }}
+                  type="button"
+                  variant="outline"
+                >
+                  {showCreateAssetForm ? "Close Asset Form" : "Create Asset"}
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-5">
+              {showCreateAssetForm ? (
+                <form
+                  className="rounded-lg border border-dashed bg-muted/20 p-4"
+                  onSubmit={handleCreateAsset}
+                >
+                  <div className="mb-4 flex flex-col gap-1">
+                    <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                      Create Asset
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      Add a local asset so it can be selected in manual transaction entry.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-1.5">
+                      <label
+                        className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                        htmlFor="create-asset-symbol"
+                      >
+                        Symbol
+                      </label>
+                      <input
+                        className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
+                        id="create-asset-symbol"
+                        onChange={(e) => setCreateAssetSymbol(e.target.value)}
+                        value={createAssetSymbol}
+                      />
+                      {fieldError("symbol") ? (
+                        <p className="text-xs text-destructive">{fieldError("symbol")}</p>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label
+                        className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                        htmlFor="create-asset-name"
+                      >
+                        Name
+                      </label>
+                      <input
+                        className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
+                        id="create-asset-name"
+                        onChange={(e) => setCreateAssetName(e.target.value)}
+                        value={createAssetName}
+                      />
+                      {fieldError("name") ? (
+                        <p className="text-xs text-destructive">{fieldError("name")}</p>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label
+                        className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                        htmlFor="create-asset-type"
+                      >
+                        Asset Type
+                      </label>
+                      <select
+                        className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
+                        id="create-asset-type"
+                        onChange={(e) => setCreateAssetType(e.target.value)}
+                        value={createAssetType}
+                      >
+                        <option value="STOCK">STOCK</option>
+                        <option value="ETF">ETF</option>
+                        <option value="BOND">BOND</option>
+                        <option value="CRYPTO">CRYPTO</option>
+                        <option value="CASH_EQUIVALENT">CASH_EQUIVALENT</option>
+                        <option value="OTHER">OTHER</option>
+                      </select>
+                      {fieldError("asset_type") ? (
+                        <p className="text-xs text-destructive">{fieldError("asset_type")}</p>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label
+                        className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                        htmlFor="create-asset-isin"
+                      >
+                        ISIN
+                      </label>
+                      <input
+                        className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
+                        id="create-asset-isin"
+                        onChange={(e) => setCreateAssetIsin(e.target.value)}
+                        value={createAssetIsin}
+                      />
+                    </div>
+                  </div>
+                  {createAssetError ? (
+                    <div className="mt-4 rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                      {createAssetError}
+                    </div>
+                  ) : null}
+                  <div className="mt-4 flex justify-end gap-3">
+                    <Button
+                      onClick={() => {
+                        resetCreateAssetForm();
+                        setShowCreateAssetForm(false);
+                      }}
+                      type="button"
+                      variant="outline"
+                    >
+                      Cancel
+                    </Button>
+                    <Button disabled={isCreatingAsset} type="submit">
+                      {isCreatingAsset ? "Creating..." : "Save Asset"}
+                    </Button>
+                  </div>
+                </form>
+              ) : null}
+
+              {assets.length === 0 ? (
+                <div className="rounded-lg border border-dashed bg-muted/30 px-4 py-5 text-sm">
+                  <p className="font-medium">Create an asset before recording a transaction.</p>
+                  <p className="mt-1 text-muted-foreground">
+                    The transaction form stays disabled until at least one local asset exists.
+                  </p>
+                </div>
+              ) : null}
+
+              <CardDescription>
+                {assets.length === 0
+                  ? "Create an asset first, then return here to record the transaction."
+                  : "Record a new BUY or SELL transaction for this account."}
+              </CardDescription>
               <form
                 className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4"
                 onSubmit={handleSubmit}
@@ -288,11 +520,14 @@ export function TransactionsPage() {
                   <select
                     required
                     className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
+                    disabled={assets.length === 0}
                     id="asset-select"
                     onChange={(e) => setFormAssetId(e.target.value)}
                     value={formAssetId}
                   >
-                    <option value="">Select asset...</option>
+                    <option value="">
+                      {assets.length === 0 ? "No assets available" : "Select asset..."}
+                    </option>
                     {assets.map((a) => (
                       <option key={a.id} value={String(a.id)}>
                         {a.symbol} — {a.name}
@@ -411,7 +646,7 @@ export function TransactionsPage() {
                 <div className="flex items-end sm:col-span-2 lg:col-span-4">
                   <Button
                     className="w-full lg:w-auto lg:px-8"
-                    disabled={isSubmitting}
+                    disabled={transactionSubmitDisabled}
                     type="submit"
                   >
                     {isSubmitting ? "Adding..." : "Add Transaction"}
