@@ -345,7 +345,7 @@ async fn derives_positions_for_maximum_supported_transaction_quantities() {
             asset_id,
             transaction_type: AssetTransactionType::Buy,
             trade_date: trade_date("2026-03-22"),
-            quantity: asset_quantity("999999999999.12345678"),
+            quantity: asset_quantity("9223372036854.775807"),
             unit_price: asset_unit_price("1"),
             currency_code: Currency::Usd,
             notes: None,
@@ -364,7 +364,7 @@ async fn derives_positions_for_maximum_supported_transaction_quantities() {
             account_id,
             asset_id,
             quantity: super::AssetPosition::try_from(
-                rust_decimal::Decimal::from_str("999999999999.12345678").unwrap(),
+                rust_decimal::Decimal::from_str("9223372036854.775807").unwrap(),
             )
             .unwrap(),
         }]
@@ -697,7 +697,7 @@ async fn allows_multiple_currencies_per_account() {
     .await
     .expect("account insert should succeed");
 
-    for (currency, value) in [("EUR", "12000.00000000"), ("USD", "3500.00000000")] {
+    for (currency, value) in [("EUR", "12000.000000"), ("USD", "3500.000000")] {
         upsert_account_balance(
             &pool,
             UpsertAccountBalanceInput {
@@ -755,7 +755,7 @@ async fn upsert_updates_existing_balance() {
         UpsertAccountBalanceInput {
             account_id,
             currency: Currency::Usd,
-            amount: amt("10.00000000"),
+            amount: amt("10.000000"),
         },
     )
     .await
@@ -767,7 +767,7 @@ async fn upsert_updates_existing_balance() {
         UpsertAccountBalanceInput {
             account_id,
             currency: Currency::Usd,
-            amount: amt("12.00000000"),
+            amount: amt("12.000000"),
         },
     )
     .await
@@ -803,7 +803,7 @@ async fn deletes_single_balance() {
         UpsertAccountBalanceInput {
             account_id,
             currency: Currency::Eur,
-            amount: amt("12000.00000000"),
+            amount: amt("12000.000000"),
         },
     )
     .await
@@ -865,7 +865,7 @@ async fn deletes_account_and_cascades_balances() {
         UpsertAccountBalanceInput {
             account_id,
             currency: Currency::Eur,
-            amount: amt("12000.00000000"),
+            amount: amt("12000.000000"),
         },
     )
     .await
@@ -981,7 +981,7 @@ async fn accepts_typed_balance_currency_input() {
         UpsertAccountBalanceInput {
             account_id,
             currency: Currency::Usd,
-            amount: amt("10.00000000"),
+            amount: amt("10.000000"),
         },
     )
     .await
@@ -992,9 +992,12 @@ async fn accepts_typed_balance_currency_input() {
 
 #[test]
 fn rejects_invalid_typed_amount_input() {
-    let error = Amount::try_from("1.123456789").expect_err("invalid amount should fail");
+    let error = Amount::try_from("1.1234567").expect_err("invalid amount should fail");
 
-    assert_eq!(error.to_string(), "amount must match DECIMAL(20,8)");
+    assert_eq!(
+        error.to_string(),
+        "amount must match a signed 6-decimal value"
+    );
 }
 
 #[tokio::test]
@@ -1006,7 +1009,7 @@ async fn rejects_balance_for_missing_account() {
         UpsertAccountBalanceInput {
             account_id: account_id(999),
             currency: Currency::Usd,
-            amount: amt("10.00000000"),
+            amount: amt("10.000000"),
         },
     )
     .await
@@ -1032,7 +1035,7 @@ async fn upserts_fx_rates() {
         UpsertFxRateInput {
             from_currency: Currency::Usd,
             to_currency: Currency::Eur,
-            rate: fx_rate("0.92000000"),
+            rate: fx_rate("0.920000"),
         },
     )
     .await
@@ -1058,7 +1061,7 @@ async fn gets_latest_fx_rate_with_timestamp() {
         UpsertFxRateInput {
             from_currency: Currency::Usd,
             to_currency: Currency::Eur,
-            rate: fx_rate("0.92000000"),
+            rate: fx_rate("0.920000"),
         },
     )
     .await
@@ -1090,7 +1093,7 @@ async fn updates_existing_fx_rate() {
         UpsertFxRateInput {
             from_currency: Currency::Usd,
             to_currency: Currency::Eur,
-            rate: fx_rate("0.92000000"),
+            rate: fx_rate("0.920000"),
         },
     )
     .await
@@ -1101,7 +1104,7 @@ async fn updates_existing_fx_rate() {
         UpsertFxRateInput {
             from_currency: Currency::Usd,
             to_currency: Currency::Eur,
-            rate: fx_rate("0.91000000"),
+            rate: fx_rate("0.910000"),
         },
     )
     .await
@@ -1120,7 +1123,7 @@ async fn updates_existing_fx_rate() {
 
 #[test]
 fn rejects_non_positive_fx_rates() {
-    let error = FxRate::try_from("0.00000000").expect_err("zero fx rate should fail");
+    let error = FxRate::try_from("0.000000").expect_err("zero fx rate should fail");
 
     assert_eq!(error.to_string(), "rate must be greater than zero");
 }
@@ -1134,7 +1137,7 @@ async fn rejects_identity_fx_pairs() {
         UpsertFxRateInput {
             from_currency: Currency::Eur,
             to_currency: Currency::Eur,
-            rate: fx_rate("1.00000000"),
+            rate: fx_rate("1.000000"),
         },
     )
     .await
@@ -1155,7 +1158,7 @@ async fn rejects_non_eur_target_fx_pairs() {
         UpsertFxRateInput {
             from_currency: Currency::Usd,
             to_currency: Currency::Gbp,
-            rate: fx_rate("0.78000000"),
+            rate: fx_rate("0.780000"),
         },
     )
     .await
@@ -1172,9 +1175,9 @@ async fn lists_fx_rate_summary_for_a_single_target_currency() {
     let pool = test_pool().await;
 
     for (from_currency, rate) in [
-        (Currency::Usd, "0.92000000"),
-        (Currency::Gbp, "1.17000000"),
-        (Currency::Chf, "1.04000000"),
+        (Currency::Usd, "0.920000"),
+        (Currency::Gbp, "1.170000"),
+        (Currency::Chf, "1.040000"),
     ] {
         upsert_fx_rate(
             &pool,
@@ -1272,7 +1275,7 @@ async fn lists_account_summaries_with_zero_total_for_empty_accounts() {
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
             summary_status: AccountSummaryStatus::Ok,
-            total_amount: Some(amt("0.00000000")),
+            total_amount: Some(amt("0.000000")),
             total_currency: Some(Currency::Eur),
         }]
     );
@@ -1298,7 +1301,7 @@ async fn lists_account_summaries_with_single_base_currency_balance() {
         UpsertAccountBalanceInput {
             account_id,
             currency: Currency::Usd,
-            amount: amt("123.45000000"),
+            amount: amt("123.450000"),
         },
     )
     .await
@@ -1309,7 +1312,7 @@ async fn lists_account_summaries_with_single_base_currency_balance() {
         .expect("account summaries should succeed");
 
     assert_eq!(summaries[0].summary_status, AccountSummaryStatus::Ok);
-    assert_eq!(summaries[0].total_amount, Some(amt("123.45000000")));
+    assert_eq!(summaries[0].total_amount, Some(amt("123.450000")));
     assert_eq!(summaries[0].total_currency, Some(Currency::Usd));
 }
 
@@ -1329,9 +1332,9 @@ async fn lists_account_summaries_with_direct_fx_conversion() {
     .expect("account insert should succeed");
 
     for (currency, value) in [
-        (Currency::Eur, "10.00000000"),
-        (Currency::Usd, "20.00000000"),
-        (Currency::Gbp, "30.00000000"),
+        (Currency::Eur, "10.000000"),
+        (Currency::Usd, "20.000000"),
+        (Currency::Gbp, "30.000000"),
     ] {
         upsert_account_balance(
             &pool,
@@ -1345,7 +1348,7 @@ async fn lists_account_summaries_with_direct_fx_conversion() {
         .expect("balance insert should succeed");
     }
 
-    for (from_currency, rate) in [(Currency::Usd, "0.50000000"), (Currency::Gbp, "1.20000000")] {
+    for (from_currency, rate) in [(Currency::Usd, "0.500000"), (Currency::Gbp, "1.200000")] {
         upsert_fx_rate(
             &pool,
             UpsertFxRateInput {
@@ -1363,7 +1366,7 @@ async fn lists_account_summaries_with_direct_fx_conversion() {
         .expect("account summaries should succeed");
 
     assert_eq!(summaries[0].summary_status, AccountSummaryStatus::Ok);
-    assert_eq!(summaries[0].total_amount, Some(amt("56.00000000")));
+    assert_eq!(summaries[0].total_amount, Some(amt("56.000000")));
     assert_eq!(summaries[0].total_currency, Some(Currency::Eur));
 }
 
@@ -1387,7 +1390,7 @@ async fn marks_summary_unavailable_when_direct_fx_rate_is_missing() {
         UpsertAccountBalanceInput {
             account_id,
             currency: Currency::Usd,
-            amount: amt("20.00000000"),
+            amount: amt("20.000000"),
         },
     )
     .await
@@ -1431,7 +1434,7 @@ async fn does_not_use_inverse_fx_rates() {
         UpsertAccountBalanceInput {
             account_id,
             currency: Currency::Usd,
-            amount: amt("20.00000000"),
+            amount: amt("20.000000"),
         },
     )
     .await
@@ -1467,7 +1470,7 @@ async fn does_not_use_multi_hop_fx_rates() {
         UpsertAccountBalanceInput {
             account_id,
             currency: Currency::Chf,
-            amount: amt("20.00000000"),
+            amount: amt("20.000000"),
         },
     )
     .await
@@ -1478,7 +1481,7 @@ async fn does_not_use_multi_hop_fx_rates() {
         UpsertFxRateInput {
             from_currency: Currency::Usd,
             to_currency: Currency::Eur,
-            rate: fx_rate("0.80000000"),
+            rate: fx_rate("0.800000"),
         },
     )
     .await
@@ -1515,14 +1518,14 @@ async fn rounds_after_summing_converted_balances() {
             UpsertAccountBalanceInput {
                 account_id,
                 currency,
-                amount: amt("1.00000000"),
+                amount: amt("1.000000"),
             },
         )
         .await
         .expect("balance insert should succeed");
     }
 
-    for (from_currency, rate) in [(Currency::Usd, "0.33333333"), (Currency::Gbp, "0.33333333")] {
+    for (from_currency, rate) in [(Currency::Usd, "0.333333"), (Currency::Gbp, "0.333333")] {
         upsert_fx_rate(
             &pool,
             UpsertFxRateInput {
@@ -1539,7 +1542,7 @@ async fn rounds_after_summing_converted_balances() {
         .await
         .expect("account summaries should succeed");
 
-    assert_eq!(summaries[0].total_amount, Some(amt("0.66666666")));
+    assert_eq!(summaries[0].total_amount, Some(amt("0.666666")));
 }
 
 #[tokio::test]
@@ -1572,7 +1575,7 @@ async fn rejects_invalid_balance_amounts_at_the_schema_level() {
     .expect("account insert should succeed");
 
     let error = sqlx::query(
-        "INSERT INTO account_balances (account_id, currency, amount, updated_at) VALUES (?, 'USD', '1.123456789', '2026-03-22 00:00:00')",
+        "INSERT INTO account_balances (account_id, currency, amount, updated_at) VALUES (?, 'USD', '1.1234567', '2026-03-22 00:00:00')",
     )
     .bind(account_id.as_i64())
     .execute(&pool)
@@ -1587,7 +1590,7 @@ async fn rejects_invalid_fx_rates_at_the_schema_level() {
     let pool = test_pool().await;
 
     let format_error = sqlx::query(
-        "INSERT INTO fx_rates (from_currency, to_currency, rate, updated_at) VALUES ('USD', 'EUR', '1.123456789', '2026-03-22 00:00:00')",
+        "INSERT INTO fx_rates (from_currency, to_currency, rate, updated_at) VALUES ('USD', 'EUR', '1.1234567', '2026-03-22 00:00:00')",
     )
     .execute(&pool)
     .await
@@ -1596,7 +1599,7 @@ async fn rejects_invalid_fx_rates_at_the_schema_level() {
     assert!(format_error.to_string().contains("CHECK constraint failed"));
 
     let zero_error = sqlx::query(
-        "INSERT INTO fx_rates (from_currency, to_currency, rate, updated_at) VALUES ('USD', 'EUR', '0.00000000', '2026-03-22 00:00:00')",
+        "INSERT INTO fx_rates (from_currency, to_currency, rate, updated_at) VALUES ('USD', 'EUR', '0.000000', '2026-03-22 00:00:00')",
     )
     .execute(&pool)
     .await
@@ -1620,10 +1623,7 @@ async fn calculates_portfolio_summary_with_currency_breakdown_and_converted_amou
     .await
     .expect("account insert should succeed");
 
-    for (currency, value) in [
-        (Currency::Eur, "100.00000000"),
-        (Currency::Usd, "100.00000000"),
-    ] {
+    for (currency, value) in [(Currency::Eur, "100.000000"), (Currency::Usd, "100.000000")] {
         upsert_account_balance(
             &pool,
             UpsertAccountBalanceInput {
@@ -1641,7 +1641,7 @@ async fn calculates_portfolio_summary_with_currency_breakdown_and_converted_amou
         UpsertFxRateInput {
             from_currency: Currency::Usd,
             to_currency: Currency::Eur,
-            rate: fx_rate("0.90000000"),
+            rate: fx_rate("0.900000"),
         },
     )
     .await
@@ -1651,23 +1651,23 @@ async fn calculates_portfolio_summary_with_currency_breakdown_and_converted_amou
         .await
         .expect("portfolio summary should succeed");
 
-    assert_eq!(summary.total_value_amount, Some(amt("190.00000000")));
+    assert_eq!(summary.total_value_amount, Some(amt("190.000000")));
     assert_eq!(summary.cash_by_currency.len(), 2);
 
     // EUR breakdown
     assert_eq!(summary.cash_by_currency[0].currency, Currency::Eur);
-    assert_eq!(summary.cash_by_currency[0].amount, amt("100.00000000"));
+    assert_eq!(summary.cash_by_currency[0].amount, amt("100.000000"));
     assert_eq!(
         summary.cash_by_currency[0].converted_amount,
-        Some(amt("100.00000000"))
+        Some(amt("100.000000"))
     );
 
     // USD breakdown
     assert_eq!(summary.cash_by_currency[1].currency, Currency::Usd);
-    assert_eq!(summary.cash_by_currency[1].amount, amt("100.00000000"));
+    assert_eq!(summary.cash_by_currency[1].amount, amt("100.000000"));
     assert_eq!(
         summary.cash_by_currency[1].converted_amount,
-        Some(amt("90.00000000"))
+        Some(amt("90.000000"))
     );
 }
 
@@ -1675,42 +1675,42 @@ async fn calculates_portfolio_summary_with_currency_breakdown_and_converted_amou
 async fn ensures_portfolio_total_matches_sum_of_cash_by_currency() {
     let pool = test_pool().await;
 
-    // Use a rate that causes rounding after 8 digits
-    // 0.33333333 * 2 = 0.66666666
-    // If we have 2 accounts with 1 unit each, total is 0.66666666
-    // If we sum first: (1+1) * 0.33333333 = 0.66666666
+    // Use a rate that causes rounding after 6 digits
+    // 0.333333 * 2 = 0.666666
+    // If we have 2 accounts with 1 unit each, total is 0.666666
+    // If we sum first: (1+1) * 0.333333 = 0.666666
     // To see a difference, we need something more subtle.
-    // 0.123456789 -> 0.12345679
+    // 0.1234567 would be rejected under the strict 6-decimal contract.
 
     upsert_fx_rate(
         &pool,
         UpsertFxRateInput {
             from_currency: Currency::Usd,
             to_currency: Currency::Eur,
-            rate: fx_rate("0.12345678"),
+            rate: fx_rate("0.123456"),
         },
     )
     .await
     .expect("fx rate insert should succeed");
 
-    // Account 1: 1.1 USD -> 0.135802458 -> 0.13580246
-    // Account 2: 1.1 USD -> 0.135802458 -> 0.13580246
-    // Sum of accounts: 0.27160492
-    // Sum of currency: (1.1 + 1.1) * 0.12345678 = 2.2 * 0.12345678 = 0.271604916 -> 0.27160492
+    // Account 1: 1.1 USD -> 0.1358016
+    // Account 2: 1.1 USD -> 0.1358016
+    // Sum of accounts: 0.2716032
+    // Sum of currency: (1.1 + 1.1) * 0.123456 = 0.2716032
 
     // Let's try:
-    // Rate: 0.11111111
-    // Acc 1: 0.5 USD -> 0.055555555 -> 0.05555556
-    // Acc 2: 0.5 USD -> 0.055555555 -> 0.05555556
-    // Sum accounts: 0.11111112
-    // Sum currency: (0.5 + 0.5) * 0.11111111 = 0.11111111
+    // Rate: 0.111111
+    // Acc 1: 0.5 USD -> 0.0555555 -> 0.055556
+    // Acc 2: 0.5 USD -> 0.0555555 -> 0.055556
+    // Sum accounts: 0.111112
+    // Sum currency: (0.5 + 0.5) * 0.111111 = 0.111111
 
     upsert_fx_rate(
         &pool,
         UpsertFxRateInput {
             from_currency: Currency::Usd,
             to_currency: Currency::Eur,
-            rate: fx_rate("0.11111111"),
+            rate: fx_rate("0.111111"),
         },
     )
     .await

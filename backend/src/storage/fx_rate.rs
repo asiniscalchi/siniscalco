@@ -11,6 +11,14 @@ impl FxRate {
     pub fn as_decimal(self) -> Decimal {
         self.0.as_decimal()
     }
+
+    pub fn as_scaled_i64(self) -> i64 {
+        self.0.as_scaled_i64()
+    }
+
+    pub fn from_scaled_i64(value: i64) -> Result<Self, StorageError> {
+        Self::try_from(Amount::from_scaled_i64(value))
+    }
 }
 
 impl TryFrom<&str> for FxRate {
@@ -48,15 +56,12 @@ mod tests {
     #[test]
     fn parses_positive_rates() {
         assert_eq!(FxRate::try_from("0.92").unwrap().to_string(), "0.92");
-        assert_eq!(
-            FxRate::try_from("1.00000000").unwrap().to_string(),
-            "1.00000000"
-        );
+        assert_eq!(FxRate::try_from("1.000000").unwrap().to_string(), "1");
     }
 
     #[test]
     fn rejects_non_positive_rates() {
-        for value in ["0", "0.00000000", "-0.1"] {
+        for value in ["0", "0.000000", "-0.1"] {
             let error = FxRate::try_from(value).expect_err("non-positive rate should fail");
             assert_eq!(error.to_string(), "rate must be greater than zero");
         }
@@ -64,8 +69,11 @@ mod tests {
 
     #[test]
     fn rejects_invalid_rate_format() {
-        let error = FxRate::try_from("1.123456789").expect_err("invalid rate should fail");
-        assert_eq!(error.to_string(), "amount must match DECIMAL(20,8)");
+        let error = FxRate::try_from("1.1234567").expect_err("invalid rate should fail");
+        assert_eq!(
+            error.to_string(),
+            "amount must match a signed 6-decimal value"
+        );
     }
 
     #[test]

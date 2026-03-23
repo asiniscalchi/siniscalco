@@ -1,6 +1,8 @@
 use rust_decimal::{Decimal, RoundingStrategy};
 
-/// API responses always expose money values with a fixed 8-digit fractional
+const OUTPUT_SCALE: u32 = 6;
+
+/// API responses always expose money values with a fixed 6-digit fractional
 /// scale, regardless of how SQLite normalizes numeric storage internally.
 pub fn normalize_amount_output(amount: &str) -> String {
     let (sign, unsigned) = match amount.strip_prefix('-') {
@@ -13,13 +15,14 @@ pub fn normalize_amount_output(amount: &str) -> String {
         None => (unsigned, ""),
     };
 
-    let mut normalized = String::with_capacity(sign.len() + integer_part.len() + 9);
+    let mut normalized =
+        String::with_capacity(sign.len() + integer_part.len() + 1 + OUTPUT_SCALE as usize);
     normalized.push_str(sign);
     normalized.push_str(integer_part);
     normalized.push('.');
     normalized.push_str(fractional_part);
 
-    for _ in fractional_part.len()..8 {
+    for _ in fractional_part.len()..OUTPUT_SCALE as usize {
         normalized.push('0');
     }
 
@@ -44,7 +47,7 @@ pub fn compact_decimal_output(value: &str) -> String {
 pub fn format_decimal_amount(amount: Decimal) -> String {
     normalize_amount_output(
         &amount
-            .round_dp_with_strategy(8, RoundingStrategy::MidpointAwayFromZero)
+            .round_dp_with_strategy(OUTPUT_SCALE, RoundingStrategy::MidpointAwayFromZero)
             .to_string(),
     )
 }
@@ -59,39 +62,39 @@ mod tests {
 
     #[test]
     fn normalizes_integer_amounts_to_fixed_scale() {
-        assert_eq!(normalize_amount_output("12"), "12.00000000");
-        assert_eq!(normalize_amount_output("0"), "0.00000000");
+        assert_eq!(normalize_amount_output("12"), "12.000000");
+        assert_eq!(normalize_amount_output("0"), "0.000000");
     }
 
     #[test]
     fn normalizes_fractional_amounts_to_fixed_scale() {
-        assert_eq!(normalize_amount_output("12.3"), "12.30000000");
-        assert_eq!(normalize_amount_output("12.3456"), "12.34560000");
+        assert_eq!(normalize_amount_output("12.3"), "12.300000");
+        assert_eq!(normalize_amount_output("12.3456"), "12.345600");
     }
 
     #[test]
     fn preserves_exact_scale_amounts() {
-        assert_eq!(normalize_amount_output("12.34567890"), "12.34567890");
+        assert_eq!(normalize_amount_output("12.345678"), "12.345678");
     }
 
     #[test]
     fn normalizes_negative_amounts_to_fixed_scale() {
-        assert_eq!(normalize_amount_output("-12"), "-12.00000000");
-        assert_eq!(normalize_amount_output("-12.3"), "-12.30000000");
+        assert_eq!(normalize_amount_output("-12"), "-12.000000");
+        assert_eq!(normalize_amount_output("-12.3"), "-12.300000");
     }
 
     #[test]
     fn compacts_decimal_outputs() {
-        assert_eq!(compact_decimal_output("12.34000000"), "12.34");
-        assert_eq!(compact_decimal_output("12.00000000"), "12");
-        assert_eq!(compact_decimal_output("12.34560000"), "12.3456");
+        assert_eq!(compact_decimal_output("12.340000"), "12.34");
+        assert_eq!(compact_decimal_output("12.000000"), "12");
+        assert_eq!(compact_decimal_output("12.345600"), "12.3456");
         assert_eq!(compact_decimal_output("12"), "12");
     }
 
     #[test]
     fn formats_decimal_amounts_to_fixed_scale() {
-        let value = Decimal::from_str("12.345678901").expect("decimal should parse");
+        let value = Decimal::from_str("12.3456789").expect("decimal should parse");
 
-        assert_eq!(format_decimal_amount(value), "12.34567890");
+        assert_eq!(format_decimal_amount(value), "12.345679");
     }
 }

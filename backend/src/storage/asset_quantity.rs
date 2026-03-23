@@ -11,6 +11,14 @@ impl AssetQuantity {
     pub fn as_decimal(self) -> Decimal {
         self.0.as_decimal()
     }
+
+    pub fn as_scaled_i64(self) -> i64 {
+        self.0.as_scaled_i64()
+    }
+
+    pub fn from_scaled_i64(value: i64) -> Result<Self, StorageError> {
+        Self::try_from(Amount::from_scaled_i64(value))
+    }
 }
 
 impl TryFrom<&str> for AssetQuantity {

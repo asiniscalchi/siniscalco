@@ -52,8 +52,8 @@ pub async fn create_asset_transaction(
         .bind(input.asset_id.as_i64())
         .bind(input.transaction_type.as_str())
         .bind(input.trade_date.as_str())
-        .bind(input.quantity.to_string())
-        .bind(input.unit_price.to_string())
+        .bind(input.quantity.as_scaled_i64())
+        .bind(input.unit_price.as_scaled_i64())
         .bind(input.currency_code.as_str())
         .bind(input.notes.as_deref())
         .bind(&timestamp)
@@ -128,7 +128,7 @@ pub async fn list_account_positions(
         let asset_id = AssetId::try_from(row.get::<i64, _>("asset_id"))?;
         let transaction_type =
             AssetTransactionType::try_from(row.get::<&str, _>("transaction_type"))?;
-        let quantity = AssetQuantity::try_from(row.get::<&str, _>("quantity"))?.as_decimal();
+        let quantity = AssetQuantity::from_scaled_i64(row.get::<i64, _>("quantity"))?.as_decimal();
         let signed_quantity = signed_quantity_delta(transaction_type, quantity);
 
         positions_by_asset
@@ -171,7 +171,8 @@ async fn load_current_quantity(
         .try_fold(Decimal::ZERO, |current_quantity, row| {
             let transaction_type =
                 AssetTransactionType::try_from(row.get::<&str, _>("transaction_type"))?;
-            let quantity = AssetQuantity::try_from(row.get::<&str, _>("quantity"))?.as_decimal();
+            let quantity =
+                AssetQuantity::from_scaled_i64(row.get::<i64, _>("quantity"))?.as_decimal();
 
             Ok(current_quantity + signed_quantity_delta(transaction_type, quantity))
         })
@@ -193,8 +194,8 @@ fn map_transaction_row(
         asset_id: AssetId::try_from(row.get::<i64, _>("asset_id"))?,
         transaction_type: AssetTransactionType::try_from(row.get::<&str, _>("transaction_type"))?,
         trade_date: TradeDate::try_from(row.get::<&str, _>("trade_date"))?,
-        quantity: AssetQuantity::try_from(row.get::<&str, _>("quantity"))?,
-        unit_price: AssetUnitPrice::try_from(row.get::<&str, _>("unit_price"))?,
+        quantity: AssetQuantity::from_scaled_i64(row.get::<i64, _>("quantity"))?,
+        unit_price: AssetUnitPrice::from_scaled_i64(row.get::<i64, _>("unit_price"))?,
         currency_code: Currency::try_from(row.get::<&str, _>("currency_code"))?,
         notes: row.get::<Option<String>, _>("notes"),
         created_at: row.get("created_at"),

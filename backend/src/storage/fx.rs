@@ -57,7 +57,7 @@ async fn upsert_fx_rate_at(
     )
     .bind(input.from_currency.as_str())
     .bind(input.to_currency.as_str())
-    .bind(input.rate.to_string())
+    .bind(input.rate.as_scaled_i64())
     .bind(updated_at)
     .execute(&mut *transaction)
     .await?;
@@ -87,7 +87,7 @@ async fn upsert_fx_rate_in_transaction(
     )
     .bind(input.from_currency.as_str())
     .bind(input.to_currency.as_str())
-    .bind(input.rate.to_string())
+    .bind(input.rate.as_scaled_i64())
     .bind(updated_at)
     .execute(&mut **transaction)
     .await?;
@@ -124,7 +124,7 @@ pub async fn list_fx_rates(pool: &SqlitePool) -> Result<Vec<FxRateRecord>, Stora
         SELECT
             from_currency,
             to_currency,
-            CAST(rate AS TEXT) AS rate
+            rate
         FROM fx_rates
         ORDER BY from_currency, to_currency
         "#,
@@ -137,7 +137,7 @@ pub async fn list_fx_rates(pool: &SqlitePool) -> Result<Vec<FxRateRecord>, Stora
             Ok(FxRateRecord {
                 from_currency: Currency::try_from(row.get::<&str, _>("from_currency"))?,
                 to_currency: Currency::try_from(row.get::<&str, _>("to_currency"))?,
-                rate: FxRate::try_from(row.get::<&str, _>("rate"))?,
+                rate: FxRate::from_scaled_i64(row.get::<i64, _>("rate"))?,
             })
         })
         .collect::<Result<Vec<_>, StorageError>>()
@@ -155,7 +155,7 @@ pub async fn get_latest_fx_rate(
         SELECT
             from_currency,
             to_currency,
-            CAST(rate AS TEXT) AS rate,
+            rate,
             updated_at
         FROM fx_rates
         WHERE from_currency = ? AND to_currency = ?
@@ -170,7 +170,7 @@ pub async fn get_latest_fx_rate(
         Ok(FxRateDetailRecord {
             from_currency: Currency::try_from(row.get::<&str, _>("from_currency"))?,
             to_currency: Currency::try_from(row.get::<&str, _>("to_currency"))?,
-            rate: FxRate::try_from(row.get::<&str, _>("rate"))?,
+            rate: FxRate::from_scaled_i64(row.get::<i64, _>("rate"))?,
             updated_at: row.get("updated_at"),
         })
     })
@@ -185,7 +185,7 @@ pub async fn list_fx_rate_summary(
         r#"
         SELECT
             from_currency,
-            CAST(rate AS TEXT) AS rate,
+            rate,
             updated_at
         FROM fx_rates
         WHERE to_currency = ? AND from_currency != ?
@@ -202,7 +202,7 @@ pub async fn list_fx_rate_summary(
         .map(|row| {
             Ok(FxRateSummaryItemRecord {
                 from_currency: Currency::try_from(row.get::<&str, _>("from_currency"))?,
-                rate: FxRate::try_from(row.get::<&str, _>("rate"))?,
+                rate: FxRate::from_scaled_i64(row.get::<i64, _>("rate"))?,
                 updated_at: row.get("updated_at"),
             })
         })
@@ -222,9 +222,9 @@ pub(crate) async fn get_direct_fx_rate(
     from_currency: Currency,
     to_currency: Currency,
 ) -> Result<Option<Decimal>, StorageError> {
-    let rate = sqlx::query_scalar::<_, String>(
+    let rate = sqlx::query_scalar::<_, i64>(
         r#"
-        SELECT CAST(rate AS TEXT) AS rate
+        SELECT rate
         FROM fx_rates
         WHERE from_currency = ? AND to_currency = ?
         "#,
@@ -234,6 +234,6 @@ pub(crate) async fn get_direct_fx_rate(
     .fetch_optional(pool)
     .await?;
 
-    rate.map(|value| FxRate::try_from(value.as_str()).map(|rate| rate.as_decimal()))
+    rate.map(|value| FxRate::from_scaled_i64(value).map(|rate| rate.as_decimal()))
         .transpose()
 }
