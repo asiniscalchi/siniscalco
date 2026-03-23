@@ -1,15 +1,21 @@
 use std::str::FromStr;
+use std::sync::Arc;
 
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use tempfile::NamedTempFile;
+use tokio::sync::Barrier;
 
 use super::{
     AccountBalanceRecord, AccountId, AccountName, AccountRecord, AccountSummaryRecord,
-    AccountSummaryStatus, AccountType, Amount, CreateAccountInput, Currency, CurrencyRecord,
+    AccountSummaryStatus, AccountType, Amount, AssetId, AssetName, AssetPositionRecord,
+    AssetQuantity, AssetRecord, AssetSymbol, AssetTransactionType, AssetType, AssetUnitPrice,
+    CreateAccountInput, CreateAssetInput, CreateAssetTransactionInput, Currency, CurrencyRecord,
     FxRate, FxRateDetailRecord, FxRateRecord, FxRateSummaryItemRecord, FxRateSummaryRecord,
-    StorageError, UpsertAccountBalanceInput, UpsertFxRateInput, UpsertOutcome, create_account,
-    delete_account, delete_account_balance, get_account, get_latest_fx_rate, list_account_balances,
-    list_account_summaries, list_accounts, list_currencies, list_fx_rate_summary, list_fx_rates,
-    upsert_account_balance, upsert_fx_rate,
+    StorageError, TradeDate, UpsertAccountBalanceInput, UpsertFxRateInput, UpsertOutcome,
+    create_account, create_asset, create_asset_transaction, delete_account, delete_account_balance,
+    get_account, get_latest_fx_rate, list_account_balances, list_account_positions, list_account_summaries,
+    list_accounts, list_asset_transactions, list_assets, list_currencies, list_fx_rate_summary,
+    list_fx_rates, upsert_account_balance, upsert_fx_rate,
 };
 use crate::db::init_db;
 
@@ -29,6 +35,30 @@ fn account_name(value: &str) -> AccountName {
     AccountName::try_from(value).expect("account name should parse")
 }
 
+fn asset_id(value: i64) -> AssetId {
+    AssetId::try_from(value).expect("asset id should parse")
+}
+
+fn asset_symbol(value: &str) -> AssetSymbol {
+    AssetSymbol::try_from(value).expect("asset symbol should parse")
+}
+
+fn asset_name(value: &str) -> AssetName {
+    AssetName::try_from(value).expect("asset name should parse")
+}
+
+fn asset_quantity(value: &str) -> AssetQuantity {
+    AssetQuantity::try_from(value).expect("asset quantity should parse")
+}
+
+fn asset_unit_price(value: &str) -> AssetUnitPrice {
+    AssetUnitPrice::try_from(value).expect("asset unit price should parse")
+}
+
+fn trade_date(value: &str) -> TradeDate {
+    TradeDate::try_from(value).expect("trade date should parse")
+}
+
 async fn test_pool() -> sqlx::SqlitePool {
     let options = SqliteConnectOptions::from_str("sqlite::memory:")
         .expect("in-memory sqlite connect options should parse")
@@ -41,6 +71,24 @@ async fn test_pool() -> sqlx::SqlitePool {
         .expect("in-memory sqlite pool should connect");
 
     init_db(&pool).await.expect("schema should initialize");
+    pool
+}
+
+async fn file_backed_pool() -> sqlx::SqlitePool {
+    let file = NamedTempFile::new().expect("temp db file should be created");
+    let options = SqliteConnectOptions::from_str(&format!("sqlite://{}", file.path().display()))
+        .expect("sqlite file connect options should parse")
+        .create_if_missing(true)
+        .foreign_keys(true);
+
+    let pool = SqlitePoolOptions::new()
+        .max_connections(5)
+        .connect_with(options)
+        .await
+        .expect("file sqlite pool should connect");
+
+    init_db(&pool).await.expect("schema should initialize");
+    std::mem::forget(file);
     pool
 }
 
@@ -65,6 +113,362 @@ async fn creates_account_without_balance() {
         .expect("account count query should succeed");
 
     assert_eq!(count, 1);
+}
+
+#[tokio::test]
+async fn lists_assets_in_symbol_order() {
+    let pool = test_pool().await;
+
+    create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("VTI"),
+            name: asset_name("Vanguard Total Stock Market ETF"),
+            asset_type: AssetType::Etf,
+            isin: Some("US9229087690".to_string()),
+        },
+    )
+    .await
+    .expect("first asset insert should succeed");
+
+    create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            isin: None,
+        },
+    )
+    .await
+    .expect("second asset insert should succeed");
+
+    let assets = list_assets(&pool).await.expect("asset list should succeed");
+
+    assert_eq!(
+        assets,
+        vec![
+            AssetRecord {
+                id: asset_id(2),
+                symbol: asset_symbol("AAPL"),
+                name: asset_name("Apple Inc."),
+                asset_type: AssetType::Stock,
+                isin: None,
+                created_at: assets[0].created_at.clone(),
+                updated_at: assets[0].updated_at.clone(),
+            },
+            AssetRecord {
+                id: asset_id(1),
+                symbol: asset_symbol("VTI"),
+                name: asset_name("Vanguard Total Stock Market ETF"),
+                asset_type: AssetType::Etf,
+                isin: Some("US9229087690".to_string()),
+                created_at: assets[1].created_at.clone(),
+                updated_at: assets[1].updated_at.clone(),
+            },
+        ]
+    );
+}
+
+#[tokio::test]
+async fn creates_asset_transactions_and_derives_positions() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let aapl_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id: aapl_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2026-03-20"),
+            quantity: asset_quantity("10"),
+            unit_price: asset_unit_price("150.25"),
+            currency_code: Currency::Usd,
+            notes: Some("initial buy".to_string()),
+        },
+    )
+    .await
+    .expect("buy insert should succeed");
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id: aapl_id,
+            transaction_type: AssetTransactionType::Sell,
+            trade_date: trade_date("2026-03-21"),
+            quantity: asset_quantity("4"),
+            unit_price: asset_unit_price("160"),
+            currency_code: Currency::Usd,
+            notes: None,
+        },
+    )
+    .await
+    .expect("sell insert should succeed");
+
+    let transactions = list_asset_transactions(&pool, account_id)
+        .await
+        .expect("transaction list should succeed");
+    let positions = list_account_positions(&pool, account_id)
+        .await
+        .expect("position list should succeed");
+
+    assert_eq!(transactions.len(), 2);
+    assert_eq!(transactions[0].transaction_type, AssetTransactionType::Sell);
+    assert_eq!(transactions[1].transaction_type, AssetTransactionType::Buy);
+    assert_eq!(
+        positions,
+        vec![AssetPositionRecord {
+            account_id,
+            asset_id: aapl_id,
+            quantity: super::AssetPosition::try_from(rust_decimal::Decimal::new(6, 0)).unwrap(),
+        }]
+    );
+}
+
+#[tokio::test]
+async fn rejects_oversell_and_keeps_transactions_unchanged() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("BTC"),
+            name: asset_name("Bitcoin"),
+            asset_type: AssetType::Crypto,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2026-03-20"),
+            quantity: asset_quantity("2"),
+            unit_price: asset_unit_price("80000"),
+            currency_code: Currency::Usd,
+            notes: None,
+        },
+    )
+    .await
+    .expect("buy insert should succeed");
+
+    let error = create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Sell,
+            trade_date: trade_date("2026-03-21"),
+            quantity: asset_quantity("3"),
+            unit_price: asset_unit_price("81000"),
+            currency_code: Currency::Usd,
+            notes: None,
+        },
+    )
+    .await
+    .expect_err("oversell should fail");
+
+    assert_eq!(
+        error.to_string(),
+        "sell transaction would make position negative"
+    );
+
+    let transactions = list_asset_transactions(&pool, account_id)
+        .await
+        .expect("transaction list should succeed");
+    assert_eq!(transactions.len(), 1);
+}
+
+#[tokio::test]
+async fn omits_zero_positions_and_isolates_accounts() {
+    let pool = test_pool().await;
+
+    let account_a = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("A"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("first account insert should succeed");
+    let account_b = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("B"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("second account insert should succeed");
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("VTI"),
+            name: asset_name("Vanguard Total Stock Market ETF"),
+            asset_type: AssetType::Etf,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    for input in [
+        (account_a, AssetTransactionType::Buy, "3"),
+        (account_a, AssetTransactionType::Sell, "3"),
+        (account_b, AssetTransactionType::Buy, "7"),
+    ] {
+        create_asset_transaction(
+            &pool,
+            CreateAssetTransactionInput {
+                account_id: input.0,
+                asset_id,
+                transaction_type: input.1,
+                trade_date: trade_date("2026-03-20"),
+                quantity: asset_quantity(input.2),
+                unit_price: asset_unit_price("100"),
+                currency_code: Currency::Usd,
+                notes: None,
+            },
+        )
+        .await
+        .expect("transaction insert should succeed");
+    }
+
+    let account_a_positions = list_account_positions(&pool, account_a)
+        .await
+        .expect("first account positions should succeed");
+    let account_b_positions = list_account_positions(&pool, account_b)
+        .await
+        .expect("second account positions should succeed");
+
+    assert!(account_a_positions.is_empty());
+    assert_eq!(account_b_positions.len(), 1);
+    assert_eq!(account_b_positions[0].account_id, account_b);
+    assert_eq!(account_b_positions[0].asset_id, asset_id);
+    assert_eq!(account_b_positions[0].quantity.to_string(), "7");
+}
+
+#[tokio::test]
+async fn prevents_concurrent_oversell() {
+    let pool = file_backed_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2026-03-20"),
+            quantity: asset_quantity("10"),
+            unit_price: asset_unit_price("150"),
+            currency_code: Currency::Usd,
+            notes: None,
+        },
+    )
+    .await
+    .expect("seed buy should succeed");
+
+    let barrier = Arc::new(Barrier::new(3));
+    let sell_task = |pool: sqlx::SqlitePool, barrier: Arc<Barrier>| async move {
+        barrier.wait().await;
+        create_asset_transaction(
+            &pool,
+            CreateAssetTransactionInput {
+                account_id,
+                asset_id,
+                transaction_type: AssetTransactionType::Sell,
+                trade_date: trade_date("2026-03-21"),
+                quantity: asset_quantity("7"),
+                unit_price: asset_unit_price("155"),
+                currency_code: Currency::Usd,
+                notes: None,
+            },
+        )
+        .await
+    };
+
+    let task_a = tokio::spawn(sell_task(pool.clone(), barrier.clone()));
+    let task_b = tokio::spawn(sell_task(pool.clone(), barrier.clone()));
+    barrier.wait().await;
+
+    let result_a = task_a.await.expect("first sell task should complete");
+    let result_b = task_b.await.expect("second sell task should complete");
+    let successes = [result_a.is_ok(), result_b.is_ok()]
+        .into_iter()
+        .filter(|success| *success)
+        .count();
+
+    assert_eq!(successes, 1);
+
+    let positions = list_account_positions(&pool, account_id)
+        .await
+        .expect("position list should succeed");
+    assert_eq!(positions.len(), 1);
+    assert_eq!(positions[0].quantity.to_string(), "3");
 }
 
 #[tokio::test]

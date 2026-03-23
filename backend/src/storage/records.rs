@@ -7,12 +7,23 @@ use super::account_name::AccountName;
 use super::account_summary_status::AccountSummaryStatus;
 use super::account_type::AccountType;
 use super::amount::Amount;
+use super::asset_id::AssetId;
+use super::asset_name::AssetName;
+use super::asset_position::AssetPosition;
+use super::asset_quantity::AssetQuantity;
+use super::asset_symbol::AssetSymbol;
+use super::asset_transaction_type::AssetTransactionType;
+use super::asset_type::AssetType;
+use super::asset_unit_price::AssetUnitPrice;
 use super::currency::Currency;
 use super::fx_rate::FxRate;
 use super::storage_error::StorageError;
+use super::trade_date::TradeDate;
 
 pub const UTC_TIMESTAMP_FORMAT: &[FormatItem<'static>] =
     format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
+pub const UTC_ISO8601_TIMESTAMP_FORMAT: &[FormatItem<'static>] =
+    format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]Z");
 
 pub fn current_utc_timestamp() -> Result<String, StorageError> {
     OffsetDateTime::now_utc()
@@ -20,10 +31,34 @@ pub fn current_utc_timestamp() -> Result<String, StorageError> {
         .map_err(|_| StorageError::Validation("failed to generate UTC timestamp"))
 }
 
+pub fn current_utc_timestamp_iso8601() -> Result<String, StorageError> {
+    OffsetDateTime::now_utc()
+        .format(UTC_ISO8601_TIMESTAMP_FORMAT)
+        .map_err(|_| StorageError::Validation("failed to generate UTC timestamp"))
+}
+
 pub struct CreateAccountInput {
     pub name: AccountName,
     pub account_type: AccountType,
     pub base_currency: Currency,
+}
+
+pub struct CreateAssetInput {
+    pub symbol: AssetSymbol,
+    pub name: AssetName,
+    pub asset_type: AssetType,
+    pub isin: Option<String>,
+}
+
+pub struct CreateAssetTransactionInput {
+    pub account_id: AccountId,
+    pub asset_id: AssetId,
+    pub transaction_type: AssetTransactionType,
+    pub trade_date: TradeDate,
+    pub quantity: AssetQuantity,
+    pub unit_price: AssetUnitPrice,
+    pub currency_code: Currency,
+    pub notes: Option<String>,
 }
 
 pub struct UpsertAccountBalanceInput {
@@ -70,6 +105,39 @@ pub struct AccountBalanceRecord {
     pub currency: Currency,
     pub amount: Amount,
     pub updated_at: String,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct AssetRecord {
+    pub id: AssetId,
+    pub symbol: AssetSymbol,
+    pub name: AssetName,
+    pub asset_type: AssetType,
+    pub isin: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct AssetTransactionRecord {
+    pub id: i64,
+    pub account_id: AccountId,
+    pub asset_id: AssetId,
+    pub transaction_type: AssetTransactionType,
+    pub trade_date: TradeDate,
+    pub quantity: AssetQuantity,
+    pub unit_price: AssetUnitPrice,
+    pub currency_code: Currency,
+    pub notes: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct AssetPositionRecord {
+    pub account_id: AccountId,
+    pub asset_id: AssetId,
+    pub quantity: AssetPosition,
 }
 
 #[derive(Debug, Eq, PartialEq)]
