@@ -3,7 +3,7 @@ use sqlx::{Row, SqlitePool};
 
 use crate::storage::records::*;
 use crate::storage::{
-    AccountId, Amount, AssetId, AssetPosition, AssetQuantity, AssetTransactionType, AssetUnitPrice,
+    AccountId, AssetId, AssetPosition, AssetQuantity, AssetTransactionType, AssetUnitPrice,
     Currency, StorageError, TradeDate, current_utc_timestamp_iso8601,
 };
 
@@ -163,31 +163,41 @@ async fn load_current_quantity(
     account_id: AccountId,
     asset_id: AssetId,
 ) -> Result<Decimal, StorageError> {
-    let rows = sqlx::query(
+    let row = sqlx::query(
         r#"
-        SELECT transaction_type, quantity
-        FROM asset_transactions
-        WHERE account_id = ? AND asset_id = ?
-        ORDER BY id
+        WITH normalized_transactions AS (
+            SELECT
+                transaction_type,
+                CASE
+                    WHEN instr(quantity, '.') = 0 THEN CAST(quantity || '00000000' AS INTEGER)
+                    ELSE CAST(
+                        substr(quantity, 1, instr(quantity, '.') - 1) ||
+                        substr(substr(quantity, instr(quantity, '.') + 1) || '00000000', 1, 8)
+                        AS INTEGER
+                    )
+                END AS scaled_quantity
+            FROM asset_transactions
+            WHERE account_id = ? AND asset_id = ?
+        )
+        SELECT
+            COALESCE(
+                SUM(
+                    CASE
+                        WHEN transaction_type = 'BUY' THEN scaled_quantity
+                        ELSE -scaled_quantity
+                    END
+                ),
+                0
+            ) AS net_scaled_quantity
+        FROM normalized_transactions
         "#,
     )
     .bind(account_id.as_i64())
     .bind(asset_id.as_i64())
-    .fetch_all(&mut **connection)
+    .fetch_one(&mut **connection)
     .await?;
 
-    let mut quantity = Decimal::ZERO;
-    for row in rows {
-        let transaction_type =
-            AssetTransactionType::try_from(row.get::<&str, _>("transaction_type"))?;
-        let value = Amount::try_from(row.get::<&str, _>("quantity"))?.as_decimal();
-        match transaction_type {
-            AssetTransactionType::Buy => quantity += value,
-            AssetTransactionType::Sell => quantity -= value,
-        }
-    }
-
-    Ok(quantity)
+    Ok(Decimal::new(row.get::<i64, _>("net_scaled_quantity"), 8).normalize())
 }
 
 fn map_transaction_row(
