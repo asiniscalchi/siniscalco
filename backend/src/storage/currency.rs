@@ -15,6 +15,10 @@ impl Currency {
         [Self::Chf, Self::Eur, Self::Gbp, Self::Usd]
     }
 
+    pub const fn supported_non_base() -> [Self; 3] {
+        [Self::Chf, Self::Gbp, Self::Usd]
+    }
+
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Eur => "EUR",

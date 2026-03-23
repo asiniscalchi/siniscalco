@@ -5,11 +5,11 @@ use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use super::{
     AccountBalanceRecord, AccountId, AccountName, AccountRecord, AccountSummaryRecord,
     AccountSummaryStatus, AccountType, Amount, CreateAccountInput, Currency, CurrencyRecord,
-    FxRate, FxRateRecord, FxRateSummaryItemRecord, FxRateSummaryRecord, StorageError,
-    UpsertAccountBalanceInput, UpsertFxRateInput, UpsertOutcome, create_account, delete_account,
-    delete_account_balance, get_account, list_account_balances, list_account_summaries,
-    list_accounts, list_currencies, list_fx_rate_summary, list_fx_rates, upsert_account_balance,
-    upsert_fx_rate,
+    FxRate, FxRateDetailRecord, FxRateRecord, FxRateSummaryItemRecord, FxRateSummaryRecord,
+    StorageError, UpsertAccountBalanceInput, UpsertFxRateInput, UpsertOutcome, create_account,
+    delete_account, delete_account_balance, get_account, get_latest_fx_rate, list_account_balances,
+    list_account_summaries, list_accounts, list_currencies, list_fx_rate_summary, list_fx_rates,
+    upsert_account_balance, upsert_fx_rate,
 };
 use crate::db::init_db;
 
@@ -524,6 +524,38 @@ async fn upserts_fx_rates() {
 }
 
 #[tokio::test]
+async fn gets_latest_fx_rate_with_timestamp() {
+    let pool = test_pool().await;
+
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate("0.92000000"),
+        },
+    )
+    .await
+    .expect("fx rate insert should succeed");
+
+    let rate = get_latest_fx_rate(&pool, Currency::Usd, Currency::Eur)
+        .await
+        .expect("fx lookup should succeed")
+        .expect("fx rate should exist");
+
+    assert_eq!(
+        rate,
+        FxRateDetailRecord {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate("0.92"),
+            updated_at: rate.updated_at.clone(),
+        }
+    );
+    assert_eq!(rate.updated_at.len(), 19);
+}
+
+#[tokio::test]
 async fn updates_existing_fx_rate() {
     let pool = test_pool().await;
 
@@ -568,21 +600,61 @@ fn rejects_non_positive_fx_rates() {
 }
 
 #[tokio::test]
+async fn rejects_identity_fx_pairs() {
+    let pool = test_pool().await;
+
+    let error = upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Eur,
+            to_currency: Currency::Eur,
+            rate: fx_rate("1.00000000"),
+        },
+    )
+    .await
+    .expect_err("identity fx pair should fail");
+
+    assert_eq!(
+        error.to_string(),
+        "fx pair must contain two different currencies"
+    );
+}
+
+#[tokio::test]
+async fn rejects_non_eur_target_fx_pairs() {
+    let pool = test_pool().await;
+
+    let error = upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Gbp,
+            rate: fx_rate("0.78000000"),
+        },
+    )
+    .await
+    .expect_err("non-eur target pair should fail");
+
+    assert_eq!(
+        error.to_string(),
+        "fx pair must convert a supported non-EUR currency into EUR"
+    );
+}
+
+#[tokio::test]
 async fn lists_fx_rate_summary_for_a_single_target_currency() {
     let pool = test_pool().await;
 
-    for (from_currency, to_currency, rate) in [
-        (Currency::Usd, Currency::Eur, "0.92000000"),
-        (Currency::Gbp, Currency::Eur, "1.17000000"),
-        (Currency::Chf, Currency::Eur, "1.04000000"),
-        (Currency::Eur, Currency::Eur, "1.00000000"),
-        (Currency::Usd, Currency::Gbp, "0.78000000"),
+    for (from_currency, rate) in [
+        (Currency::Usd, "0.92000000"),
+        (Currency::Gbp, "1.17000000"),
+        (Currency::Chf, "1.04000000"),
     ] {
         upsert_fx_rate(
             &pool,
             UpsertFxRateInput {
                 from_currency,
-                to_currency,
+                to_currency: Currency::Eur,
                 rate: fx_rate(rate),
             },
         )
@@ -594,7 +666,6 @@ async fn lists_fx_rate_summary_for_a_single_target_currency() {
         ("USD", "2026-03-22 09:00:00"),
         ("GBP", "2026-03-22 10:00:00"),
         ("CHF", "2026-03-22 08:30:00"),
-        ("EUR", "2026-03-22 11:00:00"),
     ] {
         sqlx::query(
             "UPDATE fx_rates SET updated_at = ? WHERE from_currency = ? AND to_currency = 'EUR'",
@@ -840,17 +911,6 @@ async fn does_not_use_inverse_fx_rates() {
     .await
     .expect("balance insert should succeed");
 
-    upsert_fx_rate(
-        &pool,
-        UpsertFxRateInput {
-            from_currency: Currency::Eur,
-            to_currency: Currency::Usd,
-            rate: fx_rate("1.10000000"),
-        },
-    )
-    .await
-    .expect("inverse fx rate insert should succeed");
-
     let summaries = list_account_summaries(&pool)
         .await
         .expect("account summaries should succeed");
@@ -887,21 +947,16 @@ async fn does_not_use_multi_hop_fx_rates() {
     .await
     .expect("balance insert should succeed");
 
-    for (from_currency, to_currency, rate) in [
-        (Currency::Chf, Currency::Usd, "1.10000000"),
-        (Currency::Usd, Currency::Eur, "0.80000000"),
-    ] {
-        upsert_fx_rate(
-            &pool,
-            UpsertFxRateInput {
-                from_currency,
-                to_currency,
-                rate: fx_rate(rate),
-            },
-        )
-        .await
-        .expect("multi-hop fx rate insert should succeed");
-    }
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate("0.80000000"),
+        },
+    )
+    .await
+    .expect("direct usd eur rate insert should succeed");
 
     let summaries = list_account_summaries(&pool)
         .await

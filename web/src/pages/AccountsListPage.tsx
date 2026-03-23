@@ -36,6 +36,8 @@ type FxRateSummary = {
     rate: string;
   }[];
   last_updated: string | null;
+  refresh_status: "available" | "unavailable";
+  refresh_error: string | null;
 };
 
 export function AccountsListPage() {
@@ -243,10 +245,18 @@ function FxRatesCard({ summary }: { summary: FxRateSummary }) {
         )}
       </CardContent>
       <CardFooter>
-        <p className="text-sm text-muted-foreground">
-          Last updated:{" "}
-          {summary.last_updated ? formatTimestamp(summary.last_updated) : "-"}
-        </p>
+        <div className="space-y-1 text-sm text-muted-foreground">
+          <p>
+            Last updated:{" "}
+            {summary.last_updated ? formatTimestamp(summary.last_updated) : "-"}
+          </p>
+          {summary.refresh_status === "unavailable" ? (
+            <p className="text-destructive">
+              FX refresh unavailable
+              {summary.refresh_error ? `: ${summary.refresh_error}` : ""}
+            </p>
+          ) : null}
+        </div>
       </CardFooter>
     </Card>
   );

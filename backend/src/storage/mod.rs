@@ -23,5 +23,6 @@ pub use balances::*;
 pub use currency::*;
 pub use fx::*;
 pub use fx_rate::*;
+pub use records::current_utc_timestamp;
 pub use records::*;
 pub use storage_error::*;

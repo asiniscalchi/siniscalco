@@ -16,6 +16,8 @@ export type FxRateSummaryResponse = {
   target_currency: string;
   rates: FxRateSummaryItemResponse[];
   last_updated: string | null;
+  refresh_status: "available" | "unavailable";
+  refresh_error: string | null;
 };
 
 export type PortfolioAccountTotalResponse = {
@@ -39,6 +41,8 @@ export type PortfolioSummaryResponse = {
   account_totals: PortfolioAccountTotalResponse[];
   cash_by_currency: PortfolioCashByCurrencyResponse[];
   fx_last_updated: string | null;
+  fx_refresh_status: "available" | "unavailable";
+  fx_refresh_error: string | null;
 };
 
 export function getApiBaseUrl() {

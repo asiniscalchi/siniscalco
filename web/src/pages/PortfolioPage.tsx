@@ -168,7 +168,20 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
               Last FX update:{" "}
               {summary.fx_last_updated ? formatTimestamp(summary.fx_last_updated) : "unavailable"}
             </span>
+            {summary.fx_refresh_status === "unavailable" && (
+              <>
+                <span>•</span>
+                <span className="text-destructive font-medium">
+                  FX refresh unavailable
+                </span>
+              </>
+            )}
           </div>
+          {summary.fx_refresh_status === "unavailable" && summary.fx_refresh_error ? (
+            <div className="text-xs text-destructive/90">
+              {summary.fx_refresh_error}
+            </div>
+          ) : null}
         </div>
       </section>
 
