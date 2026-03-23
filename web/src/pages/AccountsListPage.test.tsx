@@ -31,6 +31,16 @@ function mockDashboardRequests({
     refresh_status: "available",
     refresh_error: null,
   },
+  portfolio = {
+    display_currency: "EUR",
+    total_value_status: "ok",
+    total_value_amount: "100.00000000",
+    account_totals: [],
+    cash_by_currency: [],
+    fx_last_updated: null,
+    fx_refresh_status: "available",
+    fx_refresh_error: null,
+  },
 }: {
   accounts: unknown[];
   fxRates?: {
@@ -39,6 +49,16 @@ function mockDashboardRequests({
     last_updated: string | null;
     refresh_status: "available" | "unavailable";
     refresh_error: string | null;
+  };
+  portfolio?: {
+    display_currency: string;
+    total_value_status: string;
+    total_value_amount: string | null;
+    account_totals: unknown[];
+    cash_by_currency: unknown[];
+    fx_last_updated: string | null;
+    fx_refresh_status: string;
+    fx_refresh_error: string | null;
   };
 }) {
   vi.mocked(fetch).mockImplementation((input) => {
@@ -56,6 +76,15 @@ function mockDashboardRequests({
     if (url.endsWith("/fx-rates")) {
       return Promise.resolve(
         new Response(JSON.stringify(fxRates), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    }
+
+    if (url.endsWith("/portfolio")) {
+      return Promise.resolve(
+        new Response(JSON.stringify(portfolio), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),
@@ -90,7 +119,7 @@ describe("AccountsListPage", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("renders fetched account summaries", async () => {
+  it("renders fetched account summaries and summary header", async () => {
     mockDashboardRequests({
       accounts: [
         {
@@ -113,24 +142,50 @@ describe("AccountsListPage", () => {
         refresh_status: "available",
         refresh_error: null,
       },
+      portfolio: {
+        display_currency: "EUR",
+        total_value_status: "ok",
+        total_value_amount: "123.45000000",
+        account_totals: [
+          {
+            id: 1,
+            name: "IBKR",
+            account_type: "broker",
+            summary_status: "ok",
+            total_amount: "123.45000000",
+            total_currency: "EUR",
+          },
+        ],
+        cash_by_currency: [],
+        fx_last_updated: "2026-03-22 10:00:00",
+        fx_refresh_status: "available",
+        fx_refresh_error: null,
+      },
     });
 
     renderAccountsListPage();
 
+    expect(await screen.findByText("Total Accounts")).toBeTruthy();
+    expect(screen.getByText("Combined Balance")).toBeTruthy();
+    expect(screen.getAllByText("1").length).toBeGreaterThan(0); // One for total accounts count
+
     expect(await screen.findByText("IBKR")).toBeTruthy();
-    expect(screen.getByText(/broker/)).toBeTruthy();
+    expect(screen.getByText(/broker/i)).toBeTruthy();
     expect(screen.getAllByText(/EUR/).length).toBeGreaterThan(0);
-    expect(screen.getByText("123.45 EUR")).toBeTruthy();
+    expect(screen.getAllByText("123.45 EUR").length).toBe(2);
+    expect(screen.getByText("100.0%")).toBeTruthy(); // Weight
+
     expect(screen.getByText("USD")).toBeTruthy();
     expect(screen.getByText("0.9200")).toBeTruthy();
     expect(screen.getByText("GBP")).toBeTruthy();
     expect(screen.getByText("1.1700")).toBeTruthy();
     expect(
       screen
-        .getByRole("link", { name: /IBKR.*broker.*EUR.*View details/ })
+        .getByRole("link", { name: /IBKR.*broker.*EUR.*View details/i })
         .getAttribute("href"),
     ).toBe("/accounts/1");
   });
+
 
   it("renders conversion unavailable when the backend summary cannot be calculated", async () => {
     mockDashboardRequests({
@@ -206,6 +261,24 @@ describe("AccountsListPage", () => {
         );
       }
 
+      if (url.endsWith("/portfolio")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              display_currency: "EUR",
+              total_value_status: "ok",
+              total_value_amount: "50.00",
+              account_totals: [],
+              cash_by_currency: [],
+              fx_last_updated: null,
+              fx_refresh_status: "available",
+              fx_refresh_error: null,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+
       throw new Error(`Unhandled fetch request: ${url}`);
     });
 
@@ -218,7 +291,12 @@ describe("AccountsListPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Main Bank")).toBeTruthy();
     });
-    expect(fetch).toHaveBeenCalledTimes(4);
+    // fetch is called for /accounts, /fx-rates, /portfolio.
+    // first attempt: /accounts (fail), /fx-rates (pass), /portfolio (pass) -> but they are parallel.
+    // wait, if one fails, Promise.all rejects.
+    // retry: calls all 3 again.
+    // so total fetch calls should be 6.
+    expect(fetch).toHaveBeenCalledTimes(6);
   });
 
   it("links to account detail and account creation routes", async () => {
@@ -241,7 +319,7 @@ describe("AccountsListPage", () => {
     expect(
       (
         await screen.findByRole("link", {
-          name: /IBKR.*broker.*EUR.*View details/,
+          name: /IBKR.*broker.*EUR.*View details/i,
         })
       ).getAttribute("href"),
     ).toBe("/accounts/7");
@@ -360,14 +438,15 @@ describe("AccountsListPage", () => {
     renderAccountsListPage();
 
     const accountLink = await screen.findByRole("link", {
-      name: /IBKR.*broker.*EUR.*View details/,
+      name: /IBKR.*broker.*EUR.*View details/i,
     });
-    const maskedAmount = screen.getByText("•••• EUR");
+    const maskedAmounts = screen.getAllByText("•••• EUR");
 
-    expect(maskedAmount).toBeTruthy();
+    expect(maskedAmounts.length).toBe(2);
     expect(screen.queryByText("123.45 EUR")).toBeNull();
     expect(accountLink.textContent).toContain("•••• EUR");
     expect(accountLink.textContent).not.toContain("123.45 EUR");
-    expect(maskedAmount.className).toContain("text-left");
+    expect(maskedAmounts[0].className).toContain("tabular-nums");
   });
+
 });

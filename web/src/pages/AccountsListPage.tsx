@@ -15,7 +15,9 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import {
   getAccountsApiUrl,
   getFxRatesApiUrl,
+  getPortfolioApiUrl,
   type FxRateSummaryResponse,
+  type PortfolioSummaryResponse,
 } from "@/lib/api";
 import { MoneyText } from "@/lib/money";
 import { useUiState } from "@/lib/ui-state";
@@ -43,24 +45,32 @@ type FxRateSummary = {
 };
 
 export function AccountsListPage() {
+  const { hideValues } = useUiState();
   const [requestState, setRequestState] = useState<
     | { status: "loading" }
     | { status: "error" }
-    | { status: "ready"; accounts: AccountSummary[]; fxRates: FxRateSummary }
+    | {
+        status: "ready";
+        accounts: AccountSummary[];
+        fxRates: FxRateSummary;
+        portfolio: PortfolioSummaryResponse;
+      }
   >({ status: "loading" });
   const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadAccounts() {
+    async function loadData() {
       setRequestState({ status: "loading" });
 
       try {
-        const [accountsResponse, fxRatesResponse] = await Promise.all([
-          fetch(getAccountsApiUrl()),
-          fetch(getFxRatesApiUrl()),
-        ]);
+        const [accountsResponse, fxRatesResponse, portfolioResponse] =
+          await Promise.all([
+            fetch(getAccountsApiUrl()),
+            fetch(getFxRatesApiUrl()),
+            fetch(getPortfolioApiUrl()),
+          ]);
 
         if (!accountsResponse.ok) {
           throw new Error(
@@ -74,16 +84,23 @@ export function AccountsListPage() {
           );
         }
 
-        const [accounts, fxRates] = await Promise.all([
+        if (!portfolioResponse.ok) {
+          throw new Error(
+            `portfolio request failed with status ${portfolioResponse.status}`,
+          );
+        }
+
+        const [accounts, fxRates, portfolio] = await Promise.all([
           accountsResponse.json() as Promise<AccountSummary[]>,
           fxRatesResponse.json() as Promise<FxRateSummaryResponse>,
+          portfolioResponse.json() as Promise<PortfolioSummaryResponse>,
         ]);
 
         if (cancelled) {
           return;
         }
 
-        setRequestState({ status: "ready", accounts, fxRates });
+        setRequestState({ status: "ready", accounts, fxRates, portfolio });
       } catch {
         if (!cancelled) {
           setRequestState({ status: "error" });
@@ -91,7 +108,7 @@ export function AccountsListPage() {
       }
     }
 
-    void loadAccounts();
+    void loadData();
 
     return () => {
       cancelled = true;
@@ -112,6 +129,42 @@ export function AccountsListPage() {
         </Link>
       </header>
 
+      {requestState.status === "ready" && (
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Card className="bg-background">
+            <CardHeader className="pb-2">
+              <CardDescription className="text-xs font-medium uppercase tracking-wider">
+                Total Accounts
+              </CardDescription>
+              <CardTitle className="text-2xl font-bold">
+                {requestState.accounts.length}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+          <Card className="bg-background">
+            <CardHeader className="pb-2">
+              <CardDescription className="text-xs font-medium uppercase tracking-wider">
+                Combined Balance
+              </CardDescription>
+              <CardTitle className="text-2xl font-bold">
+                {requestState.portfolio.total_value_status === "ok" &&
+                requestState.portfolio.total_value_amount ? (
+                  <MoneyText
+                    currency={requestState.portfolio.display_currency}
+                    hidden={hideValues}
+                    value={requestState.portfolio.total_value_amount}
+                  />
+                ) : (
+                  <span className="text-lg text-muted-foreground">
+                    Unavailable
+                  </span>
+                )}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+        </section>
+      )}
+
       <section className="space-y-4">
         {requestState.status === "loading" ? <AccountsLoadingState /> : null}
         {requestState.status === "error" ? (
@@ -123,6 +176,7 @@ export function AccountsListPage() {
           <AccountsReadyState
             accounts={requestState.accounts}
             fxRates={requestState.fxRates}
+            portfolio={requestState.portfolio}
           />
         ) : null}
       </section>
@@ -193,9 +247,11 @@ function AccountsErrorState({ onRetry }: { onRetry: () => void }) {
 function AccountsReadyState({
   accounts,
   fxRates,
+  portfolio,
 }: {
   accounts: AccountSummary[];
   fxRates: FxRateSummary;
+  portfolio: PortfolioSummaryResponse;
 }) {
   const { hideValues } = useUiState();
 
@@ -205,19 +261,36 @@ function AccountsReadyState({
         <AccountsEmptyState />
       ) : (
         <div className="grid gap-3">
-          {accounts.map((account) => (
-            <AccountListItem
-              key={account.id}
-              id={String(account.id)}
-              name={account.name}
-              accountType={account.account_type}
-              baseCurrency={account.base_currency}
-              summaryStatus={account.summary_status}
-              totalAmount={account.total_amount}
-              totalCurrency={account.total_currency}
-              hideValues={hideValues}
-            />
-          ))}
+          {accounts.map((account) => {
+            const portfolioAccount = portfolio.account_totals.find(
+              (a) => a.id === account.id,
+            );
+            const totalValue = portfolio.total_value_amount
+              ? Number(portfolio.total_value_amount)
+              : 0;
+            const accountValue = portfolioAccount?.total_amount
+              ? Number(portfolioAccount.total_amount)
+              : 0;
+            const percentage =
+              totalValue > 0 && portfolioAccount?.summary_status === "ok"
+                ? (accountValue / totalValue) * 100
+                : 0;
+
+            return (
+              <AccountListItem
+                key={account.id}
+                id={String(account.id)}
+                name={account.name}
+                accountType={account.account_type}
+                baseCurrency={account.base_currency}
+                summaryStatus={account.summary_status}
+                totalAmount={account.total_amount}
+                totalCurrency={account.total_currency}
+                hideValues={hideValues}
+                weight={percentage}
+              />
+            );
+          })}
         </div>
       )}
       <FxRatesFooter summary={fxRates} />
@@ -262,6 +335,7 @@ function AccountListItem({
   totalAmount,
   totalCurrency,
   hideValues,
+  weight,
 }: {
   id: string;
   name: string;
@@ -271,17 +345,23 @@ function AccountListItem({
   totalAmount: string | null;
   totalCurrency: string | null;
   hideValues: boolean;
+  weight: number;
 }) {
   return (
     <Link className="block" to={`/accounts/${id}`}>
       <Card className="bg-background transition-colors hover:bg-muted/30">
-        <CardHeader>
-          <CardTitle>{name}</CardTitle>
-          <CardDescription className="flex items-center gap-2">
-            {accountType}
-            <span className="text-muted-foreground/50">·</span>
-            {baseCurrency}
-          </CardDescription>
+        <CardHeader className="flex-row items-start gap-4 space-y-0">
+          <div className="mt-1 flex size-10 shrink-0 items-center justify-center rounded-xl border bg-muted/50 text-muted-foreground">
+            {accountType === "bank" ? <BankIcon /> : <BrokerIcon />}
+          </div>
+          <div className="flex-1 space-y-1">
+            <CardTitle className="text-xl">{name}</CardTitle>
+            <CardDescription className="flex items-center gap-2">
+              <span className="capitalize">{accountType}</span>
+              <span className="text-muted-foreground/50">·</span>
+              {baseCurrency}
+            </CardDescription>
+          </div>
           <CardAction>
             <div
               className={cn(
@@ -293,25 +373,89 @@ function AccountListItem({
             </div>
           </CardAction>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">Total</p>
-          {summaryStatus === "ok" && totalAmount && totalCurrency ? (
-            <p className="mt-1 text-lg font-semibold">
-              <MoneyText
-                className="text-left"
-                currency={totalCurrency}
-                hidden={hideValues}
-                value={totalAmount}
+        <CardContent className="space-y-4">
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Total balance</p>
+              {summaryStatus === "ok" && totalAmount && totalCurrency ? (
+                <p className="mt-0.5 text-2xl font-bold tracking-tight">
+                  <MoneyText
+                    className="text-left"
+                    currency={totalCurrency}
+                    hidden={hideValues}
+                    value={totalAmount}
+                  />
+                </p>
+              ) : (
+                <p className="mt-0.5 text-sm font-medium text-muted-foreground">
+                  Conversion unavailable
+                </p>
+              )}
+            </div>
+            {summaryStatus === "ok" && (
+              <div className="text-right">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Weight
+                </p>
+                <p className="mt-0.5 font-mono text-sm font-semibold">
+                  {weight.toFixed(1)}%
+                </p>
+              </div>
+            )}
+          </div>
+          {summaryStatus === "ok" && (
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full bg-primary transition-all duration-500"
+                style={{ width: `${weight}%` }}
               />
-            </p>
-          ) : (
-            <p className="mt-1 text-sm font-medium text-muted-foreground">
-              Conversion unavailable
-            </p>
+            </div>
           )}
         </CardContent>
       </Card>
     </Link>
+  );
+}
+
+function BankIcon() {
+  return (
+    <svg
+      className="size-5"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M3 21h18" />
+      <path d="M3 10h18" />
+      <path d="M5 6l7-3 7 3" />
+      <path d="M4 10v11" />
+      <path d="M20 10v11" />
+      <path d="M8 14v3" />
+      <path d="M12 14v3" />
+      <path d="M16 14v3" />
+    </svg>
+  );
+}
+
+function BrokerIcon() {
+  return (
+    <svg
+      className="size-5"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M12 2v20" />
+      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+    </svg>
   );
 }
 
@@ -324,3 +468,4 @@ function formatFxRate(rate: string) {
 
   return parsedRate.toFixed(4);
 }
+
