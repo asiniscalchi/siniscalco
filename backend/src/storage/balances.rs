@@ -112,29 +112,30 @@ pub async fn get_portfolio_summary(
     let fx_summary = crate::storage::fx::list_fx_rate_summary(pool, display_currency).await?;
     let mut account_totals = Vec::with_capacity(accounts.len());
     let mut cash_by_currency = Vec::<PortfolioCashByCurrencyRecord>::new();
-    let mut portfolio_total = Decimal::ZERO;
+    let mut portfolio_total_decimal = Decimal::ZERO;
     let mut portfolio_status = AccountSummaryStatus::Ok;
 
     for account in accounts {
         let balances = list_account_balances(pool, account.id).await?;
-        let summary = summarize_balances_in_currency(pool, &balances, display_currency).await?;
-
-        if summary.status == AccountSummaryStatus::ConversionUnavailable {
-            portfolio_status = AccountSummaryStatus::ConversionUnavailable;
-        }
-
-        if let Some(total_amount) = summary.total_amount {
-            portfolio_total += total_amount.as_decimal();
-        }
+        let mut account_total_decimal = Decimal::ZERO;
+        let mut account_status = AccountSummaryStatus::Ok;
 
         for balance in balances {
-            let converted_balance_amount = if balance.currency == display_currency {
-                Some(balance.amount.clone())
+            let rate = if balance.currency == display_currency {
+                Some(Decimal::ONE)
             } else {
-                get_direct_fx_rate(pool, balance.currency, display_currency)
-                    .await?
-                    .map(|rate| parse_decimal_amount(balance.amount.as_decimal() * rate))
+                get_direct_fx_rate(pool, balance.currency, display_currency).await?
             };
+
+            let converted_balance_decimal = rate.map(|r| balance.amount.as_decimal() * r);
+
+            if let Some(converted_decimal) = converted_balance_decimal {
+                account_total_decimal += converted_decimal;
+                portfolio_total_decimal += converted_decimal;
+            } else {
+                account_status = AccountSummaryStatus::ConversionUnavailable;
+                portfolio_status = AccountSummaryStatus::ConversionUnavailable;
+            }
 
             if let Some(existing_balance) = cash_by_currency
                 .iter_mut()
@@ -143,21 +144,12 @@ pub async fn get_portfolio_summary(
                 existing_balance.amount = parse_decimal_amount(
                     existing_balance.amount.as_decimal() + balance.amount.as_decimal(),
                 );
-                if let (Some(existing_converted), Some(new_converted)) = (
-                    &existing_balance.converted_amount,
-                    &converted_balance_amount,
-                ) {
-                    existing_balance.converted_amount = Some(parse_decimal_amount(
-                        existing_converted.as_decimal() + new_converted.as_decimal(),
-                    ));
-                } else {
-                    existing_balance.converted_amount = None;
-                }
+                // We'll fix converted_amount later to avoid intermediate rounding
             } else {
                 cash_by_currency.push(PortfolioCashByCurrencyRecord {
                     currency: balance.currency,
                     amount: balance.amount,
-                    converted_amount: converted_balance_amount,
+                    converted_amount: None, // Will be calculated after the loop
                 });
             }
         }
@@ -166,10 +158,30 @@ pub async fn get_portfolio_summary(
             id: account.id,
             name: account.name,
             account_type: account.account_type,
-            summary_status: summary.status,
-            total_amount: summary.total_amount,
+            summary_status: account_status,
+            total_amount: if account_status == AccountSummaryStatus::Ok {
+                Some(parse_decimal_amount(account_total_decimal))
+            } else {
+                None
+            },
             total_currency: display_currency,
         });
+    }
+
+    // Now calculate converted amounts for each currency in the summary
+    let mut total_from_currency_breakdown = Decimal::ZERO;
+    for cash_record in &mut cash_by_currency {
+        let rate = if cash_record.currency == display_currency {
+            Some(Decimal::ONE)
+        } else {
+            get_direct_fx_rate(pool, cash_record.currency, display_currency).await?
+        };
+
+        let converted = rate.map(|r| parse_decimal_amount(cash_record.amount.as_decimal() * r));
+        if let Some(amount) = &converted {
+            total_from_currency_breakdown += amount.as_decimal();
+        }
+        cash_record.converted_amount = converted;
     }
 
     cash_by_currency.sort_by_key(|balance| balance.currency.as_str());
@@ -178,7 +190,7 @@ pub async fn get_portfolio_summary(
         display_currency,
         total_value_status: portfolio_status,
         total_value_amount: if portfolio_status == AccountSummaryStatus::Ok {
-            Some(parse_decimal_amount(portfolio_total))
+            Some(parse_decimal_amount(total_from_currency_breakdown))
         } else {
             None
         },
