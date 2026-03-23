@@ -15,6 +15,8 @@ import {
   getPortfolioApiUrl,
   type PortfolioSummaryResponse,
 } from "@/lib/api";
+import { MoneyText } from "@/lib/money";
+import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
 
 type PortfolioSummary = PortfolioSummaryResponse;
@@ -120,6 +122,7 @@ function PortfolioErrorState({ onRetry }: { onRetry: () => void }) {
 }
 
 function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
+  const { hideValues } = useUiState();
   const hasCashData = summary.cash_by_currency.length > 0;
 
   if (!hasCashData) {
@@ -147,9 +150,12 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
           </h1>
           <div className="flex items-baseline gap-4">
             {summary.total_value_status === "ok" && summary.total_value_amount ? (
-              <span className="text-4xl font-bold tracking-tight">
-                {formatDisplayAmount(summary.total_value_amount, summary.display_currency)}
-              </span>
+              <MoneyText
+                className="text-4xl font-bold tracking-tight"
+                currency={summary.display_currency}
+                hidden={hideValues}
+                value={summary.total_value_amount}
+              />
             ) : (
               <span className="text-2xl font-semibold text-muted-foreground">
                 Conversion unavailable
@@ -221,12 +227,12 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
                         <div className="text-right">
                           {account.summary_status === "ok" &&
                           account.total_amount ? (
-                            <span className="font-mono text-xs text-muted-foreground">
-                              {formatDisplayAmount(
-                                account.total_amount,
-                                account.total_currency,
-                              )}
-                            </span>
+                            <MoneyText
+                              className="text-right text-xs text-muted-foreground"
+                              currency={account.total_currency}
+                              hidden={hideValues}
+                              value={account.total_amount}
+                            />
                           ) : (
                             <span className="text-xs font-medium text-muted-foreground">
                               Conversion unavailable
@@ -273,9 +279,14 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
                   <div key={balance.currency} className="space-y-1">
                     <div className="flex items-end justify-between text-sm">
                       <span className="font-medium">{balance.currency}</span>
-                      <span className="font-mono text-xs text-muted-foreground">
-                        {formatOriginalAmount(balance.amount)} {balance.currency}
-                      </span>
+                      <MoneyText
+                        className="text-right text-xs text-muted-foreground"
+                        currency={balance.currency}
+                        hidden={hideValues}
+                        maximumFractionDigits={8}
+                        minimumFractionDigits={0}
+                        value={balance.amount}
+                      />
                     </div>
                       <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                         <div
@@ -310,28 +321,6 @@ function PortfolioEmptyState() {
       </CardFooter>
     </Card>
   );
-}
-
-function formatDisplayAmount(amount: string, currency: string) {
-  const value = Number(amount);
-
-  if (Number.isNaN(value)) {
-    return `${amount} ${currency}`;
-  }
-
-  return `${new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)} ${currency}`;
-}
-
-function formatOriginalAmount(amount: string) {
-  const value = Number(amount);
-  if (Number.isNaN(value)) return amount;
-  return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 8,
-  }).format(value);
 }
 
 function formatTimestamp(timestamp: string) {

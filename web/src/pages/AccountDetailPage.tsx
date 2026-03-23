@@ -20,6 +20,8 @@ import {
   readApiErrorMessage,
   type CurrencyResponse,
 } from "@/lib/api";
+import { MoneyText } from "@/lib/money";
+import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
 
 type AccountBalance = {
@@ -207,6 +209,7 @@ function AccountDetailReadyState({
   onDeleteSuccess: () => void;
   onRefresh: () => void;
 }) {
+  const { hideValues } = useUiState();
   const [currency, setCurrency] = useState(account.base_currency);
   const [amount, setAmount] = useState("");
   const [requestState, setRequestState] = useState<
@@ -488,9 +491,14 @@ function AccountDetailReadyState({
                   </CardAction>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-semibold tracking-tight">
-                    {balance.amount}
-                  </p>
+                  <MoneyText
+                    className="text-2xl font-semibold tracking-tight"
+                    hidden={hideValues}
+                    includeCurrency={false}
+                    maximumFractionDigits={8}
+                    minimumFractionDigits={8}
+                    value={balance.amount}
+                  />
                 </CardContent>
               </Card>
             ))}

@@ -2,7 +2,18 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { UiStateProvider } from "@/lib/ui-state-provider";
 import App from "./App";
+
+function renderApp(initialEntries: string[]) {
+  return render(
+    <UiStateProvider>
+      <MemoryRouter initialEntries={initialEntries}>
+        <App />
+      </MemoryRouter>
+    </UiStateProvider>,
+  );
+}
 
 describe("App shell", () => {
   beforeEach(() => {
@@ -11,6 +22,7 @@ describe("App shell", () => {
 
   afterEach(() => {
     cleanup();
+    window.localStorage.clear();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -73,11 +85,7 @@ describe("App shell", () => {
       throw new Error(`Unhandled fetch request: ${url}`);
     });
 
-    render(
-      <MemoryRouter initialEntries={["/accounts"]}>
-        <App />
-      </MemoryRouter>,
-    );
+    renderApp(["/accounts"]);
 
     expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/health$/));
     expect(await screen.findByText("connected")).toBeTruthy();
@@ -136,11 +144,7 @@ describe("App shell", () => {
       throw new Error(`Unhandled fetch request: ${url}`);
     });
 
-    render(
-      <MemoryRouter initialEntries={["/accounts"]}>
-        <App />
-      </MemoryRouter>,
-    );
+    renderApp(["/accounts"]);
 
     expect(await screen.findByText("unavailable")).toBeTruthy();
   });
@@ -148,11 +152,7 @@ describe("App shell", () => {
   it("renders the shell while page content and health are still loading", () => {
     vi.mocked(fetch).mockImplementation(() => new Promise(() => {}));
 
-    render(
-      <MemoryRouter initialEntries={["/accounts"]}>
-        <App />
-      </MemoryRouter>,
-    );
+    renderApp(["/accounts"]);
 
     expect(screen.getByText("Siniscalco")).toBeTruthy();
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeTruthy();
@@ -263,11 +263,7 @@ describe("App shell", () => {
       throw new Error(`Unhandled fetch request: ${url}`);
     });
 
-    render(
-      <MemoryRouter initialEntries={["/accounts"]}>
-        <App />
-      </MemoryRouter>,
-    );
+    renderApp(["/accounts"]);
 
     const portfolioLink = screen.getByRole("link", { name: "Portfolio" });
     const accountsLink = screen.getByRole("link", { name: "Accounts" });
@@ -305,5 +301,78 @@ describe("App shell", () => {
         .getByRole("link", { name: "Accounts" })
         .getAttribute("aria-current"),
     ).toBe("page");
+  });
+
+  it("toggles hidden values, persists the choice, and keeps amount width stable", async () => {
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input);
+
+      if (url.endsWith("/health")) {
+        return Promise.resolve(new Response("ok", { status: 200 }));
+      }
+
+      if (url.endsWith("/portfolio")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              display_currency: "EUR",
+              total_value_status: "ok",
+              total_value_amount: "153.70000000",
+              account_totals: [
+                {
+                  id: 1,
+                  name: "IBKR",
+                  account_type: "broker",
+                  summary_status: "ok",
+                  total_amount: "103.70000000",
+                  total_currency: "EUR",
+                },
+              ],
+              cash_by_currency: [
+                {
+                  currency: "USD",
+                  amount: "100.00000000",
+                  converted_amount: "92.00000000",
+                },
+              ],
+              fx_last_updated: null,
+              fx_refresh_status: "available",
+              fx_refresh_error: null,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+
+      throw new Error(`Unhandled fetch request: ${url}`);
+    });
+
+    const view = renderApp(["/portfolio"]);
+
+    const totalAmount = await screen.findByText("153.70 EUR");
+    const initialWidth = totalAmount.getAttribute("style");
+    expect(screen.getByText("103.70 EUR")).toBeTruthy();
+    expect(screen.getByText("100 USD")).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Hide financial values" }),
+    );
+
+    expect(await screen.findAllByText("•••• EUR")).toHaveLength(2);
+    expect(screen.getByText("•••• USD")).toBeTruthy();
+    expect(screen.queryByText("153.70 EUR")).toBeNull();
+    expect(screen.queryByText("103.70 EUR")).toBeNull();
+    expect(screen.queryByText("100 USD")).toBeNull();
+    expect(window.localStorage.getItem("ui.hide_values")).toBe("true");
+    expect(screen.getAllByText("•••• EUR")[0].getAttribute("style")).toBe(
+      initialWidth,
+    );
+
+    view.unmount();
+    renderApp(["/portfolio"]);
+
+    expect(await screen.findAllByText("•••• EUR")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Show financial values" })).toBeTruthy();
+    expect(screen.queryByText("153.70 EUR")).toBeNull();
   });
 });

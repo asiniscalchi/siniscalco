@@ -8,7 +8,18 @@ import {
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { UiStateProvider } from "@/lib/ui-state-provider";
 import { PortfolioPage } from "./PortfolioPage";
+
+function renderPortfolioPage() {
+  return render(
+    <UiStateProvider>
+      <MemoryRouter>
+        <PortfolioPage />
+      </MemoryRouter>
+    </UiStateProvider>,
+  );
+}
 
 function mockPortfolioRequest(summary: unknown) {
   vi.mocked(fetch).mockImplementation((input) => {
@@ -34,6 +45,7 @@ describe("PortfolioPage", () => {
 
   afterEach(() => {
     cleanup();
+    window.localStorage.clear();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -41,11 +53,7 @@ describe("PortfolioPage", () => {
   it("shows a loading state before the portfolio resolves", () => {
     vi.mocked(fetch).mockImplementation(() => new Promise(() => {}));
 
-    render(
-      <MemoryRouter>
-        <PortfolioPage />
-      </MemoryRouter>,
-    );
+    renderPortfolioPage();
 
     expect(screen.getByText("Portfolio")).toBeTruthy();
     expect(
@@ -86,11 +94,7 @@ describe("PortfolioPage", () => {
       fx_refresh_error: null,
     });
 
-    render(
-      <MemoryRouter>
-        <PortfolioPage />
-      </MemoryRouter>,
-    );
+    renderPortfolioPage();
 
     expect(await screen.findByText("Total Cash Value")).toBeTruthy();
     expect(screen.getByText("153.70 EUR")).toBeTruthy();
@@ -125,11 +129,7 @@ describe("PortfolioPage", () => {
       fx_refresh_error: "FX refresh unavailable: no successful refresh has completed",
     });
 
-    render(
-      <MemoryRouter>
-        <PortfolioPage />
-      </MemoryRouter>,
-    );
+    renderPortfolioPage();
 
     expect(await screen.findByText("No portfolio cash data yet")).toBeTruthy();
     expect(screen.queryByText("Total Cash Value")).toBeNull();
@@ -159,11 +159,7 @@ describe("PortfolioPage", () => {
       fx_refresh_error: "FX refresh unavailable: provider returned status 500",
     });
 
-    render(
-      <MemoryRouter>
-        <PortfolioPage />
-      </MemoryRouter>,
-    );
+    renderPortfolioPage();
 
     expect(await screen.findAllByText("Conversion unavailable")).toHaveLength(2);
     expect(screen.getByText("Conversion data unavailable")).toBeTruthy();
@@ -208,11 +204,7 @@ describe("PortfolioPage", () => {
       throw new Error(`Unhandled fetch request: ${url}`);
     });
 
-    render(
-      <MemoryRouter>
-        <PortfolioPage />
-      </MemoryRouter>,
-    );
+    renderPortfolioPage();
 
     expect(await screen.findByText("Could not load portfolio")).toBeTruthy();
 
@@ -221,5 +213,40 @@ describe("PortfolioPage", () => {
     await waitFor(() => {
       expect(screen.getByText("1.00 EUR")).toBeTruthy();
     });
+  });
+
+  it("masks portfolio values when hidden mode is enabled", async () => {
+    window.localStorage.setItem("ui.hide_values", "true");
+
+    mockPortfolioRequest({
+      display_currency: "EUR",
+      total_value_status: "ok",
+      total_value_amount: "153.70000000",
+      account_totals: [
+        {
+          id: 1,
+          name: "IBKR",
+          account_type: "broker",
+          summary_status: "ok",
+          total_amount: "103.70000000",
+          total_currency: "EUR",
+        },
+      ],
+      cash_by_currency: [
+        { currency: "USD", amount: "100.00000000", converted_amount: "92.00000000" },
+      ],
+      fx_last_updated: "2026-03-22 11:30:00",
+      fx_refresh_status: "available",
+      fx_refresh_error: null,
+    });
+
+    renderPortfolioPage();
+
+    expect(await screen.findByText("Total Cash Value")).toBeTruthy();
+    expect(screen.getAllByText("•••• EUR")).toHaveLength(2);
+    expect(screen.getByText("•••• USD")).toBeTruthy();
+    expect(screen.queryByText("153.70 EUR")).toBeNull();
+    expect(screen.queryByText("103.70 EUR")).toBeNull();
+    expect(screen.queryByText("100 USD")).toBeNull();
   });
 });
