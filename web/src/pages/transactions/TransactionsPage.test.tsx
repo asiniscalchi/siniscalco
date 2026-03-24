@@ -299,7 +299,7 @@ describe("TransactionsPage", () => {
     expect(historyCard?.className).toContain("min-w-0");
     expect(mobileList?.className).toContain("sm:hidden");
     expect(desktopTable?.className).toContain("sm:block");
-    expect(mobileGrid?.className).toContain("grid-cols-3");
+    expect(mobileGrid?.className).toContain("grid-cols-4");
     expect(mobileCardContent?.className).toContain("p-3");
     expect(screen.getByText("Actions")).toBeTruthy();
   });
