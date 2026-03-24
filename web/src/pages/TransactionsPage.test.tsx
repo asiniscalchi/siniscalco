@@ -128,6 +128,40 @@ describe("TransactionsPage", () => {
     expect((screen.getByRole("button", { name: "Add Transaction" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
+  it("keeps the header controls wrappable on mobile when edit mode is unlocked", async () => {
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/accounts")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify([
+              { id: 1, name: "Main Account", account_type: "bank", base_currency: "USD" },
+            ]),
+          ),
+        );
+      }
+      if (url.endsWith("/assets")) {
+        return Promise.resolve(new Response(JSON.stringify([])));
+      }
+      if (url.includes("/transactions")) {
+        return Promise.resolve(new Response(JSON.stringify([])));
+      }
+      return Promise.reject(new Error(`Unhandled fetch request: ${url}`));
+    });
+
+    renderTransactionsPage();
+
+    await screen.findByLabelText("Account:");
+    await unlockEditMode();
+
+    const unlockButton = screen.getByRole("button", { name: /lock edit mode/i });
+    const controlsRow = unlockButton.closest("div")?.parentElement;
+
+    expect(controlsRow).toBeTruthy();
+    expect(controlsRow?.className).toContain("w-full");
+    expect(controlsRow?.className).toContain("flex-wrap");
+  });
+
   it("handles create transaction via modal", async () => {
     const accounts = [
       { id: 1, name: "Main Account", account_type: "bank", base_currency: "USD" },
