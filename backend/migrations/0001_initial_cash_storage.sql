@@ -28,12 +28,16 @@ CREATE TABLE assets (
     asset_type TEXT NOT NULL CHECK (
         asset_type IN ('STOCK', 'ETF', 'BOND', 'CRYPTO', 'CASH_EQUIVALENT', 'OTHER')
     ),
+    quote_symbol TEXT,
     isin TEXT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
 CREATE UNIQUE INDEX assets_isin_unique_idx ON assets(isin) WHERE isin IS NOT NULL;
+
+CREATE UNIQUE INDEX assets_quote_symbol_unique_idx
+ON assets(quote_symbol) WHERE quote_symbol IS NOT NULL;
 
 CREATE TABLE asset_transactions (
     id INTEGER PRIMARY KEY,
@@ -69,6 +73,16 @@ CREATE TABLE fx_rates (
     PRIMARY KEY (from_currency, to_currency),
     FOREIGN KEY (from_currency) REFERENCES currencies(code),
     FOREIGN KEY (to_currency) REFERENCES currencies(code)
+);
+
+CREATE TABLE asset_prices (
+    asset_id INTEGER PRIMARY KEY,
+    price INTEGER NOT NULL CHECK (typeof(price) = 'integer' AND price >= 0),
+    currency_code TEXT NOT NULL,
+    as_of TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE,
+    FOREIGN KEY (currency_code) REFERENCES currencies(code)
 );
 
 INSERT INTO currencies (code)

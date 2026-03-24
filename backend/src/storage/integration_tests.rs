@@ -125,6 +125,7 @@ async fn lists_assets_in_symbol_order() {
             symbol: asset_symbol("VTI"),
             name: asset_name("Vanguard Total Stock Market ETF"),
             asset_type: AssetType::Etf,
+            quote_symbol: None,
             isin: Some("US9229087690".to_string()),
         },
     )
@@ -137,6 +138,7 @@ async fn lists_assets_in_symbol_order() {
             symbol: asset_symbol("AAPL"),
             name: asset_name("Apple Inc."),
             asset_type: AssetType::Stock,
+            quote_symbol: None,
             isin: None,
         },
     )
@@ -153,7 +155,11 @@ async fn lists_assets_in_symbol_order() {
                 symbol: asset_symbol("AAPL"),
                 name: asset_name("Apple Inc."),
                 asset_type: AssetType::Stock,
+                quote_symbol: None,
                 isin: None,
+                current_price: None,
+                current_price_currency: None,
+                current_price_as_of: None,
                 created_at: assets[0].created_at.clone(),
                 updated_at: assets[0].updated_at.clone(),
             },
@@ -162,7 +168,11 @@ async fn lists_assets_in_symbol_order() {
                 symbol: asset_symbol("VTI"),
                 name: asset_name("Vanguard Total Stock Market ETF"),
                 asset_type: AssetType::Etf,
+                quote_symbol: None,
                 isin: Some("US9229087690".to_string()),
+                current_price: None,
+                current_price_currency: None,
+                current_price_as_of: None,
                 created_at: assets[1].created_at.clone(),
                 updated_at: assets[1].updated_at.clone(),
             },
@@ -180,6 +190,7 @@ async fn rejects_duplicate_asset_symbols() {
             symbol: asset_symbol("AAPL"),
             name: asset_name("Apple Inc."),
             asset_type: AssetType::Stock,
+            quote_symbol: None,
             isin: Some("US0378331005".to_string()),
         },
     )
@@ -192,6 +203,7 @@ async fn rejects_duplicate_asset_symbols() {
             symbol: asset_symbol("AAPL"),
             name: asset_name("Apple Common Stock"),
             asset_type: AssetType::Stock,
+            quote_symbol: None,
             isin: Some("US0378331006".to_string()),
         },
     )
@@ -211,6 +223,7 @@ async fn rejects_duplicate_asset_isins() {
             symbol: asset_symbol("VTI"),
             name: asset_name("Vanguard Total Stock Market ETF"),
             asset_type: AssetType::Etf,
+            quote_symbol: None,
             isin: Some("US9229087690".to_string()),
         },
     )
@@ -223,6 +236,7 @@ async fn rejects_duplicate_asset_isins() {
             symbol: asset_symbol("VWCE"),
             name: asset_name("Vanguard FTSE All-World UCITS ETF"),
             asset_type: AssetType::Etf,
+            quote_symbol: None,
             isin: Some("US9229087690".to_string()),
         },
     )
@@ -253,6 +267,7 @@ async fn creates_asset_transactions_and_derives_positions() {
             symbol: asset_symbol("AAPL"),
             name: asset_name("Apple Inc."),
             asset_type: AssetType::Stock,
+            quote_symbol: None,
             isin: None,
         },
     )
@@ -332,6 +347,7 @@ async fn derives_positions_for_maximum_supported_transaction_quantities() {
             symbol: asset_symbol("BIG"),
             name: asset_name("Big Asset"),
             asset_type: AssetType::Stock,
+            quote_symbol: None,
             isin: None,
         },
     )
@@ -391,6 +407,7 @@ async fn rejects_oversell_and_keeps_transactions_unchanged() {
             symbol: asset_symbol("BTC"),
             name: asset_name("Bitcoin"),
             asset_type: AssetType::Crypto,
+            quote_symbol: None,
             isin: None,
         },
     )
@@ -460,6 +477,7 @@ async fn updating_asset_transaction_rejects_oversell_and_keeps_original_transact
             symbol: asset_symbol("BTC"),
             name: asset_name("Bitcoin"),
             asset_type: AssetType::Crypto,
+            quote_symbol: None,
             isin: None,
         },
     )
@@ -560,6 +578,7 @@ async fn omits_zero_positions_and_isolates_accounts() {
             symbol: asset_symbol("VTI"),
             name: asset_name("Vanguard Total Stock Market ETF"),
             asset_type: AssetType::Etf,
+            quote_symbol: None,
             isin: None,
         },
     )
@@ -622,6 +641,7 @@ async fn prevents_concurrent_oversell() {
             symbol: asset_symbol("AAPL"),
             name: asset_name("Apple Inc."),
             asset_type: AssetType::Stock,
+            quote_symbol: None,
             isin: None,
         },
     )

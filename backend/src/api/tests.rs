@@ -137,6 +137,7 @@ async fn lists_assets_through_api() {
             symbol: asset_symbol("AAPL"),
             name: asset_name("Apple Inc."),
             asset_type: AssetType::Stock,
+            quote_symbol: None,
             isin: None,
         },
     )
@@ -166,7 +167,7 @@ async fn lists_assets_through_api() {
 
     assert_eq!(
         std::str::from_utf8(&body).expect("json body should be utf8"),
-        r#"[{"id":1,"symbol":"AAPL","name":"Apple Inc.","asset_type":"STOCK","isin":null}]"#
+        r#"[{"id":1,"symbol":"AAPL","name":"Apple Inc.","asset_type":"STOCK","quote_symbol":null,"isin":null,"current_price":null,"current_price_currency":null,"current_price_as_of":null}]"#
     );
 }
 
@@ -264,6 +265,7 @@ async fn rejects_duplicate_asset_symbol_through_api() {
             symbol: asset_symbol("AAPL"),
             name: asset_name("Apple Inc."),
             asset_type: AssetType::Stock,
+            quote_symbol: None,
             isin: Some("US0378331005".to_string()),
         },
     )
@@ -310,6 +312,7 @@ async fn rejects_duplicate_asset_isin_through_api() {
             symbol: asset_symbol("VTI"),
             name: asset_name("Vanguard Total Stock Market ETF"),
             asset_type: AssetType::Etf,
+            quote_symbol: None,
             isin: Some("US9229087690".to_string()),
         },
     )
@@ -609,6 +612,7 @@ async fn creates_asset_transaction_through_api() {
             symbol: asset_symbol("AAPL"),
             name: asset_name("Apple Inc."),
             asset_type: AssetType::Stock,
+            quote_symbol: None,
             isin: None,
         },
     )
@@ -673,6 +677,7 @@ async fn lists_asset_transactions_through_api_in_trade_date_order() {
             symbol: asset_symbol("VTI"),
             name: asset_name("Vanguard Total Stock Market ETF"),
             asset_type: AssetType::Etf,
+            quote_symbol: None,
             isin: None,
         },
     )
@@ -758,6 +763,7 @@ async fn lists_all_transactions_through_api_without_filter() {
             symbol: asset_symbol("VTI"),
             name: asset_name("Vanguard Total Stock Market ETF"),
             asset_type: AssetType::Etf,
+            quote_symbol: None,
             isin: None,
         },
     )
@@ -829,6 +835,7 @@ async fn updates_asset_transaction_through_api() {
             symbol: asset_symbol("AAPL"),
             name: asset_name("Apple Inc."),
             asset_type: AssetType::Stock,
+            quote_symbol: None,
             isin: None,
         },
     )
@@ -907,6 +914,7 @@ async fn rejects_asset_transaction_update_that_would_make_position_negative() {
             symbol: asset_symbol("BTC"),
             name: asset_name("Bitcoin"),
             asset_type: AssetType::Crypto,
+            quote_symbol: None,
             isin: None,
         },
     )
@@ -996,6 +1004,7 @@ async fn deletes_asset_transaction_through_api() {
             symbol: asset_symbol("VTI"),
             name: asset_name("Vanguard Total Stock Market ETF"),
             asset_type: AssetType::Etf,
+            quote_symbol: None,
             isin: None,
         },
     )
@@ -1109,6 +1118,7 @@ async fn lists_active_positions_through_api() {
             symbol: asset_symbol("BTC"),
             name: asset_name("Bitcoin"),
             asset_type: AssetType::Crypto,
+            quote_symbol: None,
             isin: None,
         },
     )
@@ -1322,6 +1332,7 @@ async fn gets_asset_detail_through_api() {
             symbol: asset_symbol("AAPL"),
             name: asset_name("Apple Inc."),
             asset_type: AssetType::Stock,
+            quote_symbol: None,
             isin: Some("US0378331005".to_string()),
         },
     )
@@ -1368,6 +1379,7 @@ async fn updates_asset_through_api() {
             symbol: asset_symbol("AAPL"),
             name: asset_name("Apple Inc."),
             asset_type: AssetType::Stock,
+            quote_symbol: None,
             isin: None,
         },
     )
@@ -1408,6 +1420,7 @@ async fn deletes_asset_through_api() {
             symbol: asset_symbol("AAPL"),
             name: asset_name("Apple Inc."),
             asset_type: AssetType::Stock,
+            quote_symbol: None,
             isin: None,
         },
     )
@@ -1456,6 +1469,7 @@ async fn rejects_deleting_asset_with_transactions_through_api() {
             symbol: asset_symbol("AAPL"),
             name: asset_name("Apple Inc."),
             asset_type: AssetType::Stock,
+            quote_symbol: None,
             isin: None,
         },
     )
@@ -1524,6 +1538,7 @@ async fn gets_transaction_detail_through_api() {
             symbol: asset_symbol("AAPL"),
             name: asset_name("Apple Inc."),
             asset_type: AssetType::Stock,
+            quote_symbol: None,
             isin: None,
         },
     )

@@ -4,8 +4,9 @@ use if_addrs::get_if_addrs;
 use tracing::{error, info};
 
 use backend::{
-    AppState, FxRefreshConfig, build_router_with_state, connect_db_file, init_tracing,
-    new_shared_fx_refresh_status, spawn_fx_refresh_task,
+    AppState, AssetPriceRefreshConfig, FxRefreshConfig, build_router_with_state, connect_db_file,
+    init_tracing, new_shared_fx_refresh_status, spawn_asset_price_refresh_task,
+    spawn_fx_refresh_task,
 };
 
 #[tokio::main]
@@ -24,10 +25,13 @@ async fn main() {
             });
             let address = SocketAddr::from(([0, 0, 0, 0], 3000));
             let fx_refresh_config = FxRefreshConfig::load();
+            let asset_price_refresh_config = AssetPriceRefreshConfig::load();
 
             log_fx_refresh_configuration(&fx_refresh_config);
+            log_asset_price_refresh_configuration(&asset_price_refresh_config);
 
-            spawn_fx_refresh_task(pool, fx_refresh_status, fx_refresh_config).await;
+            spawn_fx_refresh_task(pool.clone(), fx_refresh_status, fx_refresh_config).await;
+            spawn_asset_price_refresh_task(pool.clone(), asset_price_refresh_config).await;
 
             log_listening_addresses(address);
 
@@ -88,5 +92,15 @@ fn log_fx_refresh_configuration(config: &FxRefreshConfig) {
         refresh_interval_seconds = config.refresh_interval.as_secs(),
         endpoint = %config.base_url,
         "fx refresh configuration"
+    );
+}
+
+fn log_asset_price_refresh_configuration(config: &AssetPriceRefreshConfig) {
+    info!(
+        provider = "twelve_data",
+        enabled = config.is_enabled(),
+        refresh_interval_seconds = config.refresh_interval.as_secs(),
+        endpoint = %config.base_url,
+        "asset price refresh configuration"
     );
 }

@@ -129,6 +129,7 @@ pub(crate) async fn update_asset_handler(
             symbol: input.symbol,
             name: input.name,
             asset_type: input.asset_type,
+            quote_symbol: input.quote_symbol,
             isin: input.isin,
         },
     )
@@ -680,7 +681,13 @@ fn to_asset_response(asset: AssetRecord) -> AssetResponse {
         symbol: asset.symbol.to_string(),
         name: asset.name.to_string(),
         asset_type: asset.asset_type,
+        quote_symbol: asset.quote_symbol,
         isin: asset.isin,
+        current_price: asset
+            .current_price
+            .map(|price| normalize_amount_output(&price.to_string())),
+        current_price_currency: asset.current_price_currency,
+        current_price_as_of: asset.current_price_as_of,
     }
 }
 
@@ -690,7 +697,13 @@ fn to_created_asset_response(asset: AssetRecord) -> CreatedAssetResponse {
         symbol: asset.symbol.to_string(),
         name: asset.name.to_string(),
         asset_type: asset.asset_type,
+        quote_symbol: asset.quote_symbol,
         isin: asset.isin,
+        current_price: asset
+            .current_price
+            .map(|price| normalize_amount_output(&price.to_string())),
+        current_price_currency: asset.current_price_currency,
+        current_price_as_of: asset.current_price_as_of,
         created_at: asset.created_at,
         updated_at: asset.updated_at,
     }
@@ -829,6 +842,11 @@ fn validate_create_asset_request(
         );
     }
 
+    let normalized_quote_symbol = request.quote_symbol.and_then(|quote_symbol| {
+        let trimmed = quote_symbol.trim().to_uppercase();
+        (!trimmed.is_empty()).then_some(trimmed)
+    });
+
     let normalized_isin = request.isin.and_then(|isin| {
         let trimmed = isin.trim().to_string();
         (!trimmed.is_empty()).then_some(trimmed)
@@ -862,6 +880,7 @@ fn validate_create_asset_request(
             .try_into()
             .map_err(CreateAssetApiError::from)?,
         asset_type: asset_type.expect("validated asset type should exist"),
+        quote_symbol: normalized_quote_symbol,
         isin: normalized_isin,
     })
 }
