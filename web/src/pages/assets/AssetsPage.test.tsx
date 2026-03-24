@@ -57,14 +57,22 @@ describe("AssetsPage", () => {
             symbol: "AAPL",
             name: "Apple Inc.",
             asset_type: "STOCK",
+            quote_symbol: "AAPL",
             isin: "US0378331005",
+            current_price: "189.32",
+            current_price_currency: "USD",
+            current_price_as_of: "2026-03-24T14:30:00Z",
           },
           {
             id: 2,
             symbol: "BTC",
             name: "Bitcoin",
             asset_type: "CRYPTO",
+            quote_symbol: "BTC/USD",
             isin: null,
+            current_price: null,
+            current_price_currency: null,
+            current_price_as_of: null,
           },
         ]),
         { status: 200, headers: { "Content-Type": "application/json" } },
@@ -77,10 +85,13 @@ describe("AssetsPage", () => {
     expect(screen.getByText("Apple Inc.")).toBeTruthy();
     expect(screen.getByText("STOCK")).toBeTruthy();
     expect(screen.getByText("US0378331005")).toBeTruthy();
+    expect(screen.getByText("189.32 USD")).toBeTruthy();
+    expect(screen.getByText("Pending")).toBeTruthy();
 
     expect(screen.getByText("BTC")).toBeTruthy();
     expect(screen.getByText("Bitcoin")).toBeTruthy();
     expect(screen.getByText("CRYPTO")).toBeTruthy();
+    expect(screen.getByText("BTC/USD")).toBeTruthy();
 
     // Check that Actions column is NOT present when locked
     expect(screen.queryByText("Actions")).toBeNull();
@@ -109,7 +120,11 @@ describe("AssetsPage", () => {
             symbol: "AAPL",
             name: "Apple Inc.",
             asset_type: "STOCK",
+            quote_symbol: null,
             isin: "US0378331005",
+            current_price: null,
+            current_price_currency: null,
+            current_price_as_of: null,
           },
         ]),
         { status: 200, headers: { "Content-Type": "application/json" } },
@@ -118,12 +133,12 @@ describe("AssetsPage", () => {
 
     renderAssetsPage();
 
-    await screen.findByText("AAPL");
+    await screen.findAllByText("AAPL");
     await unlockEditMode();
 
     const pageRoot = screen.getByText("Assets").closest("header")?.parentElement;
     const assetsCard = screen
-      .getByText("AAPL")
+      .getAllByText("AAPL")[0]
       .closest('[data-slot="card"]');
     const assetsScroller = screen.getByRole("table").parentElement;
 
@@ -155,6 +170,9 @@ describe("AssetsPage", () => {
     fireEvent.change(screen.getByLabelText(/Symbol \*/), { target: { value: "MSFT" } });
     fireEvent.change(screen.getByLabelText(/Name \*/), { target: { value: "Microsoft" } });
     fireEvent.change(screen.getByLabelText(/Asset Type \*/), { target: { value: "STOCK" } });
+    fireEvent.change(screen.getByLabelText(/Quote Symbol/), {
+      target: { value: "MSFT" },
+    });
     fireEvent.change(screen.getByLabelText(/ISIN/), { target: { value: "US5949181045" } });
 
     vi.mocked(fetch).mockResolvedValueOnce(
@@ -164,7 +182,11 @@ describe("AssetsPage", () => {
           symbol: "MSFT",
           name: "Microsoft",
           asset_type: "STOCK",
+          quote_symbol: "MSFT",
           isin: "US5949181045",
+          current_price: null,
+          current_price_currency: null,
+          current_price_as_of: null,
         }),
         { status: 201, headers: { "Content-Type": "application/json" } },
       ),
@@ -178,7 +200,11 @@ describe("AssetsPage", () => {
             symbol: "MSFT",
             name: "Microsoft",
             asset_type: "STOCK",
+            quote_symbol: "MSFT",
             isin: "US5949181045",
+            current_price: null,
+            current_price_currency: null,
+            current_price_as_of: null,
           },
         ]),
         { status: 200, headers: { "Content-Type": "application/json" } },
@@ -188,11 +214,25 @@ describe("AssetsPage", () => {
     const modal = screen.getByRole("dialog");
     fireEvent.click(within(modal).getByRole("button", { name: "Add Asset" }));
 
+    expect(fetch).toHaveBeenNthCalledWith(
+      2,
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({
+          symbol: "MSFT",
+          name: "Microsoft",
+          asset_type: "STOCK",
+          quote_symbol: "MSFT",
+          isin: "US5949181045",
+        }),
+      }),
+    );
+
     await waitFor(() => {
       expect(screen.queryByText("Add Asset", { selector: "h2" })).toBeNull();
     });
 
-    expect(await screen.findByText("MSFT")).toBeTruthy();
+    expect((await screen.findAllByText("MSFT")).length).toBeGreaterThan(0);
   });
 
   it("handles edit asset", async () => {
@@ -204,7 +244,11 @@ describe("AssetsPage", () => {
             symbol: "AAPL",
             name: "Apple Inc.",
             asset_type: "STOCK",
+            quote_symbol: "AAPL",
             isin: "US0378331005",
+            current_price: null,
+            current_price_currency: null,
+            current_price_as_of: null,
           },
         ]),
         { status: 200, headers: { "Content-Type": "application/json" } },
@@ -219,6 +263,7 @@ describe("AssetsPage", () => {
 
     expect(screen.getByText("Edit Asset", { selector: "h2" })).toBeTruthy();
     expect((screen.getByLabelText(/Symbol \*/) as HTMLInputElement).value).toBe("AAPL");
+    expect((screen.getByLabelText(/Quote Symbol/) as HTMLInputElement).value).toBe("AAPL");
 
     fireEvent.change(screen.getByLabelText(/Name \*/), { target: { value: "Apple Updated" } });
 
@@ -229,7 +274,11 @@ describe("AssetsPage", () => {
           symbol: "AAPL",
           name: "Apple Updated",
           asset_type: "STOCK",
+          quote_symbol: "AAPL",
           isin: "US0378331005",
+          current_price: null,
+          current_price_currency: null,
+          current_price_as_of: null,
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
@@ -243,7 +292,11 @@ describe("AssetsPage", () => {
             symbol: "AAPL",
             name: "Apple Updated",
             asset_type: "STOCK",
+            quote_symbol: "AAPL",
             isin: "US0378331005",
+            current_price: null,
+            current_price_currency: null,
+            current_price_as_of: null,
           },
         ]),
         { status: 200, headers: { "Content-Type": "application/json" } },
