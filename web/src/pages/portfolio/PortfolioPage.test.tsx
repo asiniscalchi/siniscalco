@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UiStateProvider } from "@/lib/ui-state-provider";
 
-import { PortfolioPage } from "./PortfolioPage";
+import { PortfolioPage } from ".";
 
 function renderPortfolioPage() {
   return render(

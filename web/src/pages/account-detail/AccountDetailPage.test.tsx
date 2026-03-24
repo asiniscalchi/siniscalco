@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UiStateProvider } from "@/lib/ui-state-provider";
-import { AccountDetailPage } from "./AccountDetailPage";
+import { AccountDetailPage } from ".";
 
 function renderAccountDetailPage(initialEntry: string, routes?: ReactNode) {
   return render(

@@ -10,7 +10,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UiStateProvider } from "@/lib/ui-state-provider";
-import { AccountsListPage } from "./AccountsListPage";
+import { AccountsListPage } from ".";
 
 function renderAccountsListPage() {
   return render(
