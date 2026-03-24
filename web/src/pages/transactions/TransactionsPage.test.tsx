@@ -286,13 +286,16 @@ describe("TransactionsPage", () => {
     const historyCard = screen
       .getByText("Transaction History")
       .closest('[data-slot="card"]');
-    const historyScroller = screen.getByRole("table").parentElement;
+    const table = screen.getByRole("table");
+    const historyScroller = table.parentElement;
 
     expect(pageRoot).toBeTruthy();
     expect(pageRoot?.className).toContain("min-w-0");
     expect(historyCard).toBeTruthy();
     expect(historyCard?.className).toContain("min-w-0");
     expect(historyScroller?.className).toContain("overflow-x-auto");
+    expect(historyScroller?.className).toContain("overflow-y-hidden");
+    expect(table).toBeTruthy();
     expect(screen.getByText("Actions")).toBeTruthy();
   });
 

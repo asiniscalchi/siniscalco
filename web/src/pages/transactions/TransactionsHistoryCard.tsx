@@ -57,18 +57,18 @@ export function TransactionsHistoryCard({
             No transactions recorded.
           </div>
         ) : (
-          <div className="min-w-0 w-full overflow-x-auto">
-            <table className="w-full min-w-[800px] table-fixed text-sm">
+          <div className="min-w-0 w-full overflow-x-auto overflow-y-hidden">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">
-                  <th className="w-[100px] pb-3 pr-4">Date</th>
-                  <th className="w-[140px] pb-3 pr-4">Asset</th>
-                  <th className="w-[80px] pb-3 pr-4">Type</th>
-                  <th className="w-[100px] pb-3 pr-4 text-right">Quantity</th>
-                  <th className="w-[100px] pb-3 pr-4 text-right">Price</th>
-                  <th className="w-[60px] pb-3 pr-4">Curr</th>
-                  <th className="w-[130px] pb-3 pr-4">Notes</th>
-                  {!isLocked && <th className="w-[90px] pb-3 text-right">Actions</th>}
+                  <th className="pb-3 pr-4 whitespace-nowrap">Date</th>
+                  <th className="pb-3 pr-4">Asset</th>
+                  <th className="pb-3 pr-4 whitespace-nowrap">Type</th>
+                  <th className="pb-3 pr-4 text-right whitespace-nowrap">Quantity</th>
+                  <th className="pb-3 pr-4 text-right whitespace-nowrap">Price</th>
+                  <th className="pb-3 pr-4 whitespace-nowrap">Curr</th>
+                  <th className="pb-3 pr-4">Notes</th>
+                  {!isLocked && <th className="pb-3 text-right whitespace-nowrap">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
