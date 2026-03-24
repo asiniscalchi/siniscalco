@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { BankIcon, BrokerIcon, PlusIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -124,8 +125,13 @@ export function AccountsListPage() {
             View your cash accounts and manage their details.
           </p>
         </div>
-        <Link className={cn(buttonVariants({ size: "lg" }))} to="/accounts/new">
-          Create account
+        <Link
+          aria-label="Create account"
+          className={cn(buttonVariants({ size: "icon-lg" }))}
+          title="Create account"
+          to="/accounts/new"
+        >
+          <PlusIcon />
         </Link>
       </header>
 
@@ -212,8 +218,13 @@ function AccountsEmptyState() {
         </CardDescription>
       </CardHeader>
       <CardFooter className="justify-end">
-        <Link className={cn(buttonVariants())} to="/accounts/new">
-          Create account
+        <Link
+          aria-label="Create account"
+          className={cn(buttonVariants({ size: "icon-lg" }))}
+          title="Create account"
+          to="/accounts/new"
+        >
+          <PlusIcon />
         </Link>
       </CardFooter>
     </Card>
@@ -231,12 +242,14 @@ function AccountsErrorState({ onRetry }: { onRetry: () => void }) {
       </CardHeader>
       <CardFooter className="justify-end gap-3">
         <Link
-          className={cn(buttonVariants({ variant: "outline" }))}
+          aria-label="Create account"
+          className={cn(buttonVariants({ size: "icon-lg", variant: "outline" }))}
+          title="Create account"
           to="/accounts/new"
         >
-          Create account
+          <PlusIcon />
         </Link>
-        <Button onClick={onRetry} type="button">
+        <Button onClick={onRetry} size="lg" type="button">
           Retry
         </Button>
       </CardFooter>
@@ -417,47 +430,6 @@ function AccountListItem({
   );
 }
 
-function BankIcon() {
-  return (
-    <svg
-      className="size-5"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path d="M3 21h18" />
-      <path d="M3 10h18" />
-      <path d="M5 6l7-3 7 3" />
-      <path d="M4 10v11" />
-      <path d="M20 10v11" />
-      <path d="M8 14v3" />
-      <path d="M12 14v3" />
-      <path d="M16 14v3" />
-    </svg>
-  );
-}
-
-function BrokerIcon() {
-  return (
-    <svg
-      className="size-5"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path d="M12 2v20" />
-      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-    </svg>
-  );
-}
 
 function formatFxRate(rate: string) {
   const parsedRate = Number(rate);

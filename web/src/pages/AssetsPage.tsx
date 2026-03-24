@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
 
+import {
+  LockIcon,
+  PencilIcon,
+  PlusIcon,
+  TrashIcon,
+  UnlockIcon,
+} from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,8 +21,10 @@ import {
   readApiErrorMessage,
   type AssetResponse,
 } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 export function AssetsPage() {
+  const [isLocked, setIsLocked] = useState(true);
   const [assets, setAssets] = useState<AssetResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -221,9 +230,30 @@ export function AssetsPage() {
             Manage the assets you use in transactions.
           </p>
         </div>
-        <Button onClick={handleCreateClick} size="lg">
-          Add Asset
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            aria-label={isLocked ? "Unlock edit mode" : "Lock edit mode"}
+            className={cn(
+              "size-9 rounded-full transition-colors",
+              !isLocked &&
+                "bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50",
+            )}
+            onClick={() => setIsLocked(!isLocked)}
+            size="icon"
+            type="button"
+            variant="ghost"
+          >
+            {isLocked ? <LockIcon /> : <UnlockIcon />}
+          </Button>
+          <Button
+            aria-label="Add Asset"
+            onClick={handleCreateClick}
+            size="icon-lg"
+            title="Add Asset"
+          >
+            <PlusIcon />
+          </Button>
+        </div>
       </header>
 
       <Card className="bg-background">
@@ -237,8 +267,14 @@ export function AssetsPage() {
               <p className="mb-6 text-sm text-muted-foreground">
                 Add your first asset to start recording transactions.
               </p>
-              <Button onClick={handleCreateClick} variant="outline">
-                Add Asset
+              <Button
+                aria-label="Add Asset"
+                onClick={handleCreateClick}
+                size="icon-lg"
+                title="Add Asset"
+                variant="outline"
+              >
+                <PlusIcon />
               </Button>
             </div>
           ) : (
@@ -272,33 +308,35 @@ export function AssetsPage() {
                         {asset.isin || "—"}
                       </td>
                       <td className="py-3 text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            disabled={isDeleting !== null}
-                            onClick={() => handleEditClick(asset)}
-                            size="icon"
-                            title="Edit asset"
-                            variant="ghost"
-                          >
-                            <PencilIcon />
-                            <span className="sr-only">Edit</span>
-                          </Button>
-                          <Button
-                            className="text-destructive hover:bg-destructive/10"
-                            disabled={isDeleting !== null}
-                            onClick={() => handleDeleteClick(asset)}
-                            size="icon"
-                            title="Delete asset"
-                            variant="ghost"
-                          >
-                            {isDeleting === asset.id ? (
-                              <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                            ) : (
-                              <TrashIcon />
-                            )}
-                            <span className="sr-only">Delete</span>
-                          </Button>
-                        </div>
+                        {!isLocked && (
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              disabled={isDeleting !== null}
+                              onClick={() => handleEditClick(asset)}
+                              size="icon"
+                              title="Edit asset"
+                              variant="ghost"
+                            >
+                              <PencilIcon />
+                              <span className="sr-only">Edit</span>
+                            </Button>
+                            <Button
+                              className="text-destructive hover:bg-destructive/10"
+                              disabled={isDeleting !== null}
+                              onClick={() => handleDeleteClick(asset)}
+                              size="icon"
+                              title="Delete asset"
+                              variant="ghost"
+                            >
+                              {isDeleting === asset.id ? (
+                                <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                              ) : (
+                                <TrashIcon />
+                              )}
+                              <span className="sr-only">Delete</span>
+                            </Button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -448,56 +486,3 @@ export function AssetsPage() {
   );
 }
 
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden="true"
-      className={className || "size-4"}
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="M5 12h14m-7-7v14" />
-    </svg>
-  );
-}
-
-function PencilIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-4"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-      <path d="m15 5 4 4" />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-4"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="M3 6h18" />
-      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-    </svg>
-  );
-}

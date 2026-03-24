@@ -3,14 +3,22 @@ import { NavLink, Outlet } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { getHealthApiUrl } from "@/lib/api";
+import {
+  AlertCircleIcon,
+  CheckCircleIcon,
+  EyeClosedIcon,
+  EyeIcon,
+  RefreshCwIcon,
+} from "@/components/Icons";
 import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
 
 export function AppShell() {
   const { hideValues, toggleHideValues } = useUiState();
   const [backendStatus, setBackendStatus] = useState<
-    "checking" | "connected" | "unavailable"
+    "connected" | "checking" | "unavailable"
   >("checking");
+
 
   useEffect(() => {
     let cancelled = false;
@@ -119,16 +127,22 @@ export function AppShell() {
             <div
               aria-live="polite"
               className={cn(
-                "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium capitalize",
+                "inline-flex size-9 items-center justify-center rounded-full border shadow-sm transition-colors",
                 backendStatus === "connected" &&
-                  "border-emerald-200 bg-emerald-50 text-emerald-700",
+                  "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/30 dark:bg-emerald-900/20 dark:text-emerald-400",
                 backendStatus === "checking" &&
-                  "border-amber-200 bg-amber-50 text-amber-700",
+                  "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/30 dark:bg-amber-900/20 dark:text-amber-400",
                 backendStatus === "unavailable" &&
                   "border-destructive/20 bg-destructive/10 text-destructive",
               )}
+              title={`Backend: ${backendStatus}`}
             >
-              {backendStatus}
+              {backendStatus === "connected" && <CheckCircleIcon className="size-4" />}
+              {backendStatus === "checking" && (
+                <RefreshCwIcon className="size-4 animate-spin" />
+              )}
+              {backendStatus === "unavailable" && <AlertCircleIcon className="size-4" />}
+              <span className="sr-only">Backend {backendStatus}</span>
             </div>
           </div>
         </div>
@@ -140,40 +154,3 @@ export function AppShell() {
   );
 }
 
-function EyeIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-4"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.8"
-      viewBox="0 0 24 24"
-    >
-      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
-
-function EyeClosedIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-4"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.8"
-      viewBox="0 0 24 24"
-    >
-      <path d="M3 3l18 18" />
-      <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
-      <path d="M9.4 5.1A11.4 11.4 0 0 1 12 4.8c6.5 0 10 7.2 10 7.2a17 17 0 0 1-4 4.6" />
-      <path d="M6.6 6.7C4.1 8.4 2 12 2 12s3.5 7.2 10 7.2c1 0 1.9-.2 2.8-.5" />
-    </svg>
-  );
-}

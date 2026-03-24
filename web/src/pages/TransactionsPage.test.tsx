@@ -22,6 +22,13 @@ function renderTransactionsPage() {
   );
 }
 
+async function unlockEditMode() {
+  const unlockButton = await screen.findByRole("button", {
+    name: /unlock edit mode/i,
+  });
+  fireEvent.click(unlockButton);
+}
+
 describe("TransactionsPage", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
@@ -196,6 +203,7 @@ describe("TransactionsPage", () => {
     const select = await screen.findByLabelText("Account:");
     fireEvent.change(select, { target: { value: "1" } });
 
+    await unlockEditMode();
     fireEvent.click(await screen.findByTitle("Edit transaction"));
 
     const modal = screen.getByRole("dialog");
@@ -241,6 +249,7 @@ describe("TransactionsPage", () => {
     });
 
     renderTransactionsPage();
+    await unlockEditMode();
 
     fireEvent.click(await screen.findByTitle("Delete transaction"));
 

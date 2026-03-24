@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
 
+import {
+  LockIcon,
+  PencilIcon,
+  PlusIcon,
+  TrashIcon,
+  UnlockIcon,
+} from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -47,6 +54,7 @@ type Transaction = {
 };
 
 export function TransactionsPage() {
+  const [isLocked, setIsLocked] = useState(true);
   const { hideValues } = useUiState();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -368,35 +376,37 @@ export function TransactionsPage() {
                         {t.notes}
                       </td>
                       <td className="py-3 text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            disabled={isDeleting !== null}
-                            onClick={() => handleEditClick(t)}
-                            size="icon"
-                            title="Edit transaction"
-                            type="button"
-                            variant="ghost"
-                          >
-                            <PencilIcon />
-                            <span className="sr-only">Edit</span>
-                          </Button>
-                          <Button
-                            className="text-destructive hover:bg-destructive/10"
-                            disabled={isDeleting !== null}
-                            onClick={() => handleDeleteClick(t.id)}
-                            size="icon"
-                            title="Delete transaction"
-                            type="button"
-                            variant="ghost"
-                          >
-                            {isDeleting === t.id ? (
-                              <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                            ) : (
-                              <TrashIcon />
-                            )}
-                            <span className="sr-only">Delete</span>
-                          </Button>
-                        </div>
+                        {!isLocked && (
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              disabled={isDeleting !== null}
+                              onClick={() => handleEditClick(t)}
+                              size="icon"
+                              title="Edit transaction"
+                              type="button"
+                              variant="ghost"
+                            >
+                              <PencilIcon />
+                              <span className="sr-only">Edit</span>
+                            </Button>
+                            <Button
+                              className="text-destructive hover:bg-destructive/10"
+                              disabled={isDeleting !== null}
+                              onClick={() => handleDeleteClick(t.id)}
+                              size="icon"
+                              title="Delete transaction"
+                              type="button"
+                              variant="ghost"
+                            >
+                              {isDeleting === t.id ? (
+                                <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                              ) : (
+                                <TrashIcon />
+                              )}
+                              <span className="sr-only">Delete</span>
+                            </Button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -442,9 +452,31 @@ export function TransactionsPage() {
               ))}
             </select>
           </div>
-          <Button disabled={!selectedAccountId} onClick={handleCreateClick} size="lg">
-            Add Transaction
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              aria-label={isLocked ? "Unlock edit mode" : "Lock edit mode"}
+              className={cn(
+                "size-9 rounded-full transition-colors",
+                !isLocked &&
+                  "bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50",
+              )}
+              onClick={() => setIsLocked(!isLocked)}
+              size="icon"
+              type="button"
+              variant="ghost"
+            >
+              {isLocked ? <LockIcon /> : <UnlockIcon />}
+            </Button>
+            <Button
+              aria-label="Add Transaction"
+              disabled={!selectedAccountId}
+              onClick={handleCreateClick}
+              size="icon-lg"
+              title="Add Transaction"
+            >
+              <PlusIcon />
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -633,39 +665,3 @@ export function TransactionsPage() {
   );
 }
 
-function PencilIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-4"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-      <path d="m15 5 4 4" />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-4"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="M3 6h18" />
-      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-    </svg>
-  );
-}

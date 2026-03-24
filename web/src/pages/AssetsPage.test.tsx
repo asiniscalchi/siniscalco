@@ -19,6 +19,13 @@ function renderAssetsPage() {
   );
 }
 
+async function unlockEditMode() {
+  const unlockButton = await screen.findByRole("button", {
+    name: /unlock edit mode/i,
+  });
+  fireEvent.click(unlockButton);
+}
+
 describe("AssetsPage", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
@@ -166,6 +173,7 @@ describe("AssetsPage", () => {
     );
 
     renderAssetsPage();
+    await unlockEditMode();
 
     const editButton = await screen.findByTitle("Edit asset");
     fireEvent.click(editButton);
@@ -241,6 +249,7 @@ describe("AssetsPage", () => {
     });
 
     renderAssetsPage();
+    await unlockEditMode();
 
     const deleteButton = await screen.findByTitle("Delete asset");
     fireEvent.click(deleteButton);
