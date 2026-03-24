@@ -223,7 +223,7 @@ export function AssetsPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+    <div className="mx-auto flex min-w-0 w-full max-w-4xl flex-col gap-6 overflow-x-hidden">
       <header className="flex flex-col gap-4 rounded-xl border bg-background px-6 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">Assets</h1>
@@ -257,8 +257,8 @@ export function AssetsPage() {
         </div>
       </header>
 
-      <Card className="bg-background">
-        <CardContent className="pt-6">
+      <Card className="min-w-0 bg-background">
+        <CardContent className="min-w-0 pt-6">
           {assets.length === 0 ? (
             <div className="py-12 text-center">
               <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-muted">
@@ -279,7 +279,7 @@ export function AssetsPage() {
               </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="w-full overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">
@@ -491,4 +491,3 @@ export function AssetsPage() {
     </div>
   );
 }
-
