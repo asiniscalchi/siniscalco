@@ -148,22 +148,22 @@ function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
           <h1 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
             Portfolio
           </h1>
-          <div className="flex items-baseline gap-4">
+          <div className="flex flex-col items-baseline gap-1 sm:flex-row sm:gap-4">
             {summary.total_value_status === "ok" && summary.total_value_amount ? (
               <MoneyText
-                className="text-4xl font-bold tracking-tight"
+                className="text-3xl font-bold tracking-tight sm:text-4xl"
                 currency={summary.display_currency}
                 hidden={hideValues}
                 value={summary.total_value_amount}
               />
             ) : (
-              <span className="text-2xl font-semibold text-muted-foreground">
+              <span className="text-xl font-semibold text-muted-foreground sm:text-2xl">
                 Conversion unavailable
               </span>
             )}
-            <span className="text-sm text-muted-foreground font-medium">Total Cash Value</span>
+            <span className="text-sm font-medium text-muted-foreground">Total Cash Value</span>
           </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             {summary.total_value_status === "conversion_unavailable" && (
               <span className="text-destructive font-medium">Conversion data unavailable</span>
             )}
