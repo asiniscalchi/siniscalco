@@ -65,7 +65,6 @@ export function TransactionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [retryToken, setRetryToken] = useState(0);
 
-  // Modal/Form state
   const [showModal, setShowModal] = useState(false);
   const [editingTransactionId, setEditingTransactionId] = useState<number | null>(null);
   const [formAssetId, setFormAssetId] = useState("");
@@ -150,6 +149,7 @@ export function TransactionsPage() {
 
         const data = (await res.json()) as Transaction[];
         setTransactions(data);
+        setError(null);
       } catch {
         if (!cancelled) {
           setError("Failed to load transactions");
