@@ -133,13 +133,13 @@ export function TransactionsHistoryCard({
                             {transaction.trade_date}
                           </dd>
                         </div>
-                        <div>
+                        <div className="text-center">
                           <dt className="text-[10px] text-muted-foreground">Qty</dt>
-                          <dd className="mt-0.5 text-right font-medium tabular-nums">
+                          <dd className="mt-0.5 font-medium tabular-nums">
                             {transaction.quantity}
                           </dd>
                         </div>
-                        <div>
+                        <div className="text-center">
                           <dt className="text-[10px] text-muted-foreground">Price</dt>
                           <dd className="mt-0.5">
                             <MoneyText
