@@ -10,8 +10,8 @@ use tokio::time::sleep;
 use tracing::{info, warn};
 
 use crate::{
-    AssetUnitPrice, Currency, UpsertAssetPriceInput, current_utc_timestamp_iso8601, list_assets,
-    upsert_asset_price,
+    AssetId, AssetUnitPrice, Currency, UpsertAssetPriceInput, current_utc_timestamp_iso8601,
+    get_asset, list_assets, upsert_asset_price,
 };
 
 const DEFAULT_TWELVE_DATA_BASE_URL: &str = "https://api.twelvedata.com";
@@ -121,7 +121,7 @@ pub async fn refresh_asset_prices(
     client: &Client,
     config: &AssetPriceRefreshConfig,
 ) -> Result<usize, AssetPriceRefreshError> {
-    let api_key = config
+    config
         .api_key
         .as_deref()
         .ok_or(AssetPriceRefreshError::Config(
@@ -132,37 +132,58 @@ pub async fn refresh_asset_prices(
     let mut updated_count = 0usize;
 
     for asset in assets {
-        let symbol = asset
-            .quote_symbol
-            .as_deref()
-            .unwrap_or_else(|| asset.symbol.as_str());
-
-        match fetch_twelve_data_quote(client, &config.base_url, api_key, symbol).await {
-            Ok(quote) => {
-                upsert_asset_price(
-                    pool,
-                    UpsertAssetPriceInput {
-                        asset_id: asset.id,
-                        price: quote.price,
-                        currency: quote.currency,
-                        as_of: quote.as_of,
-                    },
-                )
-                .await?;
+        match refresh_single_asset_price(pool, client, config, asset.id).await {
+            Ok(true) => {
                 updated_count += 1;
             }
+            Ok(false) => {}
             Err(error) => {
                 warn!(
                     asset_id = asset.id.as_i64(),
-                    symbol,
                     error = %error,
-                    "skipping asset price refresh for symbol"
+                    "asset price refresh failed for stored asset"
                 );
             }
         }
     }
 
     Ok(updated_count)
+}
+
+pub async fn refresh_single_asset_price(
+    pool: &SqlitePool,
+    client: &Client,
+    config: &AssetPriceRefreshConfig,
+    asset_id: AssetId,
+) -> Result<bool, AssetPriceRefreshError> {
+    if !config.is_enabled() {
+        return Ok(false);
+    }
+
+    let api_key = match config.api_key.as_deref() {
+        Some(api_key) => api_key,
+        None => return Ok(false),
+    };
+    let asset = get_asset(pool, asset_id).await?;
+    let symbol = asset
+        .quote_symbol
+        .as_deref()
+        .unwrap_or_else(|| asset.symbol.as_str());
+
+    let quote = fetch_twelve_data_quote(client, &config.base_url, api_key, symbol).await?;
+
+    upsert_asset_price(
+        pool,
+        UpsertAssetPriceInput {
+            asset_id,
+            price: quote.price,
+            currency: quote.currency,
+            as_of: quote.as_of,
+        },
+    )
+    .await?;
+
+    Ok(true)
 }
 
 pub async fn fetch_twelve_data_quote(

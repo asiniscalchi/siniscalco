@@ -9,7 +9,7 @@ mod storage;
 pub use api::{ApiError, ApiErrorResponse, AppState, build_router, build_router_with_state};
 pub use asset_price_refresh::{
     AssetPriceRefreshConfig, fetch_twelve_data_quote, refresh_asset_prices,
-    spawn_asset_price_refresh_task,
+    refresh_single_asset_price, spawn_asset_price_refresh_task,
 };
 pub use db::{connect_db, connect_db_file, init_db};
 pub use format::{compact_decimal_output, format_decimal_amount, normalize_amount_output};

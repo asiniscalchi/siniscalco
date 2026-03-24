@@ -15,14 +15,13 @@ use crate::{
     FxRateDetailRecord, FxRateSummaryItemRecord, FxRateSummaryRecord, PRODUCT_BASE_CURRENCY,
     PortfolioAccountTotalRecord, PortfolioCashByCurrencyRecord, PortfolioSummaryRecord, TradeDate,
     UpdateAccountInput, UpdateAssetInput, UpdateAssetTransactionInput, UpsertAccountBalanceInput,
-    UpsertAssetPriceInput, UpsertOutcome, compact_decimal_output, create_asset,
-    create_asset_transaction, delete_account, delete_account_balance, delete_asset,
-    delete_asset_transaction, fetch_twelve_data_quote, get_account, get_asset, get_latest_fx_rate,
-    get_portfolio_summary, get_transaction, list_account_balances, list_account_positions,
-    list_account_summaries, list_asset_transactions, list_assets, list_currencies,
-    list_fx_rate_summary, list_transactions, normalize_amount_output, storage::StorageError,
-    update_account, update_asset, update_asset_transaction, upsert_account_balance,
-    upsert_asset_price,
+    UpsertOutcome, compact_decimal_output, create_asset, create_asset_transaction, delete_account,
+    delete_account_balance, delete_asset, delete_asset_transaction, get_account, get_asset,
+    get_latest_fx_rate, get_portfolio_summary, get_transaction, list_account_balances,
+    list_account_positions, list_account_summaries, list_asset_transactions, list_assets,
+    list_currencies, list_fx_rate_summary, list_transactions, normalize_amount_output,
+    refresh_single_asset_price, storage::StorageError, update_account, update_asset,
+    update_asset_transaction, upsert_account_balance,
 };
 use std::collections::BTreeMap;
 use tracing::warn;
@@ -677,54 +676,20 @@ fn to_balance_response(balance: AccountBalanceRecord) -> BalanceResponse {
 }
 
 async fn refresh_asset_price_on_write(state: &AppState, asset_id: AssetId) {
-    if !state.asset_price_refresh_config.is_enabled() {
-        return;
-    }
-
-    let asset = match get_asset(&state.pool, asset_id).await {
-        Ok(asset) => asset,
-        Err(error) => {
-            warn!(asset_id = asset_id.as_i64(), error = %error, "failed to load asset for immediate price refresh");
-            return;
-        }
-    };
-
-    let api_key = match state.asset_price_refresh_config.api_key.as_deref() {
-        Some(api_key) => api_key,
-        None => return,
-    };
-    let symbol = asset
-        .quote_symbol
-        .as_deref()
-        .unwrap_or_else(|| asset.symbol.as_str());
     let client = reqwest::Client::new();
-
-    match fetch_twelve_data_quote(
+    if let Err(error) = refresh_single_asset_price(
+        &state.pool,
         &client,
-        &state.asset_price_refresh_config.base_url,
-        api_key,
-        symbol,
+        &state.asset_price_refresh_config,
+        asset_id,
     )
     .await
     {
-        Ok(quote) => {
-            if let Err(error) = upsert_asset_price(
-                &state.pool,
-                UpsertAssetPriceInput {
-                    asset_id,
-                    price: quote.price,
-                    currency: quote.currency,
-                    as_of: quote.as_of,
-                },
-            )
-            .await
-            {
-                warn!(asset_id = asset_id.as_i64(), symbol, error = %error, "failed to persist immediate asset price");
-            }
-        }
-        Err(error) => {
-            warn!(asset_id = asset_id.as_i64(), symbol, error = %error, "failed to fetch immediate asset price");
-        }
+        warn!(
+            asset_id = asset_id.as_i64(),
+            error = %error,
+            "failed to refresh immediate asset price"
+        );
     }
 }
 
