@@ -8,6 +8,7 @@ import {
   CheckCircleIcon,
   EyeClosedIcon,
   EyeIcon,
+  LogoIcon,
   RefreshCwIcon,
 } from "@/components/Icons";
 import { useUiState } from "@/lib/ui-state";
@@ -53,7 +54,13 @@ export function AppShell() {
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:gap-6 sm:px-6 sm:py-4">
           <div className="flex shrink-0 items-center gap-2">
-            <p className="text-lg font-semibold tracking-tight">Siniscalco</p>
+            <div
+              aria-label="Siniscalco"
+              className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm"
+              role="img"
+            >
+              <LogoIcon className="size-5" />
+            </div>
           </div>
 
           <nav aria-label="Primary" className="scrollbar-hide flex-1 overflow-x-auto">

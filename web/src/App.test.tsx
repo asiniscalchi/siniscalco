@@ -154,7 +154,7 @@ describe("App shell", () => {
 
     renderApp(["/accounts"]);
 
-    expect(screen.getByText("Siniscalco")).toBeTruthy();
+    expect(screen.getByLabelText("Siniscalco")).toBeTruthy();
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeTruthy();
     expect(screen.getByTitle("Backend: checking")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Portfolio" })).toBeTruthy();
@@ -277,7 +277,7 @@ describe("App shell", () => {
     fireEvent.click(screen.getByRole("link", { name: "Create account" }));
 
     expect(await screen.findByText("New Account")).toBeTruthy();
-    expect(screen.getByText("Siniscalco")).toBeTruthy();
+    expect(screen.getByLabelText("Siniscalco")).toBeTruthy();
     expect(screen.getByTitle("Backend: connected")).toBeTruthy();
     expect(
       screen
@@ -294,7 +294,7 @@ describe("App shell", () => {
     );
 
     expect(await screen.findByText("Account Summary")).toBeTruthy();
-    expect(screen.getByText("Siniscalco")).toBeTruthy();
+    expect(screen.getByLabelText("Siniscalco")).toBeTruthy();
     expect(screen.getByTitle("Backend: connected")).toBeTruthy();
     expect(
       screen
