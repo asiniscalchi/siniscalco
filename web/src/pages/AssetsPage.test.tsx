@@ -100,6 +100,42 @@ describe("AssetsPage", () => {
     expect(screen.getAllByRole("button", { name: "Add Asset" }).length).toBe(2);
   });
 
+  it("keeps populated assets constrained on mobile when edit mode is unlocked", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          {
+            id: 1,
+            symbol: "AAPL",
+            name: "Apple Inc.",
+            asset_type: "STOCK",
+            isin: "US0378331005",
+          },
+        ]),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    renderAssetsPage();
+
+    await screen.findByText("AAPL");
+    await unlockEditMode();
+
+    const pageRoot = screen.getByText("Assets").closest("header")?.parentElement;
+    const assetsCard = screen
+      .getByText("AAPL")
+      .closest('[data-slot="card"]');
+    const assetsScroller = screen.getByRole("table").parentElement;
+
+    expect(pageRoot).toBeTruthy();
+    expect(pageRoot?.className).toContain("min-w-0");
+    expect(pageRoot?.className).toContain("overflow-x-hidden");
+    expect(assetsCard).toBeTruthy();
+    expect(assetsCard?.className).toContain("min-w-0");
+    expect(assetsScroller?.className).toContain("overflow-x-auto");
+    expect(screen.getByText("Actions")).toBeTruthy();
+  });
+
   it("handles create asset", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(JSON.stringify([]), {
