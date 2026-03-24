@@ -311,14 +311,14 @@ export function TransactionsPage() {
             : "Showing all recorded transactions."}
         </CardDescription>
       </CardHeader>
-      <CardContent className="min-w-0">
+      <CardContent className="pt-4">
         {transactions.length === 0 ? (
           <div className="py-12 text-center text-sm text-muted-foreground">
             No transactions recorded.
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">
                   <th className="pb-3 pr-4">Date</th>
@@ -328,7 +328,7 @@ export function TransactionsPage() {
                   <th className="pb-3 pr-4 text-right">Price</th>
                   <th className="pb-3 pr-4">Curr</th>
                   <th className="pb-3 pr-4">Notes</th>
-                  {!isLocked && <th className="pb-3 text-right w-[80px]">Actions</th>}
+                  {!isLocked && <th className="pb-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -388,32 +388,32 @@ export function TransactionsPage() {
                         {t.notes}
                       </td>
                       {!isLocked && (
-                        <td className="py-3 text-right w-[80px]">
+                        <td className="py-3 text-right">
                           <div className="flex justify-end gap-1">
                             <Button
                               disabled={isDeleting !== null}
                               onClick={() => handleEditClick(t)}
-                              size="icon-sm"
+                              size="icon"
                               title="Edit transaction"
                               type="button"
                               variant="ghost"
                             >
-                              <PencilIcon className="size-3.5" />
+                              <PencilIcon />
                               <span className="sr-only">Edit</span>
                             </Button>
                             <Button
                               className="text-destructive hover:bg-destructive/10"
                               disabled={isDeleting !== null}
                               onClick={() => handleDeleteClick(t.id)}
-                              size="icon-sm"
+                              size="icon"
                               title="Delete transaction"
                               type="button"
                               variant="ghost"
                             >
                               {isDeleting === t.id ? (
-                                <div className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                               ) : (
-                                <TrashIcon className="size-3.5" />
+                                <TrashIcon />
                               )}
                               <span className="sr-only">Delete</span>
                             </Button>
