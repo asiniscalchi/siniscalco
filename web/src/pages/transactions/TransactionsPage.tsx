@@ -1,10 +1,5 @@
 import { useEffect, useState } from "react";
 
-import {
-  LockIcon,
-  PlusIcon,
-  UnlockIcon,
-} from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -21,10 +16,10 @@ import {
   readApiErrorMessage,
 } from "@/lib/api";
 import { useUiState } from "@/lib/ui-state";
-import { cn } from "@/lib/utils";
 
 import { TransactionFormModal } from "./TransactionFormModal";
 import { TransactionsHistoryCard } from "./TransactionsHistoryCard";
+import { TransactionsPageHeader } from "./TransactionsPageHeader";
 import type { Account, Asset, Transaction } from "./types";
 
 export function TransactionsPage() {
@@ -188,64 +183,14 @@ export function TransactionsPage() {
 
   return (
     <div className="mx-auto flex min-w-0 w-full max-w-4xl flex-col gap-6 overflow-x-hidden">
-      <header className="flex flex-col gap-4 rounded-xl border bg-background px-6 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Transactions
-          </h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Manage your asset transactions.
-          </p>
-        </div>
-        <div className="flex w-full flex-wrap items-center gap-4 sm:w-auto sm:flex-nowrap">
-          <div className="flex min-w-0 items-center gap-3">
-            <label
-              className="text-sm font-medium text-muted-foreground"
-              htmlFor="account-selector"
-            >
-              Account:
-            </label>
-            <select
-              className="rounded-md border bg-background px-3 py-1.5 text-sm shadow-sm transition-colors focus:outline-hidden focus:ring-1 focus:ring-ring"
-              id="account-selector"
-              onChange={(e) => setSelectedAccountId(e.target.value)}
-              value={selectedAccountId}
-            >
-              <option value="">All Accounts</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={String(a.id)}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="ml-auto flex items-center justify-end gap-2">
-            <Button
-              aria-label={isLocked ? "Unlock edit mode" : "Lock edit mode"}
-              className={cn(
-                "size-9 rounded-full transition-colors",
-                !isLocked &&
-                  "bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50",
-              )}
-              onClick={() => setIsLocked(!isLocked)}
-              size="icon"
-              type="button"
-              variant="ghost"
-            >
-              {isLocked ? <LockIcon /> : <UnlockIcon />}
-            </Button>
-            <Button
-              aria-label="Add Transaction"
-              disabled={!selectedAccountId}
-              onClick={handleCreateClick}
-              size="icon-lg"
-              title="Add Transaction"
-            >
-              <PlusIcon />
-            </Button>
-          </div>
-        </div>
-      </header>
+      <TransactionsPageHeader
+        accounts={accounts}
+        isLocked={isLocked}
+        onAccountChange={setSelectedAccountId}
+        onCreateClick={handleCreateClick}
+        onToggleLock={() => setIsLocked((locked) => !locked)}
+        selectedAccountId={selectedAccountId}
+      />
 
       <TransactionsHistoryCard
         accounts={accounts}
