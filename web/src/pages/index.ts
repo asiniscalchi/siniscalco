@@ -1,6 +1,6 @@
-export { AccountDetailPage } from "./AccountDetailPage";
-export { AccountNewPage } from "./AccountNewPage";
-export { AccountsListPage } from "./AccountsListPage";
-export { AssetsPage } from "./AssetsPage";
-export { PortfolioPage } from "./PortfolioPage";
-export { TransactionsPage } from "./TransactionsPage";
+export { AccountDetailPage } from "./account-detail";
+export { AccountNewPage } from "./account-new";
+export { AccountsListPage } from "./accounts-list";
+export { AssetsPage } from "./assets";
+export { PortfolioPage } from "./portfolio";
+export { TransactionsPage } from "./transactions";

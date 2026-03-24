@@ -149,6 +149,64 @@ describe("App shell", () => {
     expect(await screen.findByTitle("Backend: unavailable")).toBeTruthy();
   });
 
+  it("shows connected when the health request returns another successful status", async () => {
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input);
+
+      if (url.endsWith("/health")) {
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+
+      if (url.endsWith("/accounts")) {
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      }
+
+      if (url.endsWith("/fx-rates")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              target_currency: "EUR",
+              rates: [],
+              last_updated: null,
+              refresh_status: "available",
+              refresh_error: null,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+
+      if (url.endsWith("/portfolio")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              display_currency: "EUR",
+              total_value_status: "ok",
+              total_value_amount: "0.00000000",
+              account_totals: [],
+              cash_by_currency: [],
+              fx_last_updated: null,
+              fx_refresh_status: "available",
+              fx_refresh_error: null,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+
+      throw new Error(`Unhandled fetch request: ${url}`);
+    });
+
+    renderApp(["/accounts"]);
+
+    expect(await screen.findByTitle("Backend: connected")).toBeTruthy();
+  });
+
   it("renders the shell while page content and health are still loading", () => {
     vi.mocked(fetch).mockImplementation(() => new Promise(() => {}));
 

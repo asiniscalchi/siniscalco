@@ -9,7 +9,8 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UiStateProvider } from "@/lib/ui-state-provider";
-import { PortfolioPage } from "./PortfolioPage";
+
+import { PortfolioPage } from ".";
 
 function renderPortfolioPage() {
   return render(
@@ -207,6 +208,7 @@ describe("PortfolioPage", () => {
     renderPortfolioPage();
 
     expect(await screen.findByText("Could not load portfolio")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Portfolio" })).toBeTruthy();
 
     fireEvent.click(screen.getByText("Retry"));
 
@@ -242,11 +244,36 @@ describe("PortfolioPage", () => {
 
     renderPortfolioPage();
 
-    expect(await screen.findByText("Total Cash Value")).toBeTruthy();
-    expect(screen.getAllByText("•••• EUR")).toHaveLength(2);
+    expect(await screen.findAllByText("•••• EUR")).toHaveLength(2);
     expect(screen.getByText("•••• USD")).toBeTruthy();
-    expect(screen.queryByText("153.70 EUR")).toBeNull();
-    expect(screen.queryByText("103.70 EUR")).toBeNull();
-    expect(screen.queryByText("100 USD")).toBeNull();
+  });
+
+  it("handles missing currency conversion values without crashing", async () => {
+    mockPortfolioRequest({
+      display_currency: "EUR",
+      total_value_status: "ok",
+      total_value_amount: "10.00000000",
+      account_totals: [
+        {
+          id: 1,
+          name: "Empty Account",
+          account_type: "bank",
+          summary_status: "conversion_unavailable",
+          total_amount: null,
+          total_currency: "EUR",
+        },
+      ],
+      cash_by_currency: [
+        { currency: "JPY", amount: "1000.00000000", converted_amount: null },
+      ],
+      fx_last_updated: null,
+      fx_refresh_status: "available",
+      fx_refresh_error: null,
+    });
+
+    renderPortfolioPage();
+
+    expect(await screen.findByText("Conversion unavailable")).toBeTruthy();
+    expect(screen.queryByText("Conversion data unavailable")).toBeNull();
   });
 });

@@ -1,0 +1,54 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { type PortfolioSummaryResponse } from "@/lib/api";
+import { MoneyText } from "@/lib/money";
+
+import { PortfolioProgressItem } from "./PortfolioProgressItem";
+
+type PortfolioSummary = PortfolioSummaryResponse;
+
+export function PortfolioCurrencyBreakdown({
+  balances,
+  hideValues,
+  totalValue,
+}: {
+  balances: PortfolioSummary["cash_by_currency"];
+  hideValues: boolean;
+  totalValue: number | null;
+}) {
+  return (
+    <Card className="self-start bg-background">
+      <CardHeader className="border-b">
+        <CardTitle>Cash By Currency</CardTitle>
+      </CardHeader>
+      <CardContent className="pb-6 pt-6">
+        <div className="space-y-6">
+          {balances.map((balance) => {
+            const balanceValue = balance.converted_amount
+              ? Number(balance.converted_amount)
+              : null;
+            const percentage =
+              totalValue && balanceValue ? (balanceValue / totalValue) * 100 : 0;
+
+            return (
+              <PortfolioProgressItem
+                key={balance.currency}
+                label={balance.currency}
+                percentage={percentage}
+                value={
+                  <MoneyText
+                    className="text-right text-xs text-muted-foreground"
+                    currency={balance.currency}
+                    hidden={hideValues}
+                    maximumFractionDigits={8}
+                    minimumFractionDigits={0}
+                    value={balance.amount}
+                  />
+                }
+              />
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

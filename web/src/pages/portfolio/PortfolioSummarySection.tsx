@@ -1,0 +1,73 @@
+import { type PortfolioSummaryResponse } from "@/lib/api";
+import { MoneyText } from "@/lib/money";
+
+type PortfolioSummary = PortfolioSummaryResponse;
+
+export function PortfolioSummarySection({
+  summary,
+  hideValues,
+}: {
+  summary: PortfolioSummary;
+  hideValues: boolean;
+}) {
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-col gap-1.5 px-1">
+        <div className="flex flex-col items-baseline gap-1 sm:flex-row sm:gap-4">
+          {summary.total_value_status === "ok" && summary.total_value_amount ? (
+            <MoneyText
+              className="text-3xl font-bold tracking-tight sm:text-4xl"
+              currency={summary.display_currency}
+              hidden={hideValues}
+              value={summary.total_value_amount}
+            />
+          ) : (
+            <span className="text-xl font-semibold text-muted-foreground sm:text-2xl">
+              Conversion unavailable
+            </span>
+          )}
+          <span className="text-sm font-medium text-muted-foreground">
+            Total Cash Value
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          {summary.total_value_status === "conversion_unavailable" && (
+            <span className="font-medium text-destructive">
+              Conversion data unavailable
+            </span>
+          )}
+          {summary.total_value_status === "ok" && (
+            <span>Converted to {summary.display_currency}</span>
+          )}
+          <span>•</span>
+          <span>
+            Last FX update:{" "}
+            {summary.fx_last_updated ? formatTimestamp(summary.fx_last_updated) : "unavailable"}
+          </span>
+          {summary.fx_refresh_status === "unavailable" && (
+            <>
+              <span>•</span>
+              <span className="font-medium text-destructive">
+                FX refresh unavailable
+              </span>
+            </>
+          )}
+        </div>
+        {summary.fx_refresh_status === "unavailable" && summary.fx_refresh_error ? (
+          <div className="text-xs text-destructive/90">
+            {summary.fx_refresh_error}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function formatTimestamp(timestamp: string) {
+  const [date, time] = timestamp.split(" ");
+  if (!date || !time) {
+    return timestamp.slice(0, 16);
+  }
+
+  return `${date} ${time.slice(0, 5)}`;
+}

@@ -11,12 +11,18 @@ import {
 import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
 
+const primaryNavItems = [
+  { label: "Portfolio", to: "/portfolio" },
+  { label: "Accounts", to: "/accounts" },
+  { label: "Assets", to: "/assets" },
+  { label: "Transactions", to: "/transactions" },
+];
+
 export function AppShell() {
   const { hideValues, toggleHideValues } = useUiState();
   const [backendStatus, setBackendStatus] = useState<
     "connected" | "checking" | "unavailable"
   >("checking");
-
 
   useEffect(() => {
     let cancelled = false;
@@ -28,9 +34,7 @@ export function AppShell() {
         const response = await fetch(getHealthApiUrl());
 
         if (!cancelled) {
-          setBackendStatus(
-            response.status === 200 ? "connected" : "unavailable",
-          );
+          setBackendStatus(response.ok ? "connected" : "unavailable");
         }
       } catch {
         if (!cancelled) {
@@ -70,58 +74,22 @@ export function AppShell() {
 
           <nav aria-label="Primary" className="scrollbar-hide flex-1 overflow-x-auto">
             <div className="flex items-center gap-4 sm:gap-6">
-              <NavLink
-                className={({ isActive }) =>
-                  cn(
-                    "inline-flex items-center px-1 py-1 text-sm font-medium whitespace-nowrap transition-colors border-b-2",
-                    isActive
-                      ? "border-foreground text-foreground"
-                      : "border-transparent text-muted-foreground hover:text-foreground",
-                  )
-                }
-                to="/portfolio"
-              >
-                Portfolio
-              </NavLink>
-              <NavLink
-                className={({ isActive }) =>
-                  cn(
-                    "inline-flex items-center px-1 py-1 text-sm font-medium whitespace-nowrap transition-colors border-b-2",
-                    isActive
-                      ? "border-foreground text-foreground"
-                      : "border-transparent text-muted-foreground hover:text-foreground",
-                  )
-                }
-                to="/accounts"
-              >
-                Accounts
-              </NavLink>
-              <NavLink
-                className={({ isActive }) =>
-                  cn(
-                    "inline-flex items-center px-1 py-1 text-sm font-medium whitespace-nowrap transition-colors border-b-2",
-                    isActive
-                      ? "border-foreground text-foreground"
-                      : "border-transparent text-muted-foreground hover:text-foreground",
-                  )
-                }
-                to="/assets"
-              >
-                Assets
-              </NavLink>
-              <NavLink
-                className={({ isActive }) =>
-                  cn(
-                    "inline-flex items-center px-1 py-1 text-sm font-medium whitespace-nowrap transition-colors border-b-2",
-                    isActive
-                      ? "border-foreground text-foreground"
-                      : "border-transparent text-muted-foreground hover:text-foreground",
-                  )
-                }
-                to="/transactions"
-              >
-                Transactions
-              </NavLink>
+              {primaryNavItems.map((item) => (
+                <NavLink
+                  key={item.to}
+                  className={({ isActive }) =>
+                    cn(
+                      "inline-flex items-center whitespace-nowrap border-b-2 px-1 py-1 text-sm font-medium transition-colors",
+                      isActive
+                        ? "border-foreground text-foreground"
+                        : "border-transparent text-muted-foreground hover:text-foreground",
+                    )
+                  }
+                  to={item.to}
+                >
+                  {item.label}
+                </NavLink>
+              ))}
             </div>
           </nav>
 
@@ -145,4 +113,3 @@ export function AppShell() {
     </div>
   );
 }
-

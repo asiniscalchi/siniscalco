@@ -9,7 +9,7 @@ import {
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AssetsPage } from "./AssetsPage";
+import { AssetsPage } from ".";
 
 function renderAssetsPage() {
   return render(
