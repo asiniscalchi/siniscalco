@@ -202,11 +202,15 @@ describe("TransactionsPage", () => {
     await screen.findByText("Overflow regression");
     await unlockEditMode();
 
+    const pageRoot = screen.getByText("Transactions").closest("header")?.parentElement;
     const historyCard = screen
       .getByText("Transaction History")
       .closest('[data-slot="card"]');
     const historyScroller = screen.getByRole("table").parentElement;
 
+    expect(pageRoot).toBeTruthy();
+    expect(pageRoot?.className).toContain("min-w-0");
+    expect(pageRoot?.className).toContain("overflow-x-hidden");
     expect(historyCard).toBeTruthy();
     expect(historyCard?.className).toContain("min-w-0");
     expect(historyScroller?.className).toContain("overflow-x-auto");
