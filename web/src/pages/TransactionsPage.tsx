@@ -316,7 +316,7 @@ export function TransactionsPage() {
                   <th className="pb-3 pr-4 text-right">Price</th>
                   <th className="pb-3 pr-4">Curr</th>
                   <th className="pb-3 pr-4">Notes</th>
-                  <th className="pb-3 text-right">Actions</th>
+                  {!isLocked && <th className="pb-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -375,8 +375,8 @@ export function TransactionsPage() {
                       >
                         {t.notes}
                       </td>
-                      <td className="py-3 text-right">
-                        {!isLocked && (
+                      {!isLocked && (
+                        <td className="py-3 text-right">
                           <div className="flex justify-end gap-1">
                             <Button
                               disabled={isDeleting !== null}
@@ -406,8 +406,8 @@ export function TransactionsPage() {
                               <span className="sr-only">Delete</span>
                             </Button>
                           </div>
-                        )}
-                      </td>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

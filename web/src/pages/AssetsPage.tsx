@@ -286,7 +286,7 @@ export function AssetsPage() {
                     <th className="pb-3 pr-4">Name</th>
                     <th className="pb-3 pr-4">Type</th>
                     <th className="pb-3 pr-4">ISIN</th>
-                    <th className="pb-3 text-right">Actions</th>
+                    {!isLocked && <th className="pb-3 text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -307,8 +307,8 @@ export function AssetsPage() {
                       <td className="py-3 pr-4 font-mono text-[11px] text-muted-foreground">
                         {asset.isin || "—"}
                       </td>
-                      <td className="py-3 text-right">
-                        {!isLocked && (
+                      {!isLocked && (
+                        <td className="py-3 text-right">
                           <div className="flex justify-end gap-1">
                             <Button
                               disabled={isDeleting !== null}
@@ -336,8 +336,8 @@ export function AssetsPage() {
                               <span className="sr-only">Delete</span>
                             </Button>
                           </div>
-                        )}
-                      </td>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
