@@ -311,14 +311,14 @@ export function TransactionsPage() {
             : "Showing all recorded transactions."}
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="min-w-0">
         {transactions.length === 0 ? (
           <div className="py-12 text-center text-sm text-muted-foreground">
             No transactions recorded.
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-max text-sm">
               <thead>
                 <tr className="border-b text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">
                   <th className="pb-3 pr-4">Date</th>
