@@ -2,6 +2,26 @@ interface IconProps {
   className?: string;
 }
 
+export function LogoIcon({ className }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className || "size-6"}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2.5"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M12 20V10" />
+      <path d="M18 20V4" />
+      <path d="M6 20v-4" />
+    </svg>
+  );
+}
+
 export function PlusIcon({ className }: IconProps) {
   return (
     <svg
