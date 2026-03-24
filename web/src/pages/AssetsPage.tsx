@@ -354,8 +354,8 @@ export function AssetsPage() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200"
           role="dialog"
         >
-          <div className="w-full max-w-md rounded-xl border bg-background shadow-2xl animate-in zoom-in-95 duration-200">
-            <header className="border-b px-6 py-4">
+          <div className="flex max-h-full w-full max-w-md flex-col rounded-xl border bg-background shadow-2xl animate-in zoom-in-95 duration-200">
+            <header className="flex-none border-b px-6 py-4">
               <h2 className="text-lg font-semibold">
                 {editingAsset ? "Edit Asset" : "Add Asset"}
               </h2>
@@ -365,8 +365,11 @@ export function AssetsPage() {
                   : "Add a new asset to use in transactions."}
               </p>
             </header>
-            <form onSubmit={handleSubmit}>
-              <div className="grid gap-4 px-6 py-6">
+            <form
+              className="flex flex-1 flex-col overflow-hidden"
+              onSubmit={handleSubmit}
+            >
+              <div className="grid gap-4 overflow-y-auto px-6 py-6">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="flex flex-col gap-1.5">
                     <label
@@ -460,7 +463,7 @@ export function AssetsPage() {
                   </div>
                 ) : null}
               </div>
-              <footer className="flex justify-end gap-3 border-t bg-muted/30 px-6 py-4 rounded-b-xl">
+              <footer className="flex flex-none justify-end gap-3 border-t bg-muted/30 px-6 py-4 rounded-b-xl">
                 <Button
                   onClick={() => setShowModal(false)}
                   type="button"
