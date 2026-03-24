@@ -17,6 +17,7 @@ type FormState = {
   symbol: string;
   name: string;
   type: string;
+  quoteSymbol: string;
   isin: string;
 };
 
@@ -24,6 +25,7 @@ const initialFormState: FormState = {
   symbol: "",
   name: "",
   type: "STOCK",
+  quoteSymbol: "",
   isin: "",
 };
 
@@ -49,6 +51,7 @@ export function AssetFormModal({
             symbol: editingAsset.symbol,
             name: editingAsset.name,
             type: editingAsset.asset_type,
+            quoteSymbol: editingAsset.quote_symbol || "",
             isin: editingAsset.isin || "",
           }
         : initialFormState,
@@ -85,6 +88,7 @@ export function AssetFormModal({
         symbol: formState.symbol,
         name: formState.name,
         asset_type: formState.type,
+        quote_symbol: formState.quoteSymbol || null,
         isin: formState.isin || null,
       };
 
@@ -224,6 +228,34 @@ export function AssetFormModal({
                 {getFieldError("asset_type") ? (
                   <p className="text-xs text-destructive">
                     {getFieldError("asset_type")}
+                  </p>
+                ) : null}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label
+                  className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                  htmlFor="asset-quote-symbol"
+                >
+                  Quote Symbol
+                </label>
+                <input
+                  className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
+                  id="asset-quote-symbol"
+                  onChange={(event) =>
+                    setFormState((current) => ({
+                      ...current,
+                      quoteSymbol: event.target.value,
+                    }))
+                  }
+                  placeholder="AAPL or BTC/USD"
+                  value={formState.quoteSymbol}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Optional override for the market data provider symbol.
+                </p>
+                {getFieldError("quote_symbol") ? (
+                  <p className="text-xs text-destructive">
+                    {getFieldError("quote_symbol")}
                   </p>
                 ) : null}
               </div>

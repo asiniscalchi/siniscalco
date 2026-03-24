@@ -2,7 +2,8 @@ use sqlx::{Row, SqlitePool};
 
 use crate::storage::records::*;
 use crate::storage::{
-    AssetId, AssetName, AssetSymbol, AssetType, StorageError, current_utc_timestamp_iso8601,
+    AssetId, AssetName, AssetSymbol, AssetType, AssetUnitPrice, Currency, StorageError,
+    current_utc_timestamp_iso8601,
 };
 
 pub async fn create_asset(
@@ -12,13 +13,14 @@ pub async fn create_asset(
     let timestamp = current_utc_timestamp_iso8601()?;
     let result = sqlx::query(
         r#"
-        INSERT INTO assets (symbol, name, asset_type, isin, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO assets (symbol, name, asset_type, quote_symbol, isin, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(input.symbol.as_str())
     .bind(input.name.as_str())
     .bind(input.asset_type.as_str())
+    .bind(input.quote_symbol.as_deref())
     .bind(input.isin.as_deref())
     .bind(&timestamp)
     .bind(&timestamp)
@@ -31,8 +33,20 @@ pub async fn create_asset(
 pub async fn list_assets(pool: &SqlitePool) -> Result<Vec<AssetRecord>, StorageError> {
     let rows = sqlx::query(
         r#"
-        SELECT id, symbol, name, asset_type, isin, created_at, updated_at
+        SELECT
+            assets.id,
+            assets.symbol,
+            assets.name,
+            assets.asset_type,
+            assets.quote_symbol,
+            assets.isin,
+            asset_prices.price,
+            asset_prices.currency_code,
+            asset_prices.as_of,
+            assets.created_at,
+            assets.updated_at
         FROM assets
+        LEFT JOIN asset_prices ON asset_prices.asset_id = assets.id
         ORDER BY symbol, id
         "#,
     )
@@ -45,9 +59,21 @@ pub async fn list_assets(pool: &SqlitePool) -> Result<Vec<AssetRecord>, StorageE
 pub async fn get_asset(pool: &SqlitePool, asset_id: AssetId) -> Result<AssetRecord, StorageError> {
     let row = sqlx::query(
         r#"
-        SELECT id, symbol, name, asset_type, isin, created_at, updated_at
+        SELECT
+            assets.id,
+            assets.symbol,
+            assets.name,
+            assets.asset_type,
+            assets.quote_symbol,
+            assets.isin,
+            asset_prices.price,
+            asset_prices.currency_code,
+            asset_prices.as_of,
+            assets.created_at,
+            assets.updated_at
         FROM assets
-        WHERE id = ?
+        LEFT JOIN asset_prices ON asset_prices.asset_id = assets.id
+        WHERE assets.id = ?
         "#,
     )
     .bind(asset_id.as_i64())
@@ -66,13 +92,14 @@ pub async fn update_asset(
     let result = sqlx::query(
         r#"
         UPDATE assets
-        SET symbol = ?, name = ?, asset_type = ?, isin = ?, updated_at = ?
+        SET symbol = ?, name = ?, asset_type = ?, quote_symbol = ?, isin = ?, updated_at = ?
         WHERE id = ?
         "#,
     )
     .bind(input.symbol.as_str())
     .bind(input.name.as_str())
     .bind(input.asset_type.as_str())
+    .bind(input.quote_symbol.as_deref())
     .bind(input.isin.as_deref())
     .bind(&timestamp)
     .bind(asset_id.as_i64())
@@ -105,7 +132,17 @@ fn map_asset_row(row: sqlx::sqlite::SqliteRow) -> Result<AssetRecord, StorageErr
         symbol: AssetSymbol::try_from(row.get::<&str, _>("symbol"))?,
         name: AssetName::try_from(row.get::<&str, _>("name"))?,
         asset_type: AssetType::try_from(row.get::<&str, _>("asset_type"))?,
+        quote_symbol: row.get::<Option<String>, _>("quote_symbol"),
         isin: row.get::<Option<String>, _>("isin"),
+        current_price: row
+            .get::<Option<i64>, _>("price")
+            .map(AssetUnitPrice::from_scaled_i64)
+            .transpose()?,
+        current_price_currency: row
+            .get::<Option<String>, _>("currency_code")
+            .map(|currency| Currency::try_from(currency.as_str()))
+            .transpose()?,
+        current_price_as_of: row.get::<Option<String>, _>("as_of"),
         created_at: row.get("created_at"),
         updated_at: row.get("updated_at"),
     })

@@ -20,10 +20,11 @@ use crate::{
     get_latest_fx_rate, get_portfolio_summary, get_transaction, list_account_balances,
     list_account_positions, list_account_summaries, list_asset_transactions, list_assets,
     list_currencies, list_fx_rate_summary, list_transactions, normalize_amount_output,
-    storage::StorageError, update_account, update_asset, update_asset_transaction,
-    upsert_account_balance,
+    refresh_single_asset_price, storage::StorageError, update_account, update_asset,
+    update_asset_transaction, upsert_account_balance,
 };
 use std::collections::BTreeMap;
+use tracing::warn;
 
 pub(crate) async fn health() -> &'static str {
     "ok"
@@ -89,6 +90,7 @@ pub(crate) async fn create_asset_handler(
     let asset_id = create_asset(&state.pool, input)
         .await
         .map_err(CreateAssetApiError::from)?;
+    refresh_asset_price_on_write(&state, asset_id).await;
     let asset = get_asset(&state.pool, asset_id)
         .await
         .map_err(CreateAssetApiError::from)?;
@@ -122,13 +124,14 @@ pub(crate) async fn update_asset_handler(
     let asset_id = AssetId::try_from(asset_id).map_err(CreateAssetApiError::from)?;
     let input = validate_create_asset_request(request)?;
 
-    let asset = update_asset(
+    update_asset(
         &state.pool,
         asset_id,
         UpdateAssetInput {
             symbol: input.symbol,
             name: input.name,
             asset_type: input.asset_type,
+            quote_symbol: input.quote_symbol,
             isin: input.isin,
         },
     )
@@ -139,6 +142,10 @@ pub(crate) async fn update_asset_handler(
         }
         other => CreateAssetApiError::from(other),
     })?;
+    refresh_asset_price_on_write(&state, asset_id).await;
+    let asset = get_asset(&state.pool, asset_id)
+        .await
+        .map_err(CreateAssetApiError::from)?;
 
     Ok(Json(to_created_asset_response(asset)))
 }
@@ -668,6 +675,24 @@ fn to_balance_response(balance: AccountBalanceRecord) -> BalanceResponse {
     }
 }
 
+async fn refresh_asset_price_on_write(state: &AppState, asset_id: AssetId) {
+    let client = reqwest::Client::new();
+    if let Err(error) = refresh_single_asset_price(
+        &state.pool,
+        &client,
+        &state.asset_price_refresh_config,
+        asset_id,
+    )
+    .await
+    {
+        warn!(
+            asset_id = asset_id.as_i64(),
+            error = %error,
+            "failed to refresh immediate asset price"
+        );
+    }
+}
+
 fn to_currency_response(currency: CurrencyRecord) -> CurrencyResponse {
     CurrencyResponse {
         code: currency.code,
@@ -680,7 +705,13 @@ fn to_asset_response(asset: AssetRecord) -> AssetResponse {
         symbol: asset.symbol.to_string(),
         name: asset.name.to_string(),
         asset_type: asset.asset_type,
+        quote_symbol: asset.quote_symbol,
         isin: asset.isin,
+        current_price: asset
+            .current_price
+            .map(|price| normalize_amount_output(&price.to_string())),
+        current_price_currency: asset.current_price_currency,
+        current_price_as_of: asset.current_price_as_of,
     }
 }
 
@@ -690,7 +721,13 @@ fn to_created_asset_response(asset: AssetRecord) -> CreatedAssetResponse {
         symbol: asset.symbol.to_string(),
         name: asset.name.to_string(),
         asset_type: asset.asset_type,
+        quote_symbol: asset.quote_symbol,
         isin: asset.isin,
+        current_price: asset
+            .current_price
+            .map(|price| normalize_amount_output(&price.to_string())),
+        current_price_currency: asset.current_price_currency,
+        current_price_as_of: asset.current_price_as_of,
         created_at: asset.created_at,
         updated_at: asset.updated_at,
     }
@@ -829,6 +866,11 @@ fn validate_create_asset_request(
         );
     }
 
+    let normalized_quote_symbol = request.quote_symbol.and_then(|quote_symbol| {
+        let trimmed = quote_symbol.trim().to_uppercase();
+        (!trimmed.is_empty()).then_some(trimmed)
+    });
+
     let normalized_isin = request.isin.and_then(|isin| {
         let trimmed = isin.trim().to_string();
         (!trimmed.is_empty()).then_some(trimmed)
@@ -862,6 +904,7 @@ fn validate_create_asset_request(
             .try_into()
             .map_err(CreateAssetApiError::from)?,
         asset_type: asset_type.expect("validated asset type should exist"),
+        quote_symbol: normalized_quote_symbol,
         isin: normalized_isin,
     })
 }

@@ -1,6 +1,7 @@
 import { PencilIcon, PlusIcon, TrashIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { formatMoney } from "@/lib/format-money";
 
 import type { AssetResponse } from "@/lib/api";
 
@@ -21,6 +22,28 @@ export function AssetsTableCard({
   onEditClick,
   onDeleteClick,
 }: AssetsTableCardProps) {
+  const formatPrice = (asset: AssetResponse) => {
+    if (!asset.current_price || !asset.current_price_currency) {
+      return "Pending";
+    }
+
+    return formatMoney(asset.current_price, asset.current_price_currency, false, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 6,
+    }).text;
+  };
+
+  const priceLabel = (asset: AssetResponse) => {
+    if (asset.current_price_as_of) {
+      const parsed = new Date(asset.current_price_as_of);
+      if (!Number.isNaN(parsed.getTime())) {
+        return `Updated ${parsed.toLocaleString()}`;
+      }
+    }
+
+    return asset.quote_symbol || asset.symbol;
+  };
+
   return (
     <Card className="min-w-0 bg-background">
       <CardContent className="min-w-0 pt-6">
@@ -51,6 +74,7 @@ export function AssetsTableCard({
                   <th className="pb-3 pr-4">Symbol</th>
                   <th className="pb-3 pr-4">Name</th>
                   <th className="pb-3 pr-4">Type</th>
+                  <th className="pb-3 pr-4">Price</th>
                   <th className="pb-3 pr-4">ISIN</th>
                   {!isLocked && <th className="pb-3 text-right">Actions</th>}
                 </tr>
@@ -69,6 +93,14 @@ export function AssetsTableCard({
                       <span className="inline-flex items-center rounded-full border bg-muted/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
                         {asset.asset_type.replace("_", " ")}
                       </span>
+                    </td>
+                    <td className="py-3 pr-4">
+                      <div className="font-mono text-[13px] tabular-nums">
+                        {formatPrice(asset)}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {priceLabel(asset)}
+                      </div>
                     </td>
                     <td className="py-3 pr-4 font-mono text-[11px] text-muted-foreground">
                       {asset.isin || "—"}

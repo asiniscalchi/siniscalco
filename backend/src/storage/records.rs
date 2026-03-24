@@ -49,6 +49,7 @@ pub struct CreateAssetInput {
     pub symbol: AssetSymbol,
     pub name: AssetName,
     pub asset_type: AssetType,
+    pub quote_symbol: Option<String>,
     pub isin: Option<String>,
 }
 
@@ -56,6 +57,7 @@ pub struct UpdateAssetInput {
     pub symbol: AssetSymbol,
     pub name: AssetName,
     pub asset_type: AssetType,
+    pub quote_symbol: Option<String>,
     pub isin: Option<String>,
 }
 
@@ -133,9 +135,21 @@ pub struct AssetRecord {
     pub symbol: AssetSymbol,
     pub name: AssetName,
     pub asset_type: AssetType,
+    pub quote_symbol: Option<String>,
     pub isin: Option<String>,
+    pub current_price: Option<AssetUnitPrice>,
+    pub current_price_currency: Option<Currency>,
+    pub current_price_as_of: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct UpsertAssetPriceInput {
+    pub asset_id: AssetId,
+    pub price: AssetUnitPrice,
+    pub currency: Currency,
+    pub as_of: String,
 }
 
 #[derive(Debug, Eq, PartialEq)]

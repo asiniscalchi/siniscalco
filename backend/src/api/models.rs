@@ -8,12 +8,15 @@ use serde_json::{Value, json};
 use sqlx::SqlitePool;
 use std::collections::BTreeMap;
 
-use crate::{AssetType, Currency, SharedFxRefreshStatus, storage::StorageError};
+use crate::{
+    AssetPriceRefreshConfig, AssetType, Currency, SharedFxRefreshStatus, storage::StorageError,
+};
 
 #[derive(Clone)]
 pub struct AppState {
     pub pool: SqlitePool,
     pub fx_refresh_status: SharedFxRefreshStatus,
+    pub asset_price_refresh_config: AssetPriceRefreshConfig,
 }
 
 #[derive(Debug, Deserialize, Eq, PartialEq)]
@@ -28,6 +31,7 @@ pub struct CreateAssetRequest {
     pub symbol: String,
     pub name: String,
     pub asset_type: String,
+    pub quote_symbol: Option<String>,
     pub isin: Option<String>,
 }
 
@@ -82,7 +86,11 @@ pub struct AssetResponse {
     pub symbol: String,
     pub name: String,
     pub asset_type: AssetType,
+    pub quote_symbol: Option<String>,
     pub isin: Option<String>,
+    pub current_price: Option<String>,
+    pub current_price_currency: Option<Currency>,
+    pub current_price_as_of: Option<String>,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]
@@ -91,7 +99,11 @@ pub struct CreatedAssetResponse {
     pub symbol: String,
     pub name: String,
     pub asset_type: AssetType,
+    pub quote_symbol: Option<String>,
     pub isin: Option<String>,
+    pub current_price: Option<String>,
+    pub current_price_currency: Option<Currency>,
+    pub current_price_as_of: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -306,6 +318,10 @@ impl From<StorageError> for CreateAssetApiError {
 
                 if message.contains("UNIQUE constraint failed: assets.isin") {
                     return Self::duplicate("isin", "ISIN must be unique");
+                }
+
+                if message.contains("UNIQUE constraint failed: assets.quote_symbol") {
+                    return Self::duplicate("quote_symbol", "Quote symbol must be unique");
                 }
 
                 Self::internal_server_error()

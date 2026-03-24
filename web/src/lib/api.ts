@@ -51,7 +51,11 @@ export type AssetResponse = {
   symbol: string;
   name: string;
   asset_type: string;
+  quote_symbol: string | null;
   isin: string | null;
+  current_price: string | null;
+  current_price_currency: string | null;
+  current_price_as_of: string | null;
 };
 
 export type CreatedAssetResponse = {
@@ -59,7 +63,11 @@ export type CreatedAssetResponse = {
   symbol: string;
   name: string;
   asset_type: string;
+  quote_symbol: string | null;
   isin: string | null;
+  current_price: string | null;
+  current_price_currency: string | null;
+  current_price_as_of: string | null;
   created_at: string;
   updated_at: string;
 };

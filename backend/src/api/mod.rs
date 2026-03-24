@@ -19,6 +19,7 @@ pub fn build_router(pool: SqlitePool) -> Router {
     let state = AppState {
         pool,
         fx_refresh_status: crate::new_shared_fx_refresh_status(),
+        asset_price_refresh_config: crate::AssetPriceRefreshConfig::load(),
     };
     build_router_with_state(state)
 }
