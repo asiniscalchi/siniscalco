@@ -316,7 +316,7 @@ export function TransactionsPage() {
                   <th className="pb-3 pr-4 text-right">Price</th>
                   <th className="pb-3 pr-4">Curr</th>
                   <th className="pb-3 pr-4">Notes</th>
-                  <th className="pb-3 text-right">Actions</th>
+                  {!isLocked && <th className="pb-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -375,8 +375,8 @@ export function TransactionsPage() {
                       >
                         {t.notes}
                       </td>
-                      <td className="py-3 text-right">
-                        {!isLocked && (
+                      {!isLocked && (
+                        <td className="py-3 text-right">
                           <div className="flex justify-end gap-1">
                             <Button
                               disabled={isDeleting !== null}
@@ -406,8 +406,8 @@ export function TransactionsPage() {
                               <span className="sr-only">Delete</span>
                             </Button>
                           </div>
-                        )}
-                      </td>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -430,8 +430,8 @@ export function TransactionsPage() {
             Manage your asset transactions.
           </p>
         </div>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-4 items-end sm:flex-row sm:items-center">
+          <div className="flex items-center justify-end gap-3">
             <label
               className="text-sm font-medium text-muted-foreground"
               htmlFor="account-selector"
@@ -452,7 +452,7 @@ export function TransactionsPage() {
               ))}
             </select>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-end gap-2">
             <Button
               aria-label={isLocked ? "Unlock edit mode" : "Lock edit mode"}
               className={cn(

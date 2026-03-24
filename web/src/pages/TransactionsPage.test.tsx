@@ -75,6 +75,9 @@ describe("TransactionsPage", () => {
     expect(await screen.findByText("Showing all recorded transactions.")).toBeTruthy();
     expect(screen.getByText("All trans")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Add Transaction" }) as HTMLButtonElement).disabled).toBe(true);
+
+    // Check that Actions column is NOT present when locked
+    expect(screen.queryByText("Actions")).toBeNull();
   });
 
   it("loads transactions when an account is selected", async () => {

@@ -81,6 +81,9 @@ describe("AssetsPage", () => {
     expect(screen.getByText("BTC")).toBeTruthy();
     expect(screen.getByText("Bitcoin")).toBeTruthy();
     expect(screen.getByText("CRYPTO")).toBeTruthy();
+
+    // Check that Actions column is NOT present when locked
+    expect(screen.queryByText("Actions")).toBeNull();
   });
 
   it("shows empty state when no assets exist", async () => {
