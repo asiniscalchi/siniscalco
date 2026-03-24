@@ -64,6 +64,8 @@ pub struct AccountSummaryResponse {
     pub account_type: String,
     pub base_currency: Currency,
     pub summary_status: String,
+    pub cash_total_amount: Option<String>,
+    pub asset_total_amount: Option<String>,
     pub total_amount: Option<String>,
     pub total_currency: Option<Currency>,
 }
@@ -173,6 +175,8 @@ pub struct PortfolioAccountTotalResponse {
     pub name: String,
     pub account_type: String,
     pub summary_status: String,
+    pub cash_total_amount: Option<String>,
+    pub asset_total_amount: Option<String>,
     pub total_amount: Option<String>,
     pub total_currency: Currency,
 }
@@ -190,6 +194,11 @@ pub struct AccountDetailResponse {
     pub name: String,
     pub account_type: String,
     pub base_currency: Currency,
+    pub summary_status: String,
+    pub cash_total_amount: Option<String>,
+    pub asset_total_amount: Option<String>,
+    pub total_amount: Option<String>,
+    pub total_currency: Option<Currency>,
     pub created_at: String,
     pub balances: Vec<BalanceResponse>,
 }

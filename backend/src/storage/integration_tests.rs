@@ -11,11 +11,12 @@ use super::{
     AssetQuantity, AssetRecord, AssetSymbol, AssetTransactionType, AssetType, AssetUnitPrice,
     CreateAccountInput, CreateAssetInput, CreateAssetTransactionInput, Currency, CurrencyRecord,
     FxRate, FxRateDetailRecord, FxRateRecord, FxRateSummaryItemRecord, FxRateSummaryRecord,
-    StorageError, TradeDate, UpsertAccountBalanceInput, UpsertFxRateInput, UpsertOutcome,
-    create_account, create_asset, create_asset_transaction, delete_account, delete_account_balance,
-    get_account, get_latest_fx_rate, list_account_balances, list_account_positions,
-    list_account_summaries, list_accounts, list_asset_transactions, list_assets, list_currencies,
-    list_fx_rate_summary, list_fx_rates, upsert_account_balance, upsert_fx_rate,
+    StorageError, TradeDate, UpsertAccountBalanceInput, UpsertAssetPriceInput, UpsertFxRateInput,
+    UpsertOutcome, create_account, create_asset, create_asset_transaction, delete_account,
+    delete_account_balance, get_account, get_latest_fx_rate, list_account_balances,
+    list_account_positions, list_account_summaries, list_accounts, list_asset_transactions,
+    list_assets, list_currencies, list_fx_rate_summary, list_fx_rates, upsert_account_balance,
+    upsert_asset_price, upsert_fx_rate,
 };
 use crate::db::init_db;
 
@@ -1385,6 +1386,8 @@ async fn lists_account_summaries_with_zero_total_for_empty_accounts() {
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
             summary_status: AccountSummaryStatus::Ok,
+            cash_total_amount: Some(amt("0.000000")),
+            asset_total_amount: Some(amt("0.000000")),
             total_amount: Some(amt("0.000000")),
             total_currency: Some(Currency::Eur),
         }]
@@ -1422,6 +1425,8 @@ async fn lists_account_summaries_with_single_base_currency_balance() {
         .expect("account summaries should succeed");
 
     assert_eq!(summaries[0].summary_status, AccountSummaryStatus::Ok);
+    assert_eq!(summaries[0].cash_total_amount, Some(amt("123.450000")));
+    assert_eq!(summaries[0].asset_total_amount, Some(amt("0.000000")));
     assert_eq!(summaries[0].total_amount, Some(amt("123.450000")));
     assert_eq!(summaries[0].total_currency, Some(Currency::Usd));
 }
@@ -1476,7 +1481,98 @@ async fn lists_account_summaries_with_direct_fx_conversion() {
         .expect("account summaries should succeed");
 
     assert_eq!(summaries[0].summary_status, AccountSummaryStatus::Ok);
+    assert_eq!(summaries[0].cash_total_amount, Some(amt("56.000000")));
+    assert_eq!(summaries[0].asset_total_amount, Some(amt("0.000000")));
     assert_eq!(summaries[0].total_amount, Some(amt("56.000000")));
+    assert_eq!(summaries[0].total_currency, Some(Currency::Eur));
+}
+
+#[tokio::test]
+async fn lists_account_summaries_with_separate_cash_and_asset_totals() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Usd,
+            amount: amt("20.000000"),
+        },
+    )
+    .await
+    .expect("balance insert should succeed");
+
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("BTC"),
+            name: asset_name("Bitcoin"),
+            asset_type: AssetType::Crypto,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2026-03-20"),
+            quantity: AssetQuantity::try_from("2").unwrap(),
+            unit_price: AssetUnitPrice::try_from("80").unwrap(),
+            currency_code: Currency::Usd,
+            notes: None,
+        },
+    )
+    .await
+    .expect("transaction insert should succeed");
+
+    upsert_asset_price(
+        &pool,
+        UpsertAssetPriceInput {
+            asset_id,
+            price: AssetUnitPrice::try_from("100").unwrap(),
+            currency: Currency::Usd,
+            as_of: "2026-03-22T10:00:00Z".to_string(),
+        },
+    )
+    .await
+    .expect("asset price insert should succeed");
+
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate("0.500000"),
+        },
+    )
+    .await
+    .expect("fx rate insert should succeed");
+
+    let summaries = list_account_summaries(&pool)
+        .await
+        .expect("account summaries should succeed");
+
+    assert_eq!(summaries[0].summary_status, AccountSummaryStatus::Ok);
+    assert_eq!(summaries[0].cash_total_amount, Some(amt("10.000000")));
+    assert_eq!(summaries[0].asset_total_amount, Some(amt("100.000000")));
+    assert_eq!(summaries[0].total_amount, Some(amt("110.000000")));
     assert_eq!(summaries[0].total_currency, Some(Currency::Eur));
 }
 
@@ -1518,6 +1614,8 @@ async fn marks_summary_unavailable_when_direct_fx_rate_is_missing() {
             account_type: AccountType::Broker,
             base_currency: Currency::Eur,
             summary_status: AccountSummaryStatus::ConversionUnavailable,
+            cash_total_amount: None,
+            asset_total_amount: Some(amt("0.000000")),
             total_amount: None,
             total_currency: None,
         }
