@@ -71,7 +71,6 @@ describe("TransactionsPage", () => {
     });
 
     renderTransactionsPage();
-    await unlockEditMode();
 
     expect(await screen.findByText("Showing all recorded transactions.")).toBeTruthy();
     expect(screen.getByText("All trans")).toBeTruthy();
@@ -117,7 +116,6 @@ describe("TransactionsPage", () => {
     });
 
     renderTransactionsPage();
-    await unlockEditMode();
 
     const select = await screen.findByLabelText("Account:");
     fireEvent.change(select, { target: { value: "1" } });
@@ -147,7 +145,6 @@ describe("TransactionsPage", () => {
     });
 
     renderTransactionsPage();
-    await unlockEditMode();
 
     const select = await screen.findByLabelText("Account:");
     fireEvent.change(select, { target: { value: "1" } });
@@ -202,11 +199,11 @@ describe("TransactionsPage", () => {
     });
 
     renderTransactionsPage();
-    await unlockEditMode();
 
     const select = await screen.findByLabelText("Account:");
     fireEvent.change(select, { target: { value: "1" } });
 
+    await unlockEditMode();
     fireEvent.click(await screen.findByTitle("Edit transaction"));
 
     const modal = screen.getByRole("dialog");

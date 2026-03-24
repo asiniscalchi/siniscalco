@@ -247,16 +247,14 @@ export function AssetsPage() {
           >
             {isLocked ? <LockIcon /> : <UnlockIcon />}
           </Button>
-          {!isLocked && (
-            <Button
-              aria-label="Add Asset"
-              onClick={handleCreateClick}
-              size="icon-lg"
-              title="Add Asset"
-            >
-              <PlusIcon />
-            </Button>
-          )}
+          <Button
+            aria-label="Add Asset"
+            onClick={handleCreateClick}
+            size="icon-lg"
+            title="Add Asset"
+          >
+            <PlusIcon />
+          </Button>
         </div>
       </header>
 
@@ -271,17 +269,15 @@ export function AssetsPage() {
               <p className="mb-6 text-sm text-muted-foreground">
                 Add your first asset to start recording transactions.
               </p>
-              {!isLocked && (
-                <Button
-                  aria-label="Add Asset"
-                  onClick={handleCreateClick}
-                  size="icon-lg"
-                  title="Add Asset"
-                  variant="outline"
-                >
-                  <PlusIcon />
-                </Button>
-              )}
+              <Button
+                aria-label="Add Asset"
+                onClick={handleCreateClick}
+                size="icon-lg"
+                title="Add Asset"
+                variant="outline"
+              >
+                <PlusIcon />
+              </Button>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -292,7 +288,7 @@ export function AssetsPage() {
                     <th className="pb-3 pr-4">Name</th>
                     <th className="pb-3 pr-4">Type</th>
                     <th className="pb-3 pr-4">ISIN</th>
-                    {!isLocked && <th className="pb-3 text-right">Actions</th>}
+                    <th className="pb-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -313,8 +309,8 @@ export function AssetsPage() {
                       <td className="py-3 pr-4 font-mono text-[11px] text-muted-foreground">
                         {asset.isin || "—"}
                       </td>
-                      {!isLocked && (
-                        <td className="py-3 text-right">
+                      <td className="py-3 text-right">
+                        {!isLocked && (
                           <div className="flex justify-end gap-1">
                             <Button
                               disabled={isDeleting !== null}
@@ -342,8 +338,8 @@ export function AssetsPage() {
                               <span className="sr-only">Delete</span>
                             </Button>
                           </div>
-                        </td>
-                      )}
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

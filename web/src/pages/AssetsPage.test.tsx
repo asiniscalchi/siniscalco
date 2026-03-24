@@ -94,7 +94,6 @@ describe("AssetsPage", () => {
     renderAssetsPage();
 
     expect(await screen.findByText("No assets yet")).toBeTruthy();
-    await unlockEditMode();
     expect(screen.getAllByRole("button", { name: "Add Asset" }).length).toBe(2);
   });
 
@@ -107,7 +106,6 @@ describe("AssetsPage", () => {
     );
 
     renderAssetsPage();
-    await unlockEditMode();
 
     // Use the first Add Asset button (the one in the header)
     const createButton = await screen.findAllByRole("button", { name: "Add Asset" });
@@ -271,7 +269,6 @@ describe("AssetsPage", () => {
     );
 
     renderAssetsPage();
-    await unlockEditMode();
 
     const createButton = await screen.findAllByRole("button", { name: "Add Asset" });
     fireEvent.click(createButton[0]);

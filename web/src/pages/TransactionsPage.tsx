@@ -316,7 +316,7 @@ export function TransactionsPage() {
                   <th className="pb-3 pr-4 text-right">Price</th>
                   <th className="pb-3 pr-4">Curr</th>
                   <th className="pb-3 pr-4">Notes</th>
-                  {!isLocked && <th className="pb-3 text-right">Actions</th>}
+                  <th className="pb-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -375,8 +375,8 @@ export function TransactionsPage() {
                       >
                         {t.notes}
                       </td>
-                      {!isLocked && (
-                        <td className="py-3 text-right">
+                      <td className="py-3 text-right">
+                        {!isLocked && (
                           <div className="flex justify-end gap-1">
                             <Button
                               disabled={isDeleting !== null}
@@ -406,8 +406,8 @@ export function TransactionsPage() {
                               <span className="sr-only">Delete</span>
                             </Button>
                           </div>
-                        </td>
-                      )}
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -466,17 +466,15 @@ export function TransactionsPage() {
           >
             {isLocked ? <LockIcon /> : <UnlockIcon />}
           </Button>
-          {!isLocked && (
-            <Button
-              aria-label="Add Transaction"
-              disabled={!selectedAccountId}
-              onClick={handleCreateClick}
-              size="icon-lg"
-              title="Add Transaction"
-            >
-              <PlusIcon />
-            </Button>
-          )}
+          <Button
+            aria-label="Add Transaction"
+            disabled={!selectedAccountId}
+            onClick={handleCreateClick}
+            size="icon-lg"
+            title="Add Transaction"
+          >
+            <PlusIcon />
+          </Button>
         </div>
       </header>
 
