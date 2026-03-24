@@ -81,6 +81,47 @@ describe("TransactionsPage", () => {
     expect(screen.queryByTitle("Delete transaction")).toBeNull();
   });
 
+  it("hides empty notes in the transaction history", async () => {
+    const transactions = [
+      {
+        id: 1,
+        account_id: 1,
+        asset_id: 1,
+        transaction_type: "BUY",
+        trade_date: "2026-03-23",
+        quantity: "10.00",
+        unit_price: "150.00",
+        currency_code: "USD",
+        notes: null,
+      },
+    ];
+
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/accounts")) {
+        return Promise.resolve(new Response(JSON.stringify([])));
+      }
+      if (url.endsWith("/assets")) {
+        return Promise.resolve(new Response(JSON.stringify([])));
+      }
+      if (url.includes("/transactions")) {
+        return Promise.resolve(new Response(JSON.stringify(transactions)));
+      }
+      return Promise.reject(new Error(`Unhandled fetch request: ${url}`));
+    });
+
+    renderTransactionsPage();
+
+    await screen.findAllByText("Date");
+    const mobileList = screen
+      .getByText("Transaction History")
+      .closest('[data-slot="card"]')
+      ?.querySelector(".sm\\:hidden");
+
+    expect(within(mobileList as HTMLElement).queryByText("Notes")).toBeNull();
+    expect(within(mobileList as HTMLElement).queryByText("—")).toBeNull();
+  });
+
   it("clears a transaction load error after a successful retry", async () => {
     let transactionFetchCount = 0;
 

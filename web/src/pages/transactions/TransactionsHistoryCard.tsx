@@ -158,12 +158,14 @@ export function TransactionsHistoryCard({
                         </div>
                       </dl>
 
-                      <div>
-                        <p className="text-[10px] text-muted-foreground">Notes</p>
-                        <p className="mt-0.5 truncate text-xs italic text-muted-foreground">
-                          {transaction.notes || "—"}
-                        </p>
-                      </div>
+                      {transaction.notes ? (
+                        <div>
+                          <p className="text-[10px] text-muted-foreground">Notes</p>
+                          <p className="mt-0.5 truncate text-xs italic text-muted-foreground">
+                            {transaction.notes}
+                          </p>
+                        </div>
+                      ) : null}
 
                       {!isLocked && renderActions(transaction)}
                     </CardContent>
@@ -239,7 +241,7 @@ export function TransactionsHistoryCard({
                           className="max-w-[150px] truncate py-3 pr-4 italic text-muted-foreground"
                           title={transaction.notes || ""}
                         >
-                          {transaction.notes}
+                          {transaction.notes || ""}
                         </td>
                         {!isLocked && <td className="py-3 text-right">{renderActions(transaction)}</td>}
                       </tr>
