@@ -106,7 +106,9 @@ pub async fn list_asset_transactions(
     rows.into_iter().map(map_transaction_row).collect()
 }
 
-pub async fn list_transactions(pool: &SqlitePool) -> Result<Vec<AssetTransactionRecord>, StorageError> {
+pub async fn list_transactions(
+    pool: &SqlitePool,
+) -> Result<Vec<AssetTransactionRecord>, StorageError> {
     let rows = sqlx::query(
         r#"
         SELECT id, account_id, asset_id, transaction_type, trade_date, quantity, unit_price,

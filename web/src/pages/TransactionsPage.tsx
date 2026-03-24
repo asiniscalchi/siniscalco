@@ -11,7 +11,7 @@ import {
 import {
   getAccountsApiUrl,
   getAssetsApiUrl,
-  getAssetTransactionsApiUrl,
+  getTransactionsApiUrl,
   readApiErrorMessage,
 } from "@/lib/api";
 import { MoneyText } from "@/lib/money";
@@ -145,7 +145,7 @@ export function TransactionsPage() {
 
     async function loadTransactions() {
       try {
-        const res = await fetch(getAssetTransactionsApiUrl(selectedAccountId));
+        const res = await fetch(getTransactionsApiUrl(selectedAccountId));
 
         if (cancelled) return;
 
@@ -192,7 +192,7 @@ export function TransactionsPage() {
         notes: formNotes || null,
       };
 
-      const res = await fetch(getAssetTransactionsApiUrl(), {
+      const res = await fetch(getTransactionsApiUrl(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -215,7 +215,7 @@ export function TransactionsPage() {
 
       // Refresh transactions
       const transRes = await fetch(
-        getAssetTransactionsApiUrl(selectedAccountId),
+        getTransactionsApiUrl(selectedAccountId),
       );
       if (transRes.ok) {
         const transData = (await transRes.json()) as Transaction[];

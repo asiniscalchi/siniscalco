@@ -716,10 +716,7 @@ async fn lists_asset_transactions_through_api_in_trade_date_order() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!(
-                    "/transactions?account_id={}",
-                    account_id.as_i64()
-                ))
+                .uri(format!("/transactions?account_id={}", account_id.as_i64()))
                 .body(Body::empty())
                 .expect("request should build"),
         )
@@ -806,7 +803,10 @@ async fn lists_all_transactions_through_api_without_filter() {
         .to_bytes();
 
     let json: Value = serde_json::from_slice(&body).expect("transaction list should parse");
-    assert_eq!(json.as_array().expect("response should be an array").len(), 1);
+    assert_eq!(
+        json.as_array().expect("response should be an array").len(),
+        1
+    );
 }
 
 #[tokio::test]
@@ -1036,10 +1036,7 @@ async fn deletes_asset_transaction_through_api() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!(
-                    "/transactions?account_id={}",
-                    account_id.as_i64()
-                ))
+                .uri(format!("/transactions?account_id={}", account_id.as_i64()))
                 .body(Body::empty())
                 .expect("request should build"),
         )
@@ -1351,7 +1348,8 @@ async fn gets_asset_detail_through_api() {
         .await
         .expect("response body should collect")
         .to_bytes();
-    let json: Value = serde_json::from_slice(&body).expect("asset detail body should be valid json");
+    let json: Value =
+        serde_json::from_slice(&body).expect("asset detail body should be valid json");
 
     assert_eq!(json["symbol"], "AAPL");
     assert_eq!(json["name"], "Apple Inc.");
@@ -1393,7 +1391,9 @@ async fn updates_asset_through_api() {
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let updated = get_asset(&pool, asset_id).await.expect("asset should exist");
+    let updated = get_asset(&pool, asset_id)
+        .await
+        .expect("asset should exist");
     assert_eq!(updated.symbol.as_str(), "MSFT");
     assert_eq!(updated.name.as_str(), "Microsoft");
     assert_eq!(updated.isin.as_deref(), Some("US5949181045"));
@@ -1513,9 +1513,13 @@ async fn lists_account_balances_through_api() {
         .await
         .expect("response body should collect")
         .to_bytes();
-    let json: Value = serde_json::from_slice(&body).expect("balance list body should be valid json");
+    let json: Value =
+        serde_json::from_slice(&body).expect("balance list body should be valid json");
 
-    assert_eq!(json.as_array().expect("response should be an array").len(), 2);
+    assert_eq!(
+        json.as_array().expect("response should be an array").len(),
+        2
+    );
 }
 
 #[tokio::test]

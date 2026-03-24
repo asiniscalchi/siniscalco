@@ -85,8 +85,8 @@ export function getAssetsApiUrl() {
   return new URL("/assets", getApiBaseUrl()).toString();
 }
 
-export function getAssetTransactionsApiUrl(accountId?: string) {
-  const url = new URL("/asset-transactions", getApiBaseUrl());
+export function getTransactionsApiUrl(accountId?: string) {
+  const url = new URL("/transactions", getApiBaseUrl());
   if (accountId) {
     url.searchParams.append("account_id", accountId);
   }

@@ -103,7 +103,9 @@ pub(crate) async fn get_asset_handler(
     let asset = get_asset(&state.pool, asset_id)
         .await
         .map_err(|error| match error {
-            StorageError::Database(sqlx::Error::RowNotFound) => ApiError::not_found("Asset not found"),
+            StorageError::Database(sqlx::Error::RowNotFound) => {
+                ApiError::not_found("Asset not found")
+            }
             other => ApiError::from(other),
         })?;
 
@@ -239,7 +241,9 @@ pub(crate) async fn list_transactions_handler(
             .await
             .map_err(ApiError::from)?
     } else {
-        list_transactions(&state.pool).await.map_err(ApiError::from)?
+        list_transactions(&state.pool)
+            .await
+            .map_err(ApiError::from)?
     };
 
     Ok(Json(
@@ -436,7 +440,9 @@ pub(crate) async fn update_account_handler(
     )
     .await
     .map_err(|error| match error {
-        StorageError::Database(sqlx::Error::RowNotFound) => ApiError::not_found("Account not found"),
+        StorageError::Database(sqlx::Error::RowNotFound) => {
+            ApiError::not_found("Account not found")
+        }
         other => ApiError::from(other),
     })?;
     let balances = list_account_balances(&state.pool, account_id)
@@ -465,7 +471,9 @@ pub(crate) async fn list_account_balances_handler(
         .await
         .map_err(ApiError::from)?;
 
-    Ok(Json(balances.into_iter().map(to_balance_response).collect()))
+    Ok(Json(
+        balances.into_iter().map(to_balance_response).collect(),
+    ))
 }
 
 pub(crate) async fn list_account_positions_handler(
