@@ -58,6 +58,12 @@ export type AssetResponse = {
   current_price_as_of: string | null;
 };
 
+export type AssetPositionResponse = {
+  account_id: number;
+  asset_id: number;
+  quantity: string;
+};
+
 export type CreatedAssetResponse = {
   id: number;
   symbol: string;
@@ -105,6 +111,10 @@ export function getAccountBalanceApiUrl(accountId: string, currency: string) {
     `/accounts/${accountId}/balances/${currency}`,
     getApiBaseUrl(),
   ).toString();
+}
+
+export function getAccountPositionsApiUrl(accountId: string) {
+  return new URL(`/accounts/${accountId}/positions`, getApiBaseUrl()).toString();
 }
 
 export function getAssetsApiUrl() {
