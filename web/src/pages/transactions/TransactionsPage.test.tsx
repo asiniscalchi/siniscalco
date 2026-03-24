@@ -73,11 +73,16 @@ describe("TransactionsPage", () => {
     renderTransactionsPage();
 
     expect(await screen.findByText("Showing all recorded transactions.")).toBeTruthy();
-    expect(screen.getByText("All trans")).toBeTruthy();
+    expect(screen.getByTitle("All trans")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Add Transaction" }) as HTMLButtonElement).disabled).toBe(true);
 
-    // Check that Actions column is NOT present when locked
-    expect(screen.queryByText("Actions")).toBeNull();
+    expect(screen.getByText("Actions")).toBeTruthy();
+
+    const editButton = screen.getAllByTitle("Edit transaction")[0] as HTMLButtonElement;
+    const deleteButton = screen.getAllByTitle("Delete transaction")[0] as HTMLButtonElement;
+
+    expect(editButton.disabled).toBe(true);
+    expect(deleteButton.disabled).toBe(true);
   });
 
   it("clears a transaction load error after a successful retry", async () => {
@@ -204,7 +209,7 @@ describe("TransactionsPage", () => {
     fireEvent.change(select, { target: { value: "1" } });
 
     expect(await screen.findByText("Recent transactions for Main Account.")).toBeTruthy();
-    expect(screen.getByText("Filtered trans")).toBeTruthy();
+    expect(screen.getByTitle("Filtered trans")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Add Transaction" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
@@ -279,21 +284,19 @@ describe("TransactionsPage", () => {
 
     renderTransactionsPage();
 
-    await screen.findByText("Overflow regression");
+    await screen.findAllByText("Overflow regression");
     await unlockEditMode();
 
-    const pageRoot = screen.getByText("Transactions").closest("header")?.parentElement;
     const historyCard = screen
       .getByText("Transaction History")
       .closest('[data-slot="card"]');
-    const historyScroller = screen.getByRole("table").parentElement;
+    const mobileList = historyCard?.querySelector(".sm\\:hidden");
+    const desktopTable = historyCard?.querySelector(".sm\\:block");
 
-    expect(pageRoot).toBeTruthy();
-    expect(pageRoot?.className).toContain("min-w-0");
-    expect(pageRoot?.className).toContain("overflow-x-hidden");
     expect(historyCard).toBeTruthy();
     expect(historyCard?.className).toContain("min-w-0");
-    expect(historyScroller?.className).toContain("overflow-x-auto");
+    expect(mobileList?.className).toContain("sm:hidden");
+    expect(desktopTable?.className).toContain("sm:block");
     expect(screen.getByText("Actions")).toBeTruthy();
   });
 
@@ -376,7 +379,7 @@ describe("TransactionsPage", () => {
     fireEvent.change(select, { target: { value: "1" } });
 
     await unlockEditMode();
-    fireEvent.click(await screen.findByTitle("Edit transaction"));
+    fireEvent.click(screen.getAllByTitle("Edit transaction")[0]);
 
     const modal = screen.getByRole("dialog");
     expect(within(modal).getByText("Edit Transaction")).toBeTruthy();
@@ -423,7 +426,7 @@ describe("TransactionsPage", () => {
     renderTransactionsPage();
     await unlockEditMode();
 
-    fireEvent.click(await screen.findByTitle("Delete transaction"));
+    fireEvent.click(screen.getAllByTitle("Delete transaction")[0]);
 
     expect(window.confirm).toHaveBeenCalled();
 
