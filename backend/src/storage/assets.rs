@@ -86,6 +86,19 @@ pub async fn update_asset(
     get_asset(pool, asset_id).await
 }
 
+pub async fn delete_asset(pool: &SqlitePool, asset_id: AssetId) -> Result<(), StorageError> {
+    let result = sqlx::query("DELETE FROM assets WHERE id = ?")
+        .bind(asset_id.as_i64())
+        .execute(pool)
+        .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(StorageError::Database(sqlx::Error::RowNotFound));
+    }
+
+    Ok(())
+}
+
 fn map_asset_row(row: sqlx::sqlite::SqliteRow) -> Result<AssetRecord, StorageError> {
     Ok(AssetRecord {
         id: AssetId::try_from(row.get::<i64, _>("id"))?,

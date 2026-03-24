@@ -16,11 +16,12 @@ use crate::{
     PortfolioAccountTotalRecord, PortfolioCashByCurrencyRecord, PortfolioSummaryRecord, TradeDate,
     UpdateAccountInput, UpdateAssetInput, UpdateAssetTransactionInput, UpsertAccountBalanceInput,
     UpsertOutcome, compact_decimal_output, create_asset, create_asset_transaction, delete_account,
-    delete_account_balance, delete_asset_transaction, get_account, get_asset, get_latest_fx_rate,
-    get_portfolio_summary, get_transaction, list_account_balances, list_account_positions,
-    list_account_summaries, list_asset_transactions, list_assets, list_currencies,
-    list_fx_rate_summary, list_transactions, normalize_amount_output, storage::StorageError,
-    update_account, update_asset, update_asset_transaction, upsert_account_balance,
+    delete_account_balance, delete_asset, delete_asset_transaction, get_account, get_asset,
+    get_latest_fx_rate, get_portfolio_summary, get_transaction, list_account_balances,
+    list_account_positions, list_account_summaries, list_asset_transactions, list_assets,
+    list_currencies, list_fx_rate_summary, list_transactions, normalize_amount_output,
+    storage::StorageError, update_account, update_asset, update_asset_transaction,
+    upsert_account_balance,
 };
 use std::collections::BTreeMap;
 
@@ -140,6 +141,31 @@ pub(crate) async fn update_asset_handler(
     })?;
 
     Ok(Json(to_created_asset_response(asset)))
+}
+
+pub(crate) async fn delete_asset_handler(
+    State(state): State<AppState>,
+    AxumPath((asset_id,)): AxumPath<(i64,)>,
+) -> Result<StatusCode, ApiError> {
+    let asset_id = AssetId::try_from(asset_id).map_err(ApiError::from)?;
+
+    delete_asset(&state.pool, asset_id)
+        .await
+        .map_err(|error| match error {
+            StorageError::Database(sqlx::Error::RowNotFound) => {
+                ApiError::not_found("Asset not found")
+            }
+            StorageError::Database(sqlx::Error::Database(database_error))
+                if database_error
+                    .message()
+                    .contains("FOREIGN KEY constraint failed") =>
+            {
+                ApiError::conflict("Asset has transactions and cannot be deleted")
+            }
+            other => ApiError::from(other),
+        })?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub(crate) async fn list_accounts_handler(
