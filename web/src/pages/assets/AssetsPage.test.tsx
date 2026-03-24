@@ -131,7 +131,8 @@ describe("AssetsPage", () => {
     expect(pageRoot?.className).toContain("min-w-0");
     expect(assetsCard).toBeTruthy();
     expect(assetsCard?.className).toContain("min-w-0");
-    expect(assetsScroller?.className).toContain("overflow-hidden");
+    expect(assetsScroller?.className).toContain("overflow-x-auto");
+    expect(assetsScroller?.className).toContain("overflow-y-hidden");
     expect(screen.getByText("Actions")).toBeTruthy();
   });
 
