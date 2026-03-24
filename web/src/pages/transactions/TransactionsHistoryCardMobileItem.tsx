@@ -1,0 +1,107 @@
+import { Card, CardContent } from "@/components/ui/card";
+import { MoneyText } from "@/lib/money";
+import { cn } from "@/lib/utils";
+
+import { TransactionsHistoryCardActions } from "./TransactionsHistoryCardActions";
+import { getTransactionTypeClassName, trimTrailingZeros } from "./TransactionsHistoryCard.utils";
+import type { Asset, Transaction } from "./types";
+
+type TransactionsHistoryCardMobileItemProps = {
+  asset: Asset | undefined;
+  transaction: Transaction;
+  hideValues: boolean;
+  isLocked: boolean;
+  isDeleting: number | null;
+  isEditing: boolean;
+  onEditClick: (transaction: Transaction) => void;
+  onDeleteClick: (transactionId: number) => void;
+};
+
+export function TransactionsHistoryCardMobileItem({
+  asset,
+  transaction,
+  hideValues,
+  isLocked,
+  isDeleting,
+  isEditing,
+  onEditClick,
+  onDeleteClick,
+}: TransactionsHistoryCardMobileItemProps) {
+  return (
+    <Card className={cn("bg-background", isEditing && "bg-muted/50")}>
+      <CardContent className="space-y-3 p-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold leading-tight">
+              {asset?.symbol || "Unknown"}
+            </p>
+            <p className="truncate text-[11px] leading-tight text-muted-foreground">
+              {asset?.name}
+            </p>
+          </div>
+          <span
+            className={cn(
+              "inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
+              getTransactionTypeClassName(transaction.transaction_type),
+            )}
+          >
+            {transaction.transaction_type}
+          </span>
+        </div>
+
+        <dl className="grid grid-cols-4 gap-x-2 gap-y-2 text-xs">
+          <div>
+            <dt className="text-[10px] text-muted-foreground">Date</dt>
+            <dd className="mt-0.5 font-medium tabular-nums">
+              {transaction.trade_date}
+            </dd>
+          </div>
+          <div className="text-center">
+            <dt className="text-[10px] text-muted-foreground">Qty</dt>
+            <dd className="mt-0.5 font-medium tabular-nums">
+              {trimTrailingZeros(transaction.quantity)}
+            </dd>
+          </div>
+          <div className="text-center">
+            <dt className="text-[10px] text-muted-foreground">Price</dt>
+            <dd className="mt-0.5">
+              <MoneyText
+                className="text-sm"
+                hidden={hideValues}
+                includeCurrency={false}
+                maximumFractionDigits={8}
+                minimumFractionDigits={0}
+                value={transaction.unit_price}
+              />
+            </dd>
+          </div>
+          <div className="text-right">
+            <dt className="text-[10px] text-muted-foreground">Curr</dt>
+            <dd className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+              {transaction.currency_code}
+            </dd>
+          </div>
+        </dl>
+
+        {transaction.notes ? (
+          <div>
+            <p className="text-[10px] text-muted-foreground">Notes</p>
+            <p className="mt-0.5 truncate text-xs italic text-muted-foreground">
+              {transaction.notes}
+            </p>
+          </div>
+        ) : null}
+
+        {!isLocked ? (
+          <TransactionsHistoryCardActions
+            isDeleting={isDeleting}
+            isLocked={isLocked}
+            onDeleteClick={onDeleteClick}
+            onEditClick={onEditClick}
+            transaction={transaction}
+          />
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}

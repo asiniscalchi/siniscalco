@@ -6,9 +6,11 @@ import type { Account, Asset, Transaction } from "./types";
 
 function renderHistoryCard({
   isLocked,
+  selectedAccountId = "",
   transactions,
 }: {
   isLocked: boolean;
+  selectedAccountId?: string;
   transactions: Transaction[];
 }) {
   const accounts: Account[] = [{ id: 1, name: "Main Account", account_type: "bank", base_currency: "USD" }];
@@ -24,7 +26,7 @@ function renderHistoryCard({
       isLocked={isLocked}
       onDeleteClick={() => undefined}
       onEditClick={() => undefined}
-      selectedAccountId=""
+      selectedAccountId={selectedAccountId}
       transactions={transactions}
     />,
   );
@@ -83,5 +85,17 @@ describe("TransactionsHistoryCard", () => {
     expect(screen.queryByText("Actions")).toBeNull();
     expect(screen.queryByTitle("Edit transaction")).toBeNull();
     expect(screen.queryByTitle("Delete transaction")).toBeNull();
+  });
+
+  it("describes the selected account when filtering", () => {
+    renderHistoryCard({
+      isLocked: true,
+      selectedAccountId: "1",
+      transactions: [],
+    });
+
+    expect(
+      screen.getByText("Recent transactions for Main Account."),
+    ).toBeTruthy();
   });
 });
