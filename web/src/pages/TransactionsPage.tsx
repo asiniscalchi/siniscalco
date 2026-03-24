@@ -490,7 +490,7 @@ export function TransactionsPage() {
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200"
             role="dialog"
           >
-            <div className="flex max-h-full w-full max-w-2xl flex-col rounded-xl border bg-background shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-xl border bg-background shadow-2xl animate-in zoom-in-95 duration-200">
               <header className="flex-none border-b px-6 py-4">
                 <h2 className="text-lg font-semibold">
                   {editingTransactionId
@@ -507,7 +507,7 @@ export function TransactionsPage() {
                 className="flex flex-1 flex-col overflow-hidden"
                 onSubmit={handleSubmit}
               >
-                <div className="grid gap-5 overflow-y-auto px-6 py-6 sm:grid-cols-2">
+                <div className="grid flex-1 min-h-0 gap-5 overflow-y-auto px-6 py-6 sm:grid-cols-2">
                   <div className="flex flex-col gap-1.5">
                     <label
                       className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
