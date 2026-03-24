@@ -87,7 +87,7 @@ describe("AssetsPage", () => {
     renderAssetsPage();
 
     expect(await screen.findByText("No assets yet")).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: "Create Asset" }).length).toBe(2);
+    expect(screen.getAllByRole("button", { name: "Add Asset" }).length).toBe(2);
   });
 
   it("handles create asset", async () => {
@@ -100,11 +100,11 @@ describe("AssetsPage", () => {
 
     renderAssetsPage();
 
-    // Use the first Create Asset button (the one in the header)
-    const createButton = await screen.findAllByRole("button", { name: "Create Asset" });
+    // Use the first Add Asset button (the one in the header)
+    const createButton = await screen.findAllByRole("button", { name: "Add Asset" });
     fireEvent.click(createButton[0]);
 
-    expect(screen.getByText("Create Asset", { selector: "h2" })).toBeTruthy();
+    expect(screen.getByText("Add Asset", { selector: "h2" })).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText(/Symbol \*/), { target: { value: "MSFT" } });
     fireEvent.change(screen.getByLabelText(/Name \*/), { target: { value: "Microsoft" } });
@@ -140,10 +140,10 @@ describe("AssetsPage", () => {
     );
 
     const modal = screen.getByRole("dialog");
-    fireEvent.click(within(modal).getByRole("button", { name: "Create Asset" }));
+    fireEvent.click(within(modal).getByRole("button", { name: "Add Asset" }));
 
     await waitFor(() => {
-      expect(screen.queryByText("Create Asset", { selector: "h2" })).toBeNull();
+      expect(screen.queryByText("Add Asset", { selector: "h2" })).toBeNull();
     });
 
     expect(await screen.findByText("MSFT")).toBeTruthy();
@@ -261,7 +261,7 @@ describe("AssetsPage", () => {
 
     renderAssetsPage();
 
-    const createButton = await screen.findAllByRole("button", { name: "Create Asset" });
+    const createButton = await screen.findAllByRole("button", { name: "Add Asset" });
     fireEvent.click(createButton[0]);
 
     vi.mocked(fetch).mockResolvedValueOnce(
@@ -279,7 +279,7 @@ describe("AssetsPage", () => {
     fireEvent.change(screen.getByLabelText(/Symbol \*/), { target: { value: "AAPL" } });
     fireEvent.change(screen.getByLabelText(/Name \*/), { target: { value: "Apple" } });
     const modal = screen.getByRole("dialog");
-    fireEvent.click(within(modal).getByRole("button", { name: "Create Asset" }));
+    fireEvent.click(within(modal).getByRole("button", { name: "Add Asset" }));
 
     expect(await screen.findByText("Symbol is already taken")).toBeTruthy();
     expect(screen.getByText("Validation failed")).toBeTruthy();

@@ -442,7 +442,7 @@ export function TransactionsPage() {
               ))}
             </select>
           </div>
-          <Button disabled={!selectedAccountId} onClick={handleCreateClick} size="sm">
+          <Button disabled={!selectedAccountId} onClick={handleCreateClick} size="lg">
             Add Transaction
           </Button>
         </div>

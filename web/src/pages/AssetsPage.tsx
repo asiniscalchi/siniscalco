@@ -222,7 +222,7 @@ export function AssetsPage() {
           </p>
         </div>
         <Button onClick={handleCreateClick} size="lg">
-          Create Asset
+          Add Asset
         </Button>
       </header>
 
@@ -235,10 +235,10 @@ export function AssetsPage() {
               </div>
               <h3 className="text-lg font-medium">No assets yet</h3>
               <p className="mb-6 text-sm text-muted-foreground">
-                Create your first asset to start recording transactions.
+                Add your first asset to start recording transactions.
               </p>
               <Button onClick={handleCreateClick} variant="outline">
-                Create Asset
+                Add Asset
               </Button>
             </div>
           ) : (
@@ -319,7 +319,7 @@ export function AssetsPage() {
           <div className="w-full max-w-md rounded-xl border bg-background shadow-2xl animate-in zoom-in-95 duration-200">
             <header className="border-b px-6 py-4">
               <h2 className="text-lg font-semibold">
-                {editingAsset ? "Edit Asset" : "Create Asset"}
+                {editingAsset ? "Edit Asset" : "Add Asset"}
               </h2>
               <p className="text-sm text-muted-foreground">
                 {editingAsset
@@ -434,10 +434,10 @@ export function AssetsPage() {
                   {isSubmitting
                     ? editingAsset
                       ? "Saving..."
-                      : "Creating..."
+                      : "Adding..."
                     : editingAsset
                       ? "Save Changes"
-                      : "Create Asset"}
+                      : "Add Asset"}
                 </Button>
               </footer>
             </form>
