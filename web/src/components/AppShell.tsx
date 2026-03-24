@@ -50,18 +50,18 @@ export function AppShell() {
 
   return (
     <div className="min-h-svh bg-muted/30">
-      <header className="border-b bg-background/95">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-6 px-6 py-4">
-          <div className="flex items-center gap-2">
+      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:gap-6 sm:px-6 sm:py-4">
+          <div className="flex shrink-0 items-center gap-2">
             <p className="text-lg font-semibold tracking-tight">Siniscalco</p>
           </div>
 
-          <nav aria-label="Primary">
-            <div className="flex items-center gap-6">
+          <nav aria-label="Primary" className="scrollbar-hide flex-1 overflow-x-auto">
+            <div className="flex items-center gap-4 sm:gap-6">
               <NavLink
                 className={({ isActive }) =>
                   cn(
-                    "inline-flex items-center px-1 py-1 text-sm font-medium transition-colors border-b-2",
+                    "inline-flex items-center px-1 py-1 text-sm font-medium whitespace-nowrap transition-colors border-b-2",
                     isActive
                       ? "border-foreground text-foreground"
                       : "border-transparent text-muted-foreground hover:text-foreground",
@@ -74,7 +74,7 @@ export function AppShell() {
               <NavLink
                 className={({ isActive }) =>
                   cn(
-                    "inline-flex items-center px-1 py-1 text-sm font-medium transition-colors border-b-2",
+                    "inline-flex items-center px-1 py-1 text-sm font-medium whitespace-nowrap transition-colors border-b-2",
                     isActive
                       ? "border-foreground text-foreground"
                       : "border-transparent text-muted-foreground hover:text-foreground",
@@ -87,7 +87,7 @@ export function AppShell() {
               <NavLink
                 className={({ isActive }) =>
                   cn(
-                    "inline-flex items-center px-1 py-1 text-sm font-medium transition-colors border-b-2",
+                    "inline-flex items-center px-1 py-1 text-sm font-medium whitespace-nowrap transition-colors border-b-2",
                     isActive
                       ? "border-foreground text-foreground"
                       : "border-transparent text-muted-foreground hover:text-foreground",
@@ -100,7 +100,7 @@ export function AppShell() {
               <NavLink
                 className={({ isActive }) =>
                   cn(
-                    "inline-flex items-center px-1 py-1 text-sm font-medium transition-colors border-b-2",
+                    "inline-flex items-center px-1 py-1 text-sm font-medium whitespace-nowrap transition-colors border-b-2",
                     isActive
                       ? "border-foreground text-foreground"
                       : "border-transparent text-muted-foreground hover:text-foreground",
@@ -113,7 +113,7 @@ export function AppShell() {
             </div>
           </nav>
 
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <Button
               aria-label={hideValues ? "Show financial values" : "Hide financial values"}
               className="size-9 rounded-full"
@@ -147,7 +147,7 @@ export function AppShell() {
           </div>
         </div>
       </header>
-      <div className="mx-auto w-full max-w-6xl px-6 py-8">
+      <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
         <Outlet />
       </div>
     </div>
