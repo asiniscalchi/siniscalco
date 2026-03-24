@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 import {
   LockIcon,
@@ -222,7 +223,7 @@ export function AssetsPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+    <div className="mx-auto flex min-w-0 w-full max-w-4xl flex-col gap-6 overflow-x-hidden">
       <header className="flex flex-col gap-4 rounded-xl border bg-background px-6 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">Assets</h1>
@@ -256,8 +257,8 @@ export function AssetsPage() {
         </div>
       </header>
 
-      <Card className="bg-background">
-        <CardContent className="pt-6">
+      <Card className="min-w-0 bg-background">
+        <CardContent className="min-w-0 pt-6">
           {assets.length === 0 ? (
             <div className="py-12 text-center">
               <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-muted">
@@ -278,7 +279,7 @@ export function AssetsPage() {
               </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="w-full overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">
@@ -348,141 +349,145 @@ export function AssetsPage() {
       </Card>
 
       {/* Create/Edit Modal */}
-      {showModal && (
-        <div
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200"
-          role="dialog"
-        >
-          <div className="w-full max-w-md rounded-xl border bg-background shadow-2xl animate-in zoom-in-95 duration-200">
-            <header className="border-b px-6 py-4">
-              <h2 className="text-lg font-semibold">
-                {editingAsset ? "Edit Asset" : "Add Asset"}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {editingAsset
-                  ? "Update asset details."
-                  : "Add a new asset to use in transactions."}
-              </p>
-            </header>
-            <form onSubmit={handleSubmit}>
-              <div className="grid gap-4 px-6 py-6">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="flex flex-col gap-1.5">
-                    <label
-                      className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                      htmlFor="asset-symbol"
-                    >
-                      Symbol *
-                    </label>
-                    <input
-                      autoFocus
-                      required
-                      className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
-                      id="asset-symbol"
-                      onChange={(e) => setFormSymbol(e.target.value)}
-                      placeholder="AAPL"
-                      value={formSymbol}
-                    />
-                    {getFieldError("symbol") ? (
-                      <p className="text-xs text-destructive">
-                        {getFieldError("symbol")}
-                      </p>
-                    ) : null}
+      {showModal &&
+        createPortal(
+          <div
+            aria-modal="true"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+            role="dialog"
+          >
+            <div className="flex max-h-full w-full max-w-md flex-col rounded-xl border bg-background shadow-2xl animate-in zoom-in-95 duration-200">
+              <header className="flex-none border-b px-6 py-4">
+                <h2 className="text-lg font-semibold">
+                  {editingAsset ? "Edit Asset" : "Add Asset"}
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  {editingAsset
+                    ? "Update asset details."
+                    : "Add a new asset to use in transactions."}
+                </p>
+              </header>
+              <form
+                className="flex flex-1 flex-col overflow-hidden"
+                onSubmit={handleSubmit}
+              >
+                <div className="grid gap-4 overflow-y-auto px-6 py-6">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-1.5">
+                      <label
+                        className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                        htmlFor="asset-symbol"
+                      >
+                        Symbol *
+                      </label>
+                      <input
+                        autoFocus
+                        required
+                        className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
+                        id="asset-symbol"
+                        onChange={(e) => setFormSymbol(e.target.value)}
+                        placeholder="AAPL"
+                        value={formSymbol}
+                      />
+                      {getFieldError("symbol") ? (
+                        <p className="text-xs text-destructive">
+                          {getFieldError("symbol")}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label
+                        className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                        htmlFor="asset-name"
+                      >
+                        Name *
+                      </label>
+                      <input
+                        required
+                        className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
+                        id="asset-name"
+                        onChange={(e) => setFormName(e.target.value)}
+                        placeholder="Apple Inc."
+                        value={formName}
+                      />
+                      {getFieldError("name") ? (
+                        <p className="text-xs text-destructive">
+                          {getFieldError("name")}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label
+                        className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                        htmlFor="asset-type"
+                      >
+                        Asset Type *
+                      </label>
+                      <select
+                        required
+                        className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
+                        id="asset-type"
+                        onChange={(e) => setFormType(e.target.value)}
+                        value={formType}
+                      >
+                        <option value="STOCK">STOCK</option>
+                        <option value="ETF">ETF</option>
+                        <option value="BOND">BOND</option>
+                        <option value="CRYPTO">CRYPTO</option>
+                        <option value="CASH_EQUIVALENT">CASH_EQUIVALENT</option>
+                        <option value="OTHER">OTHER</option>
+                      </select>
+                      {getFieldError("asset_type") ? (
+                        <p className="text-xs text-destructive">
+                          {getFieldError("asset_type")}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label
+                        className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                        htmlFor="asset-isin"
+                      >
+                        ISIN
+                      </label>
+                      <input
+                        className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
+                        id="asset-isin"
+                        onChange={(e) => setFormIsin(e.target.value)}
+                        placeholder="US0378331005"
+                        value={formIsin}
+                      />
+                    </div>
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label
-                      className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                      htmlFor="asset-name"
-                    >
-                      Name *
-                    </label>
-                    <input
-                      required
-                      className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
-                      id="asset-name"
-                      onChange={(e) => setFormName(e.target.value)}
-                      placeholder="Apple Inc."
-                      value={formName}
-                    />
-                    {getFieldError("name") ? (
-                      <p className="text-xs text-destructive">
-                        {getFieldError("name")}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label
-                      className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                      htmlFor="asset-type"
-                    >
-                      Asset Type *
-                    </label>
-                    <select
-                      required
-                      className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
-                      id="asset-type"
-                      onChange={(e) => setFormType(e.target.value)}
-                      value={formType}
-                    >
-                      <option value="STOCK">STOCK</option>
-                      <option value="ETF">ETF</option>
-                      <option value="BOND">BOND</option>
-                      <option value="CRYPTO">CRYPTO</option>
-                      <option value="CASH_EQUIVALENT">CASH_EQUIVALENT</option>
-                      <option value="OTHER">OTHER</option>
-                    </select>
-                    {getFieldError("asset_type") ? (
-                      <p className="text-xs text-destructive">
-                        {getFieldError("asset_type")}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label
-                      className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                      htmlFor="asset-isin"
-                    >
-                      ISIN
-                    </label>
-                    <input
-                      className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
-                      id="asset-isin"
-                      onChange={(e) => setFormIsin(e.target.value)}
-                      placeholder="US0378331005"
-                      value={formIsin}
-                    />
-                  </div>
+                  {submitError ? (
+                    <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                      {submitError}
+                    </div>
+                  ) : null}
                 </div>
-                {submitError ? (
-                  <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                    {submitError}
-                  </div>
-                ) : null}
-              </div>
-              <footer className="flex justify-end gap-3 border-t bg-muted/30 px-6 py-4 rounded-b-xl">
-                <Button
-                  onClick={() => setShowModal(false)}
-                  type="button"
-                  variant="outline"
-                >
-                  Cancel
-                </Button>
-                <Button disabled={isSubmitting} type="submit">
-                  {isSubmitting
-                    ? editingAsset
-                      ? "Saving..."
-                      : "Adding..."
-                    : editingAsset
-                      ? "Save Changes"
-                      : "Add Asset"}
-                </Button>
-              </footer>
-            </form>
-          </div>
-        </div>
-      )}
+                <footer className="flex flex-none justify-end gap-3 border-t bg-muted/30 px-6 py-4 rounded-b-xl">
+                  <Button
+                    onClick={() => setShowModal(false)}
+                    type="button"
+                    variant="outline"
+                  >
+                    Cancel
+                  </Button>
+                  <Button disabled={isSubmitting} type="submit">
+                    {isSubmitting
+                      ? editingAsset
+                        ? "Saving..."
+                        : "Adding..."
+                      : editingAsset
+                        ? "Save Changes"
+                        : "Add Asset"}
+                  </Button>
+                </footer>
+              </form>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
-

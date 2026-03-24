@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 import {
   LockIcon,
@@ -79,6 +80,17 @@ export function TransactionsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (showModal) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showModal]);
 
   const transactionSubmitDisabled = isSubmitting || assets.length === 0 || !formAssetId;
 
@@ -290,7 +302,7 @@ export function TransactionsPage() {
   }
 
   const transactionHistoryCard = (
-    <Card className="bg-background">
+    <Card className="min-w-0 bg-background">
       <CardHeader>
         <CardTitle>Transaction History</CardTitle>
         <CardDescription>
@@ -299,24 +311,24 @@ export function TransactionsPage() {
             : "Showing all recorded transactions."}
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="min-w-0 pt-4">
         {transactions.length === 0 ? (
           <div className="py-12 text-center text-sm text-muted-foreground">
             No transactions recorded.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="w-full overflow-x-auto">
+            <table className="w-full min-w-[800px] table-fixed text-sm">
               <thead>
                 <tr className="border-b text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">
-                  <th className="pb-3 pr-4">Date</th>
+                  <th className="w-[100px] pb-3 pr-4">Date</th>
                   <th className="pb-3 pr-4">Asset</th>
-                  <th className="pb-3 pr-4">Type</th>
-                  <th className="pb-3 pr-4 text-right">Quantity</th>
-                  <th className="pb-3 pr-4 text-right">Price</th>
-                  <th className="pb-3 pr-4">Curr</th>
+                  <th className="w-[80px] pb-3 pr-4">Type</th>
+                  <th className="w-[100px] pb-3 pr-4 text-right">Quantity</th>
+                  <th className="w-[100px] pb-3 pr-4 text-right">Price</th>
+                  <th className="w-[60px] pb-3 pr-4">Curr</th>
                   <th className="pb-3 pr-4">Notes</th>
-                  {!isLocked && <th className="pb-3 text-right">Actions</th>}
+                  {!isLocked && <th className="w-[90px] pb-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -420,7 +432,7 @@ export function TransactionsPage() {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+    <div className="mx-auto flex min-w-0 w-full max-w-4xl flex-col gap-6 overflow-x-hidden">
       <header className="flex flex-col gap-4 rounded-xl border bg-background px-6 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">
@@ -430,8 +442,8 @@ export function TransactionsPage() {
             Manage your asset transactions.
           </p>
         </div>
-        <div className="flex items-center justify-between gap-4 w-full sm:w-auto">
-          <div className="flex items-center gap-3">
+        <div className="flex w-full flex-wrap items-center gap-4 sm:w-auto sm:flex-nowrap">
+          <div className="flex min-w-0 items-center gap-3">
             <label
               className="text-sm font-medium text-muted-foreground"
               htmlFor="account-selector"
@@ -452,7 +464,7 @@ export function TransactionsPage() {
               ))}
             </select>
           </div>
-          <div className="flex items-center justify-end gap-2">
+          <div className="ml-auto flex items-center justify-end gap-2">
             <Button
               aria-label={isLocked ? "Unlock edit mode" : "Lock edit mode"}
               className={cn(
@@ -482,186 +494,191 @@ export function TransactionsPage() {
 
       {transactionHistoryCard}
 
-      {/* Create/Edit Transaction Modal */}
-      {showModal && (
-        <div
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200"
-          role="dialog"
-        >
-          <div className="w-full max-w-2xl rounded-xl border bg-background shadow-2xl animate-in zoom-in-95 duration-200">
-            <header className="border-b px-6 py-4">
-              <h2 className="text-lg font-semibold">
-                {editingTransactionId ? "Edit Transaction" : "Add Transaction"}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {editingTransactionId
-                  ? "Update transaction details."
-                  : `Record a new transaction for ${accounts.find(a => String(a.id) === selectedAccountId)?.name}.`}
-              </p>
-            </header>
-            <form onSubmit={handleSubmit}>
-              <div className="grid gap-5 px-6 py-6 sm:grid-cols-2">
-                <div className="flex flex-col gap-1.5">
-                  <label
-                    className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                    htmlFor="asset-select"
-                  >
-                    Asset *
-                  </label>
-                  <select
-                    required
-                    className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
-                    disabled={assets.length === 0}
-                    id="asset-select"
-                    onChange={(e) => setFormAssetId(e.target.value)}
-                    value={formAssetId}
-                  >
-                    <option value="">Select asset...</option>
-                    {assets.map((a) => (
-                      <option key={a.id} value={String(a.id)}>
-                        {a.symbol} — {a.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label
-                    className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                    htmlFor="type-select"
-                  >
-                    Type *
-                  </label>
-                  <select
-                    required
-                    className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
-                    id="type-select"
-                    onChange={(e) =>
-                      setFormType(e.target.value as "BUY" | "SELL")
-                    }
-                    value={formType}
-                  >
-                    <option value="BUY">BUY</option>
-                    <option value="SELL">SELL</option>
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label
-                    className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                    htmlFor="trade-date-input"
-                  >
-                    Trade Date *
-                  </label>
-                  <input
-                    required
-                    className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
-                    id="trade-date-input"
-                    onChange={(e) => setFormTradeDate(e.target.value)}
-                    type="date"
-                    value={formTradeDate}
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label
-                    className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                    htmlFor="quantity-input"
-                  >
-                    Quantity *
-                  </label>
-                  <input
-                    required
-                    className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm font-mono"
-                    id="quantity-input"
-                    min="0.00000001"
-                    onChange={(e) => setFormQuantity(e.target.value)}
-                    placeholder="0.00"
-                    step="any"
-                    type="number"
-                    value={formQuantity}
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label
-                    className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                    htmlFor="price-input"
-                  >
-                    Unit Price *
-                  </label>
-                  <input
-                    required
-                    className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm font-mono"
-                    id="price-input"
-                    min="0"
-                    onChange={(e) => setFormUnitPrice(e.target.value)}
-                    placeholder="0.00"
-                    step="any"
-                    type="number"
-                    value={formUnitPrice}
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label
-                    className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                    htmlFor="currency-input"
-                  >
-                    Currency *
-                  </label>
-                  <input
-                    required
-                    className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm font-mono uppercase"
-                    id="currency-input"
-                    maxLength={3}
-                    onChange={(e) => setFormCurrency(e.target.value)}
-                    placeholder="USD"
-                    type="text"
-                    value={formCurrency}
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5 sm:col-span-2">
-                  <label
-                    className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                    htmlFor="notes-input"
-                  >
-                    Notes
-                  </label>
-                  <input
-                    className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
-                    id="notes-input"
-                    onChange={(e) => setFormNotes(e.target.value)}
-                    placeholder="Optional notes"
-                    type="text"
-                    value={formNotes}
-                  />
-                </div>
-                {submitError && (
-                  <div className="col-span-full rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                    {submitError}
+      {showModal &&
+        createPortal(
+          <div
+            aria-modal="true"
+            className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+            role="dialog"
+          >
+            <div className="flex my-auto max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-xl border bg-background shadow-2xl animate-in zoom-in-95 duration-200">
+              <header className="flex-none border-b px-6 py-4">
+                <h2 className="text-lg font-semibold">
+                  {editingTransactionId
+                    ? "Edit Transaction"
+                    : "Add Transaction"}
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  {editingTransactionId
+                    ? "Update transaction details."
+                    : `Record a new transaction for ${accounts.find((a) => String(a.id) === selectedAccountId)?.name}.`}
+                </p>
+              </header>
+              <form
+                className="flex flex-1 flex-col overflow-hidden"
+                onSubmit={handleSubmit}
+              >
+                <div className="grid flex-1 min-h-0 gap-5 overflow-y-auto px-6 py-6 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label
+                      className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                      htmlFor="asset-select"
+                    >
+                      Asset *
+                    </label>
+                    <select
+                      required
+                      className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
+                      disabled={assets.length === 0}
+                      id="asset-select"
+                      onChange={(e) => setFormAssetId(e.target.value)}
+                      value={formAssetId}
+                    >
+                      <option value="">Select asset...</option>
+                      {assets.map((a) => (
+                        <option key={a.id} value={String(a.id)}>
+                          {a.symbol} — {a.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                )}
-              </div>
-              <footer className="flex justify-end gap-3 border-t bg-muted/30 px-6 py-4 rounded-b-xl">
-                <Button
-                  onClick={() => setShowModal(false)}
-                  type="button"
-                  variant="outline"
-                >
-                  Cancel
-                </Button>
-                <Button disabled={transactionSubmitDisabled} type="submit">
-                  {isSubmitting
-                    ? editingTransactionId
-                      ? "Saving..."
-                      : "Adding..."
-                    : editingTransactionId
-                      ? "Save Changes"
-                      : "Add Transaction"}
-                </Button>
-              </footer>
-            </form>
-          </div>
-        </div>
-      )}
+                  <div className="flex flex-col gap-1.5">
+                    <label
+                      className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                      htmlFor="type-select"
+                    >
+                      Type *
+                    </label>
+                    <select
+                      required
+                      className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
+                      id="type-select"
+                      onChange={(e) =>
+                        setFormType(e.target.value as "BUY" | "SELL")
+                      }
+                      value={formType}
+                    >
+                      <option value="BUY">BUY</option>
+                      <option value="SELL">SELL</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label
+                      className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                      htmlFor="trade-date-input"
+                    >
+                      Trade Date *
+                    </label>
+                    <input
+                      required
+                      className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
+                      id="trade-date-input"
+                      onChange={(e) => setFormTradeDate(e.target.value)}
+                      type="date"
+                      value={formTradeDate}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label
+                      className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                      htmlFor="quantity-input"
+                    >
+                      Quantity *
+                    </label>
+                    <input
+                      required
+                      className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm font-mono"
+                      id="quantity-input"
+                      min="0.00000001"
+                      onChange={(e) => setFormQuantity(e.target.value)}
+                      placeholder="0.00"
+                      step="any"
+                      type="number"
+                      value={formQuantity}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label
+                      className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                      htmlFor="price-input"
+                    >
+                      Unit Price *
+                    </label>
+                    <input
+                      required
+                      className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm font-mono"
+                      id="price-input"
+                      min="0"
+                      onChange={(e) => setFormUnitPrice(e.target.value)}
+                      placeholder="0.00"
+                      step="any"
+                      type="number"
+                      value={formUnitPrice}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label
+                      className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                      htmlFor="currency-input"
+                    >
+                      Currency *
+                    </label>
+                    <input
+                      required
+                      className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm font-mono uppercase"
+                      id="currency-input"
+                      maxLength={3}
+                      onChange={(e) => setFormCurrency(e.target.value)}
+                      placeholder="USD"
+                      type="text"
+                      value={formCurrency}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5 sm:col-span-2">
+                    <label
+                      className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                      htmlFor="notes-input"
+                    >
+                      Notes
+                    </label>
+                    <input
+                      className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
+                      id="notes-input"
+                      onChange={(e) => setFormNotes(e.target.value)}
+                      placeholder="Optional notes"
+                      type="text"
+                      value={formNotes}
+                    />
+                  </div>
+                  {submitError && (
+                    <div className="col-span-full rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                      {submitError}
+                    </div>
+                  )}
+                </div>
+                <footer className="flex flex-none justify-end gap-3 border-t bg-muted/30 px-6 py-4 rounded-b-xl">
+                  <Button
+                    onClick={() => setShowModal(false)}
+                    type="button"
+                    variant="outline"
+                  >
+                    Cancel
+                  </Button>
+                  <Button disabled={transactionSubmitDisabled} type="submit">
+                    {isSubmitting
+                      ? editingTransactionId
+                        ? "Saving..."
+                        : "Adding..."
+                      : editingTransactionId
+                        ? "Save Changes"
+                        : "Add Transaction"}
+                  </Button>
+                </footer>
+              </form>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
-
