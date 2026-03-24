@@ -338,10 +338,10 @@ describe("TransactionsPage", () => {
       if (url.endsWith("/assets")) {
         return Promise.resolve(new Response(JSON.stringify(assets)));
       }
-      if (url.includes("/asset-transactions/123") && init?.method === "PUT") {
+      if (url.includes("/transactions/123") && init?.method === "PUT") {
         return Promise.resolve(new Response(JSON.stringify(transactions[0])));
       }
-      if (url.includes("/asset-transactions")) {
+      if (url.includes("/transactions")) {
         return Promise.resolve(new Response(JSON.stringify(transactions)));
       }
       return Promise.reject(new Error(`Unhandled fetch request: ${url}`));
@@ -366,7 +366,7 @@ describe("TransactionsPage", () => {
 
     await waitFor(() => {
       expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-        expect.stringContaining("/asset-transactions/123"),
+        expect.stringContaining("/transactions/123"),
         expect.objectContaining({
           method: "PUT",
           body: expect.stringContaining('"notes":"New notes"'),
@@ -412,10 +412,10 @@ describe("TransactionsPage", () => {
       if (url.endsWith("/assets")) {
         return Promise.resolve(new Response(JSON.stringify(assets)));
       }
-      if (url.includes("/asset-transactions/123") && init?.method === "DELETE") {
+      if (url.includes("/transactions/123") && init?.method === "DELETE") {
         return Promise.resolve(new Response(null, { status: 204 }));
       }
-      if (url.includes("/asset-transactions")) {
+      if (url.includes("/transactions")) {
         return Promise.resolve(new Response(JSON.stringify(transactions)));
       }
       return Promise.reject(new Error(`Unhandled fetch request: ${url}`));
@@ -433,7 +433,7 @@ describe("TransactionsPage", () => {
 
     await waitFor(() => {
       expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-        expect.stringContaining("/asset-transactions/123"),
+        expect.stringContaining("/transactions/123"),
         expect.objectContaining({
           method: "DELETE",
         }),

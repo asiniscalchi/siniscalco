@@ -93,8 +93,8 @@ export function getTransactionsApiUrl(accountId?: string) {
   return url.toString();
 }
 
-export function getAssetTransactionDetailApiUrl(transactionId: string | number) {
-  return new URL(`/asset-transactions/${transactionId}`, getApiBaseUrl()).toString();
+export function getTransactionDetailApiUrl(transactionId: string | number) {
+  return new URL(`/transactions/${transactionId}`, getApiBaseUrl()).toString();
 }
 
 export async function readApiErrorMessage(
