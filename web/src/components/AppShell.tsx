@@ -56,7 +56,7 @@ export function AppShell() {
               aria-live="polite"
               className={cn(
                 "flex size-9 items-center justify-center rounded-xl shadow-sm transition-colors",
-                backendStatus === "connected" && "bg-primary text-primary-foreground",
+                backendStatus === "connected" && "bg-emerald-600 text-white",
                 backendStatus === "checking" && "bg-amber-500 text-white",
                 backendStatus === "unavailable" && "bg-destructive text-destructive-foreground",
               )}
