@@ -15,14 +15,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { buttonVariants } from "@/components/ui/button-variants";
 import {
   getAssetDetailApiUrl,
   getAssetsApiUrl,
   readApiErrorMessage,
   type AssetResponse,
 } from "@/lib/api";
-import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
 
 export function AssetsPage() {

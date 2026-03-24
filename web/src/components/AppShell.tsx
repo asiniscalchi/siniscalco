@@ -8,9 +8,7 @@ import {
   CheckCircleIcon,
   EyeClosedIcon,
   EyeIcon,
-  LockIcon,
   RefreshCwIcon,
-  UnlockIcon,
 } from "@/components/Icons";
 import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
