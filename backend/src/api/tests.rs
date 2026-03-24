@@ -18,7 +18,7 @@ use crate::{
     AssetType, CreateAccountInput, CreateAssetInput, CreateAssetTransactionInput, Currency, FxRate,
     FxRefreshAvailability, FxRefreshStatus, TradeDate, UpsertAccountBalanceInput,
     UpsertFxRateInput, create_account, create_asset, create_asset_transaction, get_account,
-    init_db, list_account_balances, upsert_account_balance, upsert_fx_rate,
+    get_asset, init_db, list_account_balances, upsert_account_balance, upsert_fx_rate,
 };
 
 fn amt(value: &str) -> Amount {
@@ -620,7 +620,7 @@ async fn creates_asset_transaction_through_api() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/asset-transactions")
+                .uri("/transactions")
                 .header("content-type", "application/json")
                 .body(Body::from(format!(
                     r#"{{"account_id":{},"asset_id":{},"transaction_type":"BUY","trade_date":"2026-03-20","quantity":"10","unit_price":"150.25","currency_code":"USD","notes":"initial buy"}}"#,
@@ -716,10 +716,7 @@ async fn lists_asset_transactions_through_api_in_trade_date_order() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!(
-                    "/asset-transactions?account_id={}",
-                    account_id.as_i64()
-                ))
+                .uri(format!("/transactions?account_id={}", account_id.as_i64()))
                 .body(Body::empty())
                 .expect("request should build"),
         )
@@ -743,22 +740,60 @@ async fn lists_asset_transactions_through_api_in_trade_date_order() {
 }
 
 #[tokio::test]
-async fn rejects_unfiltered_asset_transaction_listing_through_api() {
+async fn lists_all_transactions_through_api_without_filter() {
     let pool = test_pool().await;
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("VTI"),
+            name: asset_name("Vanguard Total Stock Market ETF"),
+            asset_type: AssetType::Etf,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2026-03-20"),
+            quantity: crate::AssetQuantity::try_from("2").unwrap(),
+            unit_price: crate::AssetUnitPrice::try_from("100").unwrap(),
+            currency_code: Currency::Usd,
+            notes: None,
+        },
+    )
+    .await
+    .expect("transaction insert should succeed");
+
     let app = build_router_with_fx_status(pool, FxRefreshAvailability::Available, None);
 
     let response = app
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri("/asset-transactions")
+                .uri("/transactions")
                 .body(Body::empty())
                 .expect("request should build"),
         )
         .await
         .expect("list transactions request should succeed");
 
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(response.status(), StatusCode::OK);
 
     let body = response
         .into_body()
@@ -767,9 +802,10 @@ async fn rejects_unfiltered_asset_transaction_listing_through_api() {
         .expect("response body should collect")
         .to_bytes();
 
+    let json: Value = serde_json::from_slice(&body).expect("transaction list should parse");
     assert_eq!(
-        std::str::from_utf8(&body).expect("json body should be utf8"),
-        r#"{"error":"validation_error","message":"account_id is required"}"#
+        json.as_array().expect("response should be an array").len(),
+        1
     );
 }
 
@@ -820,7 +856,7 @@ async fn updates_asset_transaction_through_api() {
         .oneshot(
             Request::builder()
                 .method("PUT")
-                .uri(format!("/asset-transactions/{}", transaction.id))
+                .uri(format!("/transactions/{}", transaction.id))
                 .header("content-type", "application/json")
                 .body(Body::from(format!(
                     r#"{{"account_id":{},"asset_id":{},"transaction_type":"BUY","trade_date":"2026-03-22","quantity":"7","unit_price":"155","currency_code":"USD","notes":"updated buy"}}"#,
@@ -913,7 +949,7 @@ async fn rejects_asset_transaction_update_that_would_make_position_negative() {
         .oneshot(
             Request::builder()
                 .method("PUT")
-                .uri(format!("/asset-transactions/{}", sell_transaction.id))
+                .uri(format!("/transactions/{}", sell_transaction.id))
                 .header("content-type", "application/json")
                 .body(Body::from(format!(
                     r#"{{"account_id":{},"asset_id":{},"transaction_type":"SELL","trade_date":"2026-03-21","quantity":"6","unit_price":"81000","currency_code":"USD","notes":null}}"#,
@@ -987,7 +1023,7 @@ async fn deletes_asset_transaction_through_api() {
         .oneshot(
             Request::builder()
                 .method("DELETE")
-                .uri(format!("/asset-transactions/{}", transaction.id))
+                .uri(format!("/transactions/{}", transaction.id))
                 .body(Body::empty())
                 .expect("request should build"),
         )
@@ -1000,10 +1036,7 @@ async fn deletes_asset_transaction_through_api() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!(
-                    "/asset-transactions?account_id={}",
-                    account_id.as_i64()
-                ))
+                .uri(format!("/transactions?account_id={}", account_id.as_i64()))
                 .body(Body::empty())
                 .expect("request should build"),
         )
@@ -1034,7 +1067,7 @@ async fn returns_not_found_when_deleting_missing_asset_transaction_through_api()
         .oneshot(
             Request::builder()
                 .method("DELETE")
-                .uri("/asset-transactions/999")
+                .uri("/transactions/999")
                 .body(Body::empty())
                 .expect("request should build"),
         )
@@ -1278,6 +1311,254 @@ async fn serves_account_route_skeletons() {
         .expect("route request should succeed");
 
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn gets_asset_detail_through_api() {
+    let pool = test_pool().await;
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            isin: Some("US0378331005".to_string()),
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    let app = build_router(pool);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/assets/{asset_id}"))
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("detail request should succeed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+    let json: Value =
+        serde_json::from_slice(&body).expect("asset detail body should be valid json");
+
+    assert_eq!(json["symbol"], "AAPL");
+    assert_eq!(json["name"], "Apple Inc.");
+    assert_eq!(json["asset_type"], "STOCK");
+    assert_eq!(json["isin"], "US0378331005");
+    assert!(json["created_at"].is_string());
+    assert!(json["updated_at"].is_string());
+}
+
+#[tokio::test]
+async fn updates_asset_through_api() {
+    let pool = test_pool().await;
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    let app = build_router(pool.clone());
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(format!("/assets/{asset_id}"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"symbol":"msft","name":"Microsoft","asset_type":"STOCK","isin":"US5949181045"}"#,
+                ))
+                .expect("request should build"),
+        )
+        .await
+        .expect("update request should succeed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let updated = get_asset(&pool, asset_id)
+        .await
+        .expect("asset should exist");
+    assert_eq!(updated.symbol.as_str(), "MSFT");
+    assert_eq!(updated.name.as_str(), "Microsoft");
+    assert_eq!(updated.isin.as_deref(), Some("US5949181045"));
+}
+
+#[tokio::test]
+async fn gets_transaction_detail_through_api() {
+    let pool = test_pool().await;
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+    let transaction = create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2026-03-20"),
+            quantity: crate::AssetQuantity::try_from("1").unwrap(),
+            unit_price: crate::AssetUnitPrice::try_from("100").unwrap(),
+            currency_code: Currency::Usd,
+            notes: Some("first buy".to_string()),
+        },
+    )
+    .await
+    .expect("transaction insert should succeed");
+
+    let app = build_router(pool);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/transactions/{}", transaction.id))
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("detail request should succeed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+    let json: Value =
+        serde_json::from_slice(&body).expect("transaction detail body should be valid json");
+
+    assert_eq!(json["id"], transaction.id);
+    assert_eq!(json["notes"], "first buy");
+}
+
+#[tokio::test]
+async fn lists_account_balances_through_api() {
+    let pool = test_pool().await;
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    for (currency, amount) in [(Currency::Usd, "12.3"), (Currency::Eur, "4.5")] {
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency,
+                amount: amt(amount),
+            },
+        )
+        .await
+        .expect("balance insert should succeed");
+    }
+
+    let app = build_router(pool);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/accounts/{account_id}/balances"))
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("balances request should succeed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+    let json: Value =
+        serde_json::from_slice(&body).expect("balance list body should be valid json");
+
+    assert_eq!(
+        json.as_array().expect("response should be an array").len(),
+        2
+    );
+}
+
+#[tokio::test]
+async fn updates_account_through_api() {
+    let pool = test_pool().await;
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Old"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let app = build_router(pool.clone());
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(format!("/accounts/{account_id}"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"name":"Updated","account_type":"bank","base_currency":"EUR"}"#,
+                ))
+                .expect("request should build"),
+        )
+        .await
+        .expect("update request should succeed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let account = get_account(&pool, account_id)
+        .await
+        .expect("account should exist");
+    assert_eq!(account.name.as_str(), "Updated");
+    assert_eq!(account.account_type.as_str(), "bank");
+    assert_eq!(account.base_currency, Currency::Eur);
 }
 
 #[test]

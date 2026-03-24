@@ -99,7 +99,7 @@ describe("TransactionsPage", () => {
           }),
         );
       }
-      if (url.includes("/asset-transactions") && url.includes("account_id=1")) {
+      if (url.includes("/transactions") && url.includes("account_id=1")) {
         return Promise.resolve(
           new Response(JSON.stringify(transactions), {
             status: 200,
@@ -145,7 +145,7 @@ describe("TransactionsPage", () => {
           }),
         );
       }
-      if (url.includes("/asset-transactions")) {
+      if (url.includes("/transactions")) {
         return Promise.resolve(
           new Response(JSON.stringify([]), {
             status: 200,
@@ -229,7 +229,7 @@ describe("TransactionsPage", () => {
           }),
         );
       }
-      if (url.includes("/asset-transactions") && init?.method === "POST") {
+      if (url.includes("/transactions") && init?.method === "POST") {
         return Promise.resolve(
           new Response(JSON.stringify({ id: 2 }), {
             status: 200,
@@ -237,7 +237,7 @@ describe("TransactionsPage", () => {
           }),
         );
       }
-      if (url.includes("/asset-transactions")) {
+      if (url.includes("/transactions")) {
         return Promise.resolve(
           new Response(JSON.stringify([]), {
             status: 200,
@@ -300,7 +300,7 @@ describe("TransactionsPage", () => {
 
     await waitFor(() => {
       expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-        expect.stringContaining("/asset-transactions"),
+        expect.stringContaining("/transactions"),
         expect.objectContaining({
           method: "POST",
           body: expect.stringContaining('"quantity":"5"'),
@@ -338,10 +338,10 @@ describe("TransactionsPage", () => {
       if (url.endsWith("/assets")) {
         return Promise.resolve(new Response(JSON.stringify(assets)));
       }
-      if (url.includes("/asset-transactions/123") && init?.method === "PUT") {
+      if (url.includes("/transactions/123") && init?.method === "PUT") {
         return Promise.resolve(new Response(JSON.stringify(transactions[0])));
       }
-      if (url.includes("/asset-transactions")) {
+      if (url.includes("/transactions")) {
         return Promise.resolve(new Response(JSON.stringify(transactions)));
       }
       return Promise.reject(new Error(`Unhandled fetch request: ${url}`));
@@ -366,7 +366,7 @@ describe("TransactionsPage", () => {
 
     await waitFor(() => {
       expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-        expect.stringContaining("/asset-transactions/123"),
+        expect.stringContaining("/transactions/123"),
         expect.objectContaining({
           method: "PUT",
           body: expect.stringContaining('"notes":"New notes"'),
@@ -412,10 +412,10 @@ describe("TransactionsPage", () => {
       if (url.endsWith("/assets")) {
         return Promise.resolve(new Response(JSON.stringify(assets)));
       }
-      if (url.includes("/asset-transactions/123") && init?.method === "DELETE") {
+      if (url.includes("/transactions/123") && init?.method === "DELETE") {
         return Promise.resolve(new Response(null, { status: 204 }));
       }
-      if (url.includes("/asset-transactions")) {
+      if (url.includes("/transactions")) {
         return Promise.resolve(new Response(JSON.stringify(transactions)));
       }
       return Promise.reject(new Error(`Unhandled fetch request: ${url}`));
@@ -433,7 +433,7 @@ describe("TransactionsPage", () => {
 
     await waitFor(() => {
       expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-        expect.stringContaining("/asset-transactions/123"),
+        expect.stringContaining("/transactions/123"),
         expect.objectContaining({
           method: "DELETE",
         }),
@@ -482,7 +482,7 @@ describe("TransactionsPage", () => {
           }),
         );
       }
-      if (url.includes("/asset-transactions")) {
+      if (url.includes("/transactions")) {
         return Promise.resolve(
           new Response(JSON.stringify([]), {
             status: 200,

@@ -106,6 +106,31 @@ pub async fn list_asset_transactions(
     rows.into_iter().map(map_transaction_row).collect()
 }
 
+pub async fn list_transactions(
+    pool: &SqlitePool,
+) -> Result<Vec<AssetTransactionRecord>, StorageError> {
+    let rows = sqlx::query(
+        r#"
+        SELECT id, account_id, asset_id, transaction_type, trade_date, quantity, unit_price,
+               currency_code, notes, created_at, updated_at
+        FROM asset_transactions
+        ORDER BY trade_date DESC, created_at DESC, id DESC
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter().map(map_transaction_row).collect()
+}
+
+pub async fn get_transaction(
+    pool: &SqlitePool,
+    transaction_id: i64,
+) -> Result<AssetTransactionRecord, StorageError> {
+    let mut connection = pool.acquire().await?;
+    get_asset_transaction(&mut connection, transaction_id).await
+}
+
 pub async fn update_asset_transaction(
     pool: &SqlitePool,
     transaction_id: i64,

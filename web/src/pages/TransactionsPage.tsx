@@ -11,8 +11,8 @@ import {
 import {
   getAccountsApiUrl,
   getAssetsApiUrl,
-  getAssetTransactionDetailApiUrl,
-  getAssetTransactionsApiUrl,
+  getTransactionDetailApiUrl,
+  getTransactionsApiUrl,
   readApiErrorMessage,
 } from "@/lib/api";
 import { MoneyText } from "@/lib/money";
@@ -148,7 +148,7 @@ export function TransactionsPage() {
 
     async function loadTransactions() {
       try {
-        const res = await fetch(getAssetTransactionsApiUrl(selectedAccountId));
+        const res = await fetch(getTransactionsApiUrl(selectedAccountId));
 
         if (cancelled) return;
 
@@ -221,7 +221,7 @@ export function TransactionsPage() {
 
     setIsDeleting(transactionId);
     try {
-      const res = await fetch(getAssetTransactionDetailApiUrl(transactionId), {
+      const res = await fetch(getTransactionDetailApiUrl(transactionId), {
         method: "DELETE",
       });
 
@@ -233,7 +233,7 @@ export function TransactionsPage() {
 
       // Refresh transactions
       const transRes = await fetch(
-        getAssetTransactionsApiUrl(selectedAccountId),
+        getTransactionsApiUrl(selectedAccountId),
       );
       if (transRes.ok) {
         const transData = (await transRes.json()) as Transaction[];
@@ -264,8 +264,8 @@ export function TransactionsPage() {
       };
 
       const url = editingTransactionId
-        ? getAssetTransactionDetailApiUrl(editingTransactionId)
-        : getAssetTransactionsApiUrl();
+        ? getTransactionDetailApiUrl(editingTransactionId)
+        : getTransactionsApiUrl();
       const method = editingTransactionId ? "PUT" : "POST";
 
       const res = await fetch(url, {
@@ -290,7 +290,7 @@ export function TransactionsPage() {
 
       // Refresh transactions
       const transRes = await fetch(
-        getAssetTransactionsApiUrl(selectedAccountId),
+        getTransactionsApiUrl(selectedAccountId),
       );
       if (transRes.ok) {
         const transData = (await transRes.json()) as Transaction[];
