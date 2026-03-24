@@ -318,17 +318,17 @@ export function TransactionsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[800px] table-fixed text-sm">
               <thead>
                 <tr className="border-b text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">
-                  <th className="pb-3 pr-4">Date</th>
+                  <th className="w-[100px] pb-3 pr-4">Date</th>
                   <th className="pb-3 pr-4">Asset</th>
-                  <th className="pb-3 pr-4">Type</th>
-                  <th className="pb-3 pr-4 text-right">Quantity</th>
-                  <th className="pb-3 pr-4 text-right">Price</th>
-                  <th className="pb-3 pr-4">Curr</th>
+                  <th className="w-[80px] pb-3 pr-4">Type</th>
+                  <th className="w-[100px] pb-3 pr-4 text-right">Quantity</th>
+                  <th className="w-[100px] pb-3 pr-4 text-right">Price</th>
+                  <th className="w-[60px] pb-3 pr-4">Curr</th>
                   <th className="pb-3 pr-4">Notes</th>
-                  {!isLocked && <th className="pb-3 text-right">Actions</th>}
+                  {!isLocked && <th className="w-[90px] pb-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
