@@ -113,7 +113,7 @@ describe("AccountsListPage", () => {
     renderAccountsListPage();
 
     expect(screen.getByText("Accounts")).toBeTruthy();
-    expect(screen.getByText("Create account")).toBeTruthy();
+    expect(screen.getByTitle("Create account")).toBeTruthy();
     expect(
       document.querySelectorAll('[data-slot="card"]').length,
     ).toBeGreaterThan(0);

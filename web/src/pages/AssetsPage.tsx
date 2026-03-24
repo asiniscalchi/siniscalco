@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { PencilIcon, PlusIcon, TrashIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -8,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { buttonVariants } from "@/components/ui/button-variants";
 import {
   getAssetDetailApiUrl,
   getAssetsApiUrl,
@@ -221,8 +223,13 @@ export function AssetsPage() {
             Manage the assets you use in transactions.
           </p>
         </div>
-        <Button onClick={handleCreateClick} size="lg">
-          Add Asset
+        <Button
+          aria-label="Add Asset"
+          onClick={handleCreateClick}
+          size="icon-lg"
+          title="Add Asset"
+        >
+          <PlusIcon />
         </Button>
       </header>
 
@@ -237,8 +244,14 @@ export function AssetsPage() {
               <p className="mb-6 text-sm text-muted-foreground">
                 Add your first asset to start recording transactions.
               </p>
-              <Button onClick={handleCreateClick} variant="outline">
-                Add Asset
+              <Button
+                aria-label="Add Asset"
+                onClick={handleCreateClick}
+                size="icon-lg"
+                title="Add Asset"
+                variant="outline"
+              >
+                <PlusIcon />
               </Button>
             </div>
           ) : (
@@ -448,56 +461,3 @@ export function AssetsPage() {
   );
 }
 
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden="true"
-      className={className || "size-4"}
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="M5 12h14m-7-7v14" />
-    </svg>
-  );
-}
-
-function PencilIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-4"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-      <path d="m15 5 4 4" />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-4"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="M3 6h18" />
-      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-    </svg>
-  );
-}
