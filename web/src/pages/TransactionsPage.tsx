@@ -302,7 +302,7 @@ export function TransactionsPage() {
   }
 
   const transactionHistoryCard = (
-    <Card className="bg-background">
+    <Card className="min-w-0 bg-background">
       <CardHeader>
         <CardTitle>Transaction History</CardTitle>
         <CardDescription>
@@ -311,13 +311,13 @@ export function TransactionsPage() {
             : "Showing all recorded transactions."}
         </CardDescription>
       </CardHeader>
-      <CardContent className="pt-4">
+      <CardContent className="min-w-0 pt-4">
         {transactions.length === 0 ? (
           <div className="py-12 text-center text-sm text-muted-foreground">
             No transactions recorded.
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="w-full overflow-x-auto">
             <table className="w-full min-w-[800px] table-fixed text-sm">
               <thead>
                 <tr className="border-b text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">
