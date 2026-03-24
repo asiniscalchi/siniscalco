@@ -22,6 +22,13 @@ function renderTransactionsPage() {
   );
 }
 
+async function unlockEditMode() {
+  const unlockButton = await screen.findByRole("button", {
+    name: /unlock edit mode/i,
+  });
+  fireEvent.click(unlockButton);
+}
+
 describe("TransactionsPage", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
@@ -64,6 +71,7 @@ describe("TransactionsPage", () => {
     });
 
     renderTransactionsPage();
+    await unlockEditMode();
 
     expect(await screen.findByText("Showing all recorded transactions.")).toBeTruthy();
     expect(screen.getByText("All trans")).toBeTruthy();
@@ -109,6 +117,7 @@ describe("TransactionsPage", () => {
     });
 
     renderTransactionsPage();
+    await unlockEditMode();
 
     const select = await screen.findByLabelText("Account:");
     fireEvent.change(select, { target: { value: "1" } });
@@ -138,6 +147,7 @@ describe("TransactionsPage", () => {
     });
 
     renderTransactionsPage();
+    await unlockEditMode();
 
     const select = await screen.findByLabelText("Account:");
     fireEvent.change(select, { target: { value: "1" } });
@@ -192,6 +202,7 @@ describe("TransactionsPage", () => {
     });
 
     renderTransactionsPage();
+    await unlockEditMode();
 
     const select = await screen.findByLabelText("Account:");
     fireEvent.change(select, { target: { value: "1" } });
@@ -241,6 +252,7 @@ describe("TransactionsPage", () => {
     });
 
     renderTransactionsPage();
+    await unlockEditMode();
 
     fireEvent.click(await screen.findByTitle("Delete transaction"));
 

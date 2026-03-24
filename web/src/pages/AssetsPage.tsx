@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 
-import { PencilIcon, PlusIcon, TrashIcon } from "@/components/Icons";
+import {
+  LockIcon,
+  PencilIcon,
+  PlusIcon,
+  TrashIcon,
+  UnlockIcon,
+} from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,8 +22,11 @@ import {
   readApiErrorMessage,
   type AssetResponse,
 } from "@/lib/api";
+import { useUiState } from "@/lib/ui-state";
+import { cn } from "@/lib/utils";
 
 export function AssetsPage() {
+  const [isLocked, setIsLocked] = useState(true);
   const [assets, setAssets] = useState<AssetResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -223,14 +232,32 @@ export function AssetsPage() {
             Manage the assets you use in transactions.
           </p>
         </div>
-        <Button
-          aria-label="Add Asset"
-          onClick={handleCreateClick}
-          size="icon-lg"
-          title="Add Asset"
-        >
-          <PlusIcon />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            aria-label={isLocked ? "Unlock edit mode" : "Lock edit mode"}
+            className={cn(
+              "size-9 rounded-full transition-colors",
+              !isLocked &&
+                "bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50",
+            )}
+            onClick={() => setIsLocked(!isLocked)}
+            size="icon"
+            type="button"
+            variant="ghost"
+          >
+            {isLocked ? <LockIcon /> : <UnlockIcon />}
+          </Button>
+          {!isLocked && (
+            <Button
+              aria-label="Add Asset"
+              onClick={handleCreateClick}
+              size="icon-lg"
+              title="Add Asset"
+            >
+              <PlusIcon />
+            </Button>
+          )}
+        </div>
       </header>
 
       <Card className="bg-background">
@@ -244,15 +271,17 @@ export function AssetsPage() {
               <p className="mb-6 text-sm text-muted-foreground">
                 Add your first asset to start recording transactions.
               </p>
-              <Button
-                aria-label="Add Asset"
-                onClick={handleCreateClick}
-                size="icon-lg"
-                title="Add Asset"
-                variant="outline"
-              >
-                <PlusIcon />
-              </Button>
+              {!isLocked && (
+                <Button
+                  aria-label="Add Asset"
+                  onClick={handleCreateClick}
+                  size="icon-lg"
+                  title="Add Asset"
+                  variant="outline"
+                >
+                  <PlusIcon />
+                </Button>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -263,7 +292,7 @@ export function AssetsPage() {
                     <th className="pb-3 pr-4">Name</th>
                     <th className="pb-3 pr-4">Type</th>
                     <th className="pb-3 pr-4">ISIN</th>
-                    <th className="pb-3 text-right">Actions</th>
+                    {!isLocked && <th className="pb-3 text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -284,35 +313,37 @@ export function AssetsPage() {
                       <td className="py-3 pr-4 font-mono text-[11px] text-muted-foreground">
                         {asset.isin || "—"}
                       </td>
-                      <td className="py-3 text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            disabled={isDeleting !== null}
-                            onClick={() => handleEditClick(asset)}
-                            size="icon"
-                            title="Edit asset"
-                            variant="ghost"
-                          >
-                            <PencilIcon />
-                            <span className="sr-only">Edit</span>
-                          </Button>
-                          <Button
-                            className="text-destructive hover:bg-destructive/10"
-                            disabled={isDeleting !== null}
-                            onClick={() => handleDeleteClick(asset)}
-                            size="icon"
-                            title="Delete asset"
-                            variant="ghost"
-                          >
-                            {isDeleting === asset.id ? (
-                              <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                            ) : (
-                              <TrashIcon />
-                            )}
-                            <span className="sr-only">Delete</span>
-                          </Button>
-                        </div>
-                      </td>
+                      {!isLocked && (
+                        <td className="py-3 text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              disabled={isDeleting !== null}
+                              onClick={() => handleEditClick(asset)}
+                              size="icon"
+                              title="Edit asset"
+                              variant="ghost"
+                            >
+                              <PencilIcon />
+                              <span className="sr-only">Edit</span>
+                            </Button>
+                            <Button
+                              className="text-destructive hover:bg-destructive/10"
+                              disabled={isDeleting !== null}
+                              onClick={() => handleDeleteClick(asset)}
+                              size="icon"
+                              title="Delete asset"
+                              variant="ghost"
+                            >
+                              {isDeleting === asset.id ? (
+                                <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                              ) : (
+                                <TrashIcon />
+                              )}
+                              <span className="sr-only">Delete</span>
+                            </Button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

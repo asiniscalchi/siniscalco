@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 
-import { PencilIcon, PlusIcon, TrashIcon } from "@/components/Icons";
+import {
+  LockIcon,
+  PencilIcon,
+  PlusIcon,
+  TrashIcon,
+  UnlockIcon,
+} from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -48,6 +54,7 @@ type Transaction = {
 };
 
 export function TransactionsPage() {
+  const [isLocked, setIsLocked] = useState(true);
   const { hideValues } = useUiState();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -309,7 +316,7 @@ export function TransactionsPage() {
                   <th className="pb-3 pr-4 text-right">Price</th>
                   <th className="pb-3 pr-4">Curr</th>
                   <th className="pb-3 pr-4">Notes</th>
-                  <th className="pb-3 text-right">Actions</th>
+                  {!isLocked && <th className="pb-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -368,37 +375,39 @@ export function TransactionsPage() {
                       >
                         {t.notes}
                       </td>
-                      <td className="py-3 text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            disabled={isDeleting !== null}
-                            onClick={() => handleEditClick(t)}
-                            size="icon"
-                            title="Edit transaction"
-                            type="button"
-                            variant="ghost"
-                          >
-                            <PencilIcon />
-                            <span className="sr-only">Edit</span>
-                          </Button>
-                          <Button
-                            className="text-destructive hover:bg-destructive/10"
-                            disabled={isDeleting !== null}
-                            onClick={() => handleDeleteClick(t.id)}
-                            size="icon"
-                            title="Delete transaction"
-                            type="button"
-                            variant="ghost"
-                          >
-                            {isDeleting === t.id ? (
-                              <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                            ) : (
-                              <TrashIcon />
-                            )}
-                            <span className="sr-only">Delete</span>
-                          </Button>
-                        </div>
-                      </td>
+                      {!isLocked && (
+                        <td className="py-3 text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              disabled={isDeleting !== null}
+                              onClick={() => handleEditClick(t)}
+                              size="icon"
+                              title="Edit transaction"
+                              type="button"
+                              variant="ghost"
+                            >
+                              <PencilIcon />
+                              <span className="sr-only">Edit</span>
+                            </Button>
+                            <Button
+                              className="text-destructive hover:bg-destructive/10"
+                              disabled={isDeleting !== null}
+                              onClick={() => handleDeleteClick(t.id)}
+                              size="icon"
+                              title="Delete transaction"
+                              type="button"
+                              variant="ghost"
+                            >
+                              {isDeleting === t.id ? (
+                                <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                              ) : (
+                                <TrashIcon />
+                              )}
+                              <span className="sr-only">Delete</span>
+                            </Button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -444,14 +453,30 @@ export function TransactionsPage() {
             </select>
           </div>
           <Button
-            aria-label="Add Transaction"
-            disabled={!selectedAccountId}
-            onClick={handleCreateClick}
-            size="icon-lg"
-            title="Add Transaction"
+            aria-label={isLocked ? "Unlock edit mode" : "Lock edit mode"}
+            className={cn(
+              "size-9 rounded-full transition-colors",
+              !isLocked &&
+                "bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50",
+            )}
+            onClick={() => setIsLocked(!isLocked)}
+            size="icon"
+            type="button"
+            variant="ghost"
           >
-            <PlusIcon />
+            {isLocked ? <LockIcon /> : <UnlockIcon />}
           </Button>
+          {!isLocked && (
+            <Button
+              aria-label="Add Transaction"
+              disabled={!selectedAccountId}
+              onClick={handleCreateClick}
+              size="icon-lg"
+              title="Add Transaction"
+            >
+              <PlusIcon />
+            </Button>
+          )}
         </div>
       </header>
 

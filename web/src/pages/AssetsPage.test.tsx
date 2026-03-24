@@ -19,6 +19,13 @@ function renderAssetsPage() {
   );
 }
 
+async function unlockEditMode() {
+  const unlockButton = await screen.findByRole("button", {
+    name: /unlock edit mode/i,
+  });
+  fireEvent.click(unlockButton);
+}
+
 describe("AssetsPage", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
@@ -87,6 +94,7 @@ describe("AssetsPage", () => {
     renderAssetsPage();
 
     expect(await screen.findByText("No assets yet")).toBeTruthy();
+    await unlockEditMode();
     expect(screen.getAllByRole("button", { name: "Add Asset" }).length).toBe(2);
   });
 
@@ -99,6 +107,7 @@ describe("AssetsPage", () => {
     );
 
     renderAssetsPage();
+    await unlockEditMode();
 
     // Use the first Add Asset button (the one in the header)
     const createButton = await screen.findAllByRole("button", { name: "Add Asset" });
@@ -166,6 +175,7 @@ describe("AssetsPage", () => {
     );
 
     renderAssetsPage();
+    await unlockEditMode();
 
     const editButton = await screen.findByTitle("Edit asset");
     fireEvent.click(editButton);
@@ -241,6 +251,7 @@ describe("AssetsPage", () => {
     });
 
     renderAssetsPage();
+    await unlockEditMode();
 
     const deleteButton = await screen.findByTitle("Delete asset");
     fireEvent.click(deleteButton);
@@ -260,6 +271,7 @@ describe("AssetsPage", () => {
     );
 
     renderAssetsPage();
+    await unlockEditMode();
 
     const createButton = await screen.findAllByRole("button", { name: "Add Asset" });
     fireEvent.click(createButton[0]);

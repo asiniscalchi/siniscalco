@@ -8,7 +8,9 @@ import {
   CheckCircleIcon,
   EyeClosedIcon,
   EyeIcon,
+  LockIcon,
   RefreshCwIcon,
+  UnlockIcon,
 } from "@/components/Icons";
 import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
@@ -16,8 +18,9 @@ import { cn } from "@/lib/utils";
 export function AppShell() {
   const { hideValues, toggleHideValues } = useUiState();
   const [backendStatus, setBackendStatus] = useState<
-    "checking" | "connected" | "unavailable"
+    "connected" | "checking" | "unavailable"
   >("checking");
+
 
   useEffect(() => {
     let cancelled = false;
