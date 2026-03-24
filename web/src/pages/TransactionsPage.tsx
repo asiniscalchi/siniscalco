@@ -452,29 +452,31 @@ export function TransactionsPage() {
               ))}
             </select>
           </div>
-          <Button
-            aria-label={isLocked ? "Unlock edit mode" : "Lock edit mode"}
-            className={cn(
-              "size-9 rounded-full transition-colors",
-              !isLocked &&
-                "bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50",
-            )}
-            onClick={() => setIsLocked(!isLocked)}
-            size="icon"
-            type="button"
-            variant="ghost"
-          >
-            {isLocked ? <LockIcon /> : <UnlockIcon />}
-          </Button>
-          <Button
-            aria-label="Add Transaction"
-            disabled={!selectedAccountId}
-            onClick={handleCreateClick}
-            size="icon-lg"
-            title="Add Transaction"
-          >
-            <PlusIcon />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              aria-label={isLocked ? "Unlock edit mode" : "Lock edit mode"}
+              className={cn(
+                "size-9 rounded-full transition-colors",
+                !isLocked &&
+                  "bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50",
+              )}
+              onClick={() => setIsLocked(!isLocked)}
+              size="icon"
+              type="button"
+              variant="ghost"
+            >
+              {isLocked ? <LockIcon /> : <UnlockIcon />}
+            </Button>
+            <Button
+              aria-label="Add Transaction"
+              disabled={!selectedAccountId}
+              onClick={handleCreateClick}
+              size="icon-lg"
+              title="Add Transaction"
+            >
+              <PlusIcon />
+            </Button>
+          </div>
         </div>
       </header>
 
