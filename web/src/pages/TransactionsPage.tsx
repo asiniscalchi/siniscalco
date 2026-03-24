@@ -442,8 +442,8 @@ export function TransactionsPage() {
             Manage your asset transactions.
           </p>
         </div>
-        <div className="flex w-full flex-wrap items-center justify-between gap-4 sm:w-auto sm:flex-nowrap">
-          <div className="flex items-center gap-3">
+        <div className="flex w-full flex-wrap items-center gap-4 sm:w-auto sm:flex-nowrap">
+          <div className="flex min-w-0 items-center gap-3">
             <label
               className="text-sm font-medium text-muted-foreground"
               htmlFor="account-selector"
@@ -464,7 +464,7 @@ export function TransactionsPage() {
               ))}
             </select>
           </div>
-          <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+          <div className="ml-auto flex items-center justify-end gap-2">
             <Button
               aria-label={isLocked ? "Unlock edit mode" : "Lock edit mode"}
               className={cn(
