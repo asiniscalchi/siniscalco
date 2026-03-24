@@ -92,7 +92,7 @@ export function TransactionsHistoryCard({
           </div>
         ) : (
           <>
-            <div className="space-y-3 sm:hidden">
+            <div className="space-y-2 sm:hidden">
               {transactions.map((transaction) => {
                 const asset = assets.find((item) => item.id === transaction.asset_id);
 
@@ -104,17 +104,19 @@ export function TransactionsHistoryCard({
                     )}
                     key={transaction.id}
                   >
-                    <CardContent className="space-y-4 p-4">
-                      <div className="flex items-start justify-between gap-3">
+                    <CardContent className="space-y-3 p-3">
+                      <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="font-bold">{asset?.symbol || "Unknown"}</p>
-                          <p className="truncate text-xs text-muted-foreground">
+                          <p className="text-sm font-semibold leading-tight">
+                            {asset?.symbol || "Unknown"}
+                          </p>
+                          <p className="truncate text-[11px] leading-tight text-muted-foreground">
                             {asset?.name}
                           </p>
                         </div>
                         <span
                           className={cn(
-                            "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+                            "inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
                             transaction.transaction_type === "BUY"
                               ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
                               : "border border-amber-200 bg-amber-50 text-amber-700",
@@ -124,23 +126,24 @@ export function TransactionsHistoryCard({
                         </span>
                       </div>
 
-                      <dl className="grid grid-cols-2 gap-3 text-sm">
+                      <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
                         <div>
-                          <dt className="text-xs text-muted-foreground">Date</dt>
-                          <dd className="mt-1 font-medium tabular-nums">
+                          <dt className="text-[10px] text-muted-foreground">Date</dt>
+                          <dd className="mt-0.5 font-medium tabular-nums">
                             {transaction.trade_date}
                           </dd>
                         </div>
                         <div>
-                          <dt className="text-xs text-muted-foreground">Quantity</dt>
-                          <dd className="mt-1 text-right font-medium tabular-nums">
+                          <dt className="text-[10px] text-muted-foreground">Qty</dt>
+                          <dd className="mt-0.5 text-right font-medium tabular-nums">
                             {transaction.quantity}
                           </dd>
                         </div>
                         <div>
-                          <dt className="text-xs text-muted-foreground">Price</dt>
-                          <dd className="mt-1">
+                          <dt className="text-[10px] text-muted-foreground">Price</dt>
+                          <dd className="mt-0.5">
                             <MoneyText
+                              className="text-sm"
                               hidden={hideValues}
                               includeCurrency={false}
                               value={transaction.unit_price}
@@ -148,16 +151,16 @@ export function TransactionsHistoryCard({
                           </dd>
                         </div>
                         <div>
-                          <dt className="text-xs text-muted-foreground">Curr</dt>
-                          <dd className="mt-1 font-mono text-[11px] text-muted-foreground">
+                          <dt className="text-[10px] text-muted-foreground">Curr</dt>
+                          <dd className="mt-0.5 font-mono text-[10px] text-muted-foreground">
                             {transaction.currency_code}
                           </dd>
                         </div>
                       </dl>
 
                       <div>
-                        <p className="text-xs text-muted-foreground">Notes</p>
-                        <p className="mt-1 break-words italic text-muted-foreground">
+                        <p className="text-[10px] text-muted-foreground">Notes</p>
+                        <p className="mt-0.5 truncate text-xs italic text-muted-foreground">
                           {transaction.notes || "—"}
                         </p>
                       </div>
