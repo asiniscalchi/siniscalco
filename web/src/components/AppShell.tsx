@@ -47,7 +47,7 @@ export function AppShell() {
   }, []);
 
   return (
-    <div className="min-h-svh bg-muted/30">
+    <div className="min-h-svh bg-muted/30 overflow-x-hidden">
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:gap-6 sm:px-6 sm:py-4">
           <div className="flex shrink-0 items-center gap-2">
