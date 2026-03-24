@@ -44,15 +44,15 @@ export function AssetsTableCard({
             </Button>
           </div>
         ) : (
-          <div className="w-full overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="min-w-0 w-full overflow-hidden">
+            <table className="w-full table-fixed text-sm">
               <thead>
                 <tr className="border-b text-left font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">
-                  <th className="pb-3 pr-4">Symbol</th>
+                  <th className="w-[100px] pb-3 pr-4 whitespace-nowrap">Symbol</th>
                   <th className="pb-3 pr-4">Name</th>
-                  <th className="pb-3 pr-4">Type</th>
-                  <th className="pb-3 pr-4">ISIN</th>
-                  {!isLocked && <th className="pb-3 text-right">Actions</th>}
+                  <th className="w-[100px] pb-3 pr-4 whitespace-nowrap">Type</th>
+                  <th className="w-[120px] pb-3 pr-4 whitespace-nowrap">ISIN</th>
+                  {!isLocked && <th className="w-[85px] pb-3 text-right whitespace-nowrap">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -61,20 +61,20 @@ export function AssetsTableCard({
                     className="group transition-colors hover:bg-muted/30"
                     key={asset.id}
                   >
-                    <td className="py-3 pr-4 font-bold tabular-nums">
+                    <td className="py-3 pr-4 font-bold tabular-nums overflow-hidden truncate">
                       {asset.symbol}
                     </td>
-                    <td className="py-3 pr-4">{asset.name}</td>
-                    <td className="py-3 pr-4">
+                    <td className="py-3 pr-4 overflow-hidden truncate">{asset.name}</td>
+                    <td className="py-3 pr-4 overflow-hidden">
                       <span className="inline-flex items-center rounded-full border bg-muted/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
                         {asset.asset_type.replace("_", " ")}
                       </span>
                     </td>
-                    <td className="py-3 pr-4 font-mono text-[11px] text-muted-foreground">
+                    <td className="py-3 pr-4 font-mono text-[11px] text-muted-foreground overflow-hidden truncate">
                       {asset.isin || "—"}
                     </td>
                     {!isLocked && (
-                      <td className="py-3 text-right">
+                      <td className="py-3 text-right overflow-hidden">
                         <div className="flex justify-end gap-1">
                           <Button
                             disabled={isDeleting !== null}

@@ -57,18 +57,18 @@ export function TransactionsHistoryCard({
             No transactions recorded.
           </div>
         ) : (
-          <div className="min-w-0 w-full overflow-x-auto overflow-y-hidden">
-            <table className="w-full text-sm">
+          <div className="min-w-0 w-full overflow-hidden">
+            <table className="w-full table-fixed text-sm">
               <thead>
                 <tr className="border-b text-left font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">
-                  <th className="pb-3 pr-4 whitespace-nowrap">Date</th>
+                  <th className="w-[85px] pb-3 pr-2 whitespace-nowrap">Date</th>
                   <th className="pb-3 pr-4">Asset</th>
-                  <th className="pb-3 pr-4 whitespace-nowrap">Type</th>
-                  <th className="pb-3 pr-4 text-right whitespace-nowrap">Quantity</th>
-                  <th className="pb-3 pr-4 text-right whitespace-nowrap">Price</th>
-                  <th className="pb-3 pr-4 whitespace-nowrap">Curr</th>
-                  <th className="pb-3 pr-4">Notes</th>
-                  {!isLocked && <th className="pb-3 text-right whitespace-nowrap">Actions</th>}
+                  <th className="w-[65px] pb-3 pr-2 whitespace-nowrap">Type</th>
+                  <th className="w-[85px] pb-3 pr-2 text-right whitespace-nowrap">Quantity</th>
+                  <th className="w-[85px] pb-3 pr-2 text-right whitespace-nowrap">Price</th>
+                  <th className="w-[50px] pb-3 pr-2 whitespace-nowrap">Curr</th>
+                  <th className="w-auto pb-3 pr-4">Notes</th>
+                  {!isLocked && <th className="w-[85px] pb-3 text-right whitespace-nowrap">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -83,18 +83,18 @@ export function TransactionsHistoryCard({
                       )}
                       key={transaction.id}
                     >
-                      <td className="py-3 pr-4 whitespace-nowrap tabular-nums">
+                      <td className="py-3 pr-2 whitespace-nowrap tabular-nums overflow-hidden">
                         {transaction.trade_date}
                       </td>
-                      <td className="py-3 pr-4">
-                        <div className="flex flex-col">
-                          <span className="font-bold">{asset?.symbol || "Unknown"}</span>
-                          <span className="max-w-[120px] truncate text-[10px] text-muted-foreground">
+                      <td className="py-3 pr-4 overflow-hidden">
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-bold truncate">{asset?.symbol || "Unknown"}</span>
+                          <span className="truncate text-[10px] text-muted-foreground">
                             {asset?.name}
                           </span>
                         </div>
                       </td>
-                      <td className="py-3 pr-4">
+                      <td className="py-3 pr-2 overflow-hidden">
                         <span
                           className={cn(
                             "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
@@ -106,28 +106,28 @@ export function TransactionsHistoryCard({
                           {transaction.transaction_type}
                         </span>
                       </td>
-                      <td className="py-3 pr-4 text-right font-mono tabular-nums">
+                      <td className="py-3 pr-2 text-right font-mono tabular-nums overflow-hidden truncate">
                         {transaction.quantity}
                       </td>
-                      <td className="py-3 pr-4 text-right">
+                      <td className="py-3 pr-2 text-right overflow-hidden">
                         <MoneyText
-                          className="text-right"
+                          className="text-right truncate"
                           hidden={hideValues}
                           includeCurrency={false}
                           value={transaction.unit_price}
                         />
                       </td>
-                      <td className="py-3 pr-4 font-mono text-[11px] text-muted-foreground">
+                      <td className="py-3 pr-2 font-mono text-[11px] text-muted-foreground overflow-hidden">
                         {transaction.currency_code}
                       </td>
                       <td
-                        className="max-w-[150px] truncate py-3 pr-4 italic text-muted-foreground"
+                        className="truncate py-3 pr-4 italic text-muted-foreground overflow-hidden"
                         title={transaction.notes || ""}
                       >
                         {transaction.notes}
                       </td>
                       {!isLocked && (
-                        <td className="py-3 text-right">
+                        <td className="py-3 text-right overflow-hidden">
                           <div className="flex justify-end gap-1">
                             <Button
                               disabled={isDeleting !== null}

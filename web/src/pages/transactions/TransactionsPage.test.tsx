@@ -293,9 +293,9 @@ describe("TransactionsPage", () => {
     expect(pageRoot?.className).toContain("min-w-0");
     expect(historyCard).toBeTruthy();
     expect(historyCard?.className).toContain("min-w-0");
-    expect(historyScroller?.className).toContain("overflow-x-auto");
-    expect(historyScroller?.className).toContain("overflow-y-hidden");
+    expect(historyScroller?.className).toContain("overflow-hidden");
     expect(table).toBeTruthy();
+    expect(table?.className).toContain("table-fixed");
     expect(screen.getByText("Actions")).toBeTruthy();
   });
 
