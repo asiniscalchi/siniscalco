@@ -292,12 +292,14 @@ describe("TransactionsPage", () => {
       .closest('[data-slot="card"]');
     const mobileList = historyCard?.querySelector(".sm\\:hidden");
     const desktopTable = historyCard?.querySelector(".sm\\:block");
+    const mobileGrid = mobileList?.querySelector("dl");
     const mobileCardContent = mobileList?.querySelector('[data-slot="card-content"]');
 
     expect(historyCard).toBeTruthy();
     expect(historyCard?.className).toContain("min-w-0");
     expect(mobileList?.className).toContain("sm:hidden");
     expect(desktopTable?.className).toContain("sm:block");
+    expect(mobileGrid?.className).toContain("grid-cols-3");
     expect(mobileCardContent?.className).toContain("p-3");
     expect(screen.getByText("Actions")).toBeTruthy();
   });

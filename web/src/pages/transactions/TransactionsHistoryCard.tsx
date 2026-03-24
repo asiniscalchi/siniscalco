@@ -126,7 +126,7 @@ export function TransactionsHistoryCard({
                         </span>
                       </div>
 
-                      <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                      <dl className="grid grid-cols-3 gap-x-2 gap-y-2 text-xs">
                         <div>
                           <dt className="text-[10px] text-muted-foreground">Date</dt>
                           <dd className="mt-0.5 font-medium tabular-nums">
@@ -150,7 +150,7 @@ export function TransactionsHistoryCard({
                             />
                           </dd>
                         </div>
-                        <div>
+                        <div className="col-span-3">
                           <dt className="text-[10px] text-muted-foreground">Curr</dt>
                           <dd className="mt-0.5 font-mono text-[10px] text-muted-foreground">
                             {transaction.currency_code}
