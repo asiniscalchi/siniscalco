@@ -76,13 +76,9 @@ describe("TransactionsPage", () => {
     expect(screen.getByTitle("All trans")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Add Transaction" }) as HTMLButtonElement).disabled).toBe(true);
 
-    expect(screen.getByText("Actions")).toBeTruthy();
-
-    const editButton = screen.getAllByTitle("Edit transaction")[0] as HTMLButtonElement;
-    const deleteButton = screen.getAllByTitle("Delete transaction")[0] as HTMLButtonElement;
-
-    expect(editButton.disabled).toBe(true);
-    expect(deleteButton.disabled).toBe(true);
+    expect(screen.queryByText("Actions")).toBeNull();
+    expect(screen.queryByTitle("Edit transaction")).toBeNull();
+    expect(screen.queryByTitle("Delete transaction")).toBeNull();
   });
 
   it("clears a transaction load error after a successful retry", async () => {

@@ -165,7 +165,7 @@ export function TransactionsHistoryCard({
                         </p>
                       </div>
 
-                      {renderActions(transaction)}
+                      {!isLocked && renderActions(transaction)}
                     </CardContent>
                   </Card>
                 );
@@ -183,7 +183,7 @@ export function TransactionsHistoryCard({
                     <th className="w-[100px] pb-3 pr-4 text-right">Price</th>
                     <th className="w-[60px] pb-3 pr-4">Curr</th>
                     <th className="pb-3 pr-4">Notes</th>
-                    <th className="w-[90px] pb-3 text-right">Actions</th>
+                    {!isLocked && <th className="w-[90px] pb-3 text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -241,7 +241,7 @@ export function TransactionsHistoryCard({
                         >
                           {transaction.notes}
                         </td>
-                        <td className="py-3 text-right">{renderActions(transaction)}</td>
+                        {!isLocked && <td className="py-3 text-right">{renderActions(transaction)}</td>}
                       </tr>
                     );
                   })}
