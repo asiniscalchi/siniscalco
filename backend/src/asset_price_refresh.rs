@@ -3,6 +3,9 @@ use std::{env, time::Duration};
 use reqwest::Client;
 use serde::Deserialize;
 use sqlx::SqlitePool;
+use time::format_description::well_known::Rfc3339;
+use time::macros::format_description;
+use time::{Date, OffsetDateTime, PrimitiveDateTime};
 use tokio::time::sleep;
 use tracing::{info, warn};
 
@@ -234,17 +237,57 @@ pub async fn fetch_twelve_data_quote(
 }
 
 fn normalize_provider_datetime(datetime: String) -> Result<String, AssetPriceRefreshError> {
-    if datetime.ends_with('Z') {
-        return Ok(datetime);
+    if let Ok(value) = OffsetDateTime::parse(&datetime, &Rfc3339) {
+        return value.format(&Rfc3339).map_err(|_| {
+            AssetPriceRefreshError::Provider(
+                "asset price refresh failed: provider returned invalid datetime".into(),
+            )
+        });
     }
 
-    if datetime.len() == 19 && datetime.as_bytes()[10] == b' ' {
-        return Ok(format!("{}Z", datetime.replace(' ', "T")));
+    const DATETIME_WITH_SPACE: &[time::format_description::FormatItem<'static>] =
+        format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
+    const DATETIME_WITH_T: &[time::format_description::FormatItem<'static>] =
+        format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]");
+    const DATE_ONLY: &[time::format_description::FormatItem<'static>] =
+        format_description!("[year]-[month]-[day]");
+
+    if let Ok(value) = PrimitiveDateTime::parse(&datetime, DATETIME_WITH_SPACE) {
+        return Ok(format!(
+            "{}Z",
+            value.format(DATETIME_WITH_T).map_err(|_| {
+                AssetPriceRefreshError::Provider(
+                    "asset price refresh failed: provider returned invalid datetime".into(),
+                )
+            })?
+        ));
     }
 
-    Err(AssetPriceRefreshError::Provider(
-        "asset price refresh failed: provider returned invalid datetime".into(),
-    ))
+    if let Ok(value) = PrimitiveDateTime::parse(&datetime, DATETIME_WITH_T) {
+        return Ok(format!(
+            "{}Z",
+            value.format(DATETIME_WITH_T).map_err(|_| {
+                AssetPriceRefreshError::Provider(
+                    "asset price refresh failed: provider returned invalid datetime".into(),
+                )
+            })?
+        ));
+    }
+
+    if let Ok(value) = Date::parse(&datetime, DATE_ONLY) {
+        return Ok(format!(
+            "{}T00:00:00Z",
+            value.format(DATE_ONLY).map_err(|_| {
+                AssetPriceRefreshError::Provider(
+                    "asset price refresh failed: provider returned invalid datetime".into(),
+                )
+            })?
+        ));
+    }
+
+    Err(AssetPriceRefreshError::Provider(format!(
+        "asset price refresh failed: unsupported datetime format: {datetime}"
+    )))
 }
 
 #[cfg(test)]
@@ -312,6 +355,38 @@ mod tests {
         assert_eq!(quote.price.to_string(), "123.45");
         assert_eq!(quote.currency, Currency::Usd);
         assert_eq!(quote.as_of, "2026-03-24T10:15:00Z");
+    }
+
+    #[tokio::test]
+    async fn fetches_twelve_data_quote_with_rfc3339_datetime() {
+        let base_url = start_test_server(json!({
+            "close": "123.45",
+            "currency": "USD",
+            "datetime": "2026-03-24T10:15:00+00:00"
+        }))
+        .await;
+
+        let quote = fetch_twelve_data_quote(&Client::new(), &base_url, "test-key", "AAPL")
+            .await
+            .expect("quote fetch should succeed");
+
+        assert_eq!(quote.as_of, "2026-03-24T10:15:00Z");
+    }
+
+    #[tokio::test]
+    async fn fetches_twelve_data_quote_with_date_only_datetime() {
+        let base_url = start_test_server(json!({
+            "close": "123.45",
+            "currency": "USD",
+            "datetime": "2026-03-24"
+        }))
+        .await;
+
+        let quote = fetch_twelve_data_quote(&Client::new(), &base_url, "test-key", "AAPL")
+            .await
+            .expect("quote fetch should succeed");
+
+        assert_eq!(quote.as_of, "2026-03-24T00:00:00Z");
     }
 
     #[tokio::test]
