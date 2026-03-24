@@ -54,8 +54,10 @@ export function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
 
-  // Form state
+  // Modal/Form state
+  const [showModal, setShowModal] = useState(false);
   const [editingTransactionId, setEditingTransactionId] = useState<number | null>(null);
   const [formAssetId, setFormAssetId] = useState("");
   const [formType, setFormType] = useState<"BUY" | "SELL">("BUY");
@@ -70,41 +72,34 @@ export function TransactionsPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
 
-  const transactionSubmitDisabled =
-    isSubmitting || assets.length === 0 || !formAssetId;
+  const transactionSubmitDisabled = isSubmitting || assets.length === 0 || !formAssetId;
 
   useEffect(() => {
     let cancelled = false;
 
-    async function fetchAssets() {
-      const response = await fetch(getAssetsApiUrl());
-      if (!response.ok) {
-        throw new Error("Failed to load assets");
-      }
-
-      return (await response.json()) as Asset[];
-    }
-
     async function loadInitialData() {
       try {
-        const [accountsRes, assetsData] = await Promise.all([
+        const [accountsRes, assetsRes] = await Promise.all([
           fetch(getAccountsApiUrl()),
-          fetchAssets(),
+          fetch(getAssetsApiUrl()),
         ]);
 
         if (cancelled) return;
 
-        if (!accountsRes.ok) {
+        if (!accountsRes.ok || !assetsRes.ok) {
           throw new Error("Failed to load initial data");
         }
 
-        const accountsData = (await accountsRes.json()) as Account[];
+        const [accountsData, assetsData] = await Promise.all([
+          accountsRes.json() as Promise<Account[]>,
+          assetsRes.json() as Promise<Asset[]>,
+        ]);
 
         setAccounts(accountsData);
         setAssets(assetsData);
       } catch {
         if (!cancelled) {
-          setError("Failed to load data");
+          setError("Failed to load initial data");
         }
       } finally {
         if (!cancelled) {
@@ -121,22 +116,11 @@ export function TransactionsPage() {
   }, []);
 
   useEffect(() => {
-    if (formAssetId && !assets.some((asset) => String(asset.id) === formAssetId)) {
-      setFormAssetId("");
-    }
-  }, [assets, formAssetId]);
-
-  useEffect(() => {
-    if (!selectedAccountId) {
-      setTransactions([]);
-      return;
-    }
-
     let cancelled = false;
 
     async function loadTransactions() {
       try {
-        const res = await fetch(getTransactionsApiUrl(selectedAccountId));
+        const res = await fetch(getTransactionsApiUrl(selectedAccountId || undefined));
 
         if (cancelled) return;
 
@@ -155,16 +139,10 @@ export function TransactionsPage() {
 
     void loadTransactions();
 
-    // Default currency based on selected account
-    const account = accounts.find((a) => String(a.id) === selectedAccountId);
-    if (account && !editingTransactionId) {
-      setFormCurrency(account.base_currency);
-    }
-
     return () => {
       cancelled = true;
     };
-  }, [selectedAccountId, accounts, editingTransactionId]);
+  }, [selectedAccountId, retryToken]);
 
   const resetForm = () => {
     setEditingTransactionId(null);
@@ -176,14 +154,23 @@ export function TransactionsPage() {
     setFormTradeDate(new Date().toISOString().split("T")[0]);
     setSubmitError(null);
 
-    // Reset currency based on selected account
-    const account = accounts.find((a) => String(a.id) === selectedAccountId);
-    if (account) {
-      setFormCurrency(account.base_currency);
+    // Default currency based on selected account
+    if (selectedAccountId) {
+      const account = accounts.find((a) => String(a.id) === selectedAccountId);
+      if (account) {
+        setFormCurrency(account.base_currency);
+      }
+    } else {
+      setFormCurrency("");
     }
   };
 
-  const handleEdit = (t: Transaction) => {
+  const handleCreateClick = () => {
+    resetForm();
+    setShowModal(true);
+  };
+
+  const handleEditClick = (t: Transaction) => {
     setEditingTransactionId(t.id);
     setFormAssetId(String(t.asset_id));
     setFormType(t.transaction_type);
@@ -193,16 +180,10 @@ export function TransactionsPage() {
     setFormCurrency(t.currency_code);
     setFormNotes(t.notes || "");
     setSubmitError(null);
-
-    // Scroll to form
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setShowModal(true);
   };
 
-  const handleCancelEdit = () => {
-    resetForm();
-  };
-
-  const handleDelete = async (transactionId: number) => {
+  const handleDeleteClick = async (transactionId: number) => {
     if (!window.confirm("Are you sure you want to delete this transaction?")) {
       return;
     }
@@ -219,14 +200,7 @@ export function TransactionsPage() {
         return;
       }
 
-      // Refresh transactions
-      const transRes = await fetch(
-        getTransactionsApiUrl(selectedAccountId),
-      );
-      if (transRes.ok) {
-        const transData = (await transRes.json()) as Transaction[];
-        setTransactions(transData);
-      }
+      setRetryToken((t) => t + 1);
     } catch {
       alert("Network error while deleting transaction");
     } finally {
@@ -273,17 +247,8 @@ export function TransactionsPage() {
         return;
       }
 
-      // Success - reset form
-      resetForm();
-
-      // Refresh transactions
-      const transRes = await fetch(
-        getTransactionsApiUrl(selectedAccountId),
-      );
-      if (transRes.ok) {
-        const transData = (await transRes.json()) as Transaction[];
-        setTransactions(transData);
-      }
+      setShowModal(false);
+      setRetryToken((t) => t + 1);
     } catch {
       setSubmitError("Network error");
     } finally {
@@ -291,7 +256,7 @@ export function TransactionsPage() {
     }
   };
 
-  if (loading) {
+  if (loading && transactions.length === 0 && accounts.length === 0) {
     return (
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 py-8">
         <div className="h-8 w-48 animate-pulse rounded-full bg-muted" />
@@ -300,7 +265,7 @@ export function TransactionsPage() {
     );
   }
 
-  if (error) {
+  if (error && transactions.length === 0) {
     return (
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 py-8">
         <Card className="border-destructive/30 bg-background">
@@ -308,10 +273,141 @@ export function TransactionsPage() {
             <CardTitle>Error</CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
+          <CardContent>
+            <Button onClick={() => setRetryToken((t) => t + 1)}>Retry</Button>
+          </CardContent>
         </Card>
       </div>
     );
   }
+
+  const transactionHistoryCard = (
+    <Card className="bg-background">
+      <CardHeader>
+        <CardTitle>Transaction History</CardTitle>
+        <CardDescription>
+          {selectedAccountId
+            ? `Recent transactions for ${accounts.find(a => String(a.id) === selectedAccountId)?.name || "selected account"}.`
+            : "Showing all recorded transactions."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {transactions.length === 0 ? (
+          <div className="py-12 text-center text-sm text-muted-foreground">
+            No transactions recorded.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">
+                  <th className="pb-3 pr-4">Date</th>
+                  <th className="pb-3 pr-4">Asset</th>
+                  <th className="pb-3 pr-4">Type</th>
+                  <th className="pb-3 pr-4 text-right">Quantity</th>
+                  <th className="pb-3 pr-4 text-right">Price</th>
+                  <th className="pb-3 pr-4">Curr</th>
+                  <th className="pb-3 pr-4">Notes</th>
+                  <th className="pb-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {transactions.map((t) => {
+                  const asset = assets.find((a) => a.id === t.asset_id);
+                  return (
+                    <tr
+                      className={cn(
+                        "group transition-colors hover:bg-muted/30",
+                        editingTransactionId === t.id && "bg-muted/50",
+                      )}
+                      key={t.id}
+                    >
+                      <td className="py-3 pr-4 whitespace-nowrap tabular-nums">
+                        {t.trade_date}
+                      </td>
+                      <td className="py-3 pr-4">
+                        <div className="flex flex-col">
+                          <span className="font-bold">
+                            {asset?.symbol || "Unknown"}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">
+                            {asset?.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 pr-4">
+                        <span
+                          className={cn(
+                            "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+                            t.transaction_type === "BUY"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : "bg-amber-50 text-amber-700 border border-amber-200",
+                          )}
+                        >
+                          {t.transaction_type}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-4 text-right font-mono tabular-nums">
+                        {t.quantity}
+                      </td>
+                      <td className="py-3 pr-4 text-right">
+                        <MoneyText
+                          className="text-right"
+                          hidden={hideValues}
+                          includeCurrency={false}
+                          value={t.unit_price}
+                        />
+                      </td>
+                      <td className="py-3 pr-4 font-mono text-muted-foreground text-[11px]">
+                        {t.currency_code}
+                      </td>
+                      <td
+                        className="py-3 pr-4 text-muted-foreground italic truncate max-w-[150px]"
+                        title={t.notes || ""}
+                      >
+                        {t.notes}
+                      </td>
+                      <td className="py-3 text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            disabled={isDeleting !== null}
+                            onClick={() => handleEditClick(t)}
+                            size="icon"
+                            title="Edit transaction"
+                            type="button"
+                            variant="ghost"
+                          >
+                            <PencilIcon />
+                            <span className="sr-only">Edit</span>
+                          </Button>
+                          <Button
+                            className="text-destructive hover:bg-destructive/10"
+                            disabled={isDeleting !== null}
+                            onClick={() => handleDeleteClick(t.id)}
+                            size="icon"
+                            title="Delete transaction"
+                            type="button"
+                            variant="ghost"
+                          >
+                            {isDeleting === t.id ? (
+                              <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                            ) : (
+                              <TrashIcon />
+                            )}
+                            <span className="sr-only">Delete</span>
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
@@ -324,94 +420,63 @@ export function TransactionsPage() {
             Manage your asset transactions.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <label
-            className="text-sm font-medium text-muted-foreground"
-            htmlFor="account-selector"
-          >
-            Account:
-          </label>
-          <select
-            className="rounded-md border bg-background px-3 py-1.5 text-sm shadow-sm transition-colors focus:outline-hidden focus:ring-1 focus:ring-ring"
-            id="account-selector"
-            onChange={(e) => setSelectedAccountId(e.target.value)}
-            value={selectedAccountId}
-          >
-            <option value="">Select account...</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={String(a.id)}>
-                {a.name}
-              </option>
-            ))}
-          </select>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-3">
+            <label
+              className="text-sm font-medium text-muted-foreground"
+              htmlFor="account-selector"
+            >
+              Account:
+            </label>
+            <select
+              className="rounded-md border bg-background px-3 py-1.5 text-sm shadow-sm transition-colors focus:outline-hidden focus:ring-1 focus:ring-ring"
+              id="account-selector"
+              onChange={(e) => setSelectedAccountId(e.target.value)}
+              value={selectedAccountId}
+            >
+              <option value="">All Accounts</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={String(a.id)}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <Button disabled={!selectedAccountId} onClick={handleCreateClick} size="sm">
+            Add Transaction
+          </Button>
         </div>
       </header>
 
-      {!selectedAccountId ? (
-        <Card className="border-dashed bg-muted/30">
-          <CardHeader className="text-center py-12">
-            <CardTitle className="text-lg">No account selected</CardTitle>
-            <CardDescription>
-              Please select an account from the header to view and add
-              transactions.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      ) : (
-        <>
-          <Card className="bg-background">
-            <CardHeader>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="space-y-1">
-                  <CardTitle>
-                    {editingTransactionId ? "Edit Transaction" : "Add Transaction"}
-                  </CardTitle>
-                  <CardDescription>
-                    {assets.length === 0
-                      ? "Create an asset first, then return here to record the transaction."
-                      : editingTransactionId
-                        ? "Modify the details of this transaction."
-                        : "Record a new BUY or SELL transaction for this account."}
-                  </CardDescription>
-                </div>
-                <div className="flex gap-2">
-                  {editingTransactionId && (
-                    <Button
-                      onClick={handleCancelEdit}
-                      size="icon"
-                      title="Cancel edit"
-                      type="button"
-                      variant="outline"
-                    >
-                      <XIcon />
-                      <span className="sr-only">Cancel edit</span>
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              {assets.length === 0 ? (
-                <div className="rounded-lg border border-dashed bg-muted/30 px-4 py-8 text-center text-sm">
-                  <p className="font-medium text-muted-foreground">
-                    No assets available. Please create an asset in the Assets page first.
-                  </p>
-                </div>
-              ) : null}
+      {transactionHistoryCard}
 
-              <form
-                className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4"
-                onSubmit={handleSubmit}
-              >
+      {/* Create/Edit Transaction Modal */}
+      {showModal && (
+        <div
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          role="dialog"
+        >
+          <div className="w-full max-w-2xl rounded-xl border bg-background shadow-2xl animate-in zoom-in-95 duration-200">
+            <header className="border-b px-6 py-4">
+              <h2 className="text-lg font-semibold">
+                {editingTransactionId ? "Edit Transaction" : "Add Transaction"}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {editingTransactionId
+                  ? "Update transaction details."
+                  : `Record a new transaction for ${accounts.find(a => String(a.id) === selectedAccountId)?.name}.`}
+              </p>
+            </header>
+            <form onSubmit={handleSubmit}>
+              <div className="grid gap-5 px-6 py-6 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between">
-                    <label
-                      className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                      htmlFor="asset-select"
-                    >
-                      Asset
-                    </label>
-                  </div>
+                  <label
+                    className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                    htmlFor="asset-select"
+                  >
+                    Asset *
+                  </label>
                   <select
                     required
                     className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
@@ -420,9 +485,7 @@ export function TransactionsPage() {
                     onChange={(e) => setFormAssetId(e.target.value)}
                     value={formAssetId}
                   >
-                    <option value="">
-                      {assets.length === 0 ? "No assets available" : "Select asset..."}
-                    </option>
+                    <option value="">Select asset...</option>
                     {assets.map((a) => (
                       <option key={a.id} value={String(a.id)}>
                         {a.symbol} — {a.name}
@@ -435,7 +498,7 @@ export function TransactionsPage() {
                     className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
                     htmlFor="type-select"
                   >
-                    Type
+                    Type *
                   </label>
                   <select
                     required
@@ -455,7 +518,7 @@ export function TransactionsPage() {
                     className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
                     htmlFor="trade-date-input"
                   >
-                    Trade Date
+                    Trade Date *
                   </label>
                   <input
                     required
@@ -471,7 +534,7 @@ export function TransactionsPage() {
                     className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
                     htmlFor="quantity-input"
                   >
-                    Quantity
+                    Quantity *
                   </label>
                   <input
                     required
@@ -490,7 +553,7 @@ export function TransactionsPage() {
                     className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
                     htmlFor="price-input"
                   >
-                    Unit Price
+                    Unit Price *
                   </label>
                   <input
                     required
@@ -509,7 +572,7 @@ export function TransactionsPage() {
                     className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
                     htmlFor="currency-input"
                   >
-                    Currency
+                    Currency *
                   </label>
                   <input
                     required
@@ -522,7 +585,7 @@ export function TransactionsPage() {
                     value={formCurrency}
                   />
                 </div>
-                <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-2">
+                <div className="flex flex-col gap-1.5 sm:col-span-2">
                   <label
                     className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
                     htmlFor="notes-input"
@@ -538,163 +601,33 @@ export function TransactionsPage() {
                     value={formNotes}
                   />
                 </div>
-                <div className="flex items-end gap-3 sm:col-span-2 lg:col-span-4">
-                  <Button
-                    className="flex-1 lg:flex-initial lg:px-8"
-                    disabled={transactionSubmitDisabled}
-                    type="submit"
-                  >
-                    {isSubmitting
-                      ? editingTransactionId
-                        ? "Saving..."
-                        : "Adding..."
-                      : editingTransactionId
-                        ? "Save Changes"
-                        : "Add Transaction"}
-                  </Button>
-                  {editingTransactionId && (
-                    <Button
-                      onClick={handleCancelEdit}
-                      type="button"
-                      variant="ghost"
-                    >
-                      Cancel
-                    </Button>
-                  )}
-                </div>
                 {submitError && (
                   <div className="col-span-full rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                     {submitError}
                   </div>
                 )}
-              </form>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-background">
-            <CardHeader>
-              <CardTitle>Transaction History</CardTitle>
-              <CardDescription>
-                Recent transactions for the selected account.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {transactions.length === 0 ? (
-                <div className="py-8 text-center text-sm text-muted-foreground">
-                  No transactions recorded for this account.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">
-                        <th className="pb-3 pr-4">Date</th>
-                        <th className="pb-3 pr-4">Asset</th>
-                        <th className="pb-3 pr-4">Type</th>
-                        <th className="pb-3 pr-4 text-right">Quantity</th>
-                        <th className="pb-3 pr-4 text-right">Price</th>
-                        <th className="pb-3 pr-4">Curr</th>
-                        <th className="pb-3 pr-4">Notes</th>
-                        <th className="pb-3 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {transactions.map((t) => {
-                        const asset = assets.find((a) => a.id === t.asset_id);
-                        return (
-                          <tr
-                            className={cn(
-                              "group transition-colors hover:bg-muted/30",
-                              editingTransactionId === t.id && "bg-muted/50",
-                            )}
-                            key={t.id}
-                          >
-                            <td className="py-3 pr-4 whitespace-nowrap tabular-nums">
-                              {t.trade_date}
-                            </td>
-                            <td className="py-3 pr-4">
-                              <div className="flex flex-col">
-                                <span className="font-bold">
-                                  {asset?.symbol || "Unknown"}
-                                </span>
-                                <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">
-                                  {asset?.name}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="py-3 pr-4">
-                              <span
-                                className={cn(
-                                  "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
-                                  t.transaction_type === "BUY"
-                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                    : "bg-amber-50 text-amber-700 border border-amber-200",
-                                )}
-                              >
-                                {t.transaction_type}
-                              </span>
-                            </td>
-                            <td className="py-3 pr-4 text-right font-mono tabular-nums">
-                              {t.quantity}
-                            </td>
-                            <td className="py-3 pr-4 text-right">
-                              <MoneyText
-                                className="text-right"
-                                hidden={hideValues}
-                                includeCurrency={false}
-                                value={t.unit_price}
-                              />
-                            </td>
-                            <td className="py-3 pr-4 font-mono text-muted-foreground text-[11px]">
-                              {t.currency_code}
-                            </td>
-                            <td
-                              className="py-3 pr-4 text-muted-foreground italic truncate max-w-[150px]"
-                              title={t.notes || ""}
-                            >
-                              {t.notes}
-                            </td>
-                            <td className="py-3 text-right">
-                              <div className="flex justify-end gap-1 transition-opacity">
-                                <Button
-                                  disabled={isDeleting !== null}
-                                  onClick={() => handleEdit(t)}
-                                  size="icon"
-                                  title="Edit transaction"
-                                  type="button"
-                                  variant="ghost"
-                                >
-                                  <PencilIcon />
-                                  <span className="sr-only">Edit</span>
-                                </Button>
-                                <Button
-                                  className="text-destructive hover:bg-destructive/10"
-                                  disabled={isDeleting !== null}
-                                  onClick={() => handleDelete(t.id)}
-                                  size="icon"
-                                  title="Delete transaction"
-                                  type="button"
-                                  variant="ghost"
-                                >
-                                  {isDeleting === t.id ? (
-                                    <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                  ) : (
-                                    <TrashIcon />
-                                  )}
-                                  <span className="sr-only">Delete</span>
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </>
+              </div>
+              <footer className="flex justify-end gap-3 border-t bg-muted/30 px-6 py-4 rounded-b-xl">
+                <Button
+                  onClick={() => setShowModal(false)}
+                  type="button"
+                  variant="outline"
+                >
+                  Cancel
+                </Button>
+                <Button disabled={transactionSubmitDisabled} type="submit">
+                  {isSubmitting
+                    ? editingTransactionId
+                      ? "Saving..."
+                      : "Adding..."
+                    : editingTransactionId
+                      ? "Save Changes"
+                      : "Add Transaction"}
+                </Button>
+              </footer>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -733,23 +666,6 @@ function TrashIcon() {
       <path d="M3 6h18" />
       <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
       <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-    </svg>
-  );
-}
-
-function XIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-4"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="M18 6L6 18M6 6l12 12" />
     </svg>
   );
 }
