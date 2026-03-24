@@ -85,6 +85,19 @@ export function AppShell() {
                       : "border-transparent text-muted-foreground hover:text-foreground",
                   )
                 }
+                to="/assets"
+              >
+                Assets
+              </NavLink>
+              <NavLink
+                className={({ isActive }) =>
+                  cn(
+                    "inline-flex items-center px-1 py-1 text-sm font-medium transition-colors border-b-2",
+                    isActive
+                      ? "border-foreground text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground",
+                  )
+                }
                 to="/transactions"
               >
                 Transactions

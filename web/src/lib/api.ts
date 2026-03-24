@@ -46,6 +46,24 @@ export type PortfolioSummaryResponse = {
   fx_refresh_error: string | null;
 };
 
+export type AssetResponse = {
+  id: number;
+  symbol: string;
+  name: string;
+  asset_type: string;
+  isin: string | null;
+};
+
+export type CreatedAssetResponse = {
+  id: number;
+  symbol: string;
+  name: string;
+  asset_type: string;
+  isin: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export function getApiBaseUrl() {
   return import.meta.env.VITE_API_BASE_URL?.trim() || "http://127.0.0.1:3000";
 }
@@ -83,6 +101,10 @@ export function getAccountBalanceApiUrl(accountId: string, currency: string) {
 
 export function getAssetsApiUrl() {
   return new URL("/assets", getApiBaseUrl()).toString();
+}
+
+export function getAssetDetailApiUrl(assetId: string | number) {
+  return new URL(`/assets/${assetId}`, getApiBaseUrl()).toString();
 }
 
 export function getTransactionsApiUrl(accountId?: string) {
