@@ -81,6 +81,17 @@ export function TransactionsPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
 
+  useEffect(() => {
+    if (showModal) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showModal]);
+
   const transactionSubmitDisabled = isSubmitting || assets.length === 0 || !formAssetId;
 
   useEffect(() => {
@@ -487,10 +498,10 @@ export function TransactionsPage() {
         createPortal(
           <div
             aria-modal="true"
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+            className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200"
             role="dialog"
           >
-            <div className="flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-xl border bg-background shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex my-auto max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-xl border bg-background shadow-2xl animate-in zoom-in-95 duration-200">
               <header className="flex-none border-b px-6 py-4">
                 <h2 className="text-lg font-semibold">
                   {editingTransactionId
