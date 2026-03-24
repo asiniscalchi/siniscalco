@@ -57,17 +57,17 @@ export function TransactionsHistoryCard({
             No transactions recorded.
           </div>
         ) : (
-          <div className="w-full overflow-x-auto">
+          <div className="min-w-0 w-full overflow-x-auto">
             <table className="w-full min-w-[800px] table-fixed text-sm">
               <thead>
                 <tr className="border-b text-left font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">
                   <th className="w-[100px] pb-3 pr-4">Date</th>
-                  <th className="pb-3 pr-4">Asset</th>
+                  <th className="w-[140px] pb-3 pr-4">Asset</th>
                   <th className="w-[80px] pb-3 pr-4">Type</th>
                   <th className="w-[100px] pb-3 pr-4 text-right">Quantity</th>
                   <th className="w-[100px] pb-3 pr-4 text-right">Price</th>
                   <th className="w-[60px] pb-3 pr-4">Curr</th>
-                  <th className="pb-3 pr-4">Notes</th>
+                  <th className="w-[130px] pb-3 pr-4">Notes</th>
                   {!isLocked && <th className="w-[90px] pb-3 text-right">Actions</th>}
                 </tr>
               </thead>

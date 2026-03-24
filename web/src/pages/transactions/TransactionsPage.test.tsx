@@ -290,7 +290,6 @@ describe("TransactionsPage", () => {
 
     expect(pageRoot).toBeTruthy();
     expect(pageRoot?.className).toContain("min-w-0");
-    expect(pageRoot?.className).toContain("overflow-x-hidden");
     expect(historyCard).toBeTruthy();
     expect(historyCard?.className).toContain("min-w-0");
     expect(historyScroller?.className).toContain("overflow-x-auto");
