@@ -1400,6 +1400,112 @@ async fn updates_asset_through_api() {
 }
 
 #[tokio::test]
+async fn deletes_asset_through_api() {
+    let pool = test_pool().await;
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    let app = build_router(pool.clone());
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/assets/{asset_id}"))
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("delete request should succeed");
+
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    let error = get_asset(&pool, asset_id)
+        .await
+        .expect_err("asset should be deleted");
+    match error {
+        crate::storage::StorageError::Database(sqlx::Error::RowNotFound) => {}
+        other => panic!("expected RowNotFound, got {other}"),
+    }
+}
+
+#[tokio::test]
+async fn rejects_deleting_asset_with_transactions_through_api() {
+    let pool = test_pool().await;
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2026-03-20"),
+            quantity: crate::AssetQuantity::try_from("1").unwrap(),
+            unit_price: crate::AssetUnitPrice::try_from("100").unwrap(),
+            currency_code: Currency::Usd,
+            notes: None,
+        },
+    )
+    .await
+    .expect("transaction insert should succeed");
+
+    let app = build_router(pool);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/assets/{asset_id}"))
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("delete request should succeed");
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+
+    assert_eq!(
+        std::str::from_utf8(&body).expect("json body should be utf8"),
+        r#"{"error":"conflict","message":"Asset has transactions and cannot be deleted"}"#
+    );
+}
+
+#[tokio::test]
 async fn gets_transaction_detail_through_api() {
     let pool = test_pool().await;
     let account_id = create_account(
