@@ -80,6 +80,43 @@ describe("TransactionsPage", () => {
     expect(screen.queryByText("Actions")).toBeNull();
   });
 
+  it("clears a transaction load error after a successful retry", async () => {
+    let transactionFetchCount = 0;
+
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/accounts")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify([
+              { id: 1, name: "Main Account", account_type: "bank", base_currency: "USD" },
+            ]),
+          ),
+        );
+      }
+      if (url.endsWith("/assets")) {
+        return Promise.resolve(new Response(JSON.stringify([])));
+      }
+      if (url.includes("/transactions")) {
+        transactionFetchCount += 1;
+        if (transactionFetchCount === 1) {
+          return Promise.resolve(new Response(null, { status: 500 }));
+        }
+        return Promise.resolve(new Response(JSON.stringify([])));
+      }
+      return Promise.reject(new Error(`Unhandled fetch request: ${url}`));
+    });
+
+    renderTransactionsPage();
+
+    expect(await screen.findByText("Failed to load transactions")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("No transactions recorded.")).toBeTruthy();
+    expect(screen.queryByText("Failed to load transactions")).toBeNull();
+  });
+
   it("loads transactions when an account is selected", async () => {
     const accounts = [
       { id: 1, name: "Main Account", account_type: "bank", base_currency: "USD" },
