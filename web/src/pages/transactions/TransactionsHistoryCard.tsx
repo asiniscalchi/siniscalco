@@ -150,7 +150,7 @@ export function TransactionsHistoryCard({
                             />
                           </dd>
                         </div>
-                        <div>
+                        <div className="text-right">
                           <dt className="text-[10px] text-muted-foreground">Curr</dt>
                           <dd className="mt-0.5 font-mono text-[10px] text-muted-foreground">
                             {transaction.currency_code}
