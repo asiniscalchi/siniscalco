@@ -20,10 +20,11 @@ import { MoneyText } from "@/lib/money";
 import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
 
-import type { AccountDetail } from "./types";
+import type { AccountAsset, AccountDetail } from "./types";
 
 type AccountDetailReadyStateProps = {
   account: AccountDetail;
+  assets: AccountAsset[];
   currencies: string[];
   onDeleteSuccess: () => void;
   onRefresh: () => void;
@@ -31,6 +32,7 @@ type AccountDetailReadyStateProps = {
 
 export function AccountDetailReadyState({
   account,
+  assets,
   currencies,
   onDeleteSuccess,
   onRefresh,
@@ -206,6 +208,61 @@ export function AccountDetailReadyState({
           </div>
         </CardContent>
       </Card>
+
+      <section className="space-y-4">
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold tracking-tight">Assets</h2>
+          <p className="text-sm text-muted-foreground">
+            Current asset positions held in this account.
+          </p>
+        </div>
+
+        {assets.length === 0 ? (
+          <Card className="border-dashed bg-background">
+            <CardHeader>
+              <CardTitle>No assets yet</CardTitle>
+              <CardDescription>
+                This account does not have any open asset positions yet.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        ) : (
+          <Card className="bg-background">
+            <CardContent className="pt-6">
+              <div className="w-full overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">
+                      <th className="pb-3 pr-4">Symbol</th>
+                      <th className="pb-3 pr-4">Name</th>
+                      <th className="pb-3 pr-4">Type</th>
+                      <th className="pb-3 pr-4 text-right">Quantity</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {assets.map((asset) => (
+                      <tr key={asset.asset_id}>
+                        <td className="py-3 pr-4 font-bold tabular-nums">
+                          {asset.symbol}
+                        </td>
+                        <td className="py-3 pr-4">{asset.name}</td>
+                        <td className="py-3 pr-4">
+                          <span className="inline-flex items-center rounded-full border bg-muted/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
+                            {asset.asset_type.replace("_", " ")}
+                          </span>
+                        </td>
+                        <td className="py-3 pr-4 text-right font-mono tabular-nums">
+                          {asset.quantity}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </section>
 
       <section className="space-y-4">
         <div className="space-y-1">

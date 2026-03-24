@@ -13,7 +13,16 @@ export type AccountDetail = {
   balances: AccountBalance[];
 };
 
+export type AccountAsset = {
+  asset_id: number;
+  symbol: string;
+  name: string;
+  asset_type: string;
+  quantity: string;
+};
+
 export type ReadyState = {
   account: AccountDetail;
   currencies: string[];
+  assets: AccountAsset[];
 };

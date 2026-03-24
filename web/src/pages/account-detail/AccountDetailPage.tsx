@@ -2,9 +2,13 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import {
+  getAccountPositionsApiUrl,
   getAccountDetailApiUrl,
+  getAssetsApiUrl,
   getCurrenciesApiUrl,
   readApiErrorMessage,
+  type AssetPositionResponse,
+  type AssetResponse,
   type CurrencyResponse,
 } from "@/lib/api";
 
@@ -57,13 +61,53 @@ export function AccountDetailPage() {
           throw new Error(message);
         }
 
-        const account = (await accountResponse.json()) as AccountDetail;
-        const currencies = (
-          (await currenciesResponse.json()) as CurrencyResponse[]
-        ).map((currency) => currency.code);
+        const [account, currencies] = await Promise.all([
+          accountResponse.json() as Promise<AccountDetail>,
+          currenciesResponse.json() as Promise<CurrencyResponse[]>,
+        ]);
+
+        const [positionsResult, assetsResult] = await Promise.allSettled([
+          Promise.resolve().then(() =>
+            fetch(getAccountPositionsApiUrl(resolvedAccountId)),
+          ),
+          Promise.resolve().then(() => fetch(getAssetsApiUrl())),
+        ]);
+
+        const positions =
+          positionsResult.status === "fulfilled" && positionsResult.value.ok
+            ? ((await positionsResult.value.json()) as AssetPositionResponse[])
+            : [];
+
+        const assets =
+          assetsResult.status === "fulfilled" && assetsResult.value.ok
+            ? ((await assetsResult.value.json()) as AssetResponse[])
+            : [];
+
+        const currenciesList = currencies.map((currency) => currency.code);
+        const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
+        const accountAssets = positions.flatMap((position) => {
+          const asset = assetsById.get(position.asset_id);
+
+          if (!asset) {
+            return [];
+          }
+
+          return [
+            {
+              asset_id: position.asset_id,
+              symbol: asset.symbol,
+              name: asset.name,
+              asset_type: asset.asset_type,
+              quantity: position.quantity,
+            },
+          ];
+        });
 
         if (!cancelled) {
-          setRequestState({ status: "ready", data: { account, currencies } });
+          setRequestState({
+            status: "ready",
+            data: { account, currencies: currenciesList, assets: accountAssets },
+          });
         }
       } catch (error) {
         if (!cancelled) {
@@ -101,6 +145,7 @@ export function AccountDetailPage() {
   return (
     <AccountDetailReadyState
       account={requestState.data.account}
+      assets={requestState.data.assets}
       currencies={requestState.data.currencies}
       onDeleteSuccess={() => navigate("/accounts")}
       onRefresh={() => setRetryToken((value) => value + 1)}
