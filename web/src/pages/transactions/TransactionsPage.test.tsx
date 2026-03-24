@@ -117,6 +117,49 @@ describe("TransactionsPage", () => {
     expect(screen.queryByText("Failed to load transactions")).toBeNull();
   });
 
+  it("retries initial data after a load failure", async () => {
+    let accountsFetchCount = 0;
+
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/accounts")) {
+        accountsFetchCount += 1;
+        if (accountsFetchCount === 1) {
+          return Promise.resolve(new Response(null, { status: 500 }));
+        }
+        return Promise.resolve(
+          new Response(
+            JSON.stringify([
+              { id: 1, name: "Main Account", account_type: "bank", base_currency: "USD" },
+            ]),
+          ),
+        );
+      }
+      if (url.endsWith("/assets")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify([
+              { id: 1, symbol: "AAPL", name: "Apple Inc", asset_type: "stock" },
+            ]),
+          ),
+        );
+      }
+      if (url.includes("/transactions")) {
+        return Promise.resolve(new Response(JSON.stringify([])));
+      }
+      return Promise.reject(new Error(`Unhandled fetch request: ${url}`));
+    });
+
+    renderTransactionsPage();
+
+    expect(await screen.findByText("Failed to load initial data")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("Showing all recorded transactions.")).toBeTruthy();
+    expect(screen.queryByText("Failed to load initial data")).toBeNull();
+  });
+
   it("loads transactions when an account is selected", async () => {
     const accounts = [
       { id: 1, name: "Main Account", account_type: "bank", base_currency: "USD" },
