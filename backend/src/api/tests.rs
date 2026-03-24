@@ -1,24 +1,28 @@
 use std::str::FromStr;
 
 use axum::{
+    Json, Router,
     body::Body,
     http::{Request, StatusCode},
     response::IntoResponse,
+    routing::get,
 };
 use http_body_util::BodyExt;
-use serde_json::Value;
+use serde_json::{Value, json};
 use sqlx::Row;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 use tower::ServiceExt;
 
 use super::{ApiError, AppState, build_router, build_router_with_state};
 use crate::{
-    AccountId, AccountName, AccountType, Amount, AssetName, AssetSymbol, AssetTransactionType,
-    AssetType, CreateAccountInput, CreateAssetInput, CreateAssetTransactionInput, Currency, FxRate,
-    FxRefreshAvailability, FxRefreshStatus, TradeDate, UpsertAccountBalanceInput,
-    UpsertFxRateInput, create_account, create_asset, create_asset_transaction, get_account,
-    get_asset, init_db, list_account_balances, upsert_account_balance, upsert_fx_rate,
+    AccountId, AccountName, AccountType, Amount, AssetName, AssetPriceRefreshConfig, AssetSymbol,
+    AssetTransactionType, AssetType, CreateAccountInput, CreateAssetInput,
+    CreateAssetTransactionInput, Currency, FxRate, FxRefreshAvailability, FxRefreshStatus,
+    TradeDate, UpsertAccountBalanceInput, UpsertFxRateInput, create_account, create_asset,
+    create_asset_transaction, get_account, get_asset, init_db, list_account_balances,
+    upsert_account_balance, upsert_fx_rate,
 };
 
 fn amt(value: &str) -> Amount {
@@ -75,7 +79,44 @@ fn build_router_with_fx_status(
             availability,
             last_error: last_error.map(str::to_string),
         })),
+        asset_price_refresh_config: AssetPriceRefreshConfig {
+            refresh_interval: std::time::Duration::from_secs(60),
+            base_url: "http://127.0.0.1:1".to_string(),
+            api_key: None,
+        },
     })
+}
+
+fn build_router_with_asset_price_config(
+    pool: sqlx::SqlitePool,
+    config: AssetPriceRefreshConfig,
+) -> axum::Router {
+    build_router_with_state(AppState {
+        pool,
+        fx_refresh_status: std::sync::Arc::new(RwLock::new(FxRefreshStatus::available())),
+        asset_price_refresh_config: config,
+    })
+}
+
+async fn start_test_quote_server(payload: serde_json::Value) -> String {
+    let app = Router::new().route(
+        "/quote",
+        get(move || {
+            let payload = payload.clone();
+            async move { Json(payload) }
+        }),
+    );
+
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("listener should bind");
+    let address = listener.local_addr().expect("listener should expose addr");
+
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("server should run");
+    });
+
+    format!("http://{address}")
 }
 
 #[tokio::test]
@@ -219,6 +260,53 @@ async fn creates_assets_through_api_with_normalized_fields() {
     );
     assert_eq!(row.get::<String, _>("asset_type"), "ETF");
     assert_eq!(row.get::<Option<String>, _>("isin"), None);
+}
+
+#[tokio::test]
+async fn creates_asset_and_fetches_price_immediately_through_api() {
+    let pool = test_pool().await;
+    let base_url = start_test_quote_server(json!({
+        "close": "150.25",
+        "currency": "USD",
+        "datetime": "2026-03-24T12:30:00+00:00"
+    }))
+    .await;
+    let app = build_router_with_asset_price_config(
+        pool.clone(),
+        AssetPriceRefreshConfig {
+            refresh_interval: std::time::Duration::from_secs(60),
+            base_url,
+            api_key: Some("test-key".to_string()),
+        },
+    );
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/assets")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"symbol":"META","name":"Meta Platforms","asset_type":"STOCK","isin":null}"#,
+                ))
+                .expect("request should build"),
+        )
+        .await
+        .expect("create asset request should succeed");
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+    let json: Value = serde_json::from_slice(&body).expect("asset body should parse");
+
+    assert_eq!(json["current_price"], "150.250000");
+    assert_eq!(json["current_price_currency"], "USD");
+    assert_eq!(json["current_price_as_of"], "2026-03-24T12:30:00Z");
 }
 
 #[tokio::test]
@@ -1409,6 +1497,63 @@ async fn updates_asset_through_api() {
     assert_eq!(updated.symbol.as_str(), "MSFT");
     assert_eq!(updated.name.as_str(), "Microsoft");
     assert_eq!(updated.isin.as_deref(), Some("US5949181045"));
+}
+
+#[tokio::test]
+async fn updates_asset_and_fetches_price_immediately_through_api() {
+    let pool = test_pool().await;
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("META"),
+            name: asset_name("Meta Platforms"),
+            asset_type: AssetType::Stock,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+    let base_url = start_test_quote_server(json!({
+        "close": "211.10",
+        "currency": "USD",
+        "datetime": "2026-03-24 15:45:00"
+    }))
+    .await;
+    let app = build_router_with_asset_price_config(
+        pool.clone(),
+        AssetPriceRefreshConfig {
+            refresh_interval: std::time::Duration::from_secs(60),
+            base_url,
+            api_key: Some("test-key".to_string()),
+        },
+    );
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(format!("/assets/{asset_id}"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"symbol":"meta","name":"Meta Platforms","asset_type":"STOCK","quote_symbol":"META","isin":null}"#,
+                ))
+                .expect("request should build"),
+        )
+        .await
+        .expect("update request should succeed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let updated = get_asset(&pool, asset_id)
+        .await
+        .expect("asset should exist");
+    assert_eq!(updated.current_price.unwrap().to_string(), "211.1");
+    assert_eq!(updated.current_price_currency, Some(Currency::Usd));
+    assert_eq!(
+        updated.current_price_as_of.as_deref(),
+        Some("2026-03-24T15:45:00Z")
+    );
 }
 
 #[tokio::test]

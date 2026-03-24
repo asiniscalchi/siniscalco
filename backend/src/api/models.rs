@@ -8,12 +8,15 @@ use serde_json::{Value, json};
 use sqlx::SqlitePool;
 use std::collections::BTreeMap;
 
-use crate::{AssetType, Currency, SharedFxRefreshStatus, storage::StorageError};
+use crate::{
+    AssetPriceRefreshConfig, AssetType, Currency, SharedFxRefreshStatus, storage::StorageError,
+};
 
 #[derive(Clone)]
 pub struct AppState {
     pub pool: SqlitePool,
     pub fx_refresh_status: SharedFxRefreshStatus,
+    pub asset_price_refresh_config: AssetPriceRefreshConfig,
 }
 
 #[derive(Debug, Deserialize, Eq, PartialEq)]

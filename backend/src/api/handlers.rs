@@ -15,15 +15,17 @@ use crate::{
     FxRateDetailRecord, FxRateSummaryItemRecord, FxRateSummaryRecord, PRODUCT_BASE_CURRENCY,
     PortfolioAccountTotalRecord, PortfolioCashByCurrencyRecord, PortfolioSummaryRecord, TradeDate,
     UpdateAccountInput, UpdateAssetInput, UpdateAssetTransactionInput, UpsertAccountBalanceInput,
-    UpsertOutcome, compact_decimal_output, create_asset, create_asset_transaction, delete_account,
-    delete_account_balance, delete_asset, delete_asset_transaction, get_account, get_asset,
-    get_latest_fx_rate, get_portfolio_summary, get_transaction, list_account_balances,
-    list_account_positions, list_account_summaries, list_asset_transactions, list_assets,
-    list_currencies, list_fx_rate_summary, list_transactions, normalize_amount_output,
-    storage::StorageError, update_account, update_asset, update_asset_transaction,
-    upsert_account_balance,
+    UpsertAssetPriceInput, UpsertOutcome, compact_decimal_output, create_asset,
+    create_asset_transaction, delete_account, delete_account_balance, delete_asset,
+    delete_asset_transaction, fetch_twelve_data_quote, get_account, get_asset, get_latest_fx_rate,
+    get_portfolio_summary, get_transaction, list_account_balances, list_account_positions,
+    list_account_summaries, list_asset_transactions, list_assets, list_currencies,
+    list_fx_rate_summary, list_transactions, normalize_amount_output, storage::StorageError,
+    update_account, update_asset, update_asset_transaction, upsert_account_balance,
+    upsert_asset_price,
 };
 use std::collections::BTreeMap;
+use tracing::warn;
 
 pub(crate) async fn health() -> &'static str {
     "ok"
@@ -89,6 +91,7 @@ pub(crate) async fn create_asset_handler(
     let asset_id = create_asset(&state.pool, input)
         .await
         .map_err(CreateAssetApiError::from)?;
+    refresh_asset_price_on_write(&state, asset_id).await;
     let asset = get_asset(&state.pool, asset_id)
         .await
         .map_err(CreateAssetApiError::from)?;
@@ -122,7 +125,7 @@ pub(crate) async fn update_asset_handler(
     let asset_id = AssetId::try_from(asset_id).map_err(CreateAssetApiError::from)?;
     let input = validate_create_asset_request(request)?;
 
-    let asset = update_asset(
+    update_asset(
         &state.pool,
         asset_id,
         UpdateAssetInput {
@@ -140,6 +143,10 @@ pub(crate) async fn update_asset_handler(
         }
         other => CreateAssetApiError::from(other),
     })?;
+    refresh_asset_price_on_write(&state, asset_id).await;
+    let asset = get_asset(&state.pool, asset_id)
+        .await
+        .map_err(CreateAssetApiError::from)?;
 
     Ok(Json(to_created_asset_response(asset)))
 }
@@ -666,6 +673,58 @@ fn to_balance_response(balance: AccountBalanceRecord) -> BalanceResponse {
         currency: balance.currency,
         amount: normalize_amount_output(&balance.amount.to_string()),
         updated_at: balance.updated_at,
+    }
+}
+
+async fn refresh_asset_price_on_write(state: &AppState, asset_id: AssetId) {
+    if !state.asset_price_refresh_config.is_enabled() {
+        return;
+    }
+
+    let asset = match get_asset(&state.pool, asset_id).await {
+        Ok(asset) => asset,
+        Err(error) => {
+            warn!(asset_id = asset_id.as_i64(), error = %error, "failed to load asset for immediate price refresh");
+            return;
+        }
+    };
+
+    let api_key = match state.asset_price_refresh_config.api_key.as_deref() {
+        Some(api_key) => api_key,
+        None => return,
+    };
+    let symbol = asset
+        .quote_symbol
+        .as_deref()
+        .unwrap_or_else(|| asset.symbol.as_str());
+    let client = reqwest::Client::new();
+
+    match fetch_twelve_data_quote(
+        &client,
+        &state.asset_price_refresh_config.base_url,
+        api_key,
+        symbol,
+    )
+    .await
+    {
+        Ok(quote) => {
+            if let Err(error) = upsert_asset_price(
+                &state.pool,
+                UpsertAssetPriceInput {
+                    asset_id,
+                    price: quote.price,
+                    currency: quote.currency,
+                    as_of: quote.as_of,
+                },
+            )
+            .await
+            {
+                warn!(asset_id = asset_id.as_i64(), symbol, error = %error, "failed to persist immediate asset price");
+            }
+        }
+        Err(error) => {
+            warn!(asset_id = asset_id.as_i64(), symbol, error = %error, "failed to fetch immediate asset price");
+        }
     }
 }
 

@@ -19,13 +19,14 @@ async fn main() {
     match connect_db_file("data/app.db").await {
         Ok(pool) => {
             let fx_refresh_status = new_shared_fx_refresh_status();
+            let asset_price_refresh_config = AssetPriceRefreshConfig::load();
             let app = build_router_with_state(AppState {
                 pool: pool.clone(),
                 fx_refresh_status: fx_refresh_status.clone(),
+                asset_price_refresh_config: asset_price_refresh_config.clone(),
             });
             let address = SocketAddr::from(([0, 0, 0, 0], 3000));
             let fx_refresh_config = FxRefreshConfig::load();
-            let asset_price_refresh_config = AssetPriceRefreshConfig::load();
 
             log_fx_refresh_configuration(&fx_refresh_config);
             log_asset_price_refresh_configuration(&asset_price_refresh_config);
