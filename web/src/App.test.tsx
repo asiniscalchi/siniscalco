@@ -88,7 +88,7 @@ describe("App shell", () => {
     renderApp(["/accounts"]);
 
     expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/health$/));
-    expect(await screen.findByText("connected")).toBeTruthy();
+    expect(await screen.findByTitle("Backend: connected")).toBeTruthy();
   });
 
   it("shows unavailable when the health request returns a non-success status", async () => {
@@ -146,7 +146,7 @@ describe("App shell", () => {
 
     renderApp(["/accounts"]);
 
-    expect(await screen.findByText("unavailable")).toBeTruthy();
+    expect(await screen.findByTitle("Backend: unavailable")).toBeTruthy();
   });
 
   it("renders the shell while page content and health are still loading", () => {
@@ -156,7 +156,7 @@ describe("App shell", () => {
 
     expect(screen.getByText("Siniscalco")).toBeTruthy();
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeTruthy();
-    expect(screen.getByText("checking")).toBeTruthy();
+    expect(screen.getByTitle("Backend: checking")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Portfolio" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Accounts" })).toBeTruthy();
   });
@@ -272,13 +272,13 @@ describe("App shell", () => {
     expect(accountsLink.className).toContain("border-foreground");
 
     expect(await screen.findByText("IBKR")).toBeTruthy();
-    expect(screen.getByText("connected")).toBeTruthy();
+    expect(screen.getByTitle("Backend: connected")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("link", { name: "Create account" }));
 
     expect(await screen.findByText("New Account")).toBeTruthy();
     expect(screen.getByText("Siniscalco")).toBeTruthy();
-    expect(screen.getByText("connected")).toBeTruthy();
+    expect(screen.getByTitle("Backend: connected")).toBeTruthy();
     expect(
       screen
         .getByRole("link", { name: "Accounts" })
@@ -295,7 +295,7 @@ describe("App shell", () => {
 
     expect(await screen.findByText("Account Summary")).toBeTruthy();
     expect(screen.getByText("Siniscalco")).toBeTruthy();
-    expect(screen.getByText("connected")).toBeTruthy();
+    expect(screen.getByTitle("Backend: connected")).toBeTruthy();
     expect(
       screen
         .getByRole("link", { name: "Accounts" })
