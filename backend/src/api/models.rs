@@ -219,6 +219,16 @@ impl ApiError {
         }
     }
 
+    pub(crate) fn conflict(message: &'static str) -> Self {
+        Self {
+            status: StatusCode::CONFLICT,
+            body: ApiErrorResponse {
+                error: "conflict",
+                message,
+            },
+        }
+    }
+
     pub(crate) fn internal_server_error() -> Self {
         Self {
             status: StatusCode::INTERNAL_SERVER_ERROR,

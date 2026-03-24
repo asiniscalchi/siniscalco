@@ -37,7 +37,9 @@ pub fn build_router_with_state(state: AppState) -> Router {
         )
         .route(
             "/assets/{asset_id}",
-            get(get_asset_handler).put(update_asset_handler),
+            get(get_asset_handler)
+                .put(update_asset_handler)
+                .delete(delete_asset_handler),
         )
         .route(
             "/transactions",

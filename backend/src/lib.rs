@@ -24,7 +24,7 @@ pub use storage::{
     PortfolioCashByCurrencyRecord, PortfolioSummaryRecord, TradeDate, UpdateAccountInput,
     UpdateAssetInput, UpdateAssetTransactionInput, UpsertAccountBalanceInput, UpsertFxRateInput,
     UpsertOutcome, create_account, create_asset, create_asset_transaction, current_utc_timestamp,
-    current_utc_timestamp_iso8601, delete_account, delete_account_balance,
+    current_utc_timestamp_iso8601, delete_account, delete_account_balance, delete_asset,
     delete_asset_transaction, get_account, get_asset, get_latest_fx_rate, get_portfolio_summary,
     get_transaction, list_account_balances, list_account_positions, list_account_summaries,
     list_accounts, list_asset_transactions, list_assets, list_currencies, list_fx_rate_summary,
