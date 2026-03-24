@@ -74,6 +74,15 @@ describe("TransactionsPage", () => {
 
     expect(await screen.findByText("Showing all recorded transactions.")).toBeTruthy();
     expect(screen.getByTitle("All trans")).toBeTruthy();
+    const historyCard = screen
+      .getByText("Transaction History")
+      .closest('[data-slot="card"]');
+    const mobileList = historyCard?.querySelector(".sm\\:hidden");
+
+    expect(within(mobileList as HTMLElement).getByText("10")).toBeTruthy();
+    expect(within(mobileList as HTMLElement).getByText("150")).toBeTruthy();
+    expect(within(mobileList as HTMLElement).queryByText("10.00")).toBeNull();
+    expect(within(mobileList as HTMLElement).queryByText("150.00")).toBeNull();
     expect((screen.getByRole("button", { name: "Add Transaction" }) as HTMLButtonElement).disabled).toBe(true);
 
     expect(screen.queryByText("Actions")).toBeNull();

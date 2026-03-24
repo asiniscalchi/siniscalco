@@ -25,6 +25,10 @@ type TransactionsHistoryCardProps = {
   onDeleteClick: (transactionId: number) => void;
 };
 
+function trimTrailingZeros(value: string) {
+  return value.replace(/\.?0+$/, "");
+}
+
 export function TransactionsHistoryCard({
   accounts,
   assets,
@@ -136,7 +140,7 @@ export function TransactionsHistoryCard({
                         <div className="text-center">
                           <dt className="text-[10px] text-muted-foreground">Qty</dt>
                           <dd className="mt-0.5 font-medium tabular-nums">
-                            {transaction.quantity}
+                            {trimTrailingZeros(transaction.quantity)}
                           </dd>
                         </div>
                         <div className="text-center">
@@ -146,6 +150,8 @@ export function TransactionsHistoryCard({
                               className="text-sm"
                               hidden={hideValues}
                               includeCurrency={false}
+                              maximumFractionDigits={8}
+                              minimumFractionDigits={0}
                               value={transaction.unit_price}
                             />
                           </dd>
@@ -224,13 +230,15 @@ export function TransactionsHistoryCard({
                           </span>
                         </td>
                         <td className="py-3 pr-4 text-right font-mono tabular-nums">
-                          {transaction.quantity}
+                          {trimTrailingZeros(transaction.quantity)}
                         </td>
                         <td className="py-3 pr-4 text-right">
                           <MoneyText
                             className="text-right"
                             hidden={hideValues}
                             includeCurrency={false}
+                            maximumFractionDigits={8}
+                            minimumFractionDigits={0}
                             value={transaction.unit_price}
                           />
                         </td>
