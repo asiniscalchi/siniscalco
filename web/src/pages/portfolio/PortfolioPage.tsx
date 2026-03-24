@@ -5,9 +5,9 @@ import {
   type PortfolioSummaryResponse,
 } from "@/lib/api";
 
-import { PortfolioErrorState } from "./portfolio/PortfolioErrorState";
-import { PortfolioLoadingState } from "./portfolio/PortfolioLoadingState";
-import { PortfolioReadyState } from "./portfolio/PortfolioReadyState";
+import { PortfolioErrorState } from "./PortfolioErrorState";
+import { PortfolioLoadingState } from "./PortfolioLoadingState";
+import { PortfolioReadyState } from "./PortfolioReadyState";
 
 type PortfolioSummary = PortfolioSummaryResponse;
 
