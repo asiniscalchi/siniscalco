@@ -11,7 +11,8 @@ import {
 import {
   getAccountsApiUrl,
   getAssetsApiUrl,
-  getTransactionsApiUrl,
+  getAssetTransactionDetailApiUrl,
+  getAssetTransactionsApiUrl,
   readApiErrorMessage,
 } from "@/lib/api";
 import { MoneyText } from "@/lib/money";
@@ -55,6 +56,7 @@ export function TransactionsPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Form state
+  const [editingTransactionId, setEditingTransactionId] = useState<number | null>(null);
   const [formAssetId, setFormAssetId] = useState("");
   const [formType, setFormType] = useState<"BUY" | "SELL">("BUY");
   const [formTradeDate, setFormTradeDate] = useState(
@@ -66,6 +68,7 @@ export function TransactionsPage() {
   const [formNotes, setFormNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState<number | null>(null);
 
   // Create Asset Modal State
   const [showCreateAssetModal, setShowCreateAssetModal] = useState(false);
@@ -166,14 +169,82 @@ export function TransactionsPage() {
 
     // Default currency based on selected account
     const account = accounts.find((a) => String(a.id) === selectedAccountId);
-    if (account) {
+    if (account && !editingTransactionId) {
       setFormCurrency(account.base_currency);
     }
 
     return () => {
       cancelled = true;
     };
-  }, [selectedAccountId, accounts]);
+  }, [selectedAccountId, accounts, editingTransactionId]);
+
+  const resetForm = () => {
+    setEditingTransactionId(null);
+    setFormAssetId("");
+    setFormQuantity("");
+    setFormUnitPrice("");
+    setFormNotes("");
+    setFormType("BUY");
+    setFormTradeDate(new Date().toISOString().split("T")[0]);
+    setSubmitError(null);
+
+    // Reset currency based on selected account
+    const account = accounts.find((a) => String(a.id) === selectedAccountId);
+    if (account) {
+      setFormCurrency(account.base_currency);
+    }
+  };
+
+  const handleEdit = (t: Transaction) => {
+    setEditingTransactionId(t.id);
+    setFormAssetId(String(t.asset_id));
+    setFormType(t.transaction_type);
+    setFormTradeDate(t.trade_date);
+    setFormQuantity(t.quantity);
+    setFormUnitPrice(t.unit_price);
+    setFormCurrency(t.currency_code);
+    setFormNotes(t.notes || "");
+    setSubmitError(null);
+
+    // Scroll to form
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleCancelEdit = () => {
+    resetForm();
+  };
+
+  const handleDelete = async (transactionId: number) => {
+    if (!window.confirm("Are you sure you want to delete this transaction?")) {
+      return;
+    }
+
+    setIsDeleting(transactionId);
+    try {
+      const res = await fetch(getAssetTransactionDetailApiUrl(transactionId), {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const msg = await readApiErrorMessage(res, "Failed to delete transaction");
+        alert(msg);
+        return;
+      }
+
+      // Refresh transactions
+      const transRes = await fetch(
+        getAssetTransactionsApiUrl(selectedAccountId),
+      );
+      if (transRes.ok) {
+        const transData = (await transRes.json()) as Transaction[];
+        setTransactions(transData);
+      }
+    } catch {
+      alert("Network error while deleting transaction");
+    } finally {
+      setIsDeleting(null);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -192,8 +263,13 @@ export function TransactionsPage() {
         notes: formNotes || null,
       };
 
-      const res = await fetch(getTransactionsApiUrl(), {
-        method: "POST",
+      const url = editingTransactionId
+        ? getAssetTransactionDetailApiUrl(editingTransactionId)
+        : getAssetTransactionsApiUrl();
+      const method = editingTransactionId ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -201,17 +277,16 @@ export function TransactionsPage() {
       if (!res.ok) {
         const msg = await readApiErrorMessage(
           res,
-          "Failed to create transaction",
+          editingTransactionId
+            ? "Failed to update transaction"
+            : "Failed to create transaction",
         );
         setSubmitError(msg);
         return;
       }
 
       // Success - reset form
-      setFormAssetId("");
-      setFormQuantity("");
-      setFormUnitPrice("");
-      setFormNotes("");
+      resetForm();
 
       // Refresh transactions
       const transRes = await fetch(
@@ -365,23 +440,44 @@ export function TransactionsPage() {
             <CardHeader>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="space-y-1">
-                  <CardTitle>Add Transaction</CardTitle>
+                  <CardTitle>
+                    {editingTransactionId ? "Edit Transaction" : "Add Transaction"}
+                  </CardTitle>
                   <CardDescription>
                     {assets.length === 0
                       ? "Create an asset first, then return here to record the transaction."
-                      : "Record a new BUY or SELL transaction for this account."}
+                      : editingTransactionId
+                        ? "Modify the details of this transaction."
+                        : "Record a new BUY or SELL transaction for this account."}
                   </CardDescription>
                 </div>
-                <Button
-                  onClick={() => {
-                    resetCreateAssetForm();
-                    setShowCreateAssetModal(true);
-                  }}
-                  type="button"
-                  variant="outline"
-                >
-                  Create Asset
-                </Button>
+                <div className="flex gap-2">
+                  {editingTransactionId && (
+                    <Button
+                      onClick={handleCancelEdit}
+                      size="icon"
+                      title="Cancel edit"
+                      type="button"
+                      variant="outline"
+                    >
+                      <XIcon />
+                      <span className="sr-only">Cancel edit</span>
+                    </Button>
+                  )}
+                  <Button
+                    onClick={() => {
+                      resetCreateAssetForm();
+                      setShowCreateAssetModal(true);
+                    }}
+                    size="icon"
+                    title="Create Asset"
+                    type="button"
+                    variant="outline"
+                  >
+                    <PlusIcon />
+                    <span className="sr-only">Create Asset</span>
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-5">
@@ -541,14 +637,29 @@ export function TransactionsPage() {
                     value={formNotes}
                   />
                 </div>
-                <div className="flex items-end sm:col-span-2 lg:col-span-4">
+                <div className="flex items-end gap-3 sm:col-span-2 lg:col-span-4">
                   <Button
-                    className="w-full lg:w-auto lg:px-8"
+                    className="flex-1 lg:flex-initial lg:px-8"
                     disabled={transactionSubmitDisabled}
                     type="submit"
                   >
-                    {isSubmitting ? "Adding..." : "Add Transaction"}
+                    {isSubmitting
+                      ? editingTransactionId
+                        ? "Saving..."
+                        : "Adding..."
+                      : editingTransactionId
+                        ? "Save Changes"
+                        : "Add Transaction"}
                   </Button>
+                  {editingTransactionId && (
+                    <Button
+                      onClick={handleCancelEdit}
+                      type="button"
+                      variant="ghost"
+                    >
+                      Cancel
+                    </Button>
+                  )}
                 </div>
                 {submitError && (
                   <div className="col-span-full rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -582,7 +693,8 @@ export function TransactionsPage() {
                         <th className="pb-3 pr-4 text-right">Quantity</th>
                         <th className="pb-3 pr-4 text-right">Price</th>
                         <th className="pb-3 pr-4">Curr</th>
-                        <th className="pb-3">Notes</th>
+                        <th className="pb-3 pr-4">Notes</th>
+                        <th className="pb-3 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -590,7 +702,10 @@ export function TransactionsPage() {
                         const asset = assets.find((a) => a.id === t.asset_id);
                         return (
                           <tr
-                            className="group transition-colors hover:bg-muted/30"
+                            className={cn(
+                              "group transition-colors hover:bg-muted/30",
+                              editingTransactionId === t.id && "bg-muted/50",
+                            )}
                             key={t.id}
                           >
                             <td className="py-3 pr-4 whitespace-nowrap tabular-nums">
@@ -633,10 +748,41 @@ export function TransactionsPage() {
                               {t.currency_code}
                             </td>
                             <td
-                              className="py-3 text-muted-foreground italic truncate max-w-[150px]"
+                              className="py-3 pr-4 text-muted-foreground italic truncate max-w-[150px]"
                               title={t.notes || ""}
                             >
                               {t.notes}
+                            </td>
+                            <td className="py-3 text-right">
+                              <div className="flex justify-end gap-1 transition-opacity">
+                                <Button
+                                  disabled={isDeleting !== null}
+                                  onClick={() => handleEdit(t)}
+                                  size="icon"
+                                  title="Edit transaction"
+                                  type="button"
+                                  variant="ghost"
+                                >
+                                  <PencilIcon />
+                                  <span className="sr-only">Edit</span>
+                                </Button>
+                                <Button
+                                  className="text-destructive hover:bg-destructive/10"
+                                  disabled={isDeleting !== null}
+                                  onClick={() => handleDelete(t.id)}
+                                  size="icon"
+                                  title="Delete transaction"
+                                  type="button"
+                                  variant="ghost"
+                                >
+                                  {isDeleting === t.id ? (
+                                    <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                  ) : (
+                                    <TrashIcon />
+                                  )}
+                                  <span className="sr-only">Delete</span>
+                                </Button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -769,5 +915,76 @@ export function TransactionsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="size-4"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M5 12h14m-7-7v14" />
+    </svg>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="size-4"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+      <path d="m15 5 4 4" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="size-4"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M3 6h18" />
+      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+    </svg>
+  );
+}
+
+function XIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="size-4"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M18 6L6 18M6 6l12 12" />
+    </svg>
   );
 }
