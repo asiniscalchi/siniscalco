@@ -57,6 +57,35 @@ pub async fn get_asset(pool: &SqlitePool, asset_id: AssetId) -> Result<AssetReco
     map_asset_row(row)
 }
 
+pub async fn update_asset(
+    pool: &SqlitePool,
+    asset_id: AssetId,
+    input: UpdateAssetInput,
+) -> Result<AssetRecord, StorageError> {
+    let timestamp = current_utc_timestamp_iso8601()?;
+    let result = sqlx::query(
+        r#"
+        UPDATE assets
+        SET symbol = ?, name = ?, asset_type = ?, isin = ?, updated_at = ?
+        WHERE id = ?
+        "#,
+    )
+    .bind(input.symbol.as_str())
+    .bind(input.name.as_str())
+    .bind(input.asset_type.as_str())
+    .bind(input.isin.as_deref())
+    .bind(&timestamp)
+    .bind(asset_id.as_i64())
+    .execute(pool)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(StorageError::Database(sqlx::Error::RowNotFound));
+    }
+
+    get_asset(pool, asset_id).await
+}
+
 fn map_asset_row(row: sqlx::sqlite::SqliteRow) -> Result<AssetRecord, StorageError> {
     Ok(AssetRecord {
         id: AssetId::try_from(row.get::<i64, _>("id"))?,

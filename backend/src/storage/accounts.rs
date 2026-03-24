@@ -65,6 +65,32 @@ pub async fn get_account(
     })
 }
 
+pub async fn update_account(
+    pool: &SqlitePool,
+    account_id: AccountId,
+    input: UpdateAccountInput,
+) -> Result<AccountRecord, StorageError> {
+    let result = sqlx::query(
+        r#"
+        UPDATE accounts
+        SET name = ?, account_type = ?, base_currency = ?
+        WHERE id = ?
+        "#,
+    )
+    .bind(input.name.as_str())
+    .bind(input.account_type.as_str())
+    .bind(input.base_currency.as_str())
+    .bind(account_id.as_i64())
+    .execute(pool)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(StorageError::Database(sqlx::Error::RowNotFound));
+    }
+
+    get_account(pool, account_id).await
+}
+
 pub async fn delete_account(pool: &SqlitePool, account_id: AccountId) -> Result<(), StorageError> {
     let result = sqlx::query("DELETE FROM accounts WHERE id = ?")
         .bind(account_id.as_i64())

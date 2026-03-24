@@ -36,12 +36,18 @@ pub fn build_router_with_state(state: AppState) -> Router {
             get(list_assets_handler).post(create_asset_handler),
         )
         .route(
-            "/asset-transactions",
-            get(list_asset_transactions_handler).post(create_asset_transaction_handler),
+            "/assets/{asset_id}",
+            get(get_asset_handler).put(update_asset_handler),
         )
         .route(
-            "/asset-transactions/{transaction_id}",
-            put(update_asset_transaction_handler).delete(delete_asset_transaction_handler),
+            "/transactions",
+            get(list_transactions_handler).post(create_transaction_handler),
+        )
+        .route(
+            "/transactions/{transaction_id}",
+            get(get_transaction_handler)
+                .put(update_transaction_handler)
+                .delete(delete_transaction_handler),
         )
         .route("/currencies", get(list_currencies_handler))
         .route("/fx-rates", get(get_fx_rate_summary_handler))
@@ -56,7 +62,13 @@ pub fn build_router_with_state(state: AppState) -> Router {
         )
         .route(
             "/accounts/{account_id}",
-            get(get_account_handler).delete(delete_account_handler),
+            get(get_account_handler)
+                .put(update_account_handler)
+                .delete(delete_account_handler),
+        )
+        .route(
+            "/accounts/{account_id}/balances",
+            get(list_account_balances_handler),
         )
         .route(
             "/accounts/{account_id}/positions",

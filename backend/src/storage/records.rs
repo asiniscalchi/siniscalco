@@ -39,7 +39,20 @@ pub struct CreateAccountInput {
     pub base_currency: Currency,
 }
 
+pub struct UpdateAccountInput {
+    pub name: AccountName,
+    pub account_type: AccountType,
+    pub base_currency: Currency,
+}
+
 pub struct CreateAssetInput {
+    pub symbol: AssetSymbol,
+    pub name: AssetName,
+    pub asset_type: AssetType,
+    pub isin: Option<String>,
+}
+
+pub struct UpdateAssetInput {
     pub symbol: AssetSymbol,
     pub name: AssetName,
     pub asset_type: AssetType,

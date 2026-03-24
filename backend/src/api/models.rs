@@ -248,6 +248,13 @@ impl CreateAssetApiError {
         }
     }
 
+    pub(crate) fn not_found(message: &'static str) -> Self {
+        Self {
+            status: StatusCode::NOT_FOUND,
+            body: json!({ "message": message }),
+        }
+    }
+
     pub(crate) fn internal_server_error() -> Self {
         Self {
             status: StatusCode::INTERNAL_SERVER_ERROR,
