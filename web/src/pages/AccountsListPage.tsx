@@ -127,7 +127,7 @@ export function AccountsListPage() {
         </div>
         <Link
           aria-label="Create account"
-          className={cn(buttonVariants({ size: "icon-lg" }))}
+          className={cn(buttonVariants({ size: "icon-lg" }), "self-end")}
           title="Create account"
           to="/accounts/new"
         >

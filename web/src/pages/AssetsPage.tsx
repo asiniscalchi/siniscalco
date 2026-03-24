@@ -230,7 +230,7 @@ export function AssetsPage() {
             Manage the assets you use in transactions.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end gap-2">
           <Button
             aria-label={isLocked ? "Unlock edit mode" : "Lock edit mode"}
             className={cn(
