@@ -162,6 +162,57 @@ describe("TransactionsPage", () => {
     expect(controlsRow?.className).toContain("flex-wrap");
   });
 
+  it("keeps non-empty transaction history constrained on mobile when edit mode is unlocked", async () => {
+    const accounts = [
+      { id: 1, name: "Main Account", account_type: "bank", base_currency: "USD" },
+    ];
+    const assets = [
+      { id: 1, symbol: "AAPL", name: "Apple Inc", asset_type: "stock" },
+    ];
+    const transactions = [
+      {
+        id: 1,
+        account_id: 1,
+        asset_id: 1,
+        transaction_type: "BUY",
+        trade_date: "2026-03-23",
+        quantity: "10.00000000",
+        unit_price: "150.00000000",
+        currency_code: "USD",
+        notes: "Overflow regression",
+      },
+    ];
+
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/accounts")) {
+        return Promise.resolve(new Response(JSON.stringify(accounts)));
+      }
+      if (url.endsWith("/assets")) {
+        return Promise.resolve(new Response(JSON.stringify(assets)));
+      }
+      if (url.includes("/transactions")) {
+        return Promise.resolve(new Response(JSON.stringify(transactions)));
+      }
+      return Promise.reject(new Error(`Unhandled fetch request: ${url}`));
+    });
+
+    renderTransactionsPage();
+
+    await screen.findByText("Overflow regression");
+    await unlockEditMode();
+
+    const historyCard = screen
+      .getByText("Transaction History")
+      .closest('[data-slot="card"]');
+    const historyScroller = screen.getByRole("table").parentElement;
+
+    expect(historyCard).toBeTruthy();
+    expect(historyCard?.className).toContain("min-w-0");
+    expect(historyScroller?.className).toContain("overflow-x-auto");
+    expect(screen.getByText("Actions")).toBeTruthy();
+  });
+
   it("handles create transaction via modal", async () => {
     const accounts = [
       { id: 1, name: "Main Account", account_type: "bank", base_currency: "USD" },
