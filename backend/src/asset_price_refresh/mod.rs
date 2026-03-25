@@ -282,8 +282,7 @@ pub async fn refresh_single_asset_price(
                         error = %coingecko_err,
                         "CoinGecko failed, falling back to CoinCap"
                     );
-                    fetch_coincap_quote(client, &config.coincap_base_url, api_key, &coin_id)
-                        .await?
+                    fetch_coincap_quote(client, &config.coincap_base_url, api_key, &coin_id).await?
                 } else {
                     return Err(coingecko_err);
                 }

@@ -47,16 +47,11 @@ pub async fn fetch_coincap_quote(
             AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
         })?;
 
-    let price_str = payload
-        .data
-        .into_iter()
-        .next()
-        .flatten()
-        .ok_or_else(|| {
-            AssetPriceRefreshError::Provider(format!(
-                "asset price refresh failed: provider returned no data for coin {coin_id}"
-            ))
-        })?;
+    let price_str = payload.data.into_iter().next().flatten().ok_or_else(|| {
+        AssetPriceRefreshError::Provider(format!(
+            "asset price refresh failed: provider returned no data for coin {coin_id}"
+        ))
+    })?;
 
     let price_str = truncate_decimals(&price_str, 6);
     let price =
