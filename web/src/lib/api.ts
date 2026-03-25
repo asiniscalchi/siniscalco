@@ -42,6 +42,13 @@ export type PortfolioAllocationSliceResponse = {
   amount: string;
 };
 
+export type PortfolioHoldingResponse = {
+  asset_id: number;
+  symbol: string;
+  name: string;
+  value: string;
+};
+
 export type PortfolioSummaryResponse = {
   display_currency: string;
   total_value_status: "ok" | "conversion_unavailable";
@@ -53,6 +60,8 @@ export type PortfolioSummaryResponse = {
   fx_refresh_error: string | null;
   allocation_totals: PortfolioAllocationSliceResponse[];
   allocation_is_partial: boolean;
+  holdings: PortfolioHoldingResponse[];
+  holdings_is_partial: boolean;
 };
 
 export type AssetResponse = {

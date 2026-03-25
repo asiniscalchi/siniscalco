@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use rust_decimal::Decimal;
 use sqlx::{Row, SqlitePool};
@@ -184,6 +184,15 @@ pub async fn get_portfolio_summary(
     let (allocation_totals, allocation_is_partial) =
         compute_allocation_totals(pool, &accounts, &assets_by_id, display_currency).await?;
 
+    let (holdings, holdings_is_partial) = compute_top_holdings(
+        pool,
+        &accounts,
+        &assets_by_id,
+        display_currency,
+        &cash_by_currency,
+    )
+    .await?;
+
     Ok(PortfolioSummaryRecord {
         display_currency,
         total_value_status: portfolio_status,
@@ -199,6 +208,8 @@ pub async fn get_portfolio_summary(
         fx_last_updated: fx_summary.last_updated,
         allocation_totals,
         allocation_is_partial,
+        holdings,
+        holdings_is_partial,
     })
 }
 
@@ -290,6 +301,101 @@ async fn compute_allocation_totals(
         .collect();
 
     Ok((slices, is_partial))
+}
+
+async fn compute_top_holdings(
+    pool: &SqlitePool,
+    accounts: &[AccountRecord],
+    assets_by_id: &BTreeMap<AssetId, AssetRecord>,
+    display_currency: Currency,
+    cash_by_currency: &[PortfolioCashByCurrencyRecord],
+) -> Result<(Vec<PortfolioHoldingRecord>, bool), StorageError> {
+    let mut holdings: Vec<PortfolioHoldingRecord> = Vec::new();
+    let mut is_partial = false;
+    let mut holding_keys: BTreeSet<String> = BTreeSet::new();
+
+    // Add cash by currency as holdings
+    for cash in cash_by_currency {
+        if cash.amount.as_decimal() <= Decimal::ZERO {
+            continue;
+        }
+
+        let rate = if cash.currency == display_currency {
+            Some(Decimal::ONE)
+        } else {
+            get_direct_fx_rate(pool, cash.currency, display_currency).await?
+        };
+
+        let converted_value = match rate {
+            Some(r) => cash.amount.as_decimal() * r,
+            None => {
+                is_partial = true;
+                continue;
+            }
+        };
+
+        holdings.push(PortfolioHoldingRecord {
+            asset_id: AssetId::try_from(-(holdings.len() as i64 + 1))
+                .unwrap_or_else(|_| AssetId::try_from(1_i64).unwrap()),
+            symbol: cash.currency.as_str().to_string(),
+            name: format!("{} Cash", cash.currency.as_str()),
+            value: parse_decimal_amount(converted_value),
+        });
+        holding_keys.insert(cash.currency.as_str().to_string());
+    }
+
+    // Add asset positions as holdings
+    for account in accounts {
+        let positions = list_account_positions(pool, account.id).await?;
+        for position in &positions {
+            let asset = assets_by_id
+                .get(&position.asset_id)
+                .ok_or(StorageError::Validation(
+                    "asset referenced by position was not found",
+                ))?;
+
+            // Skip if we already have this as cash (duplicate)
+            if holding_keys.contains(asset.symbol.to_string().as_str()) {
+                continue;
+            }
+
+            let Some(price) = asset.current_price else {
+                is_partial = true;
+                continue;
+            };
+            let Some(price_currency) = asset.current_price_currency else {
+                is_partial = true;
+                continue;
+            };
+
+            let position_value = position.quantity.as_decimal() * price.as_decimal();
+
+            let rate = if price_currency == display_currency {
+                Some(Decimal::ONE)
+            } else {
+                get_direct_fx_rate(pool, price_currency, display_currency).await?
+            };
+
+            let converted_value = match rate {
+                Some(r) => position_value * r,
+                None => {
+                    is_partial = true;
+                    continue;
+                }
+            };
+
+            holdings.push(PortfolioHoldingRecord {
+                asset_id: position.asset_id,
+                symbol: asset.symbol.to_string(),
+                name: asset.name.to_string(),
+                value: parse_decimal_amount(converted_value),
+            });
+        }
+    }
+
+    holdings.sort_by(|a, b| b.value.as_decimal().cmp(&a.value.as_decimal()));
+
+    Ok((holdings, is_partial))
 }
 
 pub(crate) struct AccountTotalSummaryInternal {

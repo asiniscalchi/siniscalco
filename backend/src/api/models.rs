@@ -164,6 +164,14 @@ pub struct PortfolioAllocationSliceResponse {
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]
+pub struct PortfolioHoldingResponse {
+    pub asset_id: i64,
+    pub symbol: String,
+    pub name: String,
+    pub value: String,
+}
+
+#[derive(Debug, Serialize, Eq, PartialEq)]
 pub struct PortfolioSummaryResponse {
     pub display_currency: Currency,
     pub total_value_status: String,
@@ -175,6 +183,8 @@ pub struct PortfolioSummaryResponse {
     pub fx_refresh_error: Option<String>,
     pub allocation_totals: Vec<PortfolioAllocationSliceResponse>,
     pub allocation_is_partial: bool,
+    pub holdings: Vec<PortfolioHoldingResponse>,
+    pub holdings_is_partial: bool,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]

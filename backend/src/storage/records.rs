@@ -235,6 +235,8 @@ pub struct PortfolioSummaryRecord {
     pub fx_last_updated: Option<String>,
     pub allocation_totals: Vec<PortfolioAllocationSliceRecord>,
     pub allocation_is_partial: bool,
+    pub holdings: Vec<PortfolioHoldingRecord>,
+    pub holdings_is_partial: bool,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -254,4 +256,12 @@ pub struct PortfolioCashByCurrencyRecord {
     pub currency: Currency,
     pub amount: Amount,
     pub converted_amount: Option<Amount>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct PortfolioHoldingRecord {
+    pub asset_id: AssetId,
+    pub symbol: String,
+    pub name: String,
+    pub value: Amount,
 }
