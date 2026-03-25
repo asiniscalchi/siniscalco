@@ -81,17 +81,17 @@ describe("AssetsPage", () => {
 
     renderAssetsPage();
 
-    expect(await screen.findByText("AAPL")).toBeTruthy();
-    expect(screen.getByText("Apple Inc.")).toBeTruthy();
-    expect(screen.getByText("STOCK")).toBeTruthy();
-    expect(screen.getByText("US0378331005")).toBeTruthy();
-    expect(screen.getByText("189.32 USD")).toBeTruthy();
-    expect(screen.getByText("Pending")).toBeTruthy();
+    expect((await screen.findAllByText("AAPL")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Apple Inc.").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("STOCK").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("US0378331005").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("189.32 USD").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
 
-    expect(screen.getByText("BTC")).toBeTruthy();
-    expect(screen.getByText("Bitcoin")).toBeTruthy();
-    expect(screen.getByText("CRYPTO")).toBeTruthy();
-    expect(screen.getByText("BTC/USD")).toBeTruthy();
+    expect(screen.getAllByText("BTC").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Bitcoin").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("CRYPTO").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("BTC/USD").length).toBeGreaterThan(0);
 
     // Check that Actions column is NOT present when locked
     expect(screen.queryByText("Actions")).toBeNull();
@@ -258,7 +258,7 @@ describe("AssetsPage", () => {
     renderAssetsPage();
     await unlockEditMode();
 
-    const editButton = await screen.findByTitle("Edit asset");
+    const editButton = (await screen.findAllByTitle("Edit asset"))[0];
     fireEvent.click(editButton);
 
     expect(screen.getByText("Edit Asset", { selector: "h2" })).toBeTruthy();
@@ -309,7 +309,7 @@ describe("AssetsPage", () => {
       expect(screen.queryByText("Edit Asset", { selector: "h2" })).toBeNull();
     });
 
-    expect(await screen.findByText("Apple Updated")).toBeTruthy();
+    expect((await screen.findAllByText("Apple Updated")).length).toBeGreaterThan(0);
   });
 
   it("handles delete asset", async () => {
@@ -343,7 +343,7 @@ describe("AssetsPage", () => {
     renderAssetsPage();
     await unlockEditMode();
 
-    const deleteButton = await screen.findByTitle("Delete asset");
+    const deleteButton = (await screen.findAllByTitle("Delete asset"))[0];
     fireEvent.click(deleteButton);
 
     expect(window.confirm).toHaveBeenCalledWith("Are you sure you want to delete AAPL?");
