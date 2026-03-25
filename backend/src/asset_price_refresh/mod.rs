@@ -74,6 +74,12 @@ pub async fn spawn_asset_price_refresh_task(pool: SqlitePool, config: AssetPrice
     tokio::spawn(async move {
         let client = Client::new();
 
+        match fill_missing_asset_prices(&pool, &client, &config).await {
+            Ok(0) => {}
+            Ok(updated_count) => info!(updated_count, "startup asset price fill succeeded"),
+            Err(error) => warn!(error = %error, "startup asset price fill failed"),
+        }
+
         loop {
             info!(
                 refresh_interval_seconds = config.refresh_interval.as_secs(),
@@ -88,6 +94,31 @@ pub async fn spawn_asset_price_refresh_task(pool: SqlitePool, config: AssetPrice
             sleep(config.refresh_interval).await;
         }
     });
+}
+
+async fn fill_missing_asset_prices(
+    pool: &SqlitePool,
+    client: &Client,
+    config: &AssetPriceRefreshConfig,
+) -> Result<usize, AssetPriceRefreshError> {
+    let assets = list_assets(pool).await?;
+    let mut updated_count = 0usize;
+
+    for asset in assets.into_iter().filter(|a| a.current_price.is_none()) {
+        match refresh_single_asset_price(pool, client, config, asset.id).await {
+            Ok(true) => updated_count += 1,
+            Ok(false) => {}
+            Err(error) => {
+                warn!(
+                    asset_id = asset.id.as_i64(),
+                    error = %error,
+                    "startup asset price fill failed for asset"
+                );
+            }
+        }
+    }
+
+    Ok(updated_count)
 }
 
 pub async fn refresh_asset_prices(
