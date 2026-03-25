@@ -76,6 +76,8 @@ describe("App shell", () => {
               fx_last_updated: null,
               fx_refresh_status: "available",
               fx_refresh_error: null,
+              allocation_totals: [],
+              allocation_is_partial: false,
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
@@ -135,6 +137,8 @@ describe("App shell", () => {
               fx_last_updated: null,
               fx_refresh_status: "available",
               fx_refresh_error: null,
+              allocation_totals: [],
+              allocation_is_partial: false,
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
@@ -193,6 +197,8 @@ describe("App shell", () => {
               fx_last_updated: null,
               fx_refresh_status: "available",
               fx_refresh_error: null,
+              allocation_totals: [],
+              allocation_is_partial: false,
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
@@ -396,6 +402,8 @@ describe("App shell", () => {
               fx_last_updated: null,
               fx_refresh_status: "available",
               fx_refresh_error: null,
+              allocation_totals: [{ label: "Cash", amount: "92.00000000" }],
+              allocation_is_partial: false,
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
@@ -407,7 +415,8 @@ describe("App shell", () => {
 
     const view = renderApp(["/portfolio"]);
 
-    const totalAmount = await screen.findByText("153.70 EUR");
+    const totalAmounts = await screen.findAllByText("153.70 EUR");
+    const totalAmount = totalAmounts[0];
     const initialWidth = totalAmount.getAttribute("style");
     expect(screen.getByText("103.70 EUR")).toBeTruthy();
     expect(screen.getByText("100 USD")).toBeTruthy();
@@ -416,7 +425,7 @@ describe("App shell", () => {
       screen.getByRole("button", { name: "Hide financial values" }),
     );
 
-    expect(await screen.findAllByText("•••• EUR")).toHaveLength(2);
+    expect(await screen.findAllByText("•••• EUR")).toHaveLength(3);
     expect(screen.getByText("•••• USD")).toBeTruthy();
     expect(screen.queryByText("153.70 EUR")).toBeNull();
     expect(screen.queryByText("103.70 EUR")).toBeNull();
@@ -429,7 +438,7 @@ describe("App shell", () => {
     view.unmount();
     renderApp(["/portfolio"]);
 
-    expect(await screen.findAllByText("•••• EUR")).toHaveLength(2);
+    expect(await screen.findAllByText("•••• EUR")).toHaveLength(3);
     expect(screen.getByRole("button", { name: "Show financial values" })).toBeTruthy();
     expect(screen.queryByText("153.70 EUR")).toBeNull();
   });

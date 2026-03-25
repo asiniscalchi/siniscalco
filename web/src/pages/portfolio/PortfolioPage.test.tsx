@@ -93,12 +93,14 @@ describe("PortfolioPage", () => {
       fx_last_updated: "2026-03-22 11:30:00",
       fx_refresh_status: "available",
       fx_refresh_error: null,
+      allocation_totals: [{ label: "Cash", amount: "153.70000000" }],
+      allocation_is_partial: false,
     });
 
     renderPortfolioPage();
 
     expect(await screen.findByText("Total Cash Value")).toBeTruthy();
-    expect(screen.getByText("153.70 EUR")).toBeTruthy();
+    expect(screen.getAllByText("153.70 EUR").length).toBeGreaterThan(0);
     expect(screen.getByText("Cash By Account")).toBeTruthy();
     expect(screen.getByText("103.70 EUR")).toBeTruthy();
     expect(screen.getByText("50.00 EUR")).toBeTruthy();
@@ -128,6 +130,8 @@ describe("PortfolioPage", () => {
       fx_last_updated: null,
       fx_refresh_status: "unavailable",
       fx_refresh_error: "FX refresh unavailable: no successful refresh has completed",
+      allocation_totals: [],
+      allocation_is_partial: false,
     });
 
     renderPortfolioPage();
@@ -158,6 +162,8 @@ describe("PortfolioPage", () => {
       fx_last_updated: "2026-03-22 10:00:00",
       fx_refresh_status: "unavailable",
       fx_refresh_error: "FX refresh unavailable: provider returned status 500",
+      allocation_totals: [],
+      allocation_is_partial: true,
     });
 
     renderPortfolioPage();
@@ -196,6 +202,8 @@ describe("PortfolioPage", () => {
               fx_last_updated: null,
               fx_refresh_status: "available",
               fx_refresh_error: null,
+              allocation_totals: [{ label: "Cash", amount: "1.00000000" }],
+              allocation_is_partial: false,
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
@@ -213,7 +221,7 @@ describe("PortfolioPage", () => {
     fireEvent.click(screen.getByText("Retry"));
 
     await waitFor(() => {
-      expect(screen.getByText("1.00 EUR")).toBeTruthy();
+      expect(screen.getAllByText("1.00 EUR").length).toBeGreaterThan(0);
     });
   });
 
@@ -240,11 +248,13 @@ describe("PortfolioPage", () => {
       fx_last_updated: "2026-03-22 11:30:00",
       fx_refresh_status: "available",
       fx_refresh_error: null,
+      allocation_totals: [{ label: "Cash", amount: "92.00000000" }],
+      allocation_is_partial: false,
     });
 
     renderPortfolioPage();
 
-    expect(await screen.findAllByText("•••• EUR")).toHaveLength(2);
+    expect(await screen.findAllByText("•••• EUR")).toHaveLength(3);
     expect(screen.getByText("•••• USD")).toBeTruthy();
   });
 
@@ -269,11 +279,118 @@ describe("PortfolioPage", () => {
       fx_last_updated: null,
       fx_refresh_status: "available",
       fx_refresh_error: null,
+      allocation_totals: [],
+      allocation_is_partial: true,
     });
 
     renderPortfolioPage();
 
     expect(await screen.findByText("Conversion unavailable")).toBeTruthy();
     expect(screen.queryByText("Conversion data unavailable")).toBeNull();
+  });
+
+  it("renders the allocation card with slices and labels", async () => {
+    mockPortfolioRequest({
+      display_currency: "EUR",
+      total_value_status: "ok",
+      total_value_amount: "300.00000000",
+      account_totals: [],
+      cash_by_currency: [
+        { currency: "EUR", amount: "100.00000000", converted_amount: "100.00000000" },
+      ],
+      fx_last_updated: null,
+      fx_refresh_status: "available",
+      fx_refresh_error: null,
+      allocation_totals: [
+        { label: "Stock", amount: "200.00000000" },
+        { label: "Cash", amount: "100.00000000" },
+      ],
+      allocation_is_partial: false,
+    });
+
+    renderPortfolioPage();
+
+    expect(await screen.findByText("Allocation by asset class")).toBeTruthy();
+    expect(screen.getByText("Stock")).toBeTruthy();
+    expect(screen.getByText("Cash")).toBeTruthy();
+    expect(screen.getByText("200.00 EUR")).toBeTruthy();
+    expect(screen.getByText("100.00 EUR")).toBeTruthy();
+    expect(screen.getByText("66.7%")).toBeTruthy();
+    expect(screen.getByText("33.3%")).toBeTruthy();
+  });
+
+  it("shows the partial banner when allocation_is_partial is true", async () => {
+    mockPortfolioRequest({
+      display_currency: "EUR",
+      total_value_status: "ok",
+      total_value_amount: "100.00000000",
+      account_totals: [],
+      cash_by_currency: [
+        { currency: "EUR", amount: "100.00000000", converted_amount: "100.00000000" },
+      ],
+      fx_last_updated: null,
+      fx_refresh_status: "available",
+      fx_refresh_error: null,
+      allocation_totals: [{ label: "Cash", amount: "100.00000000" }],
+      allocation_is_partial: true,
+    });
+
+    renderPortfolioPage();
+
+    expect(
+      await screen.findByText(
+        "Allocation incomplete: some assets could not be valued.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("shows no-data message when allocation_totals is empty and not partial", async () => {
+    mockPortfolioRequest({
+      display_currency: "EUR",
+      total_value_status: "ok",
+      total_value_amount: "100.00000000",
+      account_totals: [],
+      cash_by_currency: [
+        { currency: "EUR", amount: "100.00000000", converted_amount: "100.00000000" },
+      ],
+      fx_last_updated: null,
+      fx_refresh_status: "available",
+      fx_refresh_error: null,
+      allocation_totals: [],
+      allocation_is_partial: false,
+    });
+
+    renderPortfolioPage();
+
+    expect(await screen.findByText("No allocation data available.")).toBeTruthy();
+  });
+
+  it("masks allocation amounts and percentages in privacy mode", async () => {
+    window.localStorage.setItem("ui.hide_values", "true");
+
+    mockPortfolioRequest({
+      display_currency: "EUR",
+      total_value_status: "ok",
+      total_value_amount: "300.00000000",
+      account_totals: [],
+      cash_by_currency: [
+        { currency: "EUR", amount: "100.00000000", converted_amount: "100.00000000" },
+      ],
+      fx_last_updated: null,
+      fx_refresh_status: "available",
+      fx_refresh_error: null,
+      allocation_totals: [
+        { label: "Stock", amount: "200.00000000" },
+        { label: "Cash", amount: "100.00000000" },
+      ],
+      allocation_is_partial: false,
+    });
+
+    renderPortfolioPage();
+
+    await screen.findByText("Allocation by asset class");
+    expect(screen.queryByText("200.00 EUR")).toBeNull();
+    expect(screen.queryByText("66.7%")).toBeNull();
+    expect(screen.getAllByText("•••%").length).toBeGreaterThan(0);
   });
 });

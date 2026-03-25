@@ -37,6 +37,11 @@ export type PortfolioCashByCurrencyResponse = {
   converted_amount: string | null;
 };
 
+export type PortfolioAllocationSliceResponse = {
+  label: string;
+  amount: string;
+};
+
 export type PortfolioSummaryResponse = {
   display_currency: string;
   total_value_status: "ok" | "conversion_unavailable";
@@ -46,6 +51,8 @@ export type PortfolioSummaryResponse = {
   fx_last_updated: string | null;
   fx_refresh_status: "available" | "unavailable";
   fx_refresh_error: string | null;
+  allocation_totals: PortfolioAllocationSliceResponse[];
+  allocation_is_partial: boolean;
 };
 
 export type AssetResponse = {
