@@ -117,6 +117,17 @@ pub struct AccountSummaryRecord {
     pub account_type: AccountType,
     pub base_currency: Currency,
     pub summary_status: AccountSummaryStatus,
+    pub cash_total_amount: Option<Amount>,
+    pub asset_total_amount: Option<Amount>,
+    pub total_amount: Option<Amount>,
+    pub total_currency: Option<Currency>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct AccountValueSummaryRecord {
+    pub summary_status: AccountSummaryStatus,
+    pub cash_total_amount: Option<Amount>,
+    pub asset_total_amount: Option<Amount>,
     pub total_amount: Option<Amount>,
     pub total_currency: Option<Currency>,
 }
@@ -224,6 +235,8 @@ pub struct PortfolioAccountTotalRecord {
     pub name: AccountName,
     pub account_type: AccountType,
     pub summary_status: AccountSummaryStatus,
+    pub cash_total_amount: Option<Amount>,
+    pub asset_total_amount: Option<Amount>,
     pub total_amount: Option<Amount>,
     pub total_currency: Currency,
 }

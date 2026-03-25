@@ -17,12 +17,13 @@ use tower::ServiceExt;
 
 use super::{ApiError, AppState, build_router, build_router_with_state};
 use crate::{
-    AccountId, AccountName, AccountType, Amount, AssetName, AssetPriceRefreshConfig, AssetSymbol,
-    AssetTransactionType, AssetType, CreateAccountInput, CreateAssetInput,
-    CreateAssetTransactionInput, Currency, FxRate, FxRefreshAvailability, FxRefreshStatus,
-    TradeDate, UpsertAccountBalanceInput, UpsertFxRateInput, create_account, create_asset,
-    create_asset_transaction, get_account, get_asset, init_db, list_account_balances,
-    upsert_account_balance, upsert_fx_rate,
+    AccountId, AccountName, AccountType, Amount, AssetName, AssetPriceRefreshConfig, AssetQuantity,
+    AssetSymbol, AssetTransactionType, AssetType, AssetUnitPrice, CreateAccountInput,
+    CreateAssetInput, CreateAssetTransactionInput, Currency, FxRate, FxRefreshAvailability,
+    FxRefreshStatus, TradeDate, UpsertAccountBalanceInput, UpsertAssetPriceInput,
+    UpsertFxRateInput, create_account, create_asset, create_asset_transaction, get_account,
+    get_asset, init_db, list_account_balances, upsert_account_balance, upsert_asset_price,
+    upsert_fx_rate,
 };
 
 fn amt(value: &str) -> Amount {
@@ -675,7 +676,7 @@ async fn returns_portfolio_summary_through_api() {
 
     assert_eq!(
         std::str::from_utf8(&body).expect("json body should be utf8"),
-        r#"{"display_currency":"EUR","total_value_status":"ok","total_value_amount":"153.700000","account_totals":[{"id":1,"name":"IBKR","account_type":"broker","summary_status":"ok","total_amount":"103.700000","total_currency":"EUR"},{"id":2,"name":"Main Bank","account_type":"bank","summary_status":"ok","total_amount":"50.000000","total_currency":"EUR"}],"cash_by_currency":[{"currency":"EUR","amount":"50.000000","converted_amount":"50.000000"},{"currency":"GBP","amount":"10.000000","converted_amount":"11.700000"},{"currency":"USD","amount":"100.000000","converted_amount":"92.000000"}],"fx_last_updated":"2026-03-22 11:30:00","fx_refresh_status":"available","fx_refresh_error":null}"#
+        r#"{"display_currency":"EUR","total_value_status":"ok","total_value_amount":"153.700000","account_totals":[{"id":1,"name":"IBKR","account_type":"broker","summary_status":"ok","cash_total_amount":"103.700000","asset_total_amount":"0.000000","total_amount":"103.700000","total_currency":"EUR"},{"id":2,"name":"Main Bank","account_type":"bank","summary_status":"ok","cash_total_amount":"50.000000","asset_total_amount":"0.000000","total_amount":"50.000000","total_currency":"EUR"}],"cash_by_currency":[{"currency":"EUR","amount":"50.000000","converted_amount":"50.000000"},{"currency":"GBP","amount":"10.000000","converted_amount":"11.700000"},{"currency":"USD","amount":"100.000000","converted_amount":"92.000000"}],"fx_last_updated":"2026-03-22 11:30:00","fx_refresh_status":"available","fx_refresh_error":null}"#
     );
 }
 
@@ -1308,7 +1309,7 @@ async fn returns_empty_portfolio_summary_when_no_cash_exists() {
 
     assert_eq!(
         std::str::from_utf8(&body).expect("json body should be utf8"),
-        r#"{"display_currency":"EUR","total_value_status":"ok","total_value_amount":"0.000000","account_totals":[{"id":1,"name":"IBKR","account_type":"broker","summary_status":"ok","total_amount":"0.000000","total_currency":"EUR"}],"cash_by_currency":[],"fx_last_updated":null,"fx_refresh_status":"unavailable","fx_refresh_error":"FX refresh unavailable: no successful refresh has completed"}"#
+        r#"{"display_currency":"EUR","total_value_status":"ok","total_value_amount":"0.000000","account_totals":[{"id":1,"name":"IBKR","account_type":"broker","summary_status":"ok","cash_total_amount":"0.000000","asset_total_amount":"0.000000","total_amount":"0.000000","total_currency":"EUR"}],"cash_by_currency":[],"fx_last_updated":null,"fx_refresh_status":"unavailable","fx_refresh_error":"FX refresh unavailable: no successful refresh has completed"}"#
     );
 }
 
@@ -1388,7 +1389,7 @@ async fn returns_conversion_unavailable_portfolio_summary_when_fx_is_missing() {
 
     assert_eq!(
         std::str::from_utf8(&body).expect("json body should be utf8"),
-        r#"{"display_currency":"EUR","total_value_status":"conversion_unavailable","total_value_amount":null,"account_totals":[{"id":1,"name":"IBKR","account_type":"broker","summary_status":"conversion_unavailable","total_amount":null,"total_currency":"EUR"}],"cash_by_currency":[{"currency":"GBP","amount":"10.000000","converted_amount":null},{"currency":"USD","amount":"100.000000","converted_amount":"92.000000"}],"fx_last_updated":"2026-03-22 10:00:00","fx_refresh_status":"available","fx_refresh_error":null}"#
+        r#"{"display_currency":"EUR","total_value_status":"conversion_unavailable","total_value_amount":null,"account_totals":[{"id":1,"name":"IBKR","account_type":"broker","summary_status":"conversion_unavailable","cash_total_amount":null,"asset_total_amount":"0.000000","total_amount":null,"total_currency":"EUR"}],"cash_by_currency":[{"currency":"GBP","amount":"10.000000","converted_amount":null},{"currency":"USD","amount":"100.000000","converted_amount":"92.000000"}],"fx_last_updated":"2026-03-22 10:00:00","fx_refresh_status":"available","fx_refresh_error":null}"#
     );
 }
 
@@ -2321,6 +2322,8 @@ async fn creates_account_through_api() {
     assert_eq!(json["account_type"], "broker");
     assert_eq!(json["base_currency"], "EUR");
     assert_eq!(json["summary_status"], "ok");
+    assert_eq!(json["cash_total_amount"], "0.000000");
+    assert_eq!(json["asset_total_amount"], "0.000000");
     assert_eq!(json["total_amount"], "0.000000");
     assert_eq!(json["total_currency"], "EUR");
     assert!(json["id"].is_i64());
@@ -2483,9 +2486,119 @@ async fn lists_account_summaries_with_totals_through_api() {
     assert!(json[0].get("balances").is_none());
     assert_eq!(json[0]["name"], "IBKR");
     assert_eq!(json[0]["summary_status"], "ok");
+    assert_eq!(json[0]["cash_total_amount"], "12000.000000");
+    assert_eq!(json[0]["asset_total_amount"], "0.000000");
     assert_eq!(json[0]["total_amount"], "12000.000000");
     assert_eq!(json[0]["total_currency"], "EUR");
     assert!(json[0].get("created_at").is_none());
+}
+
+#[tokio::test]
+async fn lists_account_summaries_with_cash_and_asset_totals_through_api() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Usd,
+            amount: amt("20.000000"),
+        },
+    )
+    .await
+    .expect("balance insert should succeed");
+
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("BTC"),
+            name: asset_name("Bitcoin"),
+            asset_type: AssetType::Crypto,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2026-03-20"),
+            quantity: AssetQuantity::try_from("2").unwrap(),
+            unit_price: AssetUnitPrice::try_from("80").unwrap(),
+            currency_code: Currency::Usd,
+            notes: None,
+        },
+    )
+    .await
+    .expect("transaction insert should succeed");
+
+    upsert_asset_price(
+        &pool,
+        UpsertAssetPriceInput {
+            asset_id,
+            price: AssetUnitPrice::try_from("100").unwrap(),
+            currency: Currency::Usd,
+            as_of: "2026-03-22T10:00:00Z".to_string(),
+        },
+    )
+    .await
+    .expect("asset price insert should succeed");
+
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate("0.500000"),
+        },
+    )
+    .await
+    .expect("fx rate insert should succeed");
+
+    let app = build_router(pool);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/accounts")
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("list request should succeed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+    let json: Value =
+        serde_json::from_slice(&body).expect("account list body should be valid json");
+
+    assert_eq!(json[0]["summary_status"], "ok");
+    assert_eq!(json[0]["cash_total_amount"], "10.000000");
+    assert_eq!(json[0]["asset_total_amount"], "100.000000");
+    assert_eq!(json[0]["total_amount"], "110.000000");
+    assert_eq!(json[0]["total_currency"], "EUR");
 }
 
 #[tokio::test]
@@ -2538,6 +2651,8 @@ async fn returns_conversion_unavailable_through_api_when_direct_rate_is_missing(
         serde_json::from_slice(&body).expect("account list body should be valid json");
 
     assert_eq!(json[0]["summary_status"], "conversion_unavailable");
+    assert!(json[0]["cash_total_amount"].is_null());
+    assert_eq!(json[0]["asset_total_amount"], "0.000000");
     assert!(json[0]["total_amount"].is_null());
     assert!(json[0]["total_currency"].is_null());
 }
@@ -2659,6 +2774,8 @@ async fn rounds_converted_account_totals_through_api() {
         serde_json::from_slice(&body).expect("account list body should be valid json");
 
     assert_eq!(json[0]["summary_status"], "ok");
+    assert_eq!(json[0]["cash_total_amount"], "0.666666");
+    assert_eq!(json[0]["asset_total_amount"], "0.000000");
     assert_eq!(json[0]["total_amount"], "0.666666");
 }
 
@@ -2712,6 +2829,11 @@ async fn gets_account_detail_with_balances_through_api() {
         serde_json::from_slice(&body).expect("account detail body should be valid json");
 
     assert_eq!(json["name"], "IBKR");
+    assert_eq!(json["summary_status"], "conversion_unavailable");
+    assert!(json["cash_total_amount"].is_null());
+    assert_eq!(json["asset_total_amount"], "0.000000");
+    assert!(json["total_amount"].is_null());
+    assert!(json["total_currency"].is_null());
     assert_eq!(json["balances"][0]["currency"], "USD");
     assert_eq!(json["balances"][0]["amount"], "12.300000");
 }

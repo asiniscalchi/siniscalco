@@ -9,14 +9,15 @@ use axum::{
 use crate::api::models::*;
 use crate::{
     AccountBalanceRecord, AccountId, AccountName, AccountRecord, AccountSummaryRecord,
-    AccountSummaryStatus, AccountType, Amount, AssetId, AssetPositionRecord, AssetQuantity,
-    AssetRecord, AssetTransactionRecord, AssetTransactionType, AssetType, AssetUnitPrice,
-    CreateAccountInput, CreateAssetInput, CreateAssetTransactionInput, Currency, CurrencyRecord,
-    FxRateDetailRecord, FxRateSummaryItemRecord, FxRateSummaryRecord, PRODUCT_BASE_CURRENCY,
-    PortfolioAccountTotalRecord, PortfolioCashByCurrencyRecord, PortfolioSummaryRecord, TradeDate,
-    UpdateAccountInput, UpdateAssetInput, UpdateAssetTransactionInput, UpsertAccountBalanceInput,
-    UpsertOutcome, compact_decimal_output, create_asset, create_asset_transaction, delete_account,
-    delete_account_balance, delete_asset, delete_asset_transaction, get_account, get_asset,
+    AccountSummaryStatus, AccountType, AccountValueSummaryRecord, Amount, AssetId,
+    AssetPositionRecord, AssetQuantity, AssetRecord, AssetTransactionRecord, AssetTransactionType,
+    AssetType, AssetUnitPrice, CreateAccountInput, CreateAssetInput, CreateAssetTransactionInput,
+    Currency, CurrencyRecord, FxRateDetailRecord, FxRateSummaryItemRecord, FxRateSummaryRecord,
+    PRODUCT_BASE_CURRENCY, PortfolioAccountTotalRecord, PortfolioCashByCurrencyRecord,
+    PortfolioSummaryRecord, TradeDate, UpdateAccountInput, UpdateAssetInput,
+    UpdateAssetTransactionInput, UpsertAccountBalanceInput, UpsertOutcome, compact_decimal_output,
+    create_asset, create_asset_transaction, delete_account, delete_account_balance, delete_asset,
+    delete_asset_transaction, get_account, get_account_value_summary, get_asset,
     get_latest_fx_rate, get_portfolio_summary, get_transaction, list_account_balances,
     list_account_positions, list_account_summaries, list_asset_transactions, list_assets,
     list_currencies, list_fx_rate_summary, list_transactions, normalize_amount_output,
@@ -445,8 +446,15 @@ pub(crate) async fn get_account_handler(
     let balances = list_account_balances(&state.pool, account_id)
         .await
         .map_err(ApiError::from)?;
+    let value_summary = get_account_value_summary(&state.pool, &account)
+        .await
+        .map_err(ApiError::from)?;
 
-    Ok(Json(to_account_detail_response(account, balances)))
+    Ok(Json(to_account_detail_response(
+        account,
+        balances,
+        value_summary,
+    )))
 }
 
 pub(crate) async fn update_account_handler(
@@ -481,8 +489,15 @@ pub(crate) async fn update_account_handler(
     let balances = list_account_balances(&state.pool, account_id)
         .await
         .map_err(ApiError::from)?;
+    let value_summary = get_account_value_summary(&state.pool, &account)
+        .await
+        .map_err(ApiError::from)?;
 
-    Ok(Json(to_account_detail_response(account, balances)))
+    Ok(Json(to_account_detail_response(
+        account,
+        balances,
+        value_summary,
+    )))
 }
 
 pub(crate) async fn list_account_balances_handler(
@@ -634,6 +649,12 @@ fn to_account_summary_response(account: AccountSummaryRecord) -> AccountSummaryR
         account_type: account.account_type.as_str().to_string(),
         base_currency: account.base_currency,
         summary_status: account.summary_status.as_str().to_string(),
+        cash_total_amount: account
+            .cash_total_amount
+            .map(|amount| normalize_amount_output(&amount.to_string())),
+        asset_total_amount: account
+            .asset_total_amount
+            .map(|amount| normalize_amount_output(&amount.to_string())),
         total_amount: account
             .total_amount
             .map(|amount| normalize_amount_output(&amount.to_string())),
@@ -648,6 +669,8 @@ fn to_created_account_summary_response(account: AccountRecord) -> AccountSummary
         account_type: account.account_type.as_str().to_string(),
         base_currency: account.base_currency,
         summary_status: AccountSummaryStatus::Ok.as_str().to_string(),
+        cash_total_amount: Some("0.000000".to_string()),
+        asset_total_amount: Some("0.000000".to_string()),
         total_amount: Some("0.000000".to_string()),
         total_currency: Some(account.base_currency),
     }
@@ -656,12 +679,24 @@ fn to_created_account_summary_response(account: AccountRecord) -> AccountSummary
 fn to_account_detail_response(
     account: AccountRecord,
     balances: Vec<AccountBalanceRecord>,
+    value_summary: AccountValueSummaryRecord,
 ) -> AccountDetailResponse {
     AccountDetailResponse {
         id: account.id.as_i64(),
         name: account.name.to_string(),
         account_type: account.account_type.as_str().to_string(),
         base_currency: account.base_currency,
+        summary_status: value_summary.summary_status.as_str().to_string(),
+        cash_total_amount: value_summary
+            .cash_total_amount
+            .map(|amount| normalize_amount_output(&amount.to_string())),
+        asset_total_amount: value_summary
+            .asset_total_amount
+            .map(|amount| normalize_amount_output(&amount.to_string())),
+        total_amount: value_summary
+            .total_amount
+            .map(|amount| normalize_amount_output(&amount.to_string())),
+        total_currency: value_summary.total_currency,
         created_at: account.created_at,
         balances: balances.into_iter().map(to_balance_response).collect(),
     }
@@ -924,6 +959,12 @@ fn to_portfolio_account_total_response(
         name: account.name.to_string(),
         account_type: account.account_type.as_str().to_string(),
         summary_status: account.summary_status.as_str().to_string(),
+        cash_total_amount: account
+            .cash_total_amount
+            .map(|amount| normalize_amount_output(&amount.to_string())),
+        asset_total_amount: account
+            .asset_total_amount
+            .map(|amount| normalize_amount_output(&amount.to_string())),
         total_amount: account
             .total_amount
             .map(|amount| normalize_amount_output(&amount.to_string())),
