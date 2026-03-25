@@ -195,7 +195,7 @@ describe("AccountDetailPage", () => {
 
     renderAccountDetailPage("/accounts/7");
 
-    expect(await screen.findByText("Assets")).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Assets" })).toBeTruthy();
     expect(screen.getByText("BTC")).toBeTruthy();
     expect(screen.getByText("Bitcoin")).toBeTruthy();
     expect(screen.getByText("2.500000")).toBeTruthy();

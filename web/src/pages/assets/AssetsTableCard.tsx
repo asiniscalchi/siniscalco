@@ -67,7 +67,62 @@ export function AssetsTableCard({
             </Button>
           </div>
         ) : (
-          <div className="w-full overflow-x-auto">
+          <>
+            <div className="space-y-1.5 sm:hidden">
+              {assets.map((asset) => (
+                <div
+                  className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm"
+                  key={asset.id}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="font-semibold">{asset.symbol}</p>
+                      <p className="truncate text-[11px] text-muted-foreground">{asset.name}</p>
+                    </div>
+                    <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center rounded-full border bg-muted/50 px-1.5 py-px font-medium uppercase tracking-wide">
+                          {asset.asset_type.replace("_", " ")}
+                        </span>
+                        <span className="font-mono tabular-nums">{formatPrice(asset)}</span>
+                      </div>
+                      {asset.isin && <span className="font-mono">{asset.isin}</span>}
+                    </div>
+                  </div>
+                  {!isLocked && (
+                    <div className="flex shrink-0 gap-0.5">
+                      <Button
+                        disabled={isDeleting !== null}
+                        onClick={() => onEditClick(asset)}
+                        size="icon"
+                        title="Edit asset"
+                        variant="ghost"
+                      >
+                        <PencilIcon />
+                        <span className="sr-only">Edit</span>
+                      </Button>
+                      <Button
+                        className="text-destructive hover:bg-destructive/10"
+                        disabled={isDeleting !== null}
+                        onClick={() => onDeleteClick(asset)}
+                        size="icon"
+                        title="Delete asset"
+                        variant="ghost"
+                      >
+                        {isDeleting === asset.id ? (
+                          <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        ) : (
+                          <TrashIcon />
+                        )}
+                        <span className="sr-only">Delete</span>
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden w-full overflow-x-auto sm:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">
@@ -140,7 +195,8 @@ export function AssetsTableCard({
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>
