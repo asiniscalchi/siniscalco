@@ -10,7 +10,7 @@ mod storage;
 pub use api::{ApiError, ApiErrorResponse, AppState, build_router, build_router_with_state};
 pub use asset_price_refresh::{
     AssetPriceRefreshConfig, fetch_alpha_vantage_quote, fetch_coingecko_quote, fetch_finnhub_quote,
-    fetch_openfigi_ticker, fetch_twelve_data_quote, refresh_asset_prices,
+    fetch_openfigi_tickers, fetch_twelve_data_quote, refresh_asset_prices,
     refresh_single_asset_price, spawn_asset_price_refresh_task,
 };
 pub use config::Config;

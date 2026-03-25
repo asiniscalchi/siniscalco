@@ -13,7 +13,7 @@ use crate::{
 mod providers;
 
 pub use providers::{
-    fetch_alpha_vantage_quote, fetch_coingecko_quote, fetch_finnhub_quote, fetch_openfigi_ticker,
+    fetch_alpha_vantage_quote, fetch_coingecko_quote, fetch_finnhub_quote, fetch_openfigi_tickers,
     fetch_twelve_data_quote,
 };
 
@@ -106,16 +106,16 @@ pub async fn refresh_asset_prices(
     Ok(updated_count)
 }
 
-async fn resolve_stock_symbol(
+async fn resolve_stock_symbols(
     client: &Client,
     config: &AssetPriceRefreshConfig,
     asset: &AssetRecord,
-) -> String {
+) -> Vec<String> {
     if let Some(quote_symbol) = asset.quote_symbol.as_deref() {
-        return quote_symbol.to_string();
+        return vec![quote_symbol.to_string()];
     }
     if let Some(isin) = asset.isin.as_deref() {
-        match fetch_openfigi_ticker(
+        match fetch_openfigi_tickers(
             client,
             &config.openfigi_base_url,
             config.openfigi_api_key.as_deref(),
@@ -123,50 +123,54 @@ async fn resolve_stock_symbol(
         )
         .await
         {
-            Ok(ticker) => return ticker,
+            Ok(tickers) => return tickers,
             Err(e) => {
                 warn!(isin, error = %e, "OpenFIGI ISIN resolution failed, falling back to asset symbol");
             }
         }
     }
-    asset.symbol.as_str().to_string()
+    vec![asset.symbol.as_str().to_string()]
 }
 
 async fn try_stock_providers(
     client: &Client,
     config: &AssetPriceRefreshConfig,
-    symbol: &str,
+    symbols: &[String],
 ) -> Option<Result<AssetQuote, AssetPriceRefreshError>> {
     let mut last_err = None;
 
-    if let Some(api_key) = config.twelve_data_api_key.as_deref() {
-        match fetch_twelve_data_quote(client, &config.twelve_data_base_url, api_key, symbol).await {
-            Ok(quote) => return Some(Ok(quote)),
-            Err(e) => {
-                warn!(provider = "twelve_data", symbol, error = %e, "provider failed, trying next");
-                last_err = Some(e);
+    for symbol in symbols {
+        if let Some(api_key) = config.twelve_data_api_key.as_deref() {
+            match fetch_twelve_data_quote(client, &config.twelve_data_base_url, api_key, symbol)
+                .await
+            {
+                Ok(quote) => return Some(Ok(quote)),
+                Err(e) => {
+                    warn!(provider = "twelve_data", symbol, error = %e, "provider failed, trying next");
+                    last_err = Some(e);
+                }
             }
         }
-    }
 
-    if let Some(api_key) = config.finnhub_api_key.as_deref() {
-        match fetch_finnhub_quote(client, &config.finnhub_base_url, api_key, symbol).await {
-            Ok(quote) => return Some(Ok(quote)),
-            Err(e) => {
-                warn!(provider = "finnhub", symbol, error = %e, "provider failed, trying next");
-                last_err = Some(e);
+        if let Some(api_key) = config.finnhub_api_key.as_deref() {
+            match fetch_finnhub_quote(client, &config.finnhub_base_url, api_key, symbol).await {
+                Ok(quote) => return Some(Ok(quote)),
+                Err(e) => {
+                    warn!(provider = "finnhub", symbol, error = %e, "provider failed, trying next");
+                    last_err = Some(e);
+                }
             }
         }
-    }
 
-    if let Some(api_key) = config.alpha_vantage_api_key.as_deref() {
-        match fetch_alpha_vantage_quote(client, &config.alpha_vantage_base_url, api_key, symbol)
-            .await
-        {
-            Ok(quote) => return Some(Ok(quote)),
-            Err(e) => {
-                warn!(provider = "alpha_vantage", symbol, error = %e, "provider failed, trying next");
-                last_err = Some(e);
+        if let Some(api_key) = config.alpha_vantage_api_key.as_deref() {
+            match fetch_alpha_vantage_quote(client, &config.alpha_vantage_base_url, api_key, symbol)
+                .await
+            {
+                Ok(quote) => return Some(Ok(quote)),
+                Err(e) => {
+                    warn!(provider = "alpha_vantage", symbol, error = %e, "provider failed, trying next");
+                    last_err = Some(e);
+                }
             }
         }
     }
@@ -190,8 +194,8 @@ pub async fn refresh_single_asset_price(
             .to_lowercase();
         fetch_coingecko_quote(client, &config.coingecko_base_url, &coin_id).await?
     } else {
-        let symbol = resolve_stock_symbol(client, config, &asset).await;
-        match try_stock_providers(client, config, &symbol).await {
+        let symbols = resolve_stock_symbols(client, config, &asset).await;
+        match try_stock_providers(client, config, &symbols).await {
             Some(result) => result?,
             None => return Ok(false),
         }
@@ -225,7 +229,7 @@ mod tests {
         AssetPriceRefreshConfig,
         providers::{
             fetch_alpha_vantage_quote, fetch_coingecko_quote, fetch_finnhub_quote,
-            fetch_openfigi_ticker, fetch_twelve_data_quote,
+            fetch_openfigi_tickers, fetch_twelve_data_quote,
         },
         refresh_asset_prices,
     };
@@ -651,28 +655,32 @@ mod tests {
     // OpenFIGI tests
 
     #[tokio::test]
-    async fn fetches_openfigi_ticker() {
+    async fn fetches_openfigi_tickers() {
         let base_url = start_test_server_at(
             "/v3/mapping",
             json!([{
-                "data": [{"ticker": "AAPL", "name": "APPLE INC", "exchCode": "US"}]
+                "data": [
+                    {"ticker": "EMIM", "name": "ISHS CORE MSCI EM IMI", "exchCode": "AEB"},
+                    {"ticker": "EIMI", "name": "ISHS CORE MSCI EM IMI", "exchCode": "LSE"},
+                    {"ticker": "IS3N", "name": "ISHS CORE MSCI EM IMI", "exchCode": "XETRA"}
+                ]
             }]),
         )
         .await;
 
-        let ticker = fetch_openfigi_ticker(&Client::new(), &base_url, None, "US0378331005")
+        let tickers = fetch_openfigi_tickers(&Client::new(), &base_url, None, "IE00BKM4GZ66")
             .await
-            .expect("ticker fetch should succeed");
+            .expect("tickers fetch should succeed");
 
-        assert_eq!(ticker, "AAPL");
+        assert_eq!(tickers, vec!["EMIM", "EIMI", "IS3N"]);
     }
 
     #[tokio::test]
-    async fn openfigi_ticker_fails_on_unknown_isin() {
+    async fn openfigi_tickers_fails_on_unknown_isin() {
         let base_url =
             start_test_server_at("/v3/mapping", json!([{"error": "No identifier found."}])).await;
 
-        let result = fetch_openfigi_ticker(&Client::new(), &base_url, None, "XX0000000000").await;
+        let result = fetch_openfigi_tickers(&Client::new(), &base_url, None, "XX0000000000").await;
 
         assert!(result.is_err());
         assert!(
@@ -681,6 +689,82 @@ mod tests {
                 .to_string()
                 .contains("No identifier found")
         );
+    }
+
+    #[tokio::test]
+    async fn tries_all_openfigi_tickers_until_success() {
+        use axum::extract::Query;
+        use std::collections::HashMap;
+
+        let pool = test_pool().await;
+        let asset_id = crate::create_asset(
+            &pool,
+            CreateAssetInput {
+                symbol: "EIMI".try_into().unwrap(),
+                name: "iShares Core MSCI EM IMI UCITS ETF".try_into().unwrap(),
+                asset_type: AssetType::Stock,
+                quote_symbol: None,
+                isin: Some("IE00BKM4GZ66".to_string()),
+            },
+        )
+        .await
+        .expect("asset should be created");
+
+        // OpenFIGI returns two tickers: EMIM (fails) and EIMI (succeeds)
+        let openfigi_base_url = start_test_server_at(
+            "/v3/mapping",
+            json!([{
+                "data": [
+                    {"ticker": "EMIM", "exchCode": "AEB"},
+                    {"ticker": "EIMI", "exchCode": "LSE"}
+                ]
+            }]),
+        )
+        .await;
+
+        // twelve_data server: succeeds only for EIMI, returns error for EMIM
+        let twelve_data_app = Router::new().route(
+            "/quote",
+            any(|Query(params): Query<HashMap<String, String>>| async move {
+                if params.get("symbol").map_or(false, |s| s == "EIMI") {
+                    Json(json!({"close": "22.50", "currency": "USD", "datetime": "2026-03-25"}))
+                } else {
+                    Json(json!({"status": "error", "code": 404, "message": "symbol not found"}))
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let twelve_data_base_url = format!("http://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            axum::serve(listener, twelve_data_app).await.unwrap();
+        });
+
+        let updated_count = refresh_asset_prices(
+            &pool,
+            &Client::new(),
+            &AssetPriceRefreshConfig {
+                refresh_interval: Duration::from_secs(60),
+                coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_base_url,
+                openfigi_api_key: None,
+                twelve_data_base_url,
+                twelve_data_api_key: Some("test-key".to_string()),
+                finnhub_base_url: "http://127.0.0.1:1".to_string(),
+                finnhub_api_key: None,
+                alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
+                alpha_vantage_api_key: None,
+            },
+        )
+        .await
+        .expect("refresh should succeed");
+
+        let asset = get_asset(&pool, asset_id)
+            .await
+            .expect("asset should load with price");
+
+        assert_eq!(updated_count, 1);
+        assert_eq!(asset.current_price.unwrap().to_string(), "22.5");
+        assert_eq!(asset.current_price_currency, Some(Currency::Usd));
     }
 
     #[tokio::test]

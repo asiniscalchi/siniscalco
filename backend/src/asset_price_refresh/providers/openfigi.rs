@@ -22,12 +22,12 @@ struct OpenFigiSecurity {
     ticker: Option<String>,
 }
 
-pub async fn fetch_openfigi_ticker(
+pub async fn fetch_openfigi_tickers(
     client: &Client,
     base_url: &str,
     api_key: Option<&str>,
     isin: &str,
-) -> Result<String, AssetPriceRefreshError> {
+) -> Result<Vec<String>, AssetPriceRefreshError> {
     let url = format!("{}/v3/mapping", base_url.trim_end_matches('/'));
     let body = vec![OpenFigiRequest {
         id_type: "ID_ISIN",
@@ -68,12 +68,18 @@ pub async fn fetch_openfigi_ticker(
         )));
     }
 
-    result
+    let tickers: Vec<String> = result
         .data
-        .as_deref()
-        .and_then(|securities| securities.first())
-        .and_then(|s| s.ticker.clone())
-        .ok_or_else(|| {
-            AssetPriceRefreshError::Provider(format!("OpenFIGI returned no ticker for ISIN {isin}"))
-        })
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|s| s.ticker)
+        .collect();
+
+    if tickers.is_empty() {
+        return Err(AssetPriceRefreshError::Provider(format!(
+            "OpenFIGI returned no tickers for ISIN {isin}"
+        )));
+    }
+
+    Ok(tickers)
 }
