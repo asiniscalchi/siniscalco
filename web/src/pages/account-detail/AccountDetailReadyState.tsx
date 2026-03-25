@@ -195,16 +195,43 @@ export function AccountDetailReadyState({
         </CardHeader>
         <CardContent className="grid gap-3 text-sm sm:grid-cols-3">
           <div className="rounded-xl border p-4">
-            <p className="text-muted-foreground">Account type</p>
-            <p className="mt-2 font-medium">{account.account_type}</p>
+            <p className="text-muted-foreground">Cash</p>
+            {account.summary_status === "ok" && account.cash_total_amount && account.total_currency ? (
+              <MoneyText
+                className="mt-2 block font-semibold"
+                currency={account.total_currency}
+                hidden={hideValues}
+                value={account.cash_total_amount}
+              />
+            ) : (
+              <p className="mt-2 font-medium text-muted-foreground">Unavailable</p>
+            )}
           </div>
           <div className="rounded-xl border p-4">
-            <p className="text-muted-foreground">Base currency</p>
-            <p className="mt-2 font-medium">{account.base_currency}</p>
+            <p className="text-muted-foreground">Assets</p>
+            {account.summary_status === "ok" && account.asset_total_amount && account.total_currency ? (
+              <MoneyText
+                className="mt-2 block font-semibold"
+                currency={account.total_currency}
+                hidden={hideValues}
+                value={account.asset_total_amount}
+              />
+            ) : (
+              <p className="mt-2 font-medium text-muted-foreground">Unavailable</p>
+            )}
           </div>
           <div className="rounded-xl border p-4">
-            <p className="text-muted-foreground">Balances</p>
-            <p className="mt-2 font-medium">{account.balances.length}</p>
+            <p className="text-muted-foreground">Total</p>
+            {account.summary_status === "ok" && account.total_amount && account.total_currency ? (
+              <MoneyText
+                className="mt-2 block font-semibold"
+                currency={account.total_currency}
+                hidden={hideValues}
+                value={account.total_amount}
+              />
+            ) : (
+              <p className="mt-2 font-medium text-muted-foreground">Unavailable</p>
+            )}
           </div>
         </CardContent>
       </Card>

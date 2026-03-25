@@ -297,6 +297,8 @@ function AccountsReadyState({
                 accountType={account.account_type}
                 baseCurrency={account.base_currency}
                 summaryStatus={account.summary_status}
+                cashTotalAmount={portfolioAccount?.cash_total_amount ?? null}
+                assetTotalAmount={portfolioAccount?.asset_total_amount ?? null}
                 totalAmount={account.total_amount}
                 totalCurrency={account.total_currency}
                 hideValues={hideValues}
@@ -345,6 +347,8 @@ function AccountListItem({
   accountType,
   baseCurrency,
   summaryStatus,
+  cashTotalAmount,
+  assetTotalAmount,
   totalAmount,
   totalCurrency,
   hideValues,
@@ -355,6 +359,8 @@ function AccountListItem({
   accountType: string;
   baseCurrency: string;
   summaryStatus: "ok" | "conversion_unavailable";
+  cashTotalAmount: string | null;
+  assetTotalAmount: string | null;
   totalAmount: string | null;
   totalCurrency: string | null;
   hideValues: boolean;
@@ -416,6 +422,36 @@ function AccountListItem({
               </div>
             )}
           </div>
+          {summaryStatus === "ok" && totalCurrency && (
+            <div className="flex gap-6 text-xs text-muted-foreground">
+              <div>
+                <span>Cash </span>
+                {cashTotalAmount ? (
+                  <MoneyText
+                    className="font-medium text-foreground"
+                    currency={totalCurrency}
+                    hidden={hideValues}
+                    value={cashTotalAmount}
+                  />
+                ) : (
+                  <span>—</span>
+                )}
+              </div>
+              <div>
+                <span>Assets </span>
+                {assetTotalAmount ? (
+                  <MoneyText
+                    className="font-medium text-foreground"
+                    currency={totalCurrency}
+                    hidden={hideValues}
+                    value={assetTotalAmount}
+                  />
+                ) : (
+                  <span>—</span>
+                )}
+              </div>
+            </div>
+          )}
           {summaryStatus === "ok" && (
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
               <div
