@@ -1,6 +1,7 @@
 import { type PortfolioSummaryResponse } from "@/lib/api";
 import { useUiState } from "@/lib/ui-state";
 
+import { AllocationCard } from "./AllocationCard";
 import { PortfolioAccountBreakdown } from "./PortfolioAccountBreakdown";
 import { PortfolioCurrencyBreakdown } from "./PortfolioCurrencyBreakdown";
 import { PortfolioEmptyState } from "./PortfolioEmptyState";
@@ -41,6 +42,12 @@ export function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) 
           totalValue={totalValue}
         />
       </div>
+      <AllocationCard
+        allocations={summary.allocation_totals}
+        isPartial={summary.allocation_is_partial}
+        displayCurrency={summary.display_currency}
+        hideValues={hideValues}
+      />
     </div>
   );
 }

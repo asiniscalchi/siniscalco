@@ -7,8 +7,8 @@ use crate::format_decimal_amount;
 use crate::storage::fx::get_direct_fx_rate;
 use crate::storage::records::*;
 use crate::storage::{
-    AccountId, AccountSummaryStatus, Amount, AssetId, AssetRecord, Currency, StorageError,
-    list_account_positions, list_assets,
+    AccountId, AccountSummaryStatus, Amount, AssetId, AssetRecord, AssetType, Currency,
+    StorageError, list_account_positions, list_assets,
 };
 
 pub async fn upsert_account_balance(
@@ -122,10 +122,10 @@ pub async fn get_portfolio_summary(
     let mut portfolio_asset_total_decimal = Decimal::ZERO;
     let mut portfolio_status = AccountSummaryStatus::Ok;
 
-    for account in accounts {
+    for account in &accounts {
         let balances = list_account_balances(pool, account.id).await?;
         let value_summary =
-            summarize_account_in_currency(pool, &account, &assets_by_id, display_currency).await?;
+            summarize_account_in_currency(pool, account, &assets_by_id, display_currency).await?;
 
         for balance in balances {
             if let Some(existing_balance) = cash_by_currency
@@ -147,7 +147,7 @@ pub async fn get_portfolio_summary(
 
         account_totals.push(PortfolioAccountTotalRecord {
             id: account.id,
-            name: account.name,
+            name: account.name.clone(),
             account_type: account.account_type,
             summary_status: value_summary.summary_status,
             cash_total_amount: value_summary.cash_total_amount,
@@ -181,6 +181,9 @@ pub async fn get_portfolio_summary(
 
     cash_by_currency.sort_by_key(|balance| balance.currency.as_str());
 
+    let (allocation_totals, allocation_is_partial) =
+        compute_allocation_totals(pool, &accounts, &assets_by_id, display_currency).await?;
+
     Ok(PortfolioSummaryRecord {
         display_currency,
         total_value_status: portfolio_status,
@@ -194,7 +197,99 @@ pub async fn get_portfolio_summary(
         account_totals,
         cash_by_currency,
         fx_last_updated: fx_summary.last_updated,
+        allocation_totals,
+        allocation_is_partial,
     })
+}
+
+fn asset_class_label(asset_type: AssetType) -> &'static str {
+    match asset_type {
+        AssetType::Stock => "Stock",
+        AssetType::Etf => "ETF",
+        AssetType::Bond => "Bond",
+        AssetType::Crypto => "Crypto",
+        AssetType::CashEquivalent => "Cash",
+        AssetType::Other => "Other",
+    }
+}
+
+async fn compute_allocation_totals(
+    pool: &SqlitePool,
+    accounts: &[AccountRecord],
+    assets_by_id: &BTreeMap<AssetId, AssetRecord>,
+    display_currency: Currency,
+) -> Result<(Vec<PortfolioAllocationSliceRecord>, bool), StorageError> {
+    let mut class_totals: BTreeMap<&'static str, Decimal> = BTreeMap::new();
+    let mut is_partial = false;
+
+    for account in accounts {
+        // Cash balances → "Cash" slice
+        let balances = list_account_balances(pool, account.id).await?;
+        for balance in &balances {
+            let rate = if balance.currency == display_currency {
+                Some(Decimal::ONE)
+            } else {
+                get_direct_fx_rate(pool, balance.currency, display_currency).await?
+            };
+            match rate {
+                Some(r) => {
+                    *class_totals.entry("Cash").or_insert(Decimal::ZERO) +=
+                        balance.amount.as_decimal() * r;
+                }
+                None => {
+                    is_partial = true;
+                }
+            }
+        }
+
+        // Asset positions → grouped by asset type label
+        let positions = list_account_positions(pool, account.id).await?;
+        for position in &positions {
+            let asset = assets_by_id
+                .get(&position.asset_id)
+                .ok_or(StorageError::Validation(
+                    "asset referenced by position was not found",
+                ))?;
+
+            let label = asset_class_label(asset.asset_type);
+
+            let Some(price) = asset.current_price else {
+                is_partial = true;
+                continue;
+            };
+            let Some(price_currency) = asset.current_price_currency else {
+                is_partial = true;
+                continue;
+            };
+
+            let position_value = position.quantity.as_decimal() * price.as_decimal();
+
+            let rate = if price_currency == display_currency {
+                Some(Decimal::ONE)
+            } else {
+                get_direct_fx_rate(pool, price_currency, display_currency).await?
+            };
+
+            match rate {
+                Some(r) => {
+                    *class_totals.entry(label).or_insert(Decimal::ZERO) += position_value * r;
+                }
+                None => {
+                    is_partial = true;
+                }
+            }
+        }
+    }
+
+    let slices = class_totals
+        .into_iter()
+        .map(|(label, amount)| PortfolioAllocationSliceRecord {
+            label: label.to_string(),
+            amount: parse_decimal_amount(amount),
+        })
+        .collect();
+
+    Ok((slices, is_partial))
 }
 
 pub(crate) struct AccountTotalSummaryInternal {

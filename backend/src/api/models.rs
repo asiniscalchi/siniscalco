@@ -158,6 +158,12 @@ pub struct FxRateDetailResponse {
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]
+pub struct PortfolioAllocationSliceResponse {
+    pub label: String,
+    pub amount: String,
+}
+
+#[derive(Debug, Serialize, Eq, PartialEq)]
 pub struct PortfolioSummaryResponse {
     pub display_currency: Currency,
     pub total_value_status: String,
@@ -167,6 +173,8 @@ pub struct PortfolioSummaryResponse {
     pub fx_last_updated: Option<String>,
     pub fx_refresh_status: String,
     pub fx_refresh_error: Option<String>,
+    pub allocation_totals: Vec<PortfolioAllocationSliceResponse>,
+    pub allocation_is_partial: bool,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]
