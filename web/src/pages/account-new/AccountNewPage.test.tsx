@@ -116,6 +116,77 @@ describe("AccountNewPage", () => {
     );
   });
 
+  it("creates a crypto account", async () => {
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input);
+
+      if (url.endsWith("/currencies")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify([
+              { code: "CHF" },
+              { code: "EUR" },
+              { code: "GBP" },
+              { code: "USD" },
+            ]),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+
+      if (url.endsWith("/accounts")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: 13,
+              name: "Kraken",
+              account_type: "crypto",
+              base_currency: "EUR",
+              summary_status: "ok",
+              total_amount: "0.00000000",
+              total_currency: "EUR",
+            }),
+            { status: 201, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+
+      throw new Error(`Unhandled fetch request: ${url}`);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/accounts/new"]}>
+        <Routes>
+          <Route path="/accounts/new" element={<AccountNewPage />} />
+          <Route path="/accounts" element={<div>Accounts Route</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Kraken" },
+    });
+    fireEvent.change(screen.getByLabelText("Account type"), {
+      target: { value: "crypto" },
+    });
+    await screen.findByRole("option", { name: "CHF" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(await screen.findByText("Accounts Route")).toBeTruthy();
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/accounts$/),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          name: "Kraken",
+          account_type: "crypto",
+          base_currency: "EUR",
+        }),
+      }),
+    );
+  });
+
   it("shows an API error when account creation fails", async () => {
     vi.mocked(fetch).mockImplementation((input) => {
       const url = String(input);

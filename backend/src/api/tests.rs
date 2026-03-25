@@ -2387,6 +2387,42 @@ async fn creates_account_through_api() {
 }
 
 #[tokio::test]
+async fn creates_crypto_account_through_api() {
+    let pool = test_pool().await;
+    let app = build_router(pool);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/accounts")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"name":"Kraken","account_type":"crypto","base_currency":"EUR"}"#,
+                ))
+                .expect("request should build"),
+        )
+        .await
+        .expect("create request should succeed");
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should collect")
+        .to_bytes();
+    let json: Value =
+        serde_json::from_slice(&body).expect("account create body should be valid json");
+
+    assert_eq!(json["name"], "Kraken");
+    assert_eq!(json["account_type"], "crypto");
+    assert_eq!(json["base_currency"], "EUR");
+    assert!(json["id"].is_i64());
+}
+
+#[tokio::test]
 async fn rejects_invalid_account_type_through_api() {
     let pool = test_pool().await;
     let app = build_router(pool);
@@ -2416,7 +2452,7 @@ async fn rejects_invalid_account_type_through_api() {
 
     assert_eq!(
         std::str::from_utf8(&body).expect("json body should be utf8"),
-        r#"{"error":"validation_error","message":"account_type must be one of: bank, broker"}"#
+        r#"{"error":"validation_error","message":"account_type must be one of: bank, broker, crypto"}"#
     );
 }
 

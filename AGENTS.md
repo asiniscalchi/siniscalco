@@ -39,7 +39,7 @@ Frontend: React + Vite + Tailwind + shadcn
 
 ## Conventions
 - backend: Rust + sqlx
-- database migrations: while the software is not in production, keep a single initial migration only; do not add follow-up migrations, update the initial schema instead
+- database migrations: add a new migration file for each schema change; do not modify existing migrations
 - frontend: React functional components
 - styling: Tailwind only
 - components: use shadcn components for reusable UI when available

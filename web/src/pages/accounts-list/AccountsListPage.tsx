@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { BankIcon, BrokerIcon, PlusIcon } from "@/components/Icons";
+import { BankIcon, BrokerIcon, CryptoIcon, PlusIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -240,7 +240,9 @@ function AccountsErrorState({ onRetry }: { onRetry: () => void }) {
       <CardFooter className="justify-end gap-3">
         <Link
           aria-label="Create account"
-          className={cn(buttonVariants({ size: "icon-lg", variant: "outline" }))}
+          className={cn(
+            buttonVariants({ size: "icon-lg", variant: "outline" }),
+          )}
           title="Create account"
           to="/accounts/new"
         >
@@ -368,7 +370,13 @@ function AccountListItem({
       <Card className="bg-background transition-colors hover:bg-muted/30">
         <CardContent className="flex items-center gap-3 py-4">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-muted/50 text-muted-foreground">
-            {accountType === "bank" ? <BankIcon /> : <BrokerIcon />}
+            {accountType === "bank" ? (
+              <BankIcon />
+            ) : accountType === "broker" ? (
+              <BrokerIcon />
+            ) : (
+              <CryptoIcon />
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-baseline justify-between gap-4">
@@ -381,11 +389,15 @@ function AccountListItem({
                   value={totalAmount}
                 />
               ) : (
-                <p className="shrink-0 text-sm text-muted-foreground">Unavailable</p>
+                <p className="shrink-0 text-sm text-muted-foreground">
+                  Unavailable
+                </p>
               )}
             </div>
             <div className="mt-0.5 flex items-center justify-between gap-4 text-xs text-muted-foreground">
-              <span className="capitalize">{accountType} · {baseCurrency}</span>
+              <span className="capitalize">
+                {accountType} · {baseCurrency}
+              </span>
               {summaryStatus === "ok" && totalCurrency && (
                 <span className="flex shrink-0 gap-3">
                   <span>
@@ -397,7 +409,9 @@ function AccountListItem({
                         hidden={hideValues}
                         value={cashTotalAmount}
                       />
-                    ) : "—"}
+                    ) : (
+                      "—"
+                    )}
                   </span>
                   <span>
                     Assets{" "}
@@ -408,7 +422,9 @@ function AccountListItem({
                         hidden={hideValues}
                         value={assetTotalAmount}
                       />
-                    ) : "—"}
+                    ) : (
+                      "—"
+                    )}
                   </span>
                 </span>
               )}
@@ -428,7 +444,6 @@ function AccountListItem({
   );
 }
 
-
 function formatFxRate(rate: string) {
   const parsedRate = Number(rate);
 
@@ -438,4 +453,3 @@ function formatFxRate(rate: string) {
 
   return parsedRate.toFixed(4);
 }
-
