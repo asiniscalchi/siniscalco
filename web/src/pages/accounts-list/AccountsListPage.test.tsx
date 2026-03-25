@@ -173,7 +173,6 @@ describe("AccountsListPage", () => {
     expect(screen.getByText(/broker/i)).toBeTruthy();
     expect(screen.getAllByText(/EUR/).length).toBeGreaterThan(0);
     expect(screen.getAllByText("123.45 EUR").length).toBe(2);
-    expect(screen.getByText("100.0%")).toBeTruthy(); // Weight
 
     expect(screen.getByText("USD")).toBeTruthy();
     expect(screen.getByText("0.9200")).toBeTruthy();
@@ -181,7 +180,7 @@ describe("AccountsListPage", () => {
     expect(screen.getByText("1.1700")).toBeTruthy();
     expect(
       screen
-        .getByRole("link", { name: /IBKR.*broker.*EUR.*View details/i })
+        .getByRole("link", { name: /IBKR/ })
         .getAttribute("href"),
     ).toBe("/accounts/1");
   });
@@ -204,7 +203,7 @@ describe("AccountsListPage", () => {
 
     renderAccountsListPage();
 
-    expect(await screen.findByText("Conversion unavailable")).toBeTruthy();
+    expect(await screen.findByText("Unavailable")).toBeTruthy();
   });
 
   it("renders the empty state when no accounts exist", async () => {
@@ -319,7 +318,7 @@ describe("AccountsListPage", () => {
     expect(
       (
         await screen.findByRole("link", {
-          name: /IBKR.*broker.*EUR.*View details/i,
+          name: /IBKR/,
         })
       ).getAttribute("href"),
     ).toBe("/accounts/7");
@@ -438,7 +437,7 @@ describe("AccountsListPage", () => {
     renderAccountsListPage();
 
     const accountLink = await screen.findByRole("link", {
-      name: /IBKR.*broker.*EUR.*View details/i,
+      name: /IBKR/,
     });
     const maskedAmounts = screen.getAllByText("•••• EUR");
 

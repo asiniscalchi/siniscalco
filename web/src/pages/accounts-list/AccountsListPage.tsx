@@ -5,7 +5,6 @@ import { BankIcon, BrokerIcon, PlusIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardFooter,
@@ -369,97 +368,62 @@ function AccountListItem({
   return (
     <Link className="block" to={`/accounts/${id}`}>
       <Card className="bg-background transition-colors hover:bg-muted/30">
-        <CardHeader className="flex-row items-start gap-4 space-y-0">
-          <div className="mt-1 flex size-10 shrink-0 items-center justify-center rounded-xl border bg-muted/50 text-muted-foreground">
+        <CardContent className="flex items-center gap-3 py-4">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-muted/50 text-muted-foreground">
             {accountType === "bank" ? <BankIcon /> : <BrokerIcon />}
           </div>
-          <div className="flex-1 space-y-1">
-            <CardTitle className="text-xl">{name}</CardTitle>
-            <CardDescription className="flex items-center gap-2">
-              <span className="capitalize">{accountType}</span>
-              <span className="text-muted-foreground/50">·</span>
-              {baseCurrency}
-            </CardDescription>
-          </div>
-          <CardAction>
-            <div
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "sm" }),
-                "text-muted-foreground",
-              )}
-            >
-              View details
-            </div>
-          </CardAction>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-end justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Total balance</p>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline justify-between gap-4">
+              <p className="truncate font-semibold">{name}</p>
               {summaryStatus === "ok" && totalAmount && totalCurrency ? (
-                <p className="mt-0.5 text-2xl font-bold tracking-tight">
-                  <MoneyText
-                    className="text-left"
-                    currency={totalCurrency}
-                    hidden={hideValues}
-                    value={totalAmount}
-                  />
-                </p>
+                <MoneyText
+                  className="shrink-0 font-semibold tabular-nums"
+                  currency={totalCurrency}
+                  hidden={hideValues}
+                  value={totalAmount}
+                />
               ) : (
-                <p className="mt-0.5 text-sm font-medium text-muted-foreground">
-                  Conversion unavailable
-                </p>
+                <p className="shrink-0 text-sm text-muted-foreground">Unavailable</p>
+              )}
+            </div>
+            <div className="mt-0.5 flex items-center justify-between gap-4 text-xs text-muted-foreground">
+              <span className="capitalize">{accountType} · {baseCurrency}</span>
+              {summaryStatus === "ok" && totalCurrency && (
+                <span className="flex shrink-0 gap-3">
+                  <span>
+                    Cash{" "}
+                    {cashTotalAmount ? (
+                      <MoneyText
+                        className="font-medium text-foreground"
+                        currency={totalCurrency}
+                        hidden={hideValues}
+                        value={cashTotalAmount}
+                      />
+                    ) : "—"}
+                  </span>
+                  <span>
+                    Assets{" "}
+                    {assetTotalAmount ? (
+                      <MoneyText
+                        className="font-medium text-foreground"
+                        currency={totalCurrency}
+                        hidden={hideValues}
+                        value={assetTotalAmount}
+                      />
+                    ) : "—"}
+                  </span>
+                </span>
               )}
             </div>
             {summaryStatus === "ok" && (
-              <div className="text-right">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Weight
-                </p>
-                <p className="mt-0.5 font-mono text-sm font-semibold">
-                  {weight.toFixed(1)}%
-                </p>
+              <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full bg-primary transition-all duration-500"
+                  style={{ width: `${weight}%` }}
+                />
               </div>
             )}
           </div>
-          {summaryStatus === "ok" && totalCurrency && (
-            <div className="flex gap-6 text-xs text-muted-foreground">
-              <div>
-                <span>Cash </span>
-                {cashTotalAmount ? (
-                  <MoneyText
-                    className="font-medium text-foreground"
-                    currency={totalCurrency}
-                    hidden={hideValues}
-                    value={cashTotalAmount}
-                  />
-                ) : (
-                  <span>—</span>
-                )}
-              </div>
-              <div>
-                <span>Assets </span>
-                {assetTotalAmount ? (
-                  <MoneyText
-                    className="font-medium text-foreground"
-                    currency={totalCurrency}
-                    hidden={hideValues}
-                    value={assetTotalAmount}
-                  />
-                ) : (
-                  <span>—</span>
-                )}
-              </div>
-            </div>
-          )}
-          {summaryStatus === "ok" && (
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full bg-primary transition-all duration-500"
-                style={{ width: `${weight}%` }}
-              />
-            </div>
-          )}
         </CardContent>
       </Card>
     </Link>

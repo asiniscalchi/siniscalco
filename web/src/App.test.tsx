@@ -348,7 +348,7 @@ describe("App shell", () => {
     expect(await screen.findByText("IBKR")).toBeTruthy();
 
     fireEvent.click(
-      screen.getByRole("link", { name: /IBKR.*broker.*EUR.*View details/ }),
+      screen.getByRole("link", { name: /IBKR/ }),
     );
 
     expect(await screen.findByText("Account Summary")).toBeTruthy();
