@@ -50,6 +50,7 @@ Frontend: React + Vite + Tailwind + shadcn
 - create a short plan with concrete steps for each task before making changes
 - if the current branch is `main`, the first plan step must be creating the working branch for the task
 - create one git commit each time a plan step is completed
+- always add a `Co-authored-by` trailer to commits identifying the agent
 - modify existing code when possible; rewrite only if necessary
 - keep changes small and focused
 - add or update tests for every change
