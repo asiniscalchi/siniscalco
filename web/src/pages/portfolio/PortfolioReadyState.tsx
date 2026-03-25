@@ -43,19 +43,21 @@ export function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) 
           totalValue={totalValue}
         />
       </div>
-      <AllocationCard
-        allocations={summary.allocation_totals}
-        isPartial={summary.allocation_is_partial}
-        displayCurrency={summary.display_currency}
-        hideValues={hideValues}
-      />
-      <TopHoldingsCard
-        holdings={summary.holdings}
-        isPartial={summary.holdings_is_partial}
-        displayCurrency={summary.display_currency}
-        hideValues={hideValues}
-        totalValue={totalValue}
-      />
+      <div className="grid gap-8 lg:grid-cols-2">
+        <AllocationCard
+          allocations={summary.allocation_totals}
+          isPartial={summary.allocation_is_partial}
+          displayCurrency={summary.display_currency}
+          hideValues={hideValues}
+        />
+        <TopHoldingsCard
+          holdings={summary.holdings}
+          isPartial={summary.holdings_is_partial}
+          displayCurrency={summary.display_currency}
+          hideValues={hideValues}
+          totalValue={totalValue}
+        />
+      </div>
     </div>
   );
 }
