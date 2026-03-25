@@ -17,11 +17,11 @@ async fn main() {
         std::process::exit(1);
     }
 
-    if let Err(error) = dotenvy::dotenv() {
-        if !error.not_found() {
-            eprintln!("failed to load .env file: {error}");
-            std::process::exit(1);
-        }
+    if let Err(error) = dotenvy::dotenv()
+        && !error.not_found()
+    {
+        eprintln!("failed to load .env file: {error}");
+        std::process::exit(1);
     }
 
     let config = Config::parse();
@@ -112,27 +112,42 @@ fn log_asset_price_refresh_configuration(config: &AssetPriceRefreshConfig) {
         endpoint = %config.coingecko_base_url,
         "crypto asset price refresh configuration"
     );
-    if config.twelve_data_api_key.is_some() {
-        info!(
-            provider = "twelve_data",
-            refresh_interval_seconds = config.refresh_interval.as_secs(),
-            endpoint = %config.twelve_data_base_url,
-            "asset price refresh configuration"
-        );
-    } else if config.finnhub_api_key.is_some() {
-        info!(
-            provider = "finnhub",
-            refresh_interval_seconds = config.refresh_interval.as_secs(),
-            endpoint = %config.finnhub_base_url,
-            "asset price refresh configuration"
-        );
-    } else if config.alpha_vantage_api_key.is_some() {
-        info!(
-            provider = "alpha_vantage",
-            refresh_interval_seconds = config.refresh_interval.as_secs(),
-            endpoint = %config.alpha_vantage_base_url,
-            "asset price refresh configuration"
-        );
+    info!(
+        provider = "openfigi",
+        endpoint = %config.openfigi_base_url,
+        api_key_configured = config.openfigi_api_key.is_some(),
+        "ISIN resolution configuration"
+    );
+
+    let stock_providers_configured = config.twelve_data_api_key.is_some()
+        || config.finnhub_api_key.is_some()
+        || config.alpha_vantage_api_key.is_some();
+
+    if stock_providers_configured {
+        if config.twelve_data_api_key.is_some() {
+            info!(
+                provider = "twelve_data",
+                refresh_interval_seconds = config.refresh_interval.as_secs(),
+                endpoint = %config.twelve_data_base_url,
+                "asset price refresh configuration"
+            );
+        }
+        if config.finnhub_api_key.is_some() {
+            info!(
+                provider = "finnhub",
+                refresh_interval_seconds = config.refresh_interval.as_secs(),
+                endpoint = %config.finnhub_base_url,
+                "asset price refresh configuration"
+            );
+        }
+        if config.alpha_vantage_api_key.is_some() {
+            info!(
+                provider = "alpha_vantage",
+                refresh_interval_seconds = config.refresh_interval.as_secs(),
+                endpoint = %config.alpha_vantage_base_url,
+                "asset price refresh configuration"
+            );
+        }
     } else {
         info!(enabled = false, "asset price refresh configuration");
     }

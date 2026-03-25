@@ -33,6 +33,18 @@ pub struct Config {
     )]
     pub coingecko_base_url: String,
 
+    /// OpenFIGI API base URL for ISIN-to-ticker resolution
+    #[arg(
+        long,
+        env = "OPENFIGI_BASE_URL",
+        default_value = "https://api.openfigi.com"
+    )]
+    pub openfigi_base_url: String,
+
+    /// OpenFIGI API key (optional, increases rate limits)
+    #[arg(long, env = "OPENFIGI_API_KEY")]
+    pub openfigi_api_key: Option<String>,
+
     /// Twelve Data API base URL
     #[arg(
         long,
@@ -78,6 +90,8 @@ impl Config {
         AssetPriceRefreshConfig {
             refresh_interval: Duration::from_secs(DEFAULT_REFRESH_INTERVAL_SECS),
             coingecko_base_url: trim_url(&self.coingecko_base_url),
+            openfigi_base_url: trim_url(&self.openfigi_base_url),
+            openfigi_api_key: non_empty(self.openfigi_api_key.as_deref()),
             twelve_data_base_url: trim_url(&self.twelve_data_base_url),
             twelve_data_api_key: non_empty(self.twelve_data_api_key.as_deref()),
             finnhub_base_url: trim_url(&self.finnhub_base_url),
