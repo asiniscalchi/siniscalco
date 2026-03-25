@@ -16,6 +16,26 @@ struct TwelveDataQuoteResponse {
     status: Option<String>,
 }
 
+pub struct TwelveDataProvider {
+    pub base_url: String,
+    pub api_key: String,
+}
+
+#[async_trait::async_trait]
+impl super::StockProvider for TwelveDataProvider {
+    fn name(&self) -> &'static str {
+        "twelve_data"
+    }
+
+    async fn fetch_quote(
+        &self,
+        client: &Client,
+        symbol: &str,
+    ) -> Result<AssetQuote, AssetPriceRefreshError> {
+        fetch_twelve_data_quote(client, &self.base_url, &self.api_key, symbol).await
+    }
+}
+
 pub async fn fetch_twelve_data_quote(
     client: &Client,
     base_url: &str,

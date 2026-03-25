@@ -9,22 +9,34 @@ pub mod polygon;
 pub mod tiingo;
 pub mod twelve_data;
 
-pub use alpha_vantage::fetch_alpha_vantage_quote;
+pub use alpha_vantage::{AlphaVantageProvider, fetch_alpha_vantage_quote};
 pub use coingecko::fetch_coingecko_quote;
-pub use eodhd::fetch_eodhd_quote;
-pub use finnhub::fetch_finnhub_quote;
-pub use fmp::fetch_fmp_quote;
-pub use marketstack::fetch_marketstack_quote;
+pub use eodhd::{EodhdProvider, fetch_eodhd_quote};
+pub use finnhub::{FinnhubProvider, fetch_finnhub_quote};
+pub use fmp::{FmpProvider, fetch_fmp_quote};
+pub use marketstack::{MarketstackProvider, fetch_marketstack_quote};
 pub use openfigi::fetch_openfigi_tickers;
-pub use polygon::fetch_polygon_quote;
-pub use tiingo::fetch_tiingo_quote;
-pub use twelve_data::fetch_twelve_data_quote;
+pub use polygon::{PolygonProvider, fetch_polygon_quote};
+pub use tiingo::{TiingoProvider, fetch_tiingo_quote};
+pub use twelve_data::{TwelveDataProvider, fetch_twelve_data_quote};
+
+use reqwest::Client;
+
+use super::{AssetPriceRefreshError, AssetQuote};
+
+#[async_trait::async_trait]
+pub trait StockProvider: Send + Sync {
+    fn name(&self) -> &'static str;
+    async fn fetch_quote(
+        &self,
+        client: &Client,
+        symbol: &str,
+    ) -> Result<AssetQuote, AssetPriceRefreshError>;
+}
 
 use time::format_description::well_known::Rfc3339;
 use time::macros::format_description;
 use time::{Date, OffsetDateTime, PrimitiveDateTime};
-
-use super::AssetPriceRefreshError;
 
 fn unix_timestamp_to_rfc3339(ts: i64) -> Result<String, AssetPriceRefreshError> {
     OffsetDateTime::from_unix_timestamp(ts)

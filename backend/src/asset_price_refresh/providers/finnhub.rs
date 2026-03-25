@@ -13,6 +13,26 @@ struct FinnhubQuoteResponse {
     error: Option<String>,
 }
 
+pub struct FinnhubProvider {
+    pub base_url: String,
+    pub api_key: String,
+}
+
+#[async_trait::async_trait]
+impl super::StockProvider for FinnhubProvider {
+    fn name(&self) -> &'static str {
+        "finnhub"
+    }
+
+    async fn fetch_quote(
+        &self,
+        client: &Client,
+        symbol: &str,
+    ) -> Result<AssetQuote, AssetPriceRefreshError> {
+        fetch_finnhub_quote(client, &self.base_url, &self.api_key, symbol).await
+    }
+}
+
 /// Fetches a quote from the Finnhub `/api/v1/quote` endpoint.
 /// Note: Finnhub does not return the currency in this endpoint.
 /// Prices are returned in the currency of the exchange where the symbol trades (defaults to USD).
