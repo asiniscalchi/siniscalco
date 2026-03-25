@@ -82,6 +82,7 @@ fn build_router_with_fx_status(
         })),
         asset_price_refresh_config: AssetPriceRefreshConfig {
             refresh_interval: std::time::Duration::from_secs(60),
+            coingecko_base_url: "http://127.0.0.1:1".to_string(),
             base_url: "http://127.0.0.1:1".to_string(),
             api_key: None,
             finnhub_base_url: "http://127.0.0.1:1".to_string(),
@@ -280,6 +281,7 @@ async fn creates_asset_and_fetches_price_immediately_through_api() {
         pool.clone(),
         AssetPriceRefreshConfig {
             refresh_interval: std::time::Duration::from_secs(60),
+            coingecko_base_url: "http://127.0.0.1:1".to_string(),
             base_url,
             api_key: Some("test-key".to_string()),
             finnhub_base_url: "http://127.0.0.1:1".to_string(),
@@ -1533,6 +1535,7 @@ async fn updates_asset_and_fetches_price_immediately_through_api() {
         pool.clone(),
         AssetPriceRefreshConfig {
             refresh_interval: std::time::Duration::from_secs(60),
+            coingecko_base_url: "http://127.0.0.1:1".to_string(),
             base_url,
             api_key: Some("test-key".to_string()),
             finnhub_base_url: "http://127.0.0.1:1".to_string(),

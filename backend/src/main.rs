@@ -97,6 +97,11 @@ fn log_fx_refresh_configuration(config: &FxRefreshConfig) {
 }
 
 fn log_asset_price_refresh_configuration(config: &AssetPriceRefreshConfig) {
+    info!(
+        provider = "coingecko",
+        endpoint = %config.coingecko_base_url,
+        "crypto asset price refresh configuration"
+    );
     if config.api_key.is_some() {
         info!(
             provider = "twelve_data",

@@ -10,18 +10,20 @@ use tokio::time::sleep;
 use tracing::{info, warn};
 
 use crate::{
-    AssetId, AssetUnitPrice, Currency, UpsertAssetPriceInput, current_utc_timestamp_iso8601,
-    get_asset, list_assets, upsert_asset_price,
+    AssetId, AssetType, AssetUnitPrice, Currency, UpsertAssetPriceInput,
+    current_utc_timestamp_iso8601, get_asset, list_assets, upsert_asset_price,
 };
 
 const DEFAULT_TWELVE_DATA_BASE_URL: &str = "https://api.twelvedata.com";
 const DEFAULT_ALPHA_VANTAGE_BASE_URL: &str = "https://www.alphavantage.co";
 const DEFAULT_FINNHUB_BASE_URL: &str = "https://finnhub.io";
+const DEFAULT_COINGECKO_BASE_URL: &str = "https://api.coingecko.com/api/v3";
 const DEFAULT_REFRESH_INTERVAL_SECS: u64 = 60 * 60;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AssetPriceRefreshConfig {
     pub refresh_interval: Duration,
+    pub coingecko_base_url: String,
     pub base_url: String,
     pub api_key: Option<String>,
     pub finnhub_base_url: String,
@@ -32,6 +34,12 @@ pub struct AssetPriceRefreshConfig {
 
 impl AssetPriceRefreshConfig {
     pub fn load() -> Self {
+        let coingecko_base_url = env::var("COINGECKO_BASE_URL")
+            .ok()
+            .map(|value| value.trim().trim_end_matches('/').to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| DEFAULT_COINGECKO_BASE_URL.to_string());
+
         let base_url = env::var("ASSET_PRICE_REFRESH_BASE_URL")
             .ok()
             .map(|value| value.trim().trim_end_matches('/').to_string())
@@ -67,6 +75,7 @@ impl AssetPriceRefreshConfig {
 
         Self {
             refresh_interval: Duration::from_secs(DEFAULT_REFRESH_INTERVAL_SECS),
+            coingecko_base_url,
             base_url,
             api_key,
             finnhub_base_url,
@@ -76,10 +85,9 @@ impl AssetPriceRefreshConfig {
         }
     }
 
+    /// Always returns true because CoinGecko (used for CRYPTO assets) requires no API key.
     pub fn is_enabled(&self) -> bool {
-        self.api_key.is_some()
-            || self.finnhub_api_key.is_some()
-            || self.alpha_vantage_api_key.is_some()
+        true
     }
 }
 
@@ -125,13 +133,6 @@ pub struct AssetQuote {
 }
 
 pub async fn spawn_asset_price_refresh_task(pool: SqlitePool, config: AssetPriceRefreshConfig) {
-    if !config.is_enabled() {
-        warn!(
-            "asset price refresh disabled: none of TWELVE_DATA_API_KEY, FINNHUB_API_KEY, or ALPHA_VANTAGE_API_KEY is set"
-        );
-        return;
-    }
-
     tokio::spawn(async move {
         let client = Client::new();
 
@@ -157,12 +158,6 @@ pub async fn refresh_asset_prices(
     client: &Client,
     config: &AssetPriceRefreshConfig,
 ) -> Result<usize, AssetPriceRefreshError> {
-    if !config.is_enabled() {
-        return Err(AssetPriceRefreshError::Config(
-            "asset price refresh disabled: none of TWELVE_DATA_API_KEY, FINNHUB_API_KEY, or ALPHA_VANTAGE_API_KEY is set",
-        ));
-    }
-
     let assets = list_assets(pool).await?;
     let mut updated_count = 0usize;
 
@@ -191,17 +186,16 @@ pub async fn refresh_single_asset_price(
     config: &AssetPriceRefreshConfig,
     asset_id: AssetId,
 ) -> Result<bool, AssetPriceRefreshError> {
-    if !config.is_enabled() {
-        return Ok(false);
-    }
-
     let asset = get_asset(pool, asset_id).await?;
     let symbol = asset
         .quote_symbol
         .as_deref()
         .unwrap_or_else(|| asset.symbol.as_str());
 
-    let quote = if let Some(api_key) = config.api_key.as_deref() {
+    let quote = if asset.asset_type == AssetType::Crypto {
+        let coin_id = symbol.to_lowercase();
+        fetch_coingecko_quote(client, &config.coingecko_base_url, &coin_id).await?
+    } else if let Some(api_key) = config.api_key.as_deref() {
         fetch_twelve_data_quote(client, &config.base_url, api_key, symbol).await?
     } else if let Some(api_key) = config.finnhub_api_key.as_deref() {
         fetch_finnhub_quote(client, &config.finnhub_base_url, api_key, symbol).await?
@@ -292,6 +286,77 @@ pub async fn fetch_twelve_data_quote(
     Ok(AssetQuote {
         price,
         currency,
+        as_of,
+    })
+}
+
+#[derive(Debug, Deserialize)]
+struct CoinGeckoPrice {
+    usd: serde_json::Number,
+    last_updated_at: Option<i64>,
+}
+
+pub async fn fetch_coingecko_quote(
+    client: &Client,
+    base_url: &str,
+    coin_id: &str,
+) -> Result<AssetQuote, AssetPriceRefreshError> {
+    let url = format!("{}/simple/price", base_url.trim_end_matches('/'));
+    let response = client
+        .get(url)
+        .query(&[
+            ("ids", coin_id),
+            ("vs_currencies", "usd"),
+            ("include_last_updated_at", "true"),
+        ])
+        .send()
+        .await
+        .map_err(|error| {
+            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
+        })?;
+
+    if !response.status().is_success() {
+        return Err(AssetPriceRefreshError::Provider(format!(
+            "asset price refresh failed: provider returned status {}",
+            response.status()
+        )));
+    }
+
+    let payload = response
+        .json::<std::collections::BTreeMap<String, CoinGeckoPrice>>()
+        .await
+        .map_err(|error| {
+            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
+        })?;
+
+    let coin_data = payload.get(coin_id).ok_or_else(|| {
+        AssetPriceRefreshError::Provider(format!(
+            "asset price refresh failed: provider returned no data for coin {coin_id}"
+        ))
+    })?;
+
+    let price = AssetUnitPrice::try_from(coin_data.usd.to_string().as_str())
+        .map_err(AssetPriceRefreshError::from)?;
+
+    let as_of = match coin_data.last_updated_at {
+        Some(ts) => OffsetDateTime::from_unix_timestamp(ts)
+            .map_err(|_| {
+                AssetPriceRefreshError::Provider(
+                    "asset price refresh failed: provider returned invalid timestamp".into(),
+                )
+            })?
+            .format(&Rfc3339)
+            .map_err(|_| {
+                AssetPriceRefreshError::Provider(
+                    "asset price refresh failed: failed to format timestamp".into(),
+                )
+            })?,
+        None => current_utc_timestamp_iso8601()?,
+    };
+
+    Ok(AssetQuote {
+        price,
+        currency: Currency::Usd,
         as_of,
     })
 }
@@ -530,8 +595,8 @@ mod tests {
     use tokio::net::TcpListener;
 
     use super::{
-        AssetPriceRefreshConfig, fetch_alpha_vantage_quote, fetch_finnhub_quote,
-        fetch_twelve_data_quote, refresh_asset_prices,
+        AssetPriceRefreshConfig, fetch_alpha_vantage_quote, fetch_coingecko_quote,
+        fetch_finnhub_quote, fetch_twelve_data_quote, refresh_asset_prices,
     };
     use crate::{AssetType, CreateAssetInput, Currency, get_asset, init_db};
 
@@ -569,6 +634,97 @@ mod tests {
         });
 
         format!("http://{address}")
+    }
+
+    // CoinGecko tests
+
+    #[tokio::test]
+    async fn fetches_coingecko_quote() {
+        let base_url = start_test_server_at(
+            "/simple/price",
+            json!({
+                "bitcoin": {
+                    "usd": 65432.10,
+                    "last_updated_at": 1742817600
+                }
+            }),
+        )
+        .await;
+
+        let quote = fetch_coingecko_quote(&Client::new(), &base_url, "bitcoin")
+            .await
+            .expect("quote fetch should succeed");
+
+        assert_eq!(quote.price.to_string(), "65432.1");
+        assert_eq!(quote.currency, Currency::Usd);
+        assert_eq!(quote.as_of, "2025-03-24T12:00:00Z");
+    }
+
+    #[tokio::test]
+    async fn coingecko_quote_fails_on_unknown_coin() {
+        let base_url = start_test_server_at("/simple/price", json!({})).await;
+
+        let result = fetch_coingecko_quote(&Client::new(), &base_url, "notacoin").await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("no data for coin"));
+    }
+
+    #[tokio::test]
+    async fn refreshes_crypto_asset_price_via_coingecko() {
+        let pool = test_pool().await;
+        let asset_id = crate::create_asset(
+            &pool,
+            CreateAssetInput {
+                symbol: "BTC".try_into().unwrap(),
+                name: "Bitcoin".try_into().unwrap(),
+                asset_type: AssetType::Crypto,
+                quote_symbol: Some("bitcoin".to_string()),
+                isin: None,
+            },
+        )
+        .await
+        .expect("asset should be created");
+
+        let coingecko_base_url = start_test_server_at(
+            "/simple/price",
+            json!({
+                "bitcoin": {
+                    "usd": 65432.10,
+                    "last_updated_at": 1742817600
+                }
+            }),
+        )
+        .await;
+
+        let updated_count = refresh_asset_prices(
+            &pool,
+            &Client::new(),
+            &AssetPriceRefreshConfig {
+                refresh_interval: Duration::from_secs(60),
+                coingecko_base_url,
+                base_url: "http://127.0.0.1:1".to_string(),
+                api_key: None,
+                finnhub_base_url: "http://127.0.0.1:1".to_string(),
+                finnhub_api_key: None,
+                alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
+                alpha_vantage_api_key: None,
+            },
+        )
+        .await
+        .expect("refresh should succeed");
+
+        let asset = get_asset(&pool, asset_id)
+            .await
+            .expect("asset should load with price");
+
+        assert_eq!(updated_count, 1);
+        assert_eq!(asset.current_price.unwrap().to_string(), "65432.1");
+        assert_eq!(asset.current_price_currency, Some(Currency::Usd));
+        assert_eq!(
+            asset.current_price_as_of,
+            Some("2025-03-24T12:00:00Z".to_string())
+        );
     }
 
     // Twelve Data tests
@@ -663,6 +819,7 @@ mod tests {
             &Client::new(),
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
+                coingecko_base_url: "http://127.0.0.1:1".to_string(),
                 base_url,
                 api_key: Some("test-key".to_string()),
                 finnhub_base_url: "http://127.0.0.1:1".to_string(),
@@ -777,6 +934,7 @@ mod tests {
             &Client::new(),
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
+                coingecko_base_url: "http://127.0.0.1:1".to_string(),
                 base_url: "http://127.0.0.1:1".to_string(),
                 api_key: None,
                 finnhub_base_url,
@@ -886,6 +1044,7 @@ mod tests {
             &Client::new(),
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
+                coingecko_base_url: "http://127.0.0.1:1".to_string(),
                 base_url: "http://127.0.0.1:1".to_string(),
                 api_key: None,
                 finnhub_base_url: "http://127.0.0.1:1".to_string(),
