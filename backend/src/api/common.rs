@@ -4,8 +4,8 @@ use super::{
     AccountDetailResponse, AccountSummaryResponse, ApiError, AssetPositionResponse, AssetResponse,
     AssetTransactionResponse, BalanceResponse, CreateAssetApiError, CreatedAssetResponse,
     CurrencyResponse, FxRateDetailResponse, FxRateSummaryItemResponse, FxRateSummaryResponse,
-    PortfolioAccountTotalResponse, PortfolioAllocationSliceResponse, PortfolioCashByCurrencyResponse,
-    PortfolioSummaryResponse,
+    PortfolioAccountTotalResponse, PortfolioAllocationSliceResponse,
+    PortfolioCashByCurrencyResponse, PortfolioSummaryResponse,
 };
 use crate::{
     AccountBalanceRecord, AccountSummaryRecord, AccountValueSummaryRecord, AssetPositionRecord,

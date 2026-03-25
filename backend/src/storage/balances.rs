@@ -245,12 +245,11 @@ async fn compute_allocation_totals(
         // Asset positions → grouped by asset type label
         let positions = list_account_positions(pool, account.id).await?;
         for position in &positions {
-            let asset =
-                assets_by_id
-                    .get(&position.asset_id)
-                    .ok_or(StorageError::Validation(
-                        "asset referenced by position was not found",
-                    ))?;
+            let asset = assets_by_id
+                .get(&position.asset_id)
+                .ok_or(StorageError::Validation(
+                    "asset referenced by position was not found",
+                ))?;
 
             let label = asset_class_label(asset.asset_type);
 
