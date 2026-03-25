@@ -104,6 +104,13 @@ fn log_asset_price_refresh_configuration(config: &AssetPriceRefreshConfig) {
             endpoint = %config.base_url,
             "asset price refresh configuration"
         );
+    } else if config.finnhub_api_key.is_some() {
+        info!(
+            provider = "finnhub",
+            refresh_interval_seconds = config.refresh_interval.as_secs(),
+            endpoint = %config.finnhub_base_url,
+            "asset price refresh configuration"
+        );
     } else if config.alpha_vantage_api_key.is_some() {
         info!(
             provider = "alpha_vantage",

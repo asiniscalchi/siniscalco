@@ -16,6 +16,7 @@ use crate::{
 
 const DEFAULT_TWELVE_DATA_BASE_URL: &str = "https://api.twelvedata.com";
 const DEFAULT_ALPHA_VANTAGE_BASE_URL: &str = "https://www.alphavantage.co";
+const DEFAULT_FINNHUB_BASE_URL: &str = "https://finnhub.io";
 const DEFAULT_REFRESH_INTERVAL_SECS: u64 = 60 * 60;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -23,6 +24,8 @@ pub struct AssetPriceRefreshConfig {
     pub refresh_interval: Duration,
     pub base_url: String,
     pub api_key: Option<String>,
+    pub finnhub_base_url: String,
+    pub finnhub_api_key: Option<String>,
     pub alpha_vantage_base_url: String,
     pub alpha_vantage_api_key: Option<String>,
 }
@@ -36,6 +39,17 @@ impl AssetPriceRefreshConfig {
             .unwrap_or_else(|| DEFAULT_TWELVE_DATA_BASE_URL.to_string());
 
         let api_key = env::var("TWELVE_DATA_API_KEY")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+
+        let finnhub_base_url = env::var("FINNHUB_BASE_URL")
+            .ok()
+            .map(|value| value.trim().trim_end_matches('/').to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| DEFAULT_FINNHUB_BASE_URL.to_string());
+
+        let finnhub_api_key = env::var("FINNHUB_API_KEY")
             .ok()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
@@ -55,13 +69,17 @@ impl AssetPriceRefreshConfig {
             refresh_interval: Duration::from_secs(DEFAULT_REFRESH_INTERVAL_SECS),
             base_url,
             api_key,
+            finnhub_base_url,
+            finnhub_api_key,
             alpha_vantage_base_url,
             alpha_vantage_api_key,
         }
     }
 
     pub fn is_enabled(&self) -> bool {
-        self.api_key.is_some() || self.alpha_vantage_api_key.is_some()
+        self.api_key.is_some()
+            || self.finnhub_api_key.is_some()
+            || self.alpha_vantage_api_key.is_some()
     }
 }
 
@@ -109,7 +127,7 @@ pub struct AssetQuote {
 pub async fn spawn_asset_price_refresh_task(pool: SqlitePool, config: AssetPriceRefreshConfig) {
     if !config.is_enabled() {
         warn!(
-            "asset price refresh disabled: neither TWELVE_DATA_API_KEY nor ALPHA_VANTAGE_API_KEY is set"
+            "asset price refresh disabled: none of TWELVE_DATA_API_KEY, FINNHUB_API_KEY, or ALPHA_VANTAGE_API_KEY is set"
         );
         return;
     }
@@ -141,7 +159,7 @@ pub async fn refresh_asset_prices(
 ) -> Result<usize, AssetPriceRefreshError> {
     if !config.is_enabled() {
         return Err(AssetPriceRefreshError::Config(
-            "asset price refresh disabled: neither TWELVE_DATA_API_KEY nor ALPHA_VANTAGE_API_KEY is set",
+            "asset price refresh disabled: none of TWELVE_DATA_API_KEY, FINNHUB_API_KEY, or ALPHA_VANTAGE_API_KEY is set",
         ));
     }
 
@@ -185,6 +203,8 @@ pub async fn refresh_single_asset_price(
 
     let quote = if let Some(api_key) = config.api_key.as_deref() {
         fetch_twelve_data_quote(client, &config.base_url, api_key, symbol).await?
+    } else if let Some(api_key) = config.finnhub_api_key.as_deref() {
+        fetch_finnhub_quote(client, &config.finnhub_base_url, api_key, symbol).await?
     } else if let Some(api_key) = config.alpha_vantage_api_key.as_deref() {
         fetch_alpha_vantage_quote(client, &config.alpha_vantage_base_url, api_key, symbol).await?
     } else {
@@ -272,6 +292,88 @@ pub async fn fetch_twelve_data_quote(
     Ok(AssetQuote {
         price,
         currency,
+        as_of,
+    })
+}
+
+#[derive(Debug, Deserialize)]
+struct FinnhubQuoteResponse {
+    c: Option<serde_json::Number>,
+    t: Option<i64>,
+    error: Option<String>,
+}
+
+/// Fetches a quote from the Finnhub `/api/v1/quote` endpoint.
+/// Note: Finnhub does not return the currency in this endpoint.
+/// Prices are returned in the currency of the exchange where the symbol trades (defaults to USD).
+pub async fn fetch_finnhub_quote(
+    client: &Client,
+    base_url: &str,
+    api_key: &str,
+    symbol: &str,
+) -> Result<AssetQuote, AssetPriceRefreshError> {
+    let url = format!("{}/api/v1/quote", base_url.trim_end_matches('/'));
+    let response = client
+        .get(url)
+        .query(&[("symbol", symbol), ("token", api_key)])
+        .send()
+        .await
+        .map_err(|error| {
+            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
+        })?;
+
+    if !response.status().is_success() {
+        return Err(AssetPriceRefreshError::Provider(format!(
+            "asset price refresh failed: provider returned status {}",
+            response.status()
+        )));
+    }
+
+    let payload = response
+        .json::<FinnhubQuoteResponse>()
+        .await
+        .map_err(|error| {
+            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
+        })?;
+
+    if let Some(error) = payload.error {
+        return Err(AssetPriceRefreshError::Provider(format!(
+            "asset price refresh failed: {error}"
+        )));
+    }
+
+    let timestamp = payload.t.unwrap_or(0);
+    if timestamp == 0 {
+        return Err(AssetPriceRefreshError::Provider(format!(
+            "asset price refresh failed: provider returned no data for symbol {symbol}"
+        )));
+    }
+
+    let price_str = payload.c.as_ref().map(|n| n.to_string()).ok_or_else(|| {
+        AssetPriceRefreshError::Provider(
+            "asset price refresh failed: provider response missing price".into(),
+        )
+    })?;
+
+    let price =
+        AssetUnitPrice::try_from(price_str.as_str()).map_err(AssetPriceRefreshError::from)?;
+
+    let as_of = OffsetDateTime::from_unix_timestamp(timestamp)
+        .map_err(|_| {
+            AssetPriceRefreshError::Provider(
+                "asset price refresh failed: provider returned invalid timestamp".into(),
+            )
+        })?
+        .format(&Rfc3339)
+        .map_err(|_| {
+            AssetPriceRefreshError::Provider(
+                "asset price refresh failed: failed to format timestamp".into(),
+            )
+        })?;
+
+    Ok(AssetQuote {
+        price,
+        currency: Currency::Usd,
         as_of,
     })
 }
@@ -428,8 +530,8 @@ mod tests {
     use tokio::net::TcpListener;
 
     use super::{
-        AssetPriceRefreshConfig, fetch_alpha_vantage_quote, fetch_twelve_data_quote,
-        refresh_asset_prices,
+        AssetPriceRefreshConfig, fetch_alpha_vantage_quote, fetch_finnhub_quote,
+        fetch_twelve_data_quote, refresh_asset_prices,
     };
     use crate::{AssetType, CreateAssetInput, Currency, get_asset, init_db};
 
@@ -563,6 +665,8 @@ mod tests {
                 refresh_interval: Duration::from_secs(60),
                 base_url,
                 api_key: Some("test-key".to_string()),
+                finnhub_base_url: "http://127.0.0.1:1".to_string(),
+                finnhub_api_key: None,
                 alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
                 alpha_vantage_api_key: None,
             },
@@ -580,6 +684,120 @@ mod tests {
         assert_eq!(
             asset.current_price_as_of,
             Some("2026-03-24T14:30:00Z".to_string())
+        );
+    }
+
+    // Finnhub tests
+
+    #[tokio::test]
+    async fn fetches_finnhub_quote() {
+        let base_url = start_test_server_at(
+            "/api/v1/quote",
+            json!({
+                "c": 173.57,
+                "t": 1742817600
+            }),
+        )
+        .await;
+
+        let quote = fetch_finnhub_quote(&Client::new(), &base_url, "test-key", "AAPL")
+            .await
+            .expect("quote fetch should succeed");
+
+        assert_eq!(quote.price.to_string(), "173.57");
+        assert_eq!(quote.currency, Currency::Usd);
+        assert_eq!(quote.as_of, "2025-03-24T12:00:00Z");
+    }
+
+    #[tokio::test]
+    async fn finnhub_quote_fails_on_error_field() {
+        let base_url = start_test_server_at(
+            "/api/v1/quote",
+            json!({ "error": "API limit reached. Please upgrade your plan" }),
+        )
+        .await;
+
+        let result = fetch_finnhub_quote(&Client::new(), &base_url, "test-key", "AAPL").await;
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("API limit reached")
+        );
+    }
+
+    #[tokio::test]
+    async fn finnhub_quote_fails_on_unknown_symbol() {
+        let base_url = start_test_server_at(
+            "/api/v1/quote",
+            json!({ "c": 0, "d": null, "dp": null, "h": 0, "l": 0, "o": 0, "pc": 0, "t": 0 }),
+        )
+        .await;
+
+        let result = fetch_finnhub_quote(&Client::new(), &base_url, "test-key", "INVALID").await;
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("no data for symbol")
+        );
+    }
+
+    #[tokio::test]
+    async fn refreshes_asset_prices_via_finnhub() {
+        let pool = test_pool().await;
+        let asset_id = crate::create_asset(
+            &pool,
+            CreateAssetInput {
+                symbol: "AAPL".try_into().unwrap(),
+                name: "Apple".try_into().unwrap(),
+                asset_type: AssetType::Stock,
+                quote_symbol: Some("AAPL".to_string()),
+                isin: None,
+            },
+        )
+        .await
+        .expect("asset should be created");
+
+        let finnhub_base_url = start_test_server_at(
+            "/api/v1/quote",
+            json!({
+                "c": 210.99,
+                "t": 1742817600
+            }),
+        )
+        .await;
+
+        let updated_count = refresh_asset_prices(
+            &pool,
+            &Client::new(),
+            &AssetPriceRefreshConfig {
+                refresh_interval: Duration::from_secs(60),
+                base_url: "http://127.0.0.1:1".to_string(),
+                api_key: None,
+                finnhub_base_url,
+                finnhub_api_key: Some("test-key".to_string()),
+                alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
+                alpha_vantage_api_key: None,
+            },
+        )
+        .await
+        .expect("refresh should succeed");
+
+        let asset = get_asset(&pool, asset_id)
+            .await
+            .expect("asset should load with price");
+
+        assert_eq!(updated_count, 1);
+        assert_eq!(asset.current_price.unwrap().to_string(), "210.99");
+        assert_eq!(asset.current_price_currency, Some(Currency::Usd));
+        assert_eq!(
+            asset.current_price_as_of,
+            Some("2025-03-24T12:00:00Z".to_string())
         );
     }
 
@@ -670,6 +888,8 @@ mod tests {
                 refresh_interval: Duration::from_secs(60),
                 base_url: "http://127.0.0.1:1".to_string(),
                 api_key: None,
+                finnhub_base_url: "http://127.0.0.1:1".to_string(),
+                finnhub_api_key: None,
                 alpha_vantage_base_url,
                 alpha_vantage_api_key: Some("test-key".to_string()),
             },
