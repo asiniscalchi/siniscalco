@@ -135,23 +135,13 @@ export function AccountsListPage() {
       </header>
 
       {requestState.status === "ready" && (
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Card className="bg-background">
-            <CardHeader className="pb-2">
-              <CardDescription className="text-xs font-medium uppercase tracking-wider">
-                Total Accounts
-              </CardDescription>
-              <CardTitle className="text-2xl font-bold">
-                {requestState.accounts.length}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="bg-background">
-            <CardHeader className="pb-2">
-              <CardDescription className="text-xs font-medium uppercase tracking-wider">
+        <Card className="bg-background">
+          <CardContent className="flex items-center justify-between py-4">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Combined Balance
-              </CardDescription>
-              <CardTitle className="text-2xl font-bold">
+              </p>
+              <p className="mt-0.5 text-2xl font-bold">
                 {requestState.portfolio.total_value_status === "ok" &&
                 requestState.portfolio.total_value_amount ? (
                   <MoneyText
@@ -164,10 +154,18 @@ export function AccountsListPage() {
                     Unavailable
                   </span>
                 )}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-        </section>
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Accounts
+              </p>
+              <p className="mt-0.5 text-2xl font-bold">
+                {requestState.accounts.length}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <section className="space-y-4">

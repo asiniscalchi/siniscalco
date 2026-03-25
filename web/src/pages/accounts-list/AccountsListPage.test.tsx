@@ -165,8 +165,7 @@ describe("AccountsListPage", () => {
 
     renderAccountsListPage();
 
-    expect(await screen.findByText("Total Accounts")).toBeTruthy();
-    expect(screen.getByText("Combined Balance")).toBeTruthy();
+    expect(await screen.findByText("Combined Balance")).toBeTruthy();
     expect(screen.getAllByText("1").length).toBeGreaterThan(0); // One for total accounts count
 
     expect(await screen.findByText("IBKR")).toBeTruthy();
