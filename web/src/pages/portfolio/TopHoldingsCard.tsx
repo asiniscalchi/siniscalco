@@ -111,7 +111,7 @@ export function TopHoldingsCard({
             <BarChart
               layout="vertical"
               width={200}
-              height={Math.max(chartData.length * 40, 80)}
+              height={Math.max(chartData.length * 32, 70)}
               data={chartData}
               margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
             >
