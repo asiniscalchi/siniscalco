@@ -119,36 +119,66 @@ fn log_asset_price_refresh_configuration(config: &AssetPriceRefreshConfig) {
         "ISIN resolution configuration"
     );
 
-    let stock_providers_configured = config.twelve_data_api_key.is_some()
-        || config.finnhub_api_key.is_some()
-        || config.alpha_vantage_api_key.is_some();
+    let stock_providers: &[(&str, bool, &str)] = &[
+        (
+            "twelve_data",
+            config.twelve_data_api_key.is_some(),
+            &config.twelve_data_base_url,
+        ),
+        (
+            "finnhub",
+            config.finnhub_api_key.is_some(),
+            &config.finnhub_base_url,
+        ),
+        (
+            "alpha_vantage",
+            config.alpha_vantage_api_key.is_some(),
+            &config.alpha_vantage_base_url,
+        ),
+        (
+            "polygon",
+            config.polygon_api_key.is_some(),
+            &config.polygon_base_url,
+        ),
+        ("fmp", config.fmp_api_key.is_some(), &config.fmp_base_url),
+        (
+            "eodhd",
+            config.eodhd_api_key.is_some(),
+            &config.eodhd_base_url,
+        ),
+        (
+            "tiingo",
+            config.tiingo_api_key.is_some(),
+            &config.tiingo_base_url,
+        ),
+        (
+            "marketstack",
+            config.marketstack_api_key.is_some(),
+            &config.marketstack_base_url,
+        ),
+    ];
 
-    if stock_providers_configured {
-        if config.twelve_data_api_key.is_some() {
+    let enabled_count = stock_providers
+        .iter()
+        .filter(|(_, enabled, _)| *enabled)
+        .count();
+
+    if enabled_count == 0 {
+        info!(
+            enabled = false,
+            "stock asset price refresh disabled: no provider API keys configured"
+        );
+        return;
+    }
+
+    for (provider, enabled, endpoint) in stock_providers {
+        if *enabled {
             info!(
-                provider = "twelve_data",
+                provider,
                 refresh_interval_seconds = config.refresh_interval.as_secs(),
-                endpoint = %config.twelve_data_base_url,
-                "asset price refresh configuration"
+                endpoint,
+                "stock asset price provider enabled"
             );
         }
-        if config.finnhub_api_key.is_some() {
-            info!(
-                provider = "finnhub",
-                refresh_interval_seconds = config.refresh_interval.as_secs(),
-                endpoint = %config.finnhub_base_url,
-                "asset price refresh configuration"
-            );
-        }
-        if config.alpha_vantage_api_key.is_some() {
-            info!(
-                provider = "alpha_vantage",
-                refresh_interval_seconds = config.refresh_interval.as_secs(),
-                endpoint = %config.alpha_vantage_base_url,
-                "asset price refresh configuration"
-            );
-        }
-    } else {
-        info!(enabled = false, "asset price refresh configuration");
     }
 }

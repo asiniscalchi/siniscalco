@@ -155,7 +155,10 @@ async fn try_stock_providers(
             match fetch_twelve_data_quote(client, &config.twelve_data_base_url, api_key, symbol)
                 .await
             {
-                Ok(quote) => return Some(Ok(quote)),
+                Ok(quote) => {
+                    info!(provider = "twelve_data", symbol, "asset price fetched");
+                    return Some(Ok(quote));
+                }
                 Err(e) => {
                     warn!(provider = "twelve_data", symbol, error = %e, "provider failed, trying next");
                     last_err = Some(e);
@@ -165,7 +168,10 @@ async fn try_stock_providers(
 
         if let Some(api_key) = config.finnhub_api_key.as_deref() {
             match fetch_finnhub_quote(client, &config.finnhub_base_url, api_key, symbol).await {
-                Ok(quote) => return Some(Ok(quote)),
+                Ok(quote) => {
+                    info!(provider = "finnhub", symbol, "asset price fetched");
+                    return Some(Ok(quote));
+                }
                 Err(e) => {
                     warn!(provider = "finnhub", symbol, error = %e, "provider failed, trying next");
                     last_err = Some(e);
@@ -177,7 +183,10 @@ async fn try_stock_providers(
             match fetch_alpha_vantage_quote(client, &config.alpha_vantage_base_url, api_key, symbol)
                 .await
             {
-                Ok(quote) => return Some(Ok(quote)),
+                Ok(quote) => {
+                    info!(provider = "alpha_vantage", symbol, "asset price fetched");
+                    return Some(Ok(quote));
+                }
                 Err(e) => {
                     warn!(provider = "alpha_vantage", symbol, error = %e, "provider failed, trying next");
                     last_err = Some(e);
@@ -187,7 +196,10 @@ async fn try_stock_providers(
 
         if let Some(api_key) = config.polygon_api_key.as_deref() {
             match fetch_polygon_quote(client, &config.polygon_base_url, api_key, symbol).await {
-                Ok(quote) => return Some(Ok(quote)),
+                Ok(quote) => {
+                    info!(provider = "polygon", symbol, "asset price fetched");
+                    return Some(Ok(quote));
+                }
                 Err(e) => {
                     warn!(provider = "polygon", symbol, error = %e, "provider failed, trying next");
                     last_err = Some(e);
@@ -197,7 +209,10 @@ async fn try_stock_providers(
 
         if let Some(api_key) = config.fmp_api_key.as_deref() {
             match fetch_fmp_quote(client, &config.fmp_base_url, api_key, symbol).await {
-                Ok(quote) => return Some(Ok(quote)),
+                Ok(quote) => {
+                    info!(provider = "fmp", symbol, "asset price fetched");
+                    return Some(Ok(quote));
+                }
                 Err(e) => {
                     warn!(provider = "fmp", symbol, error = %e, "provider failed, trying next");
                     last_err = Some(e);
@@ -207,7 +222,10 @@ async fn try_stock_providers(
 
         if let Some(api_key) = config.eodhd_api_key.as_deref() {
             match fetch_eodhd_quote(client, &config.eodhd_base_url, api_key, symbol).await {
-                Ok(quote) => return Some(Ok(quote)),
+                Ok(quote) => {
+                    info!(provider = "eodhd", symbol, "asset price fetched");
+                    return Some(Ok(quote));
+                }
                 Err(e) => {
                     warn!(provider = "eodhd", symbol, error = %e, "provider failed, trying next");
                     last_err = Some(e);
@@ -217,7 +235,10 @@ async fn try_stock_providers(
 
         if let Some(api_key) = config.tiingo_api_key.as_deref() {
             match fetch_tiingo_quote(client, &config.tiingo_base_url, api_key, symbol).await {
-                Ok(quote) => return Some(Ok(quote)),
+                Ok(quote) => {
+                    info!(provider = "tiingo", symbol, "asset price fetched");
+                    return Some(Ok(quote));
+                }
                 Err(e) => {
                     warn!(provider = "tiingo", symbol, error = %e, "provider failed, trying next");
                     last_err = Some(e);
@@ -229,7 +250,10 @@ async fn try_stock_providers(
             match fetch_marketstack_quote(client, &config.marketstack_base_url, api_key, symbol)
                 .await
             {
-                Ok(quote) => return Some(Ok(quote)),
+                Ok(quote) => {
+                    info!(provider = "marketstack", symbol, "asset price fetched");
+                    return Some(Ok(quote));
+                }
                 Err(e) => {
                     warn!(provider = "marketstack", symbol, error = %e, "provider failed, trying next");
                     last_err = Some(e);
