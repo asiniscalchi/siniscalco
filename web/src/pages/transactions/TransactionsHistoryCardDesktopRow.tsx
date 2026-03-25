@@ -1,6 +1,7 @@
 import { MoneyText } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
+import { AssetLabel } from "@/components/AssetLabel";
 import { TransactionsHistoryCardActions } from "./TransactionsHistoryCardActions";
 import { getTransactionTypeClassName, trimTrailingZeros } from "./TransactionsHistoryCard.utils";
 import type { Asset, Transaction } from "./types";
@@ -37,12 +38,7 @@ export function TransactionsHistoryCardDesktopRow({
         {transaction.trade_date}
       </td>
       <td className="py-3 pr-4">
-        <div className="flex flex-col">
-          <span className="font-bold">{asset?.symbol || "Unknown"}</span>
-          <span className="max-w-[120px] truncate text-[10px] text-muted-foreground">
-            {asset?.name}
-          </span>
-        </div>
+        <AssetLabel name={asset?.name} symbol={asset?.symbol || "Unknown"} />
       </td>
       <td className="py-3 pr-4">
         <span

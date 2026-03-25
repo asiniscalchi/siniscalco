@@ -2,6 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { MoneyText } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
+import { AssetLabel } from "@/components/AssetLabel";
 import { TransactionsHistoryCardActions } from "./TransactionsHistoryCardActions";
 import { getTransactionTypeClassName, trimTrailingZeros } from "./TransactionsHistoryCard.utils";
 import type { Asset, Transaction } from "./types";
@@ -32,12 +33,7 @@ export function TransactionsHistoryCardMobileItem({
       <CardContent className="space-y-3 p-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-sm font-semibold leading-tight">
-              {asset?.symbol || "Unknown"}
-            </p>
-            <p className="truncate text-[11px] leading-tight text-muted-foreground">
-              {asset?.name}
-            </p>
+            <AssetLabel name={asset?.name} symbol={asset?.symbol || "Unknown"} />
           </div>
           <span
             className={cn(

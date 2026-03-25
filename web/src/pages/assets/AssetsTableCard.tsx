@@ -1,3 +1,4 @@
+import { AssetLabel } from "@/components/AssetLabel";
 import { PencilIcon, PlusIcon, TrashIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -76,8 +77,7 @@ export function AssetsTableCard({
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-2">
-                      <p className="font-semibold">{asset.symbol}</p>
-                      <p className="truncate text-[11px] text-muted-foreground">{asset.name}</p>
+                      <AssetLabel name={asset.name} symbol={asset.symbol} />
                     </div>
                     <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                       <div className="flex items-center gap-2">
@@ -126,8 +126,7 @@ export function AssetsTableCard({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">
-                  <th className="pb-3 pr-4">Symbol</th>
-                  <th className="pb-3 pr-4">Name</th>
+                  <th className="pb-3 pr-4">Asset</th>
                   <th className="pb-3 pr-4">Type</th>
                   <th className="pb-3 pr-4">Price</th>
                   <th className="pb-3 pr-4">ISIN</th>
@@ -140,10 +139,9 @@ export function AssetsTableCard({
                     className="group transition-colors hover:bg-muted/30"
                     key={asset.id}
                   >
-                    <td className="py-3 pr-4 font-bold tabular-nums">
-                      {asset.symbol}
+                    <td className="py-3 pr-4">
+                      <AssetLabel name={asset.name} symbol={asset.symbol} />
                     </td>
-                    <td className="py-3 pr-4">{asset.name}</td>
                     <td className="py-3 pr-4">
                       <span className="inline-flex items-center rounded-full border bg-muted/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
                         {asset.asset_type.replace("_", " ")}
