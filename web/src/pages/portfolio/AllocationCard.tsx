@@ -81,8 +81,10 @@ export function AllocationCard({
               </Pie>
               {!hideValues && (
                 <Tooltip
-                  formatter={(value: number) =>
-                    `${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${displayCurrency}`
+                  formatter={(value) =>
+                    value != null
+                      ? `${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${displayCurrency}`
+                      : ""
                   }
                 />
               )}
