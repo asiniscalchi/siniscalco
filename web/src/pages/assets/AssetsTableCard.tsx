@@ -68,59 +68,54 @@ export function AssetsTableCard({
           </div>
         ) : (
           <>
-            <div className="space-y-2 sm:hidden">
+            <div className="space-y-1.5 sm:hidden">
               {assets.map((asset) => (
                 <div
-                  className="rounded-xl border bg-muted/20 p-3 text-sm"
+                  className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm"
                   key={asset.id}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="font-semibold leading-tight">{asset.symbol}</p>
-                      <p className="truncate text-[11px] text-muted-foreground leading-tight">{asset.name}</p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2">
+                      <p className="font-semibold">{asset.symbol}</p>
+                      <p className="truncate text-[11px] text-muted-foreground">{asset.name}</p>
                     </div>
-                    <span className="inline-flex shrink-0 items-center rounded-full border bg-muted/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
-                      {asset.asset_type.replace("_", " ")}
-                    </span>
-                  </div>
-                  <div className="mt-2 flex items-end justify-between gap-2">
-                    <div>
-                      <p className="font-mono text-[13px] tabular-nums">{formatPrice(asset)}</p>
-                      <p className="text-[11px] text-muted-foreground">{priceLabel(asset)}</p>
-                      {asset.isin && (
-                        <p className="mt-1 font-mono text-[11px] text-muted-foreground">{asset.isin}</p>
-                      )}
+                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <span className="inline-flex items-center rounded-full border bg-muted/50 px-1.5 py-px font-medium uppercase tracking-wide">
+                        {asset.asset_type.replace("_", " ")}
+                      </span>
+                      <span className="font-mono tabular-nums">{formatPrice(asset)}</span>
+                      {asset.isin && <span className="font-mono">{asset.isin}</span>}
                     </div>
-                    {!isLocked && (
-                      <div className="flex shrink-0 gap-1">
-                        <Button
-                          disabled={isDeleting !== null}
-                          onClick={() => onEditClick(asset)}
-                          size="icon"
-                          title="Edit asset"
-                          variant="ghost"
-                        >
-                          <PencilIcon />
-                          <span className="sr-only">Edit</span>
-                        </Button>
-                        <Button
-                          className="text-destructive hover:bg-destructive/10"
-                          disabled={isDeleting !== null}
-                          onClick={() => onDeleteClick(asset)}
-                          size="icon"
-                          title="Delete asset"
-                          variant="ghost"
-                        >
-                          {isDeleting === asset.id ? (
-                            <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                          ) : (
-                            <TrashIcon />
-                          )}
-                          <span className="sr-only">Delete</span>
-                        </Button>
-                      </div>
-                    )}
                   </div>
+                  {!isLocked && (
+                    <div className="flex shrink-0 gap-0.5">
+                      <Button
+                        disabled={isDeleting !== null}
+                        onClick={() => onEditClick(asset)}
+                        size="icon"
+                        title="Edit asset"
+                        variant="ghost"
+                      >
+                        <PencilIcon />
+                        <span className="sr-only">Edit</span>
+                      </Button>
+                      <Button
+                        className="text-destructive hover:bg-destructive/10"
+                        disabled={isDeleting !== null}
+                        onClick={() => onDeleteClick(asset)}
+                        size="icon"
+                        title="Delete asset"
+                        variant="ghost"
+                      >
+                        {isDeleting === asset.id ? (
+                          <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        ) : (
+                          <TrashIcon />
+                        )}
+                        <span className="sr-only">Delete</span>
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
