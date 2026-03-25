@@ -195,11 +195,12 @@ mod tests {
     use tokio::net::TcpListener;
 
     use super::{
-        AssetPriceRefreshConfig, refresh_asset_prices,
+        AssetPriceRefreshConfig,
         providers::{
             fetch_alpha_vantage_quote, fetch_coingecko_quote, fetch_finnhub_quote,
             fetch_twelve_data_quote,
         },
+        refresh_asset_prices,
     };
     use crate::{AssetType, CreateAssetInput, Currency, get_asset, init_db};
 
