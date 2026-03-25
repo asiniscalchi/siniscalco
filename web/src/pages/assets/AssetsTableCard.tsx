@@ -75,15 +75,17 @@ export function AssetsTableCard({
                   key={asset.id}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-2">
+                    <div className="flex items-baseline justify-between gap-2">
                       <p className="font-semibold">{asset.symbol}</p>
                       <p className="truncate text-[11px] text-muted-foreground">{asset.name}</p>
                     </div>
-                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-                      <span className="inline-flex items-center rounded-full border bg-muted/50 px-1.5 py-px font-medium uppercase tracking-wide">
-                        {asset.asset_type.replace("_", " ")}
-                      </span>
-                      <span className="font-mono tabular-nums">{formatPrice(asset)}</span>
+                    <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center rounded-full border bg-muted/50 px-1.5 py-px font-medium uppercase tracking-wide">
+                          {asset.asset_type.replace("_", " ")}
+                        </span>
+                        <span className="font-mono tabular-nums">{formatPrice(asset)}</span>
+                      </div>
                       {asset.isin && <span className="font-mono">{asset.isin}</span>}
                     </div>
                   </div>
