@@ -15,15 +15,17 @@ mod providers;
 pub use providers::{
     AlphaVantageProvider, EodhdProvider, FinnhubProvider, FmpProvider, MarketstackProvider,
     PolygonProvider, StockProvider, TiingoProvider, TwelveDataProvider, fetch_alpha_vantage_quote,
-    fetch_coingecko_quote, fetch_eodhd_quote, fetch_finnhub_quote, fetch_fmp_quote,
-    fetch_marketstack_quote, fetch_openfigi_tickers, fetch_polygon_quote, fetch_tiingo_quote,
-    fetch_twelve_data_quote,
+    fetch_coincap_quote, fetch_coingecko_quote, fetch_eodhd_quote, fetch_finnhub_quote,
+    fetch_fmp_quote, fetch_marketstack_quote, fetch_openfigi_tickers, fetch_polygon_quote,
+    fetch_tiingo_quote, fetch_twelve_data_quote,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AssetPriceRefreshConfig {
     pub refresh_interval: Duration,
     pub coingecko_base_url: String,
+    pub coincap_base_url: String,
+    pub coincap_api_key: Option<String>,
     pub openfigi_base_url: String,
     pub openfigi_api_key: Option<String>,
     pub twelve_data_base_url: String,
@@ -113,6 +115,7 @@ async fn fill_missing_asset_prices(
             Err(error) => {
                 warn!(
                     asset_id = asset.id.as_i64(),
+                    symbol = %asset.symbol,
                     error = %error,
                     "startup asset price fill failed for asset"
                 );
@@ -270,7 +273,21 @@ pub async fn refresh_single_asset_price(
             .as_deref()
             .unwrap_or(asset.symbol.as_str())
             .to_lowercase();
-        fetch_coingecko_quote(client, &config.coingecko_base_url, &coin_id).await?
+        match fetch_coingecko_quote(client, &config.coingecko_base_url, &coin_id).await {
+            Ok(quote) => quote,
+            Err(coingecko_err) => {
+                if let Some(api_key) = config.coincap_api_key.as_deref() {
+                    warn!(
+                        coin_id,
+                        error = %coingecko_err,
+                        "CoinGecko failed, falling back to CoinCap"
+                    );
+                    fetch_coincap_quote(client, &config.coincap_base_url, api_key, &coin_id).await?
+                } else {
+                    return Err(coingecko_err);
+                }
+            }
+        }
     } else {
         let symbols = resolve_stock_symbols(client, config, &asset).await;
         let providers = config.stock_providers();
@@ -418,6 +435,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url,
+                coincap_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_api_key: None,
                 openfigi_base_url: "http://127.0.0.1:1".to_string(),
                 openfigi_api_key: None,
                 twelve_data_base_url: "http://127.0.0.1:1".to_string(),
@@ -547,6 +566,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_api_key: None,
                 openfigi_base_url: "http://127.0.0.1:1".to_string(),
                 openfigi_api_key: None,
                 twelve_data_base_url: base_url,
@@ -674,6 +695,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_api_key: None,
                 openfigi_base_url: "http://127.0.0.1:1".to_string(),
                 openfigi_api_key: None,
                 twelve_data_base_url: "http://127.0.0.1:1".to_string(),
@@ -855,6 +878,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_api_key: None,
                 openfigi_base_url,
                 openfigi_api_key: None,
                 twelve_data_base_url,
@@ -926,6 +951,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_api_key: None,
                 openfigi_base_url,
                 openfigi_api_key: None,
                 twelve_data_base_url: "http://127.0.0.1:1".to_string(),
@@ -990,6 +1017,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_api_key: None,
                 openfigi_base_url: "http://127.0.0.1:1".to_string(),
                 openfigi_api_key: None,
                 twelve_data_base_url: "http://127.0.0.1:1".to_string(),
@@ -1054,6 +1083,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_api_key: None,
                 openfigi_base_url: "http://127.0.0.1:1".to_string(),
                 openfigi_api_key: None,
                 twelve_data_base_url: "http://127.0.0.1:1".to_string(),
@@ -1120,6 +1151,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_api_key: None,
                 openfigi_base_url: "http://127.0.0.1:1".to_string(),
                 openfigi_api_key: None,
                 twelve_data_base_url: "http://127.0.0.1:1".to_string(),
@@ -1228,6 +1261,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_api_key: None,
                 openfigi_base_url: "http://127.0.0.1:1".to_string(),
                 openfigi_api_key: None,
                 twelve_data_base_url: "http://127.0.0.1:1".to_string(),
@@ -1326,6 +1361,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_api_key: None,
                 openfigi_base_url: "http://127.0.0.1:1".to_string(),
                 openfigi_api_key: None,
                 twelve_data_base_url: "http://127.0.0.1:1".to_string(),
@@ -1428,6 +1465,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_api_key: None,
                 openfigi_base_url: "http://127.0.0.1:1".to_string(),
                 openfigi_api_key: None,
                 twelve_data_base_url: "http://127.0.0.1:1".to_string(),
@@ -1526,6 +1565,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_api_key: None,
                 openfigi_base_url: "http://127.0.0.1:1".to_string(),
                 openfigi_api_key: None,
                 twelve_data_base_url: "http://127.0.0.1:1".to_string(),
@@ -1625,6 +1666,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_base_url: "http://127.0.0.1:1".to_string(),
+                coincap_api_key: None,
                 openfigi_base_url: "http://127.0.0.1:1".to_string(),
                 openfigi_api_key: None,
                 twelve_data_base_url: "http://127.0.0.1:1".to_string(),

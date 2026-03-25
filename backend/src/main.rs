@@ -113,6 +113,12 @@ fn log_asset_price_refresh_configuration(config: &AssetPriceRefreshConfig) {
         "crypto asset price refresh configuration"
     );
     info!(
+        provider = "coincap",
+        endpoint = %config.coincap_base_url,
+        api_key_configured = config.coincap_api_key.is_some(),
+        "crypto asset price refresh fallback configuration"
+    );
+    info!(
         provider = "openfigi",
         endpoint = %config.openfigi_base_url,
         api_key_configured = config.openfigi_api_key.is_some(),
