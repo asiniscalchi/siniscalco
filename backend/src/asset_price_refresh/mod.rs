@@ -81,6 +81,8 @@ pub async fn spawn_asset_price_refresh_task(pool: SqlitePool, config: AssetPrice
         }
 
         loop {
+            sleep(config.refresh_interval).await;
+
             info!(
                 refresh_interval_seconds = config.refresh_interval.as_secs(),
                 "starting asset price refresh"
@@ -90,8 +92,6 @@ pub async fn spawn_asset_price_refresh_task(pool: SqlitePool, config: AssetPrice
                 Ok(updated_count) => info!(updated_count, "asset price refresh succeeded"),
                 Err(error) => warn!(error = %error, "asset price refresh failed"),
             }
-
-            sleep(config.refresh_interval).await;
         }
     });
 }
