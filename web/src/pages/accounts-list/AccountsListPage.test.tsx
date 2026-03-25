@@ -178,12 +178,30 @@ describe("AccountsListPage", () => {
     expect(screen.getByText("GBP")).toBeTruthy();
     expect(screen.getByText("1.1700")).toBeTruthy();
     expect(
-      screen
-        .getByRole("link", { name: /IBKR/ })
-        .getAttribute("href"),
+      screen.getByRole("link", { name: /IBKR/ }).getAttribute("href"),
     ).toBe("/accounts/1");
   });
 
+  it("renders crypto account with Crypto label", async () => {
+    mockDashboardRequests({
+      accounts: [
+        {
+          id: 2,
+          name: "Kraken",
+          account_type: "crypto",
+          base_currency: "EUR",
+          summary_status: "ok",
+          total_amount: "0.00000000",
+          total_currency: "EUR",
+        },
+      ],
+    });
+
+    renderAccountsListPage();
+
+    expect(await screen.findByText("Kraken")).toBeTruthy();
+    expect(screen.getByText(/crypto/i)).toBeTruthy();
+  });
 
   it("renders conversion unavailable when the backend summary cannot be calculated", async () => {
     mockDashboardRequests({
@@ -405,7 +423,8 @@ describe("AccountsListPage", () => {
         rates: [{ currency: "USD", rate: "0.92" }],
         last_updated: "2026-03-22 10:00:00",
         refresh_status: "unavailable",
-        refresh_error: "FX refresh unavailable: no successful refresh has completed",
+        refresh_error:
+          "FX refresh unavailable: no successful refresh has completed",
       },
     });
 
@@ -413,7 +432,9 @@ describe("AccountsListPage", () => {
 
     expect(await screen.findByText("Refresh Failed")).toBeTruthy();
     const errorIndicator = screen.getByText("Refresh Failed");
-    expect(errorIndicator.getAttribute("title")).toContain("no successful refresh has completed");
+    expect(errorIndicator.getAttribute("title")).toContain(
+      "no successful refresh has completed",
+    );
   });
 
   it("masks account totals when hidden mode is enabled", async () => {
@@ -446,5 +467,4 @@ describe("AccountsListPage", () => {
     expect(accountLink.textContent).not.toContain("123.45 EUR");
     expect(maskedAmounts[0].className).toContain("tabular-nums");
   });
-
 });

@@ -16,7 +16,9 @@ import { cn } from "@/lib/utils";
 export function AccountNewPage() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
-  const [accountType, setAccountType] = useState<"bank" | "broker">("bank");
+  const [accountType, setAccountType] = useState<"bank" | "broker" | "crypto">(
+    "bank",
+  );
   const [baseCurrency, setBaseCurrency] = useState("EUR");
   const [currenciesState, setCurrenciesState] = useState<
     | { status: "loading" }
@@ -151,12 +153,15 @@ export function AccountNewPage() {
                 id="account-type"
                 name="account_type"
                 onChange={(event) =>
-                  setAccountType(event.target.value as "bank" | "broker")
+                  setAccountType(
+                    event.target.value as "bank" | "broker" | "crypto",
+                  )
                 }
                 value={accountType}
               >
                 <option value="bank">bank</option>
                 <option value="broker">broker</option>
+                <option value="crypto">crypto</option>
               </select>
             </div>
 
