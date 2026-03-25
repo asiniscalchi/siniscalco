@@ -31,7 +31,7 @@ pub use storage::{
     CreateAssetInput, CreateAssetTransactionInput, Currency, CurrencyRecord, FxRate,
     FxRateDetailRecord, FxRateRecord, FxRateSummaryItemRecord, FxRateSummaryRecord,
     PortfolioAccountTotalRecord, PortfolioAllocationSliceRecord, PortfolioCashByCurrencyRecord,
-    PortfolioSummaryRecord, TradeDate, UpdateAccountInput, UpdateAssetInput,
+    PortfolioHoldingRecord, PortfolioSummaryRecord, TradeDate, UpdateAccountInput, UpdateAssetInput,
     UpdateAssetTransactionInput, UpsertAccountBalanceInput, UpsertAssetPriceInput,
     UpsertFxRateInput, UpsertOutcome, create_account, create_asset, create_asset_transaction,
     current_utc_timestamp, current_utc_timestamp_iso8601, delete_account, delete_account_balance,

@@ -7,6 +7,7 @@ import { PortfolioCurrencyBreakdown } from "./PortfolioCurrencyBreakdown";
 import { PortfolioEmptyState } from "./PortfolioEmptyState";
 import { PortfolioPageHeader } from "./PortfolioPageHeader";
 import { PortfolioSummarySection } from "./PortfolioSummarySection";
+import { TopHoldingsCard } from "./TopHoldingsCard";
 
 type PortfolioSummary = PortfolioSummaryResponse;
 
@@ -47,6 +48,13 @@ export function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) 
         isPartial={summary.allocation_is_partial}
         displayCurrency={summary.display_currency}
         hideValues={hideValues}
+      />
+      <TopHoldingsCard
+        holdings={summary.holdings}
+        isPartial={summary.holdings_is_partial}
+        displayCurrency={summary.display_currency}
+        hideValues={hideValues}
+        totalValue={totalValue}
       />
     </div>
   );

@@ -5,14 +5,14 @@ use super::{
     AssetTransactionResponse, BalanceResponse, CreateAssetApiError, CreatedAssetResponse,
     CurrencyResponse, FxRateDetailResponse, FxRateSummaryItemResponse, FxRateSummaryResponse,
     PortfolioAccountTotalResponse, PortfolioAllocationSliceResponse,
-    PortfolioCashByCurrencyResponse, PortfolioSummaryResponse,
+    PortfolioCashByCurrencyResponse, PortfolioHoldingResponse, PortfolioSummaryResponse,
 };
 use crate::{
-    AccountBalanceRecord, AccountSummaryRecord, AccountValueSummaryRecord, AssetPositionRecord,
-    AssetRecord, AssetTransactionRecord, CurrencyRecord, FxRateDetailRecord,
-    FxRateSummaryItemRecord, FxRateSummaryRecord, PortfolioAccountTotalRecord,
-    PortfolioAllocationSliceRecord, PortfolioCashByCurrencyRecord, PortfolioSummaryRecord,
-    compact_decimal_output, normalize_amount_output,
+    compact_decimal_output, normalize_amount_output, AccountBalanceRecord, AccountSummaryRecord,
+    AccountValueSummaryRecord, AssetPositionRecord, AssetRecord, AssetTransactionRecord,
+    CurrencyRecord, FxRateDetailRecord, FxRateSummaryItemRecord, FxRateSummaryRecord,
+    PortfolioAccountTotalRecord, PortfolioAllocationSliceRecord, PortfolioCashByCurrencyRecord,
+    PortfolioHoldingRecord, PortfolioSummaryRecord,
 };
 
 pub(super) fn map_json_rejection(rejection: JsonRejection) -> ApiError {
@@ -224,6 +224,21 @@ pub(super) fn to_portfolio_summary_response(
             .map(to_portfolio_allocation_slice_response)
             .collect(),
         allocation_is_partial: summary.allocation_is_partial,
+        holdings: summary
+            .holdings
+            .into_iter()
+            .map(to_portfolio_holding_response)
+            .collect(),
+        holdings_is_partial: summary.holdings_is_partial,
+    }
+}
+
+fn to_portfolio_holding_response(holding: PortfolioHoldingRecord) -> PortfolioHoldingResponse {
+    PortfolioHoldingResponse {
+        asset_id: holding.asset_id.as_i64(),
+        symbol: holding.symbol,
+        name: holding.name,
+        value: normalize_amount_output(&holding.value.to_string()),
     }
 }
 
