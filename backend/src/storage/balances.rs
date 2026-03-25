@@ -335,7 +335,8 @@ async fn compute_top_holdings(
         };
 
         holdings.push(PortfolioHoldingRecord {
-            asset_id: AssetId::try_from(-(holdings.len() as i64 + 1)).unwrap_or_else(|_| AssetId::try_from(1_i64).unwrap()),
+            asset_id: AssetId::try_from(-(holdings.len() as i64 + 1))
+                .unwrap_or_else(|_| AssetId::try_from(1_i64).unwrap()),
             symbol: cash.currency.as_str().to_string(),
             name: format!("{} Cash", cash.currency.as_str()),
             value: parse_decimal_amount(converted_value),
