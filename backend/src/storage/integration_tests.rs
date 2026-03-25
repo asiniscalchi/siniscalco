@@ -1991,3 +1991,306 @@ async fn ensures_portfolio_total_matches_sum_of_cash_by_currency() {
         "Portfolio total should match sum of converted currency amounts"
     );
 }
+
+#[tokio::test]
+async fn allocation_totals_groups_cash_balances_into_cash_slice() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Bank"),
+            account_type: AccountType::Bank,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .unwrap();
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Eur,
+            amount: amt("500.000000"),
+        },
+    )
+    .await
+    .unwrap();
+
+    let summary = super::get_portfolio_summary(&pool, Currency::Eur)
+        .await
+        .unwrap();
+
+    assert_eq!(summary.allocation_totals.len(), 1);
+    assert_eq!(summary.allocation_totals[0].label, "Cash");
+    assert_eq!(summary.allocation_totals[0].amount, amt("500.000000"));
+    assert!(!summary.allocation_is_partial);
+}
+
+#[tokio::test]
+async fn allocation_totals_groups_asset_positions_by_type() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Broker"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .unwrap();
+
+    // Stock asset: 10 shares at 20 EUR each = 200 EUR
+    let stock_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("ACME"),
+            name: asset_name("Acme Corp"),
+            asset_type: AssetType::Stock,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    upsert_asset_price(
+        &pool,
+        UpsertAssetPriceInput {
+            asset_id: stock_id,
+            price: asset_unit_price("20.000000"),
+            currency: Currency::Eur,
+            as_of: "2026-01-01T00:00:00Z".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id: stock_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2026-01-01"),
+            quantity: asset_quantity("10.000000"),
+            unit_price: asset_unit_price("20.000000"),
+            currency_code: Currency::Eur,
+            notes: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    // Crypto asset: 2 coins at 50 EUR each = 100 EUR
+    let crypto_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("COIN"),
+            name: asset_name("Some Coin"),
+            asset_type: AssetType::Crypto,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    upsert_asset_price(
+        &pool,
+        UpsertAssetPriceInput {
+            asset_id: crypto_id,
+            price: asset_unit_price("50.000000"),
+            currency: Currency::Eur,
+            as_of: "2026-01-01T00:00:00Z".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id: crypto_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2026-01-01"),
+            quantity: asset_quantity("2.000000"),
+            unit_price: asset_unit_price("50.000000"),
+            currency_code: Currency::Eur,
+            notes: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let summary = super::get_portfolio_summary(&pool, Currency::Eur)
+        .await
+        .unwrap();
+
+    let mut slices = summary.allocation_totals;
+    slices.sort_by(|a, b| a.label.cmp(&b.label));
+
+    assert_eq!(slices.len(), 2);
+    assert_eq!(slices[0].label, "Crypto");
+    assert_eq!(slices[0].amount, amt("100.000000"));
+    assert_eq!(slices[1].label, "Stock");
+    assert_eq!(slices[1].amount, amt("200.000000"));
+    assert!(!summary.allocation_is_partial);
+}
+
+#[tokio::test]
+async fn allocation_totals_marks_partial_when_asset_has_no_price() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Broker"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .unwrap();
+
+    // Cash balance: fully chartable
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Eur,
+            amount: amt("100.000000"),
+        },
+    )
+    .await
+    .unwrap();
+
+    // Asset with no price
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("NOPRICE"),
+            name: asset_name("No Price Asset"),
+            asset_type: AssetType::Stock,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2026-01-01"),
+            quantity: asset_quantity("5.000000"),
+            unit_price: asset_unit_price("10.000000"),
+            currency_code: Currency::Eur,
+            notes: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let summary = super::get_portfolio_summary(&pool, Currency::Eur)
+        .await
+        .unwrap();
+
+    // Cash slice still present; stock slice absent because no current price
+    assert_eq!(summary.allocation_totals.len(), 1);
+    assert_eq!(summary.allocation_totals[0].label, "Cash");
+    assert!(summary.allocation_is_partial);
+}
+
+#[tokio::test]
+async fn allocation_totals_marks_partial_when_fx_unavailable_for_cash() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Bank"),
+            account_type: AccountType::Bank,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .unwrap();
+
+    // EUR balance: chartable (same as display)
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Eur,
+            amount: amt("200.000000"),
+        },
+    )
+    .await
+    .unwrap();
+
+    // USD balance: no FX rate to EUR available
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Usd,
+            amount: amt("100.000000"),
+        },
+    )
+    .await
+    .unwrap();
+
+    // No FX rate inserted — USD→EUR conversion unavailable
+    let summary = super::get_portfolio_summary(&pool, Currency::Eur)
+        .await
+        .unwrap();
+
+    // Only the EUR cash balance is chartable
+    assert_eq!(summary.allocation_totals.len(), 1);
+    assert_eq!(summary.allocation_totals[0].label, "Cash");
+    assert_eq!(summary.allocation_totals[0].amount, amt("200.000000"));
+    assert!(summary.allocation_is_partial);
+}
+
+#[tokio::test]
+async fn allocation_totals_is_empty_when_nothing_is_chartable() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Broker"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .unwrap();
+
+    // USD cash balance but display currency is EUR and no FX rate
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Usd,
+            amount: amt("100.000000"),
+        },
+    )
+    .await
+    .unwrap();
+
+    let summary = super::get_portfolio_summary(&pool, Currency::Eur)
+        .await
+        .unwrap();
+
+    assert!(summary.allocation_totals.is_empty());
+    assert!(summary.allocation_is_partial);
+}
