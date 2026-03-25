@@ -33,6 +33,18 @@ pub struct Config {
     )]
     pub coingecko_base_url: String,
 
+    /// CoinCap API base URL for crypto price refresh (fallback)
+    #[arg(
+        long,
+        env = "COINCAP_BASE_URL",
+        default_value = "https://rest.coincap.io/v3"
+    )]
+    pub coincap_base_url: String,
+
+    /// CoinCap API key (enables CoinCap as the crypto price fallback provider)
+    #[arg(long, env = "COINCAP_API_KEY")]
+    pub coincap_api_key: Option<String>,
+
     /// OpenFIGI API base URL for ISIN-to-ticker resolution
     #[arg(
         long,
@@ -146,6 +158,8 @@ impl Config {
         AssetPriceRefreshConfig {
             refresh_interval: Duration::from_secs(DEFAULT_REFRESH_INTERVAL_SECS),
             coingecko_base_url: trim_url(&self.coingecko_base_url),
+            coincap_base_url: trim_url(&self.coincap_base_url),
+            coincap_api_key: non_empty(self.coincap_api_key.as_deref()),
             openfigi_base_url: trim_url(&self.openfigi_base_url),
             openfigi_api_key: non_empty(self.openfigi_api_key.as_deref()),
             twelve_data_base_url: trim_url(&self.twelve_data_base_url),
