@@ -220,6 +220,12 @@ pub struct FxRateSummaryRecord {
 }
 
 #[derive(Debug, Eq, PartialEq)]
+pub struct PortfolioAllocationSliceRecord {
+    pub label: String,
+    pub amount: Amount,
+}
+
+#[derive(Debug, Eq, PartialEq)]
 pub struct PortfolioSummaryRecord {
     pub display_currency: Currency,
     pub total_value_status: AccountSummaryStatus,
@@ -227,6 +233,8 @@ pub struct PortfolioSummaryRecord {
     pub account_totals: Vec<PortfolioAccountTotalRecord>,
     pub cash_by_currency: Vec<PortfolioCashByCurrencyRecord>,
     pub fx_last_updated: Option<String>,
+    pub allocation_totals: Vec<PortfolioAllocationSliceRecord>,
+    pub allocation_is_partial: bool,
 }
 
 #[derive(Debug, Eq, PartialEq)]

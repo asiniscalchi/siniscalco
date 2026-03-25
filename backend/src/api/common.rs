@@ -4,14 +4,15 @@ use super::{
     AccountDetailResponse, AccountSummaryResponse, ApiError, AssetPositionResponse, AssetResponse,
     AssetTransactionResponse, BalanceResponse, CreateAssetApiError, CreatedAssetResponse,
     CurrencyResponse, FxRateDetailResponse, FxRateSummaryItemResponse, FxRateSummaryResponse,
-    PortfolioAccountTotalResponse, PortfolioCashByCurrencyResponse, PortfolioSummaryResponse,
+    PortfolioAccountTotalResponse, PortfolioAllocationSliceResponse, PortfolioCashByCurrencyResponse,
+    PortfolioSummaryResponse,
 };
 use crate::{
     AccountBalanceRecord, AccountSummaryRecord, AccountValueSummaryRecord, AssetPositionRecord,
     AssetRecord, AssetTransactionRecord, CurrencyRecord, FxRateDetailRecord,
     FxRateSummaryItemRecord, FxRateSummaryRecord, PortfolioAccountTotalRecord,
-    PortfolioCashByCurrencyRecord, PortfolioSummaryRecord, compact_decimal_output,
-    normalize_amount_output,
+    PortfolioAllocationSliceRecord, PortfolioCashByCurrencyRecord, PortfolioSummaryRecord,
+    compact_decimal_output, normalize_amount_output,
 };
 
 pub(super) fn map_json_rejection(rejection: JsonRejection) -> ApiError {
@@ -217,6 +218,21 @@ pub(super) fn to_portfolio_summary_response(
         fx_last_updated: summary.fx_last_updated,
         fx_refresh_status: refresh_status,
         fx_refresh_error: refresh_error,
+        allocation_totals: summary
+            .allocation_totals
+            .into_iter()
+            .map(to_portfolio_allocation_slice_response)
+            .collect(),
+        allocation_is_partial: summary.allocation_is_partial,
+    }
+}
+
+fn to_portfolio_allocation_slice_response(
+    slice: PortfolioAllocationSliceRecord,
+) -> PortfolioAllocationSliceResponse {
+    PortfolioAllocationSliceResponse {
+        label: slice.label,
+        amount: normalize_amount_output(&slice.amount.to_string()),
     }
 }
 
