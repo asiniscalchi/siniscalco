@@ -24,6 +24,7 @@ export type AccountAsset = {
   name: string;
   asset_type: string;
   quantity: string;
+  value: string | null;
 };
 
 export type ReadyState = {

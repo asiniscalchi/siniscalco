@@ -264,6 +264,7 @@ export function AccountDetailReadyState({
                       <th className="pb-3 pr-4">Name</th>
                       <th className="pb-3 pr-4">Type</th>
                       <th className="pb-3 pr-4 text-right">Quantity</th>
+                      <th className="pb-3 text-right">Value</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -279,7 +280,18 @@ export function AccountDetailReadyState({
                           </span>
                         </td>
                         <td className="py-3 pr-4 text-right font-mono tabular-nums">
-                          {asset.quantity}
+                          {parseFloat(asset.quantity)}
+                        </td>
+                        <td className="py-3 text-right">
+                          {asset.value ? (
+                            <MoneyText
+                              currency={account.base_currency}
+                              hidden={hideValues}
+                              value={asset.value}
+                            />
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </td>
                       </tr>
                     ))}
