@@ -20,6 +20,8 @@ import { MoneyText } from "@/lib/money";
 import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
 
+import { AssetLabel } from "@/components/AssetLabel";
+
 import type { AccountAsset, AccountDetail } from "./types";
 
 type AccountDetailReadyStateProps = {
@@ -264,8 +266,7 @@ export function AccountDetailReadyState({
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2">
-                        <p className="font-semibold">{asset.symbol}</p>
-                        <p className="truncate text-[11px] text-muted-foreground">{asset.name}</p>
+                        <AssetLabel name={asset.name} symbol={asset.symbol} />
                       </div>
                       <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                         <span className="inline-flex items-center rounded-full border bg-muted/50 px-1.5 py-px font-medium uppercase tracking-wide">
@@ -293,8 +294,7 @@ export function AccountDetailReadyState({
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">
-                      <th className="pb-3 pr-4">Symbol</th>
-                      <th className="pb-3 pr-4">Name</th>
+                      <th className="pb-3 pr-4">Asset</th>
                       <th className="pb-3 pr-4">Type</th>
                       <th className="pb-3 pr-4 text-right">Quantity</th>
                       <th className="pb-3 text-right">Value</th>
@@ -303,10 +303,9 @@ export function AccountDetailReadyState({
                   <tbody className="divide-y">
                     {assets.map((asset) => (
                       <tr key={asset.asset_id}>
-                        <td className="py-3 pr-4 font-bold tabular-nums">
-                          {asset.symbol}
+                        <td className="py-3 pr-4">
+                          <AssetLabel name={asset.name} symbol={asset.symbol} />
                         </td>
-                        <td className="py-3 pr-4">{asset.name}</td>
                         <td className="py-3 pr-4">
                           <span className="inline-flex items-center rounded-full border bg-muted/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
                             {asset.asset_type.replace("_", " ")}
