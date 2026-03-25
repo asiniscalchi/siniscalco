@@ -256,7 +256,40 @@ export function AccountDetailReadyState({
         ) : (
           <Card className="bg-background">
             <CardContent className="pt-6">
-              <div className="w-full overflow-x-auto">
+              <div className="space-y-1.5 sm:hidden">
+                {assets.map((asset) => (
+                  <div
+                    className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm"
+                    key={asset.asset_id}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <p className="font-semibold">{asset.symbol}</p>
+                        <p className="truncate text-[11px] text-muted-foreground">{asset.name}</p>
+                      </div>
+                      <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                        <span className="inline-flex items-center rounded-full border bg-muted/50 px-1.5 py-px font-medium uppercase tracking-wide">
+                          {asset.asset_type.replace("_", " ")}
+                        </span>
+                        <div className="flex items-center gap-2 font-mono tabular-nums">
+                          <span>{parseFloat(asset.quantity)}</span>
+                          {asset.value ? (
+                            <MoneyText
+                              currency={account.base_currency}
+                              hidden={hideValues}
+                              value={asset.value}
+                            />
+                          ) : (
+                            <span>—</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden w-full overflow-x-auto sm:block">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">
