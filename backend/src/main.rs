@@ -112,6 +112,12 @@ fn log_asset_price_refresh_configuration(config: &AssetPriceRefreshConfig) {
         endpoint = %config.coingecko_base_url,
         "crypto asset price refresh configuration"
     );
+    info!(
+        provider = "openfigi",
+        endpoint = %config.openfigi_base_url,
+        api_key_configured = config.openfigi_api_key.is_some(),
+        "ISIN resolution configuration"
+    );
 
     let stock_providers_configured = config.twelve_data_api_key.is_some()
         || config.finnhub_api_key.is_some()

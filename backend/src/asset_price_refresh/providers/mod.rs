@@ -1,11 +1,13 @@
 pub mod alpha_vantage;
 pub mod coingecko;
 pub mod finnhub;
+pub mod openfigi;
 pub mod twelve_data;
 
 pub use alpha_vantage::fetch_alpha_vantage_quote;
 pub use coingecko::fetch_coingecko_quote;
 pub use finnhub::fetch_finnhub_quote;
+pub use openfigi::fetch_openfigi_ticker;
 pub use twelve_data::fetch_twelve_data_quote;
 
 use time::format_description::well_known::Rfc3339;

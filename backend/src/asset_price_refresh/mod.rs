@@ -6,20 +6,23 @@ use tokio::time::sleep;
 use tracing::{info, warn};
 
 use crate::{
-    AssetId, AssetType, AssetUnitPrice, Currency, UpsertAssetPriceInput, get_asset, list_assets,
-    upsert_asset_price,
+    AssetId, AssetRecord, AssetType, AssetUnitPrice, Currency, UpsertAssetPriceInput, get_asset,
+    list_assets, upsert_asset_price,
 };
 
 mod providers;
 
 pub use providers::{
-    fetch_alpha_vantage_quote, fetch_coingecko_quote, fetch_finnhub_quote, fetch_twelve_data_quote,
+    fetch_alpha_vantage_quote, fetch_coingecko_quote, fetch_finnhub_quote, fetch_openfigi_ticker,
+    fetch_twelve_data_quote,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AssetPriceRefreshConfig {
     pub refresh_interval: Duration,
     pub coingecko_base_url: String,
+    pub openfigi_base_url: String,
+    pub openfigi_api_key: Option<String>,
     pub twelve_data_base_url: String,
     pub twelve_data_api_key: Option<String>,
     pub finnhub_base_url: String,
@@ -103,6 +106,32 @@ pub async fn refresh_asset_prices(
     Ok(updated_count)
 }
 
+async fn resolve_stock_symbol(
+    client: &Client,
+    config: &AssetPriceRefreshConfig,
+    asset: &AssetRecord,
+) -> String {
+    if let Some(quote_symbol) = asset.quote_symbol.as_deref() {
+        return quote_symbol.to_string();
+    }
+    if let Some(isin) = asset.isin.as_deref() {
+        match fetch_openfigi_ticker(
+            client,
+            &config.openfigi_base_url,
+            config.openfigi_api_key.as_deref(),
+            isin,
+        )
+        .await
+        {
+            Ok(ticker) => return ticker,
+            Err(e) => {
+                warn!(isin, error = %e, "OpenFIGI ISIN resolution failed, falling back to asset symbol");
+            }
+        }
+    }
+    asset.symbol.as_str().to_string()
+}
+
 async fn try_stock_providers(
     client: &Client,
     config: &AssetPriceRefreshConfig,
@@ -152,16 +181,17 @@ pub async fn refresh_single_asset_price(
     asset_id: AssetId,
 ) -> Result<bool, AssetPriceRefreshError> {
     let asset = get_asset(pool, asset_id).await?;
-    let symbol = asset
-        .quote_symbol
-        .as_deref()
-        .unwrap_or_else(|| asset.symbol.as_str());
 
     let quote = if asset.asset_type == AssetType::Crypto {
-        let coin_id = symbol.to_lowercase();
+        let coin_id = asset
+            .quote_symbol
+            .as_deref()
+            .unwrap_or(asset.symbol.as_str())
+            .to_lowercase();
         fetch_coingecko_quote(client, &config.coingecko_base_url, &coin_id).await?
     } else {
-        match try_stock_providers(client, config, symbol).await {
+        let symbol = resolve_stock_symbol(client, config, &asset).await;
+        match try_stock_providers(client, config, &symbol).await {
             Some(result) => result?,
             None => return Ok(false),
         }
@@ -185,7 +215,7 @@ pub async fn refresh_single_asset_price(
 mod tests {
     use std::{str::FromStr, time::Duration};
 
-    use axum::{Json, Router, routing::get};
+    use axum::{Json, Router, routing::any};
     use reqwest::Client;
     use serde_json::json;
     use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
@@ -195,7 +225,7 @@ mod tests {
         AssetPriceRefreshConfig,
         providers::{
             fetch_alpha_vantage_quote, fetch_coingecko_quote, fetch_finnhub_quote,
-            fetch_twelve_data_quote,
+            fetch_openfigi_ticker, fetch_twelve_data_quote,
         },
         refresh_asset_prices,
     };
@@ -219,7 +249,7 @@ mod tests {
     async fn start_test_server_at(route: &'static str, payload: serde_json::Value) -> String {
         let app = Router::new().route(
             route,
-            get(move || {
+            any(move || {
                 let payload = payload.clone();
                 async move { Json(payload) }
             }),
@@ -304,6 +334,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url,
+                openfigi_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_api_key: None,
                 twelve_data_base_url: "http://127.0.0.1:1".to_string(),
                 twelve_data_api_key: None,
                 finnhub_base_url: "http://127.0.0.1:1".to_string(),
@@ -421,6 +453,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_api_key: None,
                 twelve_data_base_url: base_url,
                 twelve_data_api_key: Some("test-key".to_string()),
                 finnhub_base_url: "http://127.0.0.1:1".to_string(),
@@ -536,6 +570,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_api_key: None,
                 twelve_data_base_url: "http://127.0.0.1:1".to_string(),
                 twelve_data_api_key: None,
                 finnhub_base_url,
@@ -612,6 +648,155 @@ mod tests {
         assert!(result.unwrap_err().to_string().contains("missing price"));
     }
 
+    // OpenFIGI tests
+
+    #[tokio::test]
+    async fn fetches_openfigi_ticker() {
+        let base_url = start_test_server_at(
+            "/v3/mapping",
+            json!([{
+                "data": [{"ticker": "AAPL", "name": "APPLE INC", "exchCode": "US"}]
+            }]),
+        )
+        .await;
+
+        let ticker = fetch_openfigi_ticker(&Client::new(), &base_url, None, "US0378331005")
+            .await
+            .expect("ticker fetch should succeed");
+
+        assert_eq!(ticker, "AAPL");
+    }
+
+    #[tokio::test]
+    async fn openfigi_ticker_fails_on_unknown_isin() {
+        let base_url =
+            start_test_server_at("/v3/mapping", json!([{"error": "No identifier found."}])).await;
+
+        let result = fetch_openfigi_ticker(&Client::new(), &base_url, None, "XX0000000000").await;
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("No identifier found")
+        );
+    }
+
+    #[tokio::test]
+    async fn resolves_isin_via_openfigi_and_fetches_price() {
+        let pool = test_pool().await;
+        let asset_id = crate::create_asset(
+            &pool,
+            CreateAssetInput {
+                symbol: "AAPL".try_into().unwrap(),
+                name: "Apple".try_into().unwrap(),
+                asset_type: AssetType::Stock,
+                quote_symbol: None,
+                isin: Some("US0378331005".to_string()),
+            },
+        )
+        .await
+        .expect("asset should be created");
+
+        let openfigi_base_url = start_test_server_at(
+            "/v3/mapping",
+            json!([{
+                "data": [{"ticker": "AAPL", "name": "APPLE INC", "exchCode": "US"}]
+            }]),
+        )
+        .await;
+
+        let finnhub_base_url = start_test_server_at(
+            "/api/v1/quote",
+            json!({
+                "c": 188.50,
+                "t": 1742817600
+            }),
+        )
+        .await;
+
+        let updated_count = refresh_asset_prices(
+            &pool,
+            &Client::new(),
+            &AssetPriceRefreshConfig {
+                refresh_interval: Duration::from_secs(60),
+                coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_base_url,
+                openfigi_api_key: None,
+                twelve_data_base_url: "http://127.0.0.1:1".to_string(),
+                twelve_data_api_key: None,
+                finnhub_base_url,
+                finnhub_api_key: Some("test-key".to_string()),
+                alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
+                alpha_vantage_api_key: None,
+            },
+        )
+        .await
+        .expect("refresh should succeed");
+
+        let asset = get_asset(&pool, asset_id)
+            .await
+            .expect("asset should load with price");
+
+        assert_eq!(updated_count, 1);
+        assert_eq!(asset.current_price.unwrap().to_string(), "188.5");
+        assert_eq!(asset.current_price_currency, Some(Currency::Usd));
+    }
+
+    #[tokio::test]
+    async fn falls_back_to_asset_symbol_when_openfigi_fails() {
+        let pool = test_pool().await;
+        let asset_id = crate::create_asset(
+            &pool,
+            CreateAssetInput {
+                symbol: "AAPL".try_into().unwrap(),
+                name: "Apple".try_into().unwrap(),
+                asset_type: AssetType::Stock,
+                quote_symbol: None,
+                isin: Some("US0378331005".to_string()),
+            },
+        )
+        .await
+        .expect("asset should be created");
+
+        // OpenFIGI is unreachable — should fall back to asset symbol "AAPL"
+        let finnhub_base_url = start_test_server_at(
+            "/api/v1/quote",
+            json!({
+                "c": 177.00,
+                "t": 1742817600
+            }),
+        )
+        .await;
+
+        let updated_count = refresh_asset_prices(
+            &pool,
+            &Client::new(),
+            &AssetPriceRefreshConfig {
+                refresh_interval: Duration::from_secs(60),
+                coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_api_key: None,
+                twelve_data_base_url: "http://127.0.0.1:1".to_string(),
+                twelve_data_api_key: None,
+                finnhub_base_url,
+                finnhub_api_key: Some("test-key".to_string()),
+                alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
+                alpha_vantage_api_key: None,
+            },
+        )
+        .await
+        .expect("refresh should succeed using asset symbol as fallback");
+
+        let asset = get_asset(&pool, asset_id)
+            .await
+            .expect("asset should load with price");
+
+        assert_eq!(updated_count, 1);
+        assert_eq!(asset.current_price.unwrap().to_string(), "177");
+    }
+
     #[tokio::test]
     async fn falls_back_to_next_provider_on_failure() {
         let pool = test_pool().await;
@@ -645,6 +830,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_api_key: None,
                 twelve_data_base_url: "http://127.0.0.1:1".to_string(),
                 twelve_data_api_key: Some("test-key".to_string()),
                 finnhub_base_url,
@@ -699,6 +886,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_api_key: None,
                 twelve_data_base_url: "http://127.0.0.1:1".to_string(),
                 twelve_data_api_key: None,
                 finnhub_base_url: "http://127.0.0.1:1".to_string(),
