@@ -98,10 +98,32 @@ fn log_fx_refresh_configuration(config: &FxRefreshConfig) {
 
 fn log_asset_price_refresh_configuration(config: &AssetPriceRefreshConfig) {
     info!(
-        provider = "twelve_data",
-        enabled = config.is_enabled(),
-        refresh_interval_seconds = config.refresh_interval.as_secs(),
-        endpoint = %config.base_url,
-        "asset price refresh configuration"
+        provider = "coingecko",
+        endpoint = %config.coingecko_base_url,
+        "crypto asset price refresh configuration"
     );
+    if config.twelve_data_api_key.is_some() {
+        info!(
+            provider = "twelve_data",
+            refresh_interval_seconds = config.refresh_interval.as_secs(),
+            endpoint = %config.twelve_data_base_url,
+            "asset price refresh configuration"
+        );
+    } else if config.finnhub_api_key.is_some() {
+        info!(
+            provider = "finnhub",
+            refresh_interval_seconds = config.refresh_interval.as_secs(),
+            endpoint = %config.finnhub_base_url,
+            "asset price refresh configuration"
+        );
+    } else if config.alpha_vantage_api_key.is_some() {
+        info!(
+            provider = "alpha_vantage",
+            refresh_interval_seconds = config.refresh_interval.as_secs(),
+            endpoint = %config.alpha_vantage_base_url,
+            "asset price refresh configuration"
+        );
+    } else {
+        info!(enabled = false, "asset price refresh configuration");
+    }
 }
