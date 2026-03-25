@@ -15,6 +15,7 @@ use crate::{
 };
 
 const DEFAULT_TWELVE_DATA_BASE_URL: &str = "https://api.twelvedata.com";
+const DEFAULT_ALPHA_VANTAGE_BASE_URL: &str = "https://www.alphavantage.co";
 const DEFAULT_REFRESH_INTERVAL_SECS: u64 = 60 * 60;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -22,6 +23,8 @@ pub struct AssetPriceRefreshConfig {
     pub refresh_interval: Duration,
     pub base_url: String,
     pub api_key: Option<String>,
+    pub alpha_vantage_base_url: String,
+    pub alpha_vantage_api_key: Option<String>,
 }
 
 impl AssetPriceRefreshConfig {
@@ -37,15 +40,28 @@ impl AssetPriceRefreshConfig {
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
 
+        let alpha_vantage_base_url = env::var("ALPHA_VANTAGE_BASE_URL")
+            .ok()
+            .map(|value| value.trim().trim_end_matches('/').to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| DEFAULT_ALPHA_VANTAGE_BASE_URL.to_string());
+
+        let alpha_vantage_api_key = env::var("ALPHA_VANTAGE_API_KEY")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+
         Self {
             refresh_interval: Duration::from_secs(DEFAULT_REFRESH_INTERVAL_SECS),
             base_url,
             api_key,
+            alpha_vantage_base_url,
+            alpha_vantage_api_key,
         }
     }
 
     pub fn is_enabled(&self) -> bool {
-        self.api_key.is_some()
+        self.api_key.is_some() || self.alpha_vantage_api_key.is_some()
     }
 }
 
@@ -92,7 +108,9 @@ pub struct AssetQuote {
 
 pub async fn spawn_asset_price_refresh_task(pool: SqlitePool, config: AssetPriceRefreshConfig) {
     if !config.is_enabled() {
-        warn!("asset price refresh disabled: TWELVE_DATA_API_KEY is not set");
+        warn!(
+            "asset price refresh disabled: neither TWELVE_DATA_API_KEY nor ALPHA_VANTAGE_API_KEY is set"
+        );
         return;
     }
 
@@ -121,12 +139,11 @@ pub async fn refresh_asset_prices(
     client: &Client,
     config: &AssetPriceRefreshConfig,
 ) -> Result<usize, AssetPriceRefreshError> {
-    config
-        .api_key
-        .as_deref()
-        .ok_or(AssetPriceRefreshError::Config(
-            "asset price refresh disabled: TWELVE_DATA_API_KEY is not set",
-        ))?;
+    if !config.is_enabled() {
+        return Err(AssetPriceRefreshError::Config(
+            "asset price refresh disabled: neither TWELVE_DATA_API_KEY nor ALPHA_VANTAGE_API_KEY is set",
+        ));
+    }
 
     let assets = list_assets(pool).await?;
     let mut updated_count = 0usize;
@@ -160,17 +177,19 @@ pub async fn refresh_single_asset_price(
         return Ok(false);
     }
 
-    let api_key = match config.api_key.as_deref() {
-        Some(api_key) => api_key,
-        None => return Ok(false),
-    };
     let asset = get_asset(pool, asset_id).await?;
     let symbol = asset
         .quote_symbol
         .as_deref()
         .unwrap_or_else(|| asset.symbol.as_str());
 
-    let quote = fetch_twelve_data_quote(client, &config.base_url, api_key, symbol).await?;
+    let quote = if let Some(api_key) = config.api_key.as_deref() {
+        fetch_twelve_data_quote(client, &config.base_url, api_key, symbol).await?
+    } else if let Some(api_key) = config.alpha_vantage_api_key.as_deref() {
+        fetch_alpha_vantage_quote(client, &config.alpha_vantage_base_url, api_key, symbol).await?
+    } else {
+        return Ok(false);
+    };
 
     upsert_asset_price(
         pool,
@@ -257,6 +276,93 @@ pub async fn fetch_twelve_data_quote(
     })
 }
 
+#[derive(Debug, Deserialize)]
+struct AlphaVantageGlobalQuote {
+    #[serde(rename = "05. price")]
+    price: Option<String>,
+    #[serde(rename = "07. latest trading day")]
+    latest_trading_day: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AlphaVantageQuoteResponse {
+    #[serde(rename = "Global Quote")]
+    global_quote: Option<AlphaVantageGlobalQuote>,
+    #[serde(rename = "Information")]
+    information: Option<String>,
+}
+
+/// Fetches a quote from the Alpha Vantage GLOBAL_QUOTE endpoint.
+/// Note: Alpha Vantage does not return the currency in this endpoint.
+/// Prices are returned in the currency of the exchange where the symbol trades (defaults to USD).
+pub async fn fetch_alpha_vantage_quote(
+    client: &Client,
+    base_url: &str,
+    api_key: &str,
+    symbol: &str,
+) -> Result<AssetQuote, AssetPriceRefreshError> {
+    let url = format!("{}/query", base_url.trim_end_matches('/'));
+    let response = client
+        .get(url)
+        .query(&[
+            ("function", "GLOBAL_QUOTE"),
+            ("symbol", symbol),
+            ("apikey", api_key),
+        ])
+        .send()
+        .await
+        .map_err(|error| {
+            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
+        })?;
+
+    if !response.status().is_success() {
+        return Err(AssetPriceRefreshError::Provider(format!(
+            "asset price refresh failed: provider returned status {}",
+            response.status()
+        )));
+    }
+
+    let payload = response
+        .json::<AlphaVantageQuoteResponse>()
+        .await
+        .map_err(|error| {
+            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
+        })?;
+
+    if let Some(information) = payload.information {
+        return Err(AssetPriceRefreshError::Provider(format!(
+            "asset price refresh failed: {information}"
+        )));
+    }
+
+    let quote = payload
+        .global_quote
+        .as_ref()
+        .and_then(|q| q.price.as_deref())
+        .filter(|p| !p.is_empty())
+        .ok_or_else(|| {
+            AssetPriceRefreshError::Provider(
+                "asset price refresh failed: provider response missing price".into(),
+            )
+        })?;
+
+    let price = AssetUnitPrice::try_from(quote).map_err(AssetPriceRefreshError::from)?;
+
+    let as_of = payload
+        .global_quote
+        .as_ref()
+        .and_then(|q| q.latest_trading_day.clone())
+        .map(normalize_provider_datetime)
+        .transpose()?
+        .unwrap_or_else(|| current_utc_timestamp_iso8601().unwrap_or_default());
+
+    Ok(AssetQuote {
+        price,
+        currency: Currency::Usd,
+        as_of,
+    })
+}
+
 fn normalize_provider_datetime(datetime: String) -> Result<String, AssetPriceRefreshError> {
     if let Ok(value) = OffsetDateTime::parse(&datetime, &Rfc3339) {
         return value.format(&Rfc3339).map_err(|_| {
@@ -321,7 +427,10 @@ mod tests {
     use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
     use tokio::net::TcpListener;
 
-    use super::{AssetPriceRefreshConfig, fetch_twelve_data_quote, refresh_asset_prices};
+    use super::{
+        AssetPriceRefreshConfig, fetch_alpha_vantage_quote, fetch_twelve_data_quote,
+        refresh_asset_prices,
+    };
     use crate::{AssetType, CreateAssetInput, Currency, get_asset, init_db};
 
     async fn test_pool() -> sqlx::SqlitePool {
@@ -339,9 +448,9 @@ mod tests {
         pool
     }
 
-    async fn start_test_server(payload: serde_json::Value) -> String {
+    async fn start_test_server_at(route: &'static str, payload: serde_json::Value) -> String {
         let app = Router::new().route(
-            "/quote",
+            route,
             get(move || {
                 let payload = payload.clone();
                 async move { Json(payload) }
@@ -360,13 +469,18 @@ mod tests {
         format!("http://{address}")
     }
 
+    // Twelve Data tests
+
     #[tokio::test]
     async fn fetches_twelve_data_quote() {
-        let base_url = start_test_server(json!({
-            "close": "123.45",
-            "currency": "USD",
-            "datetime": "2026-03-24 10:15:00"
-        }))
+        let base_url = start_test_server_at(
+            "/quote",
+            json!({
+                "close": "123.45",
+                "currency": "USD",
+                "datetime": "2026-03-24 10:15:00"
+            }),
+        )
         .await;
 
         let quote = fetch_twelve_data_quote(&Client::new(), &base_url, "test-key", "AAPL")
@@ -380,11 +494,14 @@ mod tests {
 
     #[tokio::test]
     async fn fetches_twelve_data_quote_with_rfc3339_datetime() {
-        let base_url = start_test_server(json!({
-            "close": "123.45",
-            "currency": "USD",
-            "datetime": "2026-03-24T10:15:00+00:00"
-        }))
+        let base_url = start_test_server_at(
+            "/quote",
+            json!({
+                "close": "123.45",
+                "currency": "USD",
+                "datetime": "2026-03-24T10:15:00+00:00"
+            }),
+        )
         .await;
 
         let quote = fetch_twelve_data_quote(&Client::new(), &base_url, "test-key", "AAPL")
@@ -396,11 +513,14 @@ mod tests {
 
     #[tokio::test]
     async fn fetches_twelve_data_quote_with_date_only_datetime() {
-        let base_url = start_test_server(json!({
-            "close": "123.45",
-            "currency": "USD",
-            "datetime": "2026-03-24"
-        }))
+        let base_url = start_test_server_at(
+            "/quote",
+            json!({
+                "close": "123.45",
+                "currency": "USD",
+                "datetime": "2026-03-24"
+            }),
+        )
         .await;
 
         let quote = fetch_twelve_data_quote(&Client::new(), &base_url, "test-key", "AAPL")
@@ -411,7 +531,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn refreshes_asset_prices_into_storage() {
+    async fn refreshes_asset_prices_via_twelve_data() {
         let pool = test_pool().await;
         let asset_id = crate::create_asset(
             &pool,
@@ -426,11 +546,14 @@ mod tests {
         .await
         .expect("asset should be created");
 
-        let base_url = start_test_server(json!({
-            "close": "210.12",
-            "currency": "USD",
-            "datetime": "2026-03-24 14:30:00"
-        }))
+        let base_url = start_test_server_at(
+            "/quote",
+            json!({
+                "close": "210.12",
+                "currency": "USD",
+                "datetime": "2026-03-24 14:30:00"
+            }),
+        )
         .await;
 
         let updated_count = refresh_asset_prices(
@@ -440,6 +563,8 @@ mod tests {
                 refresh_interval: Duration::from_secs(60),
                 base_url,
                 api_key: Some("test-key".to_string()),
+                alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
+                alpha_vantage_api_key: None,
             },
         )
         .await
@@ -455,6 +580,113 @@ mod tests {
         assert_eq!(
             asset.current_price_as_of,
             Some("2026-03-24T14:30:00Z".to_string())
+        );
+    }
+
+    // Alpha Vantage tests
+
+    #[tokio::test]
+    async fn fetches_alpha_vantage_quote() {
+        let base_url = start_test_server_at(
+            "/query",
+            json!({
+                "Global Quote": {
+                    "01. symbol": "AAPL",
+                    "05. price": "173.57",
+                    "07. latest trading day": "2026-03-24"
+                }
+            }),
+        )
+        .await;
+
+        let quote = fetch_alpha_vantage_quote(&Client::new(), &base_url, "test-key", "AAPL")
+            .await
+            .expect("quote fetch should succeed");
+
+        assert_eq!(quote.price.to_string(), "173.57");
+        assert_eq!(quote.currency, Currency::Usd);
+        assert_eq!(quote.as_of, "2026-03-24T00:00:00Z");
+    }
+
+    #[tokio::test]
+    async fn alpha_vantage_quote_fails_on_rate_limit_message() {
+        let base_url = start_test_server_at(
+            "/query",
+            json!({
+                "Information": "Thank you for using Alpha Vantage! Our standard API rate limit is 25 requests per day."
+            }),
+        )
+        .await;
+
+        let result = fetch_alpha_vantage_quote(&Client::new(), &base_url, "test-key", "AAPL").await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Alpha Vantage"));
+    }
+
+    #[tokio::test]
+    async fn alpha_vantage_quote_fails_on_empty_global_quote() {
+        let base_url = start_test_server_at("/query", json!({ "Global Quote": {} })).await;
+
+        let result =
+            fetch_alpha_vantage_quote(&Client::new(), &base_url, "test-key", "INVALID").await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("missing price"));
+    }
+
+    #[tokio::test]
+    async fn refreshes_asset_prices_via_alpha_vantage() {
+        let pool = test_pool().await;
+        let asset_id = crate::create_asset(
+            &pool,
+            CreateAssetInput {
+                symbol: "AAPL".try_into().unwrap(),
+                name: "Apple".try_into().unwrap(),
+                asset_type: AssetType::Stock,
+                quote_symbol: Some("AAPL".to_string()),
+                isin: None,
+            },
+        )
+        .await
+        .expect("asset should be created");
+
+        let alpha_vantage_base_url = start_test_server_at(
+            "/query",
+            json!({
+                "Global Quote": {
+                    "01. symbol": "AAPL",
+                    "05. price": "175.42",
+                    "07. latest trading day": "2026-03-24"
+                }
+            }),
+        )
+        .await;
+
+        let updated_count = refresh_asset_prices(
+            &pool,
+            &Client::new(),
+            &AssetPriceRefreshConfig {
+                refresh_interval: Duration::from_secs(60),
+                base_url: "http://127.0.0.1:1".to_string(),
+                api_key: None,
+                alpha_vantage_base_url,
+                alpha_vantage_api_key: Some("test-key".to_string()),
+            },
+        )
+        .await
+        .expect("refresh should succeed");
+
+        let asset = get_asset(&pool, asset_id)
+            .await
+            .expect("asset should load with price");
+
+        assert_eq!(updated_count, 1);
+        assert_eq!(asset.current_price.unwrap().to_string(), "175.42");
+        assert_eq!(asset.current_price_currency, Some(Currency::Usd));
+        assert_eq!(
+            asset.current_price_as_of,
+            Some("2026-03-24T00:00:00Z".to_string())
         );
     }
 }
