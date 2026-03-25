@@ -102,11 +102,11 @@ fn log_asset_price_refresh_configuration(config: &AssetPriceRefreshConfig) {
         endpoint = %config.coingecko_base_url,
         "crypto asset price refresh configuration"
     );
-    if config.api_key.is_some() {
+    if config.twelve_data_api_key.is_some() {
         info!(
             provider = "twelve_data",
             refresh_interval_seconds = config.refresh_interval.as_secs(),
-            endpoint = %config.base_url,
+            endpoint = %config.twelve_data_base_url,
             "asset price refresh configuration"
         );
     } else if config.finnhub_api_key.is_some() {

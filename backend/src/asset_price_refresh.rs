@@ -24,8 +24,8 @@ const DEFAULT_REFRESH_INTERVAL_SECS: u64 = 60 * 60;
 pub struct AssetPriceRefreshConfig {
     pub refresh_interval: Duration,
     pub coingecko_base_url: String,
-    pub base_url: String,
-    pub api_key: Option<String>,
+    pub twelve_data_base_url: String,
+    pub twelve_data_api_key: Option<String>,
     pub finnhub_base_url: String,
     pub finnhub_api_key: Option<String>,
     pub alpha_vantage_base_url: String,
@@ -34,66 +34,42 @@ pub struct AssetPriceRefreshConfig {
 
 impl AssetPriceRefreshConfig {
     pub fn load() -> Self {
-        let coingecko_base_url = env::var("COINGECKO_BASE_URL")
-            .ok()
-            .map(|value| value.trim().trim_end_matches('/').to_string())
-            .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| DEFAULT_COINGECKO_BASE_URL.to_string());
-
-        let base_url = env::var("ASSET_PRICE_REFRESH_BASE_URL")
-            .ok()
-            .map(|value| value.trim().trim_end_matches('/').to_string())
-            .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| DEFAULT_TWELVE_DATA_BASE_URL.to_string());
-
-        let api_key = env::var("TWELVE_DATA_API_KEY")
-            .ok()
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty());
-
-        let finnhub_base_url = env::var("FINNHUB_BASE_URL")
-            .ok()
-            .map(|value| value.trim().trim_end_matches('/').to_string())
-            .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| DEFAULT_FINNHUB_BASE_URL.to_string());
-
-        let finnhub_api_key = env::var("FINNHUB_API_KEY")
-            .ok()
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty());
-
-        let alpha_vantage_base_url = env::var("ALPHA_VANTAGE_BASE_URL")
-            .ok()
-            .map(|value| value.trim().trim_end_matches('/').to_string())
-            .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| DEFAULT_ALPHA_VANTAGE_BASE_URL.to_string());
-
-        let alpha_vantage_api_key = env::var("ALPHA_VANTAGE_API_KEY")
-            .ok()
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty());
-
         Self {
             refresh_interval: Duration::from_secs(DEFAULT_REFRESH_INTERVAL_SECS),
-            coingecko_base_url,
-            base_url,
-            api_key,
-            finnhub_base_url,
-            finnhub_api_key,
-            alpha_vantage_base_url,
-            alpha_vantage_api_key,
+            coingecko_base_url: load_base_url("COINGECKO_BASE_URL", DEFAULT_COINGECKO_BASE_URL),
+            twelve_data_base_url: load_base_url(
+                "ASSET_PRICE_REFRESH_BASE_URL",
+                DEFAULT_TWELVE_DATA_BASE_URL,
+            ),
+            twelve_data_api_key: load_api_key("TWELVE_DATA_API_KEY"),
+            finnhub_base_url: load_base_url("FINNHUB_BASE_URL", DEFAULT_FINNHUB_BASE_URL),
+            finnhub_api_key: load_api_key("FINNHUB_API_KEY"),
+            alpha_vantage_base_url: load_base_url(
+                "ALPHA_VANTAGE_BASE_URL",
+                DEFAULT_ALPHA_VANTAGE_BASE_URL,
+            ),
+            alpha_vantage_api_key: load_api_key("ALPHA_VANTAGE_API_KEY"),
         }
     }
+}
 
-    /// Always returns true because CoinGecko (used for CRYPTO assets) requires no API key.
-    pub fn is_enabled(&self) -> bool {
-        true
-    }
+fn load_base_url(env_var: &str, default: &str) -> String {
+    env::var(env_var)
+        .ok()
+        .map(|value| value.trim().trim_end_matches('/').to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| default.to_string())
+}
+
+fn load_api_key(env_var: &str) -> Option<String> {
+    env::var(env_var)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
 }
 
 #[derive(Debug)]
 pub enum AssetPriceRefreshError {
-    Config(&'static str),
     Provider(String),
     Storage(crate::storage::StorageError),
 }
@@ -101,7 +77,6 @@ pub enum AssetPriceRefreshError {
 impl std::fmt::Display for AssetPriceRefreshError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Config(message) => f.write_str(message),
             Self::Provider(message) => f.write_str(message),
             Self::Storage(error) => error.fmt(f),
         }
@@ -138,7 +113,6 @@ pub async fn spawn_asset_price_refresh_task(pool: SqlitePool, config: AssetPrice
 
         loop {
             info!(
-                endpoint = %config.base_url,
                 refresh_interval_seconds = config.refresh_interval.as_secs(),
                 "starting asset price refresh"
             );
@@ -195,8 +169,8 @@ pub async fn refresh_single_asset_price(
     let quote = if asset.asset_type == AssetType::Crypto {
         let coin_id = symbol.to_lowercase();
         fetch_coingecko_quote(client, &config.coingecko_base_url, &coin_id).await?
-    } else if let Some(api_key) = config.api_key.as_deref() {
-        fetch_twelve_data_quote(client, &config.base_url, api_key, symbol).await?
+    } else if let Some(api_key) = config.twelve_data_api_key.as_deref() {
+        fetch_twelve_data_quote(client, &config.twelve_data_base_url, api_key, symbol).await?
     } else if let Some(api_key) = config.finnhub_api_key.as_deref() {
         fetch_finnhub_quote(client, &config.finnhub_base_url, api_key, symbol).await?
     } else if let Some(api_key) = config.alpha_vantage_api_key.as_deref() {
@@ -279,7 +253,6 @@ pub async fn fetch_twelve_data_quote(
 
     let as_of = match payload.datetime {
         Some(datetime) => normalize_provider_datetime(datetime)?,
-        None if payload.timestamp.is_some() => current_utc_timestamp_iso8601()?,
         None => current_utc_timestamp_iso8601()?,
     };
 
@@ -339,18 +312,7 @@ pub async fn fetch_coingecko_quote(
         .map_err(AssetPriceRefreshError::from)?;
 
     let as_of = match coin_data.last_updated_at {
-        Some(ts) => OffsetDateTime::from_unix_timestamp(ts)
-            .map_err(|_| {
-                AssetPriceRefreshError::Provider(
-                    "asset price refresh failed: provider returned invalid timestamp".into(),
-                )
-            })?
-            .format(&Rfc3339)
-            .map_err(|_| {
-                AssetPriceRefreshError::Provider(
-                    "asset price refresh failed: failed to format timestamp".into(),
-                )
-            })?,
+        Some(ts) => unix_timestamp_to_rfc3339(ts)?,
         None => current_utc_timestamp_iso8601()?,
     };
 
@@ -423,18 +385,7 @@ pub async fn fetch_finnhub_quote(
     let price =
         AssetUnitPrice::try_from(price_str.as_str()).map_err(AssetPriceRefreshError::from)?;
 
-    let as_of = OffsetDateTime::from_unix_timestamp(timestamp)
-        .map_err(|_| {
-            AssetPriceRefreshError::Provider(
-                "asset price refresh failed: provider returned invalid timestamp".into(),
-            )
-        })?
-        .format(&Rfc3339)
-        .map_err(|_| {
-            AssetPriceRefreshError::Provider(
-                "asset price refresh failed: failed to format timestamp".into(),
-            )
-        })?;
+    let as_of = unix_timestamp_to_rfc3339(timestamp)?;
 
     Ok(AssetQuote {
         price,
@@ -528,6 +479,21 @@ pub async fn fetch_alpha_vantage_quote(
         currency: Currency::Usd,
         as_of,
     })
+}
+
+fn unix_timestamp_to_rfc3339(ts: i64) -> Result<String, AssetPriceRefreshError> {
+    OffsetDateTime::from_unix_timestamp(ts)
+        .map_err(|_| {
+            AssetPriceRefreshError::Provider(
+                "asset price refresh failed: provider returned invalid timestamp".into(),
+            )
+        })?
+        .format(&Rfc3339)
+        .map_err(|_| {
+            AssetPriceRefreshError::Provider(
+                "asset price refresh failed: failed to format timestamp".into(),
+            )
+        })
 }
 
 fn normalize_provider_datetime(datetime: String) -> Result<String, AssetPriceRefreshError> {
@@ -703,8 +669,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url,
-                base_url: "http://127.0.0.1:1".to_string(),
-                api_key: None,
+                twelve_data_base_url: "http://127.0.0.1:1".to_string(),
+                twelve_data_api_key: None,
                 finnhub_base_url: "http://127.0.0.1:1".to_string(),
                 finnhub_api_key: None,
                 alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
@@ -820,8 +786,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url: "http://127.0.0.1:1".to_string(),
-                base_url,
-                api_key: Some("test-key".to_string()),
+                twelve_data_base_url: base_url,
+                twelve_data_api_key: Some("test-key".to_string()),
                 finnhub_base_url: "http://127.0.0.1:1".to_string(),
                 finnhub_api_key: None,
                 alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
@@ -935,8 +901,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url: "http://127.0.0.1:1".to_string(),
-                base_url: "http://127.0.0.1:1".to_string(),
-                api_key: None,
+                twelve_data_base_url: "http://127.0.0.1:1".to_string(),
+                twelve_data_api_key: None,
                 finnhub_base_url,
                 finnhub_api_key: Some("test-key".to_string()),
                 alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
@@ -1045,8 +1011,8 @@ mod tests {
             &AssetPriceRefreshConfig {
                 refresh_interval: Duration::from_secs(60),
                 coingecko_base_url: "http://127.0.0.1:1".to_string(),
-                base_url: "http://127.0.0.1:1".to_string(),
-                api_key: None,
+                twelve_data_base_url: "http://127.0.0.1:1".to_string(),
+                twelve_data_api_key: None,
                 finnhub_base_url: "http://127.0.0.1:1".to_string(),
                 finnhub_api_key: None,
                 alpha_vantage_base_url,
