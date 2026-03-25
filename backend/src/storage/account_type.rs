@@ -4,6 +4,7 @@ use super::storage_error::StorageError;
 pub enum AccountType {
     Bank,
     Broker,
+    Crypto,
 }
 
 impl AccountType {
@@ -11,6 +12,7 @@ impl AccountType {
         match self {
             Self::Bank => "bank",
             Self::Broker => "broker",
+            Self::Crypto => "crypto",
         }
     }
 }
@@ -22,8 +24,9 @@ impl TryFrom<&str> for AccountType {
         match value {
             "bank" => Ok(Self::Bank),
             "broker" => Ok(Self::Broker),
+            "crypto" => Ok(Self::Crypto),
             _ => Err(StorageError::Validation(
-                "account_type must be one of: bank, broker",
+                "account_type must be one of: bank, broker, crypto",
             )),
         }
     }

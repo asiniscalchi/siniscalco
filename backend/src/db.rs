@@ -94,7 +94,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn migration_metadata_contains_the_initial_migration() {
+    async fn migration_metadata_contains_all_migrations() {
         let pool = test_pool().await;
 
         let versions: Vec<i64> = sqlx::query_scalar("SELECT version FROM _sqlx_migrations")
@@ -102,7 +102,7 @@ mod tests {
             .await
             .expect("migration metadata query should succeed");
 
-        assert_eq!(versions, vec![1]);
+        assert_eq!(versions, vec![1, 2]);
     }
 
     #[tokio::test]

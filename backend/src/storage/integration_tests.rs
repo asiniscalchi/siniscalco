@@ -1052,8 +1052,30 @@ async fn rejects_invalid_account_type_input() {
 
     assert_eq!(
         error.to_string(),
-        "account_type must be one of: bank, broker"
+        "account_type must be one of: bank, broker, crypto"
     );
+}
+
+#[tokio::test]
+async fn creates_crypto_account() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Kraken"),
+            account_type: AccountType::Crypto,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .expect("crypto account insert should succeed");
+
+    let account = get_account(&pool, account_id)
+        .await
+        .expect("crypto account fetch should succeed");
+
+    assert_eq!(account.account_type, AccountType::Crypto);
 }
 
 #[tokio::test]
