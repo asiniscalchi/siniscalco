@@ -1,5 +1,6 @@
 mod api;
 mod asset_price_refresh;
+mod config;
 mod db;
 mod format;
 mod fx_refresh;
@@ -12,6 +13,7 @@ pub use asset_price_refresh::{
     fetch_twelve_data_quote, refresh_asset_prices, refresh_single_asset_price,
     spawn_asset_price_refresh_task,
 };
+pub use config::Config;
 pub use db::{connect_db, connect_db_file, init_db};
 pub use format::{compact_decimal_output, format_decimal_amount, normalize_amount_output};
 pub use fx_refresh::{
