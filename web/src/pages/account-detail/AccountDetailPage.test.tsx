@@ -190,6 +190,21 @@ describe("AccountDetailPage", () => {
         );
       }
 
+      if (url.endsWith("/fx-rates")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              target_currency: "EUR",
+              rates: [{ currency: "USD", rate: "0.92" }],
+              last_updated: null,
+              refresh_status: "available",
+              refresh_error: null,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+
       throw new Error(`Unhandled fetch request: ${url}`);
     });
 
@@ -199,6 +214,8 @@ describe("AccountDetailPage", () => {
     expect(screen.getByText("BTC")).toBeTruthy();
     expect(screen.getByText("Bitcoin")).toBeTruthy();
     expect(screen.getByText("2.5")).toBeTruthy();
+    // value = 2.5 * 90000 * (0.92 / 1) = 207,000 EUR
+    expect(screen.getByText("207,000.00 EUR")).toBeTruthy();
   });
 
   it("renders account detail with empty balances", async () => {
@@ -290,7 +307,7 @@ describe("AccountDetailPage", () => {
 
     expect(await screen.findByText("Broker")).toBeTruthy();
     expect(screen.getByText("100.00000000")).toBeTruthy();
-    expect(fetch).toHaveBeenCalledTimes(6);
+    expect(fetch).toHaveBeenCalledTimes(7);
   });
 
   it("upserts a balance from the account detail page", async () => {

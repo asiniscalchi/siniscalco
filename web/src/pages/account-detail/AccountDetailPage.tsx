@@ -6,16 +6,48 @@ import {
   getAccountDetailApiUrl,
   getAssetsApiUrl,
   getCurrenciesApiUrl,
+  getFxRatesApiUrl,
   readApiErrorMessage,
   type AssetPositionResponse,
   type AssetResponse,
   type CurrencyResponse,
+  type FxRateSummaryResponse,
 } from "@/lib/api";
 
 import { AccountDetailErrorState } from "./AccountDetailErrorState";
 import { AccountDetailLoadingState } from "./AccountDetailLoadingState";
 import { AccountDetailReadyState } from "./AccountDetailReadyState";
 import type { AccountDetail, ReadyState } from "./types";
+
+function computeAssetValue(
+  quantity: string,
+  price: string | null,
+  priceCurrency: string | null,
+  baseCurrency: string,
+  fxRates: FxRateSummaryResponse | null,
+): string | null {
+  if (!price || !priceCurrency) return null;
+
+  const rawValue = parseFloat(quantity) * parseFloat(price);
+
+  if (priceCurrency === baseCurrency) return rawValue.toFixed(2);
+  if (!fxRates) return null;
+
+  const { target_currency, rates } = fxRates;
+
+  const rateToTarget = (currency: string): number | null => {
+    if (currency === target_currency) return 1;
+    const entry = rates.find((r) => r.currency === currency);
+    return entry ? parseFloat(entry.rate) : null;
+  };
+
+  const priceRate = rateToTarget(priceCurrency);
+  const baseRate = rateToTarget(baseCurrency);
+
+  if (priceRate === null || baseRate === null) return null;
+
+  return (rawValue * (priceRate / baseRate)).toFixed(2);
+}
 
 export function AccountDetailPage() {
   const { accountId } = useParams<{ accountId: string }>();
@@ -66,11 +98,12 @@ export function AccountDetailPage() {
           currenciesResponse.json() as Promise<CurrencyResponse[]>,
         ]);
 
-        const [positionsResult, assetsResult] = await Promise.allSettled([
+        const [positionsResult, assetsResult, fxRatesResult] = await Promise.allSettled([
           Promise.resolve().then(() =>
             fetch(getAccountPositionsApiUrl(resolvedAccountId)),
           ),
           Promise.resolve().then(() => fetch(getAssetsApiUrl())),
+          Promise.resolve().then(() => fetch(getFxRatesApiUrl())),
         ]);
 
         const positions =
@@ -82,6 +115,11 @@ export function AccountDetailPage() {
           assetsResult.status === "fulfilled" && assetsResult.value.ok
             ? ((await assetsResult.value.json()) as AssetResponse[])
             : [];
+
+        const fxRates =
+          fxRatesResult.status === "fulfilled" && fxRatesResult.value.ok
+            ? ((await fxRatesResult.value.json()) as FxRateSummaryResponse)
+            : null;
 
         const currenciesList = currencies.map((currency) => currency.code);
         const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
@@ -99,6 +137,13 @@ export function AccountDetailPage() {
               name: asset.name,
               asset_type: asset.asset_type,
               quantity: position.quantity,
+              value: computeAssetValue(
+                position.quantity,
+                asset.current_price,
+                asset.current_price_currency,
+                account.base_currency,
+                fxRates,
+              ),
             },
           ];
         });
