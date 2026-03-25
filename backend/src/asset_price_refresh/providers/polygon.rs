@@ -18,6 +18,26 @@ struct PolygonPrevCloseResponse {
     results: Option<Vec<PolygonAgg>>,
 }
 
+pub struct PolygonProvider {
+    pub base_url: String,
+    pub api_key: String,
+}
+
+#[async_trait::async_trait]
+impl super::StockProvider for PolygonProvider {
+    fn name(&self) -> &'static str {
+        "polygon"
+    }
+
+    async fn fetch_quote(
+        &self,
+        client: &Client,
+        symbol: &str,
+    ) -> Result<AssetQuote, AssetPriceRefreshError> {
+        fetch_polygon_quote(client, &self.base_url, &self.api_key, symbol).await
+    }
+}
+
 /// Fetches a quote from the Polygon.io `/v2/aggs/ticker/{symbol}/prev` endpoint.
 /// Returns the previous trading day's close price in USD.
 pub async fn fetch_polygon_quote(

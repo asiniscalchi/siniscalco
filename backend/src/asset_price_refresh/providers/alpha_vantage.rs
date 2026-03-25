@@ -22,6 +22,26 @@ struct AlphaVantageQuoteResponse {
     information: Option<String>,
 }
 
+pub struct AlphaVantageProvider {
+    pub base_url: String,
+    pub api_key: String,
+}
+
+#[async_trait::async_trait]
+impl super::StockProvider for AlphaVantageProvider {
+    fn name(&self) -> &'static str {
+        "alpha_vantage"
+    }
+
+    async fn fetch_quote(
+        &self,
+        client: &Client,
+        symbol: &str,
+    ) -> Result<AssetQuote, AssetPriceRefreshError> {
+        fetch_alpha_vantage_quote(client, &self.base_url, &self.api_key, symbol).await
+    }
+}
+
 /// Fetches a quote from the Alpha Vantage GLOBAL_QUOTE endpoint.
 /// Note: Alpha Vantage does not return the currency in this endpoint.
 /// Prices are returned in the currency of the exchange where the symbol trades (defaults to USD).

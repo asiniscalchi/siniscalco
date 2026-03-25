@@ -12,6 +12,26 @@ struct EodhdRealTimeResponse {
     timestamp: Option<i64>,
 }
 
+pub struct EodhdProvider {
+    pub base_url: String,
+    pub api_key: String,
+}
+
+#[async_trait::async_trait]
+impl super::StockProvider for EodhdProvider {
+    fn name(&self) -> &'static str {
+        "eodhd"
+    }
+
+    async fn fetch_quote(
+        &self,
+        client: &Client,
+        symbol: &str,
+    ) -> Result<AssetQuote, AssetPriceRefreshError> {
+        fetch_eodhd_quote(client, &self.base_url, &self.api_key, symbol).await
+    }
+}
+
 /// Fetches a quote from the EODHD `/api/real-time/{symbol}` endpoint.
 /// Note: EODHD does not return currency in this endpoint.
 /// Prices are in the local currency of the exchange (defaults to USD).

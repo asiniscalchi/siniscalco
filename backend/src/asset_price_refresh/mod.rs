@@ -13,9 +13,11 @@ use crate::{
 mod providers;
 
 pub use providers::{
-    fetch_alpha_vantage_quote, fetch_coingecko_quote, fetch_eodhd_quote, fetch_finnhub_quote,
-    fetch_fmp_quote, fetch_marketstack_quote, fetch_openfigi_tickers, fetch_polygon_quote,
-    fetch_tiingo_quote, fetch_twelve_data_quote,
+    AlphaVantageProvider, EodhdProvider, FinnhubProvider, FmpProvider, MarketstackProvider,
+    PolygonProvider, StockProvider, TiingoProvider, TwelveDataProvider, fetch_alpha_vantage_quote,
+    fetch_coingecko_quote, fetch_eodhd_quote, fetch_finnhub_quote, fetch_fmp_quote,
+    fetch_marketstack_quote, fetch_openfigi_tickers, fetch_polygon_quote, fetch_tiingo_quote,
+    fetch_twelve_data_quote,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -174,119 +176,77 @@ async fn resolve_stock_symbols(
     vec![asset.symbol.as_str().to_string()]
 }
 
+impl AssetPriceRefreshConfig {
+    fn stock_providers(&self) -> Vec<Box<dyn StockProvider>> {
+        let mut providers: Vec<Box<dyn StockProvider>> = Vec::new();
+        if let Some(ref key) = self.twelve_data_api_key {
+            providers.push(Box::new(TwelveDataProvider {
+                base_url: self.twelve_data_base_url.clone(),
+                api_key: key.clone(),
+            }));
+        }
+        if let Some(ref key) = self.finnhub_api_key {
+            providers.push(Box::new(FinnhubProvider {
+                base_url: self.finnhub_base_url.clone(),
+                api_key: key.clone(),
+            }));
+        }
+        if let Some(ref key) = self.alpha_vantage_api_key {
+            providers.push(Box::new(AlphaVantageProvider {
+                base_url: self.alpha_vantage_base_url.clone(),
+                api_key: key.clone(),
+            }));
+        }
+        if let Some(ref key) = self.polygon_api_key {
+            providers.push(Box::new(PolygonProvider {
+                base_url: self.polygon_base_url.clone(),
+                api_key: key.clone(),
+            }));
+        }
+        if let Some(ref key) = self.fmp_api_key {
+            providers.push(Box::new(FmpProvider {
+                base_url: self.fmp_base_url.clone(),
+                api_key: key.clone(),
+            }));
+        }
+        if let Some(ref key) = self.eodhd_api_key {
+            providers.push(Box::new(EodhdProvider {
+                base_url: self.eodhd_base_url.clone(),
+                api_key: key.clone(),
+            }));
+        }
+        if let Some(ref key) = self.tiingo_api_key {
+            providers.push(Box::new(TiingoProvider {
+                base_url: self.tiingo_base_url.clone(),
+                api_key: key.clone(),
+            }));
+        }
+        if let Some(ref key) = self.marketstack_api_key {
+            providers.push(Box::new(MarketstackProvider {
+                base_url: self.marketstack_base_url.clone(),
+                api_key: key.clone(),
+            }));
+        }
+        providers
+    }
+}
+
 async fn try_stock_providers(
     client: &Client,
-    config: &AssetPriceRefreshConfig,
+    providers: &[Box<dyn StockProvider>],
     symbols: &[String],
 ) -> Option<Result<AssetQuote, AssetPriceRefreshError>> {
     let mut last_err = None;
 
     for symbol in symbols {
-        if let Some(api_key) = config.twelve_data_api_key.as_deref() {
-            match fetch_twelve_data_quote(client, &config.twelve_data_base_url, api_key, symbol)
-                .await
-            {
+        for provider in providers {
+            match provider.fetch_quote(client, symbol).await {
                 Ok(quote) => {
-                    info!(provider = "twelve_data", symbol, "asset price fetched");
+                    info!(provider = provider.name(), symbol, "asset price fetched");
                     return Some(Ok(quote));
                 }
                 Err(e) => {
-                    warn!(provider = "twelve_data", symbol, error = %e, "provider failed, trying next");
-                    last_err = Some(e);
-                }
-            }
-        }
-
-        if let Some(api_key) = config.finnhub_api_key.as_deref() {
-            match fetch_finnhub_quote(client, &config.finnhub_base_url, api_key, symbol).await {
-                Ok(quote) => {
-                    info!(provider = "finnhub", symbol, "asset price fetched");
-                    return Some(Ok(quote));
-                }
-                Err(e) => {
-                    warn!(provider = "finnhub", symbol, error = %e, "provider failed, trying next");
-                    last_err = Some(e);
-                }
-            }
-        }
-
-        if let Some(api_key) = config.alpha_vantage_api_key.as_deref() {
-            match fetch_alpha_vantage_quote(client, &config.alpha_vantage_base_url, api_key, symbol)
-                .await
-            {
-                Ok(quote) => {
-                    info!(provider = "alpha_vantage", symbol, "asset price fetched");
-                    return Some(Ok(quote));
-                }
-                Err(e) => {
-                    warn!(provider = "alpha_vantage", symbol, error = %e, "provider failed, trying next");
-                    last_err = Some(e);
-                }
-            }
-        }
-
-        if let Some(api_key) = config.polygon_api_key.as_deref() {
-            match fetch_polygon_quote(client, &config.polygon_base_url, api_key, symbol).await {
-                Ok(quote) => {
-                    info!(provider = "polygon", symbol, "asset price fetched");
-                    return Some(Ok(quote));
-                }
-                Err(e) => {
-                    warn!(provider = "polygon", symbol, error = %e, "provider failed, trying next");
-                    last_err = Some(e);
-                }
-            }
-        }
-
-        if let Some(api_key) = config.fmp_api_key.as_deref() {
-            match fetch_fmp_quote(client, &config.fmp_base_url, api_key, symbol).await {
-                Ok(quote) => {
-                    info!(provider = "fmp", symbol, "asset price fetched");
-                    return Some(Ok(quote));
-                }
-                Err(e) => {
-                    warn!(provider = "fmp", symbol, error = %e, "provider failed, trying next");
-                    last_err = Some(e);
-                }
-            }
-        }
-
-        if let Some(api_key) = config.eodhd_api_key.as_deref() {
-            match fetch_eodhd_quote(client, &config.eodhd_base_url, api_key, symbol).await {
-                Ok(quote) => {
-                    info!(provider = "eodhd", symbol, "asset price fetched");
-                    return Some(Ok(quote));
-                }
-                Err(e) => {
-                    warn!(provider = "eodhd", symbol, error = %e, "provider failed, trying next");
-                    last_err = Some(e);
-                }
-            }
-        }
-
-        if let Some(api_key) = config.tiingo_api_key.as_deref() {
-            match fetch_tiingo_quote(client, &config.tiingo_base_url, api_key, symbol).await {
-                Ok(quote) => {
-                    info!(provider = "tiingo", symbol, "asset price fetched");
-                    return Some(Ok(quote));
-                }
-                Err(e) => {
-                    warn!(provider = "tiingo", symbol, error = %e, "provider failed, trying next");
-                    last_err = Some(e);
-                }
-            }
-        }
-
-        if let Some(api_key) = config.marketstack_api_key.as_deref() {
-            match fetch_marketstack_quote(client, &config.marketstack_base_url, api_key, symbol)
-                .await
-            {
-                Ok(quote) => {
-                    info!(provider = "marketstack", symbol, "asset price fetched");
-                    return Some(Ok(quote));
-                }
-                Err(e) => {
-                    warn!(provider = "marketstack", symbol, error = %e, "provider failed, trying next");
+                    warn!(provider = provider.name(), symbol, error = %e, "provider failed, trying next");
                     last_err = Some(e);
                 }
             }
@@ -313,7 +273,8 @@ pub async fn refresh_single_asset_price(
         fetch_coingecko_quote(client, &config.coingecko_base_url, &coin_id).await?
     } else {
         let symbols = resolve_stock_symbols(client, config, &asset).await;
-        match try_stock_providers(client, config, &symbols).await {
+        let providers = config.stock_providers();
+        match try_stock_providers(client, &providers, &symbols).await {
             Some(result) => result?,
             None => return Ok(false),
         }

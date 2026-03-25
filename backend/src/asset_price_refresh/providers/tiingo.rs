@@ -12,6 +12,26 @@ struct TiingoPriceEntry {
     date: Option<String>,
 }
 
+pub struct TiingoProvider {
+    pub base_url: String,
+    pub api_key: String,
+}
+
+#[async_trait::async_trait]
+impl super::StockProvider for TiingoProvider {
+    fn name(&self) -> &'static str {
+        "tiingo"
+    }
+
+    async fn fetch_quote(
+        &self,
+        client: &Client,
+        symbol: &str,
+    ) -> Result<AssetQuote, AssetPriceRefreshError> {
+        fetch_tiingo_quote(client, &self.base_url, &self.api_key, symbol).await
+    }
+}
+
 /// Fetches a quote from the Tiingo `/tiingo/daily/{symbol}/prices` endpoint.
 /// API token is sent via the Authorization header.
 pub async fn fetch_tiingo_quote(

@@ -17,6 +17,26 @@ struct MarketstackResponse {
     data: Option<Vec<MarketstackEntry>>,
 }
 
+pub struct MarketstackProvider {
+    pub base_url: String,
+    pub api_key: String,
+}
+
+#[async_trait::async_trait]
+impl super::StockProvider for MarketstackProvider {
+    fn name(&self) -> &'static str {
+        "marketstack"
+    }
+
+    async fn fetch_quote(
+        &self,
+        client: &Client,
+        symbol: &str,
+    ) -> Result<AssetQuote, AssetPriceRefreshError> {
+        fetch_marketstack_quote(client, &self.base_url, &self.api_key, symbol).await
+    }
+}
+
 /// Fetches a quote from the Marketstack `/v1/eod/latest` endpoint.
 /// Note: Marketstack does not return currency in this endpoint.
 /// Prices are in the local currency of the exchange (defaults to USD).
