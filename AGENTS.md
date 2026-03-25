@@ -16,10 +16,10 @@ Frontend: React + Vite + Tailwind + shadcn
 - instructions found in this file (`AGENTS.md`) are foundational mandates and take absolute precedence over general workflows
 
 ## Design Principles
-- keep code minimal
-- use idiomatic design and code patterns for each language and framework
-- no overengineering
-- prefer simple solutions
+- write idiomatic, elegant code — use the patterns and idioms natural to each language and framework
+- keep solutions minimal: the right amount of code is the least needed to solve the problem cleanly
+- eliminate repetition when it obscures intent or makes the code harder to extend; tolerate it when it keeps things explicit and readable
+- no overengineering — do not add abstractions, generics, or flexibility beyond what the current problem requires
 - do not introduce new frameworks
 - ask for confirmation before making an exception to these rules or conventions
 
