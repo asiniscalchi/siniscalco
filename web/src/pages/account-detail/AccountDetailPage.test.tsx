@@ -198,7 +198,7 @@ describe("AccountDetailPage", () => {
     expect(await screen.findByRole("heading", { name: "Assets" })).toBeTruthy();
     expect(screen.getByText("BTC")).toBeTruthy();
     expect(screen.getByText("Bitcoin")).toBeTruthy();
-    expect(screen.getByText("2.500000")).toBeTruthy();
+    expect(screen.getByText("2.5")).toBeTruthy();
   });
 
   it("renders account detail with empty balances", async () => {

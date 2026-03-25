@@ -279,7 +279,7 @@ export function AccountDetailReadyState({
                           </span>
                         </td>
                         <td className="py-3 pr-4 text-right font-mono tabular-nums">
-                          {asset.quantity}
+                          {parseFloat(asset.quantity)}
                         </td>
                       </tr>
                     ))}
