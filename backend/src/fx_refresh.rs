@@ -1,4 +1,4 @@
-use std::{env, str::FromStr, sync::Arc, time::Duration};
+use std::{str::FromStr, sync::Arc, time::Duration};
 
 use reqwest::Client;
 use rust_decimal::Decimal;
@@ -14,8 +14,6 @@ use crate::{
 };
 
 pub const PRODUCT_BASE_CURRENCY: Currency = Currency::Eur;
-const DEFAULT_FRANKFURTER_BASE_URL: &str = "https://api.frankfurter.dev/v1";
-const REFRESH_INTERVAL_SECS: u64 = 60 * 60;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FxRefreshStatus {
@@ -60,21 +58,6 @@ pub type SharedFxRefreshStatus = Arc<RwLock<FxRefreshStatus>>;
 pub struct FxRefreshConfig {
     pub refresh_interval: Duration,
     pub base_url: String,
-}
-
-impl FxRefreshConfig {
-    pub fn load() -> Self {
-        let base_url = env::var("FX_REFRESH_BASE_URL")
-            .ok()
-            .map(|value| value.trim().trim_end_matches('/').to_string())
-            .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| DEFAULT_FRANKFURTER_BASE_URL.to_string());
-
-        Self {
-            refresh_interval: Duration::from_secs(REFRESH_INTERVAL_SECS),
-            base_url,
-        }
-    }
 }
 
 #[derive(Debug)]

@@ -29,10 +29,12 @@ use tower_http::{
 };
 
 pub fn build_router(pool: SqlitePool) -> Router {
+    use clap::Parser;
+    let config = crate::Config::parse_from(["siniscalco"]);
     let state = AppState {
         pool,
         fx_refresh_status: crate::new_shared_fx_refresh_status(),
-        asset_price_refresh_config: crate::AssetPriceRefreshConfig::load(),
+        asset_price_refresh_config: config.asset_price_refresh_config(),
     };
     build_router_with_state(state)
 }

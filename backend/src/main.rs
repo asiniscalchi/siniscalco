@@ -1,11 +1,12 @@
 use std::{collections::BTreeSet, net::SocketAddr};
 
+use clap::Parser;
 use if_addrs::get_if_addrs;
 use tracing::{error, info};
 
 use backend::{
-    AppState, AssetPriceRefreshConfig, FxRefreshConfig, build_router_with_state, connect_db_file,
-    init_tracing, new_shared_fx_refresh_status, spawn_asset_price_refresh_task,
+    AppState, AssetPriceRefreshConfig, Config, FxRefreshConfig, build_router_with_state,
+    connect_db_file, init_tracing, new_shared_fx_refresh_status, spawn_asset_price_refresh_task,
     spawn_fx_refresh_task,
 };
 
@@ -16,17 +17,26 @@ async fn main() {
         std::process::exit(1);
     }
 
-    match connect_db_file("data/app.db").await {
+    if let Err(error) = dotenvy::dotenv() {
+        if !error.not_found() {
+            eprintln!("failed to load .env file: {error}");
+            std::process::exit(1);
+        }
+    }
+
+    let config = Config::parse();
+
+    match connect_db_file(&config.db_path).await {
         Ok(pool) => {
             let fx_refresh_status = new_shared_fx_refresh_status();
-            let asset_price_refresh_config = AssetPriceRefreshConfig::load();
+            let fx_refresh_config = config.fx_refresh_config();
+            let asset_price_refresh_config = config.asset_price_refresh_config();
             let app = build_router_with_state(AppState {
                 pool: pool.clone(),
                 fx_refresh_status: fx_refresh_status.clone(),
                 asset_price_refresh_config: asset_price_refresh_config.clone(),
             });
-            let address = SocketAddr::from(([0, 0, 0, 0], 3000));
-            let fx_refresh_config = FxRefreshConfig::load();
+            let address = SocketAddr::from(([0, 0, 0, 0], config.port));
 
             log_fx_refresh_configuration(&fx_refresh_config);
             log_asset_price_refresh_configuration(&asset_price_refresh_config);

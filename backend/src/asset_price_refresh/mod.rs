@@ -1,4 +1,4 @@
-use std::{env, time::Duration};
+use std::time::Duration;
 
 use reqwest::Client;
 use sqlx::SqlitePool;
@@ -16,12 +16,6 @@ pub use providers::{
     fetch_alpha_vantage_quote, fetch_coingecko_quote, fetch_finnhub_quote, fetch_twelve_data_quote,
 };
 
-const DEFAULT_TWELVE_DATA_BASE_URL: &str = "https://api.twelvedata.com";
-const DEFAULT_ALPHA_VANTAGE_BASE_URL: &str = "https://www.alphavantage.co";
-const DEFAULT_FINNHUB_BASE_URL: &str = "https://finnhub.io";
-const DEFAULT_COINGECKO_BASE_URL: &str = "https://api.coingecko.com/api/v3";
-const DEFAULT_REFRESH_INTERVAL_SECS: u64 = 60 * 60;
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AssetPriceRefreshConfig {
     pub refresh_interval: Duration,
@@ -32,42 +26,6 @@ pub struct AssetPriceRefreshConfig {
     pub finnhub_api_key: Option<String>,
     pub alpha_vantage_base_url: String,
     pub alpha_vantage_api_key: Option<String>,
-}
-
-impl AssetPriceRefreshConfig {
-    pub fn load() -> Self {
-        Self {
-            refresh_interval: Duration::from_secs(DEFAULT_REFRESH_INTERVAL_SECS),
-            coingecko_base_url: load_base_url("COINGECKO_BASE_URL", DEFAULT_COINGECKO_BASE_URL),
-            twelve_data_base_url: load_base_url(
-                "ASSET_PRICE_REFRESH_BASE_URL",
-                DEFAULT_TWELVE_DATA_BASE_URL,
-            ),
-            twelve_data_api_key: load_api_key("TWELVE_DATA_API_KEY"),
-            finnhub_base_url: load_base_url("FINNHUB_BASE_URL", DEFAULT_FINNHUB_BASE_URL),
-            finnhub_api_key: load_api_key("FINNHUB_API_KEY"),
-            alpha_vantage_base_url: load_base_url(
-                "ALPHA_VANTAGE_BASE_URL",
-                DEFAULT_ALPHA_VANTAGE_BASE_URL,
-            ),
-            alpha_vantage_api_key: load_api_key("ALPHA_VANTAGE_API_KEY"),
-        }
-    }
-}
-
-fn load_base_url(env_var: &str, default: &str) -> String {
-    env::var(env_var)
-        .ok()
-        .map(|value| value.trim().trim_end_matches('/').to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| default.to_string())
-}
-
-fn load_api_key(env_var: &str) -> Option<String> {
-    env::var(env_var)
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
 }
 
 #[derive(Debug)]
