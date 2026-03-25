@@ -1,8 +1,21 @@
-mod handlers;
+mod accounts;
+mod assets;
+mod common;
+mod currencies;
+mod fx;
+mod health;
 mod models;
+mod portfolio;
+mod transactions;
 
-use handlers::*;
+use accounts::*;
+use assets::*;
+use currencies::*;
+use fx::*;
+use health::*;
 pub use models::*;
+use portfolio::*;
+use transactions::*;
 
 use axum::{
     Router,
