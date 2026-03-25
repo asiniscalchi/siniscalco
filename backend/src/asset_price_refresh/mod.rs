@@ -103,6 +103,48 @@ pub async fn refresh_asset_prices(
     Ok(updated_count)
 }
 
+async fn try_stock_providers(
+    client: &Client,
+    config: &AssetPriceRefreshConfig,
+    symbol: &str,
+) -> Option<Result<AssetQuote, AssetPriceRefreshError>> {
+    let mut last_err = None;
+
+    if let Some(api_key) = config.twelve_data_api_key.as_deref() {
+        match fetch_twelve_data_quote(client, &config.twelve_data_base_url, api_key, symbol).await {
+            Ok(quote) => return Some(Ok(quote)),
+            Err(e) => {
+                warn!(provider = "twelve_data", symbol, error = %e, "provider failed, trying next");
+                last_err = Some(e);
+            }
+        }
+    }
+
+    if let Some(api_key) = config.finnhub_api_key.as_deref() {
+        match fetch_finnhub_quote(client, &config.finnhub_base_url, api_key, symbol).await {
+            Ok(quote) => return Some(Ok(quote)),
+            Err(e) => {
+                warn!(provider = "finnhub", symbol, error = %e, "provider failed, trying next");
+                last_err = Some(e);
+            }
+        }
+    }
+
+    if let Some(api_key) = config.alpha_vantage_api_key.as_deref() {
+        match fetch_alpha_vantage_quote(client, &config.alpha_vantage_base_url, api_key, symbol)
+            .await
+        {
+            Ok(quote) => return Some(Ok(quote)),
+            Err(e) => {
+                warn!(provider = "alpha_vantage", symbol, error = %e, "provider failed, trying next");
+                last_err = Some(e);
+            }
+        }
+    }
+
+    last_err.map(Err)
+}
+
 pub async fn refresh_single_asset_price(
     pool: &SqlitePool,
     client: &Client,
@@ -118,14 +160,11 @@ pub async fn refresh_single_asset_price(
     let quote = if asset.asset_type == AssetType::Crypto {
         let coin_id = symbol.to_lowercase();
         fetch_coingecko_quote(client, &config.coingecko_base_url, &coin_id).await?
-    } else if let Some(api_key) = config.twelve_data_api_key.as_deref() {
-        fetch_twelve_data_quote(client, &config.twelve_data_base_url, api_key, symbol).await?
-    } else if let Some(api_key) = config.finnhub_api_key.as_deref() {
-        fetch_finnhub_quote(client, &config.finnhub_base_url, api_key, symbol).await?
-    } else if let Some(api_key) = config.alpha_vantage_api_key.as_deref() {
-        fetch_alpha_vantage_quote(client, &config.alpha_vantage_base_url, api_key, symbol).await?
     } else {
-        return Ok(false);
+        match try_stock_providers(client, config, symbol).await {
+            Some(result) => result?,
+            None => return Ok(false),
+        }
     };
 
     upsert_asset_price(
@@ -571,6 +610,59 @@ mod tests {
 
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("missing price"));
+    }
+
+    #[tokio::test]
+    async fn falls_back_to_next_provider_on_failure() {
+        let pool = test_pool().await;
+        let asset_id = crate::create_asset(
+            &pool,
+            CreateAssetInput {
+                symbol: "AAPL".try_into().unwrap(),
+                name: "Apple".try_into().unwrap(),
+                asset_type: AssetType::Stock,
+                quote_symbol: Some("AAPL".to_string()),
+                isin: None,
+            },
+        )
+        .await
+        .expect("asset should be created");
+
+        // twelve_data is configured but points to an unreachable address (will fail)
+        // finnhub is configured with a working test server (should be used as fallback)
+        let finnhub_base_url = start_test_server_at(
+            "/api/v1/quote",
+            json!({
+                "c": 199.99,
+                "t": 1742817600
+            }),
+        )
+        .await;
+
+        let updated_count = refresh_asset_prices(
+            &pool,
+            &Client::new(),
+            &AssetPriceRefreshConfig {
+                refresh_interval: Duration::from_secs(60),
+                coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                twelve_data_base_url: "http://127.0.0.1:1".to_string(),
+                twelve_data_api_key: Some("test-key".to_string()),
+                finnhub_base_url,
+                finnhub_api_key: Some("test-key".to_string()),
+                alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
+                alpha_vantage_api_key: None,
+            },
+        )
+        .await
+        .expect("refresh should succeed with fallback");
+
+        let asset = get_asset(&pool, asset_id)
+            .await
+            .expect("asset should load with price");
+
+        assert_eq!(updated_count, 1);
+        assert_eq!(asset.current_price.unwrap().to_string(), "199.99");
+        assert_eq!(asset.current_price_currency, Some(Currency::Usd));
     }
 
     #[tokio::test]
