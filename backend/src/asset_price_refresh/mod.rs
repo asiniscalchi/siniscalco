@@ -13,8 +13,9 @@ use crate::{
 mod providers;
 
 pub use providers::{
-    fetch_alpha_vantage_quote, fetch_coingecko_quote, fetch_finnhub_quote, fetch_openfigi_tickers,
-    fetch_twelve_data_quote,
+    fetch_alpha_vantage_quote, fetch_coingecko_quote, fetch_eodhd_quote, fetch_finnhub_quote,
+    fetch_fmp_quote, fetch_marketstack_quote, fetch_openfigi_tickers, fetch_polygon_quote,
+    fetch_tiingo_quote, fetch_twelve_data_quote,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -29,6 +30,16 @@ pub struct AssetPriceRefreshConfig {
     pub finnhub_api_key: Option<String>,
     pub alpha_vantage_base_url: String,
     pub alpha_vantage_api_key: Option<String>,
+    pub polygon_base_url: String,
+    pub polygon_api_key: Option<String>,
+    pub fmp_base_url: String,
+    pub fmp_api_key: Option<String>,
+    pub eodhd_base_url: String,
+    pub eodhd_api_key: Option<String>,
+    pub tiingo_base_url: String,
+    pub tiingo_api_key: Option<String>,
+    pub marketstack_base_url: String,
+    pub marketstack_api_key: Option<String>,
 }
 
 #[derive(Debug)]
@@ -63,6 +74,12 @@ pub async fn spawn_asset_price_refresh_task(pool: SqlitePool, config: AssetPrice
     tokio::spawn(async move {
         let client = Client::new();
 
+        match fill_missing_asset_prices(&pool, &client, &config).await {
+            Ok(0) => {}
+            Ok(updated_count) => info!(updated_count, "startup asset price fill succeeded"),
+            Err(error) => warn!(error = %error, "startup asset price fill failed"),
+        }
+
         loop {
             info!(
                 refresh_interval_seconds = config.refresh_interval.as_secs(),
@@ -77,6 +94,31 @@ pub async fn spawn_asset_price_refresh_task(pool: SqlitePool, config: AssetPrice
             sleep(config.refresh_interval).await;
         }
     });
+}
+
+async fn fill_missing_asset_prices(
+    pool: &SqlitePool,
+    client: &Client,
+    config: &AssetPriceRefreshConfig,
+) -> Result<usize, AssetPriceRefreshError> {
+    let assets = list_assets(pool).await?;
+    let mut updated_count = 0usize;
+
+    for asset in assets.into_iter().filter(|a| a.current_price.is_none()) {
+        match refresh_single_asset_price(pool, client, config, asset.id).await {
+            Ok(true) => updated_count += 1,
+            Ok(false) => {}
+            Err(error) => {
+                warn!(
+                    asset_id = asset.id.as_i64(),
+                    error = %error,
+                    "startup asset price fill failed for asset"
+                );
+            }
+        }
+    }
+
+    Ok(updated_count)
 }
 
 pub async fn refresh_asset_prices(
@@ -144,7 +186,10 @@ async fn try_stock_providers(
             match fetch_twelve_data_quote(client, &config.twelve_data_base_url, api_key, symbol)
                 .await
             {
-                Ok(quote) => return Some(Ok(quote)),
+                Ok(quote) => {
+                    info!(provider = "twelve_data", symbol, "asset price fetched");
+                    return Some(Ok(quote));
+                }
                 Err(e) => {
                     warn!(provider = "twelve_data", symbol, error = %e, "provider failed, trying next");
                     last_err = Some(e);
@@ -154,7 +199,10 @@ async fn try_stock_providers(
 
         if let Some(api_key) = config.finnhub_api_key.as_deref() {
             match fetch_finnhub_quote(client, &config.finnhub_base_url, api_key, symbol).await {
-                Ok(quote) => return Some(Ok(quote)),
+                Ok(quote) => {
+                    info!(provider = "finnhub", symbol, "asset price fetched");
+                    return Some(Ok(quote));
+                }
                 Err(e) => {
                     warn!(provider = "finnhub", symbol, error = %e, "provider failed, trying next");
                     last_err = Some(e);
@@ -166,9 +214,79 @@ async fn try_stock_providers(
             match fetch_alpha_vantage_quote(client, &config.alpha_vantage_base_url, api_key, symbol)
                 .await
             {
-                Ok(quote) => return Some(Ok(quote)),
+                Ok(quote) => {
+                    info!(provider = "alpha_vantage", symbol, "asset price fetched");
+                    return Some(Ok(quote));
+                }
                 Err(e) => {
                     warn!(provider = "alpha_vantage", symbol, error = %e, "provider failed, trying next");
+                    last_err = Some(e);
+                }
+            }
+        }
+
+        if let Some(api_key) = config.polygon_api_key.as_deref() {
+            match fetch_polygon_quote(client, &config.polygon_base_url, api_key, symbol).await {
+                Ok(quote) => {
+                    info!(provider = "polygon", symbol, "asset price fetched");
+                    return Some(Ok(quote));
+                }
+                Err(e) => {
+                    warn!(provider = "polygon", symbol, error = %e, "provider failed, trying next");
+                    last_err = Some(e);
+                }
+            }
+        }
+
+        if let Some(api_key) = config.fmp_api_key.as_deref() {
+            match fetch_fmp_quote(client, &config.fmp_base_url, api_key, symbol).await {
+                Ok(quote) => {
+                    info!(provider = "fmp", symbol, "asset price fetched");
+                    return Some(Ok(quote));
+                }
+                Err(e) => {
+                    warn!(provider = "fmp", symbol, error = %e, "provider failed, trying next");
+                    last_err = Some(e);
+                }
+            }
+        }
+
+        if let Some(api_key) = config.eodhd_api_key.as_deref() {
+            match fetch_eodhd_quote(client, &config.eodhd_base_url, api_key, symbol).await {
+                Ok(quote) => {
+                    info!(provider = "eodhd", symbol, "asset price fetched");
+                    return Some(Ok(quote));
+                }
+                Err(e) => {
+                    warn!(provider = "eodhd", symbol, error = %e, "provider failed, trying next");
+                    last_err = Some(e);
+                }
+            }
+        }
+
+        if let Some(api_key) = config.tiingo_api_key.as_deref() {
+            match fetch_tiingo_quote(client, &config.tiingo_base_url, api_key, symbol).await {
+                Ok(quote) => {
+                    info!(provider = "tiingo", symbol, "asset price fetched");
+                    return Some(Ok(quote));
+                }
+                Err(e) => {
+                    warn!(provider = "tiingo", symbol, error = %e, "provider failed, trying next");
+                    last_err = Some(e);
+                }
+            }
+        }
+
+        if let Some(api_key) = config.marketstack_api_key.as_deref() {
+            match fetch_marketstack_quote(client, &config.marketstack_base_url, api_key, symbol)
+                .await
+            {
+                Ok(quote) => {
+                    info!(provider = "marketstack", symbol, "asset price fetched");
+                    return Some(Ok(quote));
+                }
+                Err(e) => {
+                    warn!(provider = "marketstack", symbol, error = %e, "provider failed, trying next");
                     last_err = Some(e);
                 }
             }
@@ -228,8 +346,9 @@ mod tests {
     use super::{
         AssetPriceRefreshConfig,
         providers::{
-            fetch_alpha_vantage_quote, fetch_coingecko_quote, fetch_finnhub_quote,
-            fetch_openfigi_tickers, fetch_twelve_data_quote,
+            fetch_alpha_vantage_quote, fetch_coingecko_quote, fetch_eodhd_quote,
+            fetch_finnhub_quote, fetch_fmp_quote, fetch_marketstack_quote, fetch_openfigi_tickers,
+            fetch_polygon_quote, fetch_tiingo_quote, fetch_twelve_data_quote,
         },
         refresh_asset_prices,
     };
@@ -346,6 +465,16 @@ mod tests {
                 finnhub_api_key: None,
                 alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
                 alpha_vantage_api_key: None,
+                polygon_base_url: "http://127.0.0.1:1".to_string(),
+                polygon_api_key: None,
+                fmp_base_url: "http://127.0.0.1:1".to_string(),
+                fmp_api_key: None,
+                eodhd_base_url: "http://127.0.0.1:1".to_string(),
+                eodhd_api_key: None,
+                tiingo_base_url: "http://127.0.0.1:1".to_string(),
+                tiingo_api_key: None,
+                marketstack_base_url: "http://127.0.0.1:1".to_string(),
+                marketstack_api_key: None,
             },
         )
         .await
@@ -465,6 +594,16 @@ mod tests {
                 finnhub_api_key: None,
                 alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
                 alpha_vantage_api_key: None,
+                polygon_base_url: "http://127.0.0.1:1".to_string(),
+                polygon_api_key: None,
+                fmp_base_url: "http://127.0.0.1:1".to_string(),
+                fmp_api_key: None,
+                eodhd_base_url: "http://127.0.0.1:1".to_string(),
+                eodhd_api_key: None,
+                tiingo_base_url: "http://127.0.0.1:1".to_string(),
+                tiingo_api_key: None,
+                marketstack_base_url: "http://127.0.0.1:1".to_string(),
+                marketstack_api_key: None,
             },
         )
         .await
@@ -582,6 +721,16 @@ mod tests {
                 finnhub_api_key: Some("test-key".to_string()),
                 alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
                 alpha_vantage_api_key: None,
+                polygon_base_url: "http://127.0.0.1:1".to_string(),
+                polygon_api_key: None,
+                fmp_base_url: "http://127.0.0.1:1".to_string(),
+                fmp_api_key: None,
+                eodhd_base_url: "http://127.0.0.1:1".to_string(),
+                eodhd_api_key: None,
+                tiingo_base_url: "http://127.0.0.1:1".to_string(),
+                tiingo_api_key: None,
+                marketstack_base_url: "http://127.0.0.1:1".to_string(),
+                marketstack_api_key: None,
             },
         )
         .await
@@ -753,6 +902,16 @@ mod tests {
                 finnhub_api_key: None,
                 alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
                 alpha_vantage_api_key: None,
+                polygon_base_url: "http://127.0.0.1:1".to_string(),
+                polygon_api_key: None,
+                fmp_base_url: "http://127.0.0.1:1".to_string(),
+                fmp_api_key: None,
+                eodhd_base_url: "http://127.0.0.1:1".to_string(),
+                eodhd_api_key: None,
+                tiingo_base_url: "http://127.0.0.1:1".to_string(),
+                tiingo_api_key: None,
+                marketstack_base_url: "http://127.0.0.1:1".to_string(),
+                marketstack_api_key: None,
             },
         )
         .await
@@ -814,6 +973,16 @@ mod tests {
                 finnhub_api_key: Some("test-key".to_string()),
                 alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
                 alpha_vantage_api_key: None,
+                polygon_base_url: "http://127.0.0.1:1".to_string(),
+                polygon_api_key: None,
+                fmp_base_url: "http://127.0.0.1:1".to_string(),
+                fmp_api_key: None,
+                eodhd_base_url: "http://127.0.0.1:1".to_string(),
+                eodhd_api_key: None,
+                tiingo_base_url: "http://127.0.0.1:1".to_string(),
+                tiingo_api_key: None,
+                marketstack_base_url: "http://127.0.0.1:1".to_string(),
+                marketstack_api_key: None,
             },
         )
         .await
@@ -868,6 +1037,16 @@ mod tests {
                 finnhub_api_key: Some("test-key".to_string()),
                 alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
                 alpha_vantage_api_key: None,
+                polygon_base_url: "http://127.0.0.1:1".to_string(),
+                polygon_api_key: None,
+                fmp_base_url: "http://127.0.0.1:1".to_string(),
+                fmp_api_key: None,
+                eodhd_base_url: "http://127.0.0.1:1".to_string(),
+                eodhd_api_key: None,
+                tiingo_base_url: "http://127.0.0.1:1".to_string(),
+                tiingo_api_key: None,
+                marketstack_base_url: "http://127.0.0.1:1".to_string(),
+                marketstack_api_key: None,
             },
         )
         .await
@@ -922,6 +1101,16 @@ mod tests {
                 finnhub_api_key: Some("test-key".to_string()),
                 alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
                 alpha_vantage_api_key: None,
+                polygon_base_url: "http://127.0.0.1:1".to_string(),
+                polygon_api_key: None,
+                fmp_base_url: "http://127.0.0.1:1".to_string(),
+                fmp_api_key: None,
+                eodhd_base_url: "http://127.0.0.1:1".to_string(),
+                eodhd_api_key: None,
+                tiingo_base_url: "http://127.0.0.1:1".to_string(),
+                tiingo_api_key: None,
+                marketstack_base_url: "http://127.0.0.1:1".to_string(),
+                marketstack_api_key: None,
             },
         )
         .await
@@ -978,6 +1167,16 @@ mod tests {
                 finnhub_api_key: None,
                 alpha_vantage_base_url,
                 alpha_vantage_api_key: Some("test-key".to_string()),
+                polygon_base_url: "http://127.0.0.1:1".to_string(),
+                polygon_api_key: None,
+                fmp_base_url: "http://127.0.0.1:1".to_string(),
+                fmp_api_key: None,
+                eodhd_base_url: "http://127.0.0.1:1".to_string(),
+                eodhd_api_key: None,
+                tiingo_base_url: "http://127.0.0.1:1".to_string(),
+                tiingo_api_key: None,
+                marketstack_base_url: "http://127.0.0.1:1".to_string(),
+                marketstack_api_key: None,
             },
         )
         .await
@@ -989,6 +1188,511 @@ mod tests {
 
         assert_eq!(updated_count, 1);
         assert_eq!(asset.current_price.unwrap().to_string(), "175.42");
+        assert_eq!(asset.current_price_currency, Some(Currency::Usd));
+        assert_eq!(
+            asset.current_price_as_of,
+            Some("2026-03-24T00:00:00Z".to_string())
+        );
+    }
+
+    // Polygon tests
+
+    #[tokio::test]
+    async fn fetches_polygon_quote() {
+        let base_url = start_test_server_at(
+            "/v2/aggs/ticker/AAPL/prev",
+            json!({
+                "status": "OK",
+                "results": [{"c": 173.57, "t": 1742817600000_i64}]
+            }),
+        )
+        .await;
+
+        let quote = fetch_polygon_quote(&Client::new(), &base_url, "test-key", "AAPL")
+            .await
+            .expect("quote fetch should succeed");
+
+        assert_eq!(quote.price.to_string(), "173.57");
+        assert_eq!(quote.currency, Currency::Usd);
+        assert_eq!(quote.as_of, "2025-03-24T12:00:00Z");
+    }
+
+    #[tokio::test]
+    async fn polygon_quote_fails_on_empty_results() {
+        let base_url = start_test_server_at(
+            "/v2/aggs/ticker/INVALID/prev",
+            json!({"status": "OK", "results": []}),
+        )
+        .await;
+
+        let result = fetch_polygon_quote(&Client::new(), &base_url, "test-key", "INVALID").await;
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("no data for symbol")
+        );
+    }
+
+    #[tokio::test]
+    async fn refreshes_asset_prices_via_polygon() {
+        let pool = test_pool().await;
+        let asset_id = crate::create_asset(
+            &pool,
+            CreateAssetInput {
+                symbol: "AAPL".try_into().unwrap(),
+                name: "Apple".try_into().unwrap(),
+                asset_type: AssetType::Stock,
+                quote_symbol: Some("AAPL".to_string()),
+                isin: None,
+            },
+        )
+        .await
+        .expect("asset should be created");
+
+        let polygon_base_url = start_test_server_at(
+            "/v2/aggs/ticker/AAPL/prev",
+            json!({
+                "status": "OK",
+                "results": [{"c": 182.00, "t": 1742817600000_i64}]
+            }),
+        )
+        .await;
+
+        let updated_count = refresh_asset_prices(
+            &pool,
+            &Client::new(),
+            &AssetPriceRefreshConfig {
+                refresh_interval: Duration::from_secs(60),
+                coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_api_key: None,
+                twelve_data_base_url: "http://127.0.0.1:1".to_string(),
+                twelve_data_api_key: None,
+                finnhub_base_url: "http://127.0.0.1:1".to_string(),
+                finnhub_api_key: None,
+                alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
+                alpha_vantage_api_key: None,
+                polygon_base_url,
+                polygon_api_key: Some("test-key".to_string()),
+                fmp_base_url: "http://127.0.0.1:1".to_string(),
+                fmp_api_key: None,
+                eodhd_base_url: "http://127.0.0.1:1".to_string(),
+                eodhd_api_key: None,
+                tiingo_base_url: "http://127.0.0.1:1".to_string(),
+                tiingo_api_key: None,
+                marketstack_base_url: "http://127.0.0.1:1".to_string(),
+                marketstack_api_key: None,
+            },
+        )
+        .await
+        .expect("refresh should succeed");
+
+        let asset = get_asset(&pool, asset_id)
+            .await
+            .expect("asset should load with price");
+
+        assert_eq!(updated_count, 1);
+        assert_eq!(asset.current_price.unwrap().to_string(), "182");
+        assert_eq!(asset.current_price_currency, Some(Currency::Usd));
+        assert_eq!(
+            asset.current_price_as_of,
+            Some("2025-03-24T12:00:00Z".to_string())
+        );
+    }
+
+    // FMP tests
+
+    #[tokio::test]
+    async fn fetches_fmp_quote() {
+        let base_url = start_test_server_at(
+            "/stable/quote",
+            json!([{"price": 173.57, "timestamp": 1742817600}]),
+        )
+        .await;
+
+        let quote = fetch_fmp_quote(&Client::new(), &base_url, "test-key", "AAPL")
+            .await
+            .expect("quote fetch should succeed");
+
+        assert_eq!(quote.price.to_string(), "173.57");
+        assert_eq!(quote.currency, Currency::Usd);
+        assert_eq!(quote.as_of, "2025-03-24T12:00:00Z");
+    }
+
+    #[tokio::test]
+    async fn fmp_quote_fails_on_empty_response() {
+        let base_url = start_test_server_at("/stable/quote", json!([])).await;
+
+        let result = fetch_fmp_quote(&Client::new(), &base_url, "test-key", "INVALID").await;
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("no data for symbol")
+        );
+    }
+
+    #[tokio::test]
+    async fn refreshes_asset_prices_via_fmp() {
+        let pool = test_pool().await;
+        let asset_id = crate::create_asset(
+            &pool,
+            CreateAssetInput {
+                symbol: "AAPL".try_into().unwrap(),
+                name: "Apple".try_into().unwrap(),
+                asset_type: AssetType::Stock,
+                quote_symbol: Some("AAPL".to_string()),
+                isin: None,
+            },
+        )
+        .await
+        .expect("asset should be created");
+
+        let fmp_base_url = start_test_server_at(
+            "/stable/quote",
+            json!([{"price": 195.50, "timestamp": 1742817600}]),
+        )
+        .await;
+
+        let updated_count = refresh_asset_prices(
+            &pool,
+            &Client::new(),
+            &AssetPriceRefreshConfig {
+                refresh_interval: Duration::from_secs(60),
+                coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_api_key: None,
+                twelve_data_base_url: "http://127.0.0.1:1".to_string(),
+                twelve_data_api_key: None,
+                finnhub_base_url: "http://127.0.0.1:1".to_string(),
+                finnhub_api_key: None,
+                alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
+                alpha_vantage_api_key: None,
+                polygon_base_url: "http://127.0.0.1:1".to_string(),
+                polygon_api_key: None,
+                fmp_base_url,
+                fmp_api_key: Some("test-key".to_string()),
+                eodhd_base_url: "http://127.0.0.1:1".to_string(),
+                eodhd_api_key: None,
+                tiingo_base_url: "http://127.0.0.1:1".to_string(),
+                tiingo_api_key: None,
+                marketstack_base_url: "http://127.0.0.1:1".to_string(),
+                marketstack_api_key: None,
+            },
+        )
+        .await
+        .expect("refresh should succeed");
+
+        let asset = get_asset(&pool, asset_id)
+            .await
+            .expect("asset should load with price");
+
+        assert_eq!(updated_count, 1);
+        assert_eq!(asset.current_price.unwrap().to_string(), "195.5");
+        assert_eq!(asset.current_price_currency, Some(Currency::Usd));
+        assert_eq!(
+            asset.current_price_as_of,
+            Some("2025-03-24T12:00:00Z".to_string())
+        );
+    }
+
+    // EODHD tests
+
+    #[tokio::test]
+    async fn fetches_eodhd_quote() {
+        let base_url = start_test_server_at(
+            "/api/real-time/AAPL.US",
+            json!({"close": 173.57, "timestamp": 1742817600}),
+        )
+        .await;
+
+        let quote = fetch_eodhd_quote(&Client::new(), &base_url, "test-key", "AAPL.US")
+            .await
+            .expect("quote fetch should succeed");
+
+        assert_eq!(quote.price.to_string(), "173.57");
+        assert_eq!(quote.currency, Currency::Usd);
+        assert_eq!(quote.as_of, "2025-03-24T12:00:00Z");
+    }
+
+    #[tokio::test]
+    async fn eodhd_quote_fails_on_missing_close() {
+        let base_url = start_test_server_at(
+            "/api/real-time/INVALID.US",
+            json!({"timestamp": 1742817600}),
+        )
+        .await;
+
+        let result = fetch_eodhd_quote(&Client::new(), &base_url, "test-key", "INVALID.US").await;
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("missing close price")
+        );
+    }
+
+    #[tokio::test]
+    async fn refreshes_asset_prices_via_eodhd() {
+        let pool = test_pool().await;
+        let asset_id = crate::create_asset(
+            &pool,
+            CreateAssetInput {
+                symbol: "AAPL".try_into().unwrap(),
+                name: "Apple".try_into().unwrap(),
+                asset_type: AssetType::Stock,
+                quote_symbol: Some("AAPL.US".to_string()),
+                isin: None,
+            },
+        )
+        .await
+        .expect("asset should be created");
+
+        let eodhd_base_url = start_test_server_at(
+            "/api/real-time/AAPL.US",
+            json!({"close": 201.75, "timestamp": 1742817600}),
+        )
+        .await;
+
+        let updated_count = refresh_asset_prices(
+            &pool,
+            &Client::new(),
+            &AssetPriceRefreshConfig {
+                refresh_interval: Duration::from_secs(60),
+                coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_api_key: None,
+                twelve_data_base_url: "http://127.0.0.1:1".to_string(),
+                twelve_data_api_key: None,
+                finnhub_base_url: "http://127.0.0.1:1".to_string(),
+                finnhub_api_key: None,
+                alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
+                alpha_vantage_api_key: None,
+                polygon_base_url: "http://127.0.0.1:1".to_string(),
+                polygon_api_key: None,
+                fmp_base_url: "http://127.0.0.1:1".to_string(),
+                fmp_api_key: None,
+                eodhd_base_url,
+                eodhd_api_key: Some("test-key".to_string()),
+                tiingo_base_url: "http://127.0.0.1:1".to_string(),
+                tiingo_api_key: None,
+                marketstack_base_url: "http://127.0.0.1:1".to_string(),
+                marketstack_api_key: None,
+            },
+        )
+        .await
+        .expect("refresh should succeed");
+
+        let asset = get_asset(&pool, asset_id)
+            .await
+            .expect("asset should load with price");
+
+        assert_eq!(updated_count, 1);
+        assert_eq!(asset.current_price.unwrap().to_string(), "201.75");
+        assert_eq!(asset.current_price_currency, Some(Currency::Usd));
+        assert_eq!(
+            asset.current_price_as_of,
+            Some("2025-03-24T12:00:00Z".to_string())
+        );
+    }
+
+    // Tiingo tests
+
+    #[tokio::test]
+    async fn fetches_tiingo_quote() {
+        let base_url = start_test_server_at(
+            "/tiingo/daily/AAPL/prices",
+            json!([{"close": 173.57, "date": "2026-03-24T00:00:00+00:00"}]),
+        )
+        .await;
+
+        let quote = fetch_tiingo_quote(&Client::new(), &base_url, "test-key", "AAPL")
+            .await
+            .expect("quote fetch should succeed");
+
+        assert_eq!(quote.price.to_string(), "173.57");
+        assert_eq!(quote.currency, Currency::Usd);
+        assert_eq!(quote.as_of, "2026-03-24T00:00:00Z");
+    }
+
+    #[tokio::test]
+    async fn tiingo_quote_fails_on_empty_response() {
+        let base_url = start_test_server_at("/tiingo/daily/INVALID/prices", json!([])).await;
+
+        let result = fetch_tiingo_quote(&Client::new(), &base_url, "test-key", "INVALID").await;
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("no data for symbol")
+        );
+    }
+
+    #[tokio::test]
+    async fn refreshes_asset_prices_via_tiingo() {
+        let pool = test_pool().await;
+        let asset_id = crate::create_asset(
+            &pool,
+            CreateAssetInput {
+                symbol: "AAPL".try_into().unwrap(),
+                name: "Apple".try_into().unwrap(),
+                asset_type: AssetType::Stock,
+                quote_symbol: Some("AAPL".to_string()),
+                isin: None,
+            },
+        )
+        .await
+        .expect("asset should be created");
+
+        let tiingo_base_url = start_test_server_at(
+            "/tiingo/daily/AAPL/prices",
+            json!([{"close": 178.90, "date": "2026-03-24T00:00:00+00:00"}]),
+        )
+        .await;
+
+        let updated_count = refresh_asset_prices(
+            &pool,
+            &Client::new(),
+            &AssetPriceRefreshConfig {
+                refresh_interval: Duration::from_secs(60),
+                coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_api_key: None,
+                twelve_data_base_url: "http://127.0.0.1:1".to_string(),
+                twelve_data_api_key: None,
+                finnhub_base_url: "http://127.0.0.1:1".to_string(),
+                finnhub_api_key: None,
+                alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
+                alpha_vantage_api_key: None,
+                polygon_base_url: "http://127.0.0.1:1".to_string(),
+                polygon_api_key: None,
+                fmp_base_url: "http://127.0.0.1:1".to_string(),
+                fmp_api_key: None,
+                eodhd_base_url: "http://127.0.0.1:1".to_string(),
+                eodhd_api_key: None,
+                tiingo_base_url,
+                tiingo_api_key: Some("test-key".to_string()),
+                marketstack_base_url: "http://127.0.0.1:1".to_string(),
+                marketstack_api_key: None,
+            },
+        )
+        .await
+        .expect("refresh should succeed");
+
+        let asset = get_asset(&pool, asset_id)
+            .await
+            .expect("asset should load with price");
+
+        assert_eq!(updated_count, 1);
+        assert_eq!(asset.current_price.unwrap().to_string(), "178.9");
+        assert_eq!(asset.current_price_currency, Some(Currency::Usd));
+        assert_eq!(
+            asset.current_price_as_of,
+            Some("2026-03-24T00:00:00Z".to_string())
+        );
+    }
+
+    // Marketstack tests
+
+    #[tokio::test]
+    async fn fetches_marketstack_quote() {
+        let base_url = start_test_server_at(
+            "/v1/eod/latest",
+            json!({"data": [{"close": 173.57, "date": "2026-03-24T00:00:00+0000"}]}),
+        )
+        .await;
+
+        let quote = fetch_marketstack_quote(&Client::new(), &base_url, "test-key", "AAPL")
+            .await
+            .expect("quote fetch should succeed");
+
+        assert_eq!(quote.price.to_string(), "173.57");
+        assert_eq!(quote.currency, Currency::Usd);
+        assert_eq!(quote.as_of, "2026-03-24T00:00:00Z");
+    }
+
+    #[tokio::test]
+    async fn marketstack_quote_fails_on_empty_data() {
+        let base_url = start_test_server_at("/v1/eod/latest", json!({"data": []})).await;
+
+        let result =
+            fetch_marketstack_quote(&Client::new(), &base_url, "test-key", "INVALID").await;
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("no data for symbol")
+        );
+    }
+
+    #[tokio::test]
+    async fn refreshes_asset_prices_via_marketstack() {
+        let pool = test_pool().await;
+        let asset_id = crate::create_asset(
+            &pool,
+            CreateAssetInput {
+                symbol: "AAPL".try_into().unwrap(),
+                name: "Apple".try_into().unwrap(),
+                asset_type: AssetType::Stock,
+                quote_symbol: Some("AAPL".to_string()),
+                isin: None,
+            },
+        )
+        .await
+        .expect("asset should be created");
+
+        let marketstack_base_url = start_test_server_at(
+            "/v1/eod/latest",
+            json!({"data": [{"close": 165.33, "date": "2026-03-24T00:00:00+0000"}]}),
+        )
+        .await;
+
+        let updated_count = refresh_asset_prices(
+            &pool,
+            &Client::new(),
+            &AssetPriceRefreshConfig {
+                refresh_interval: Duration::from_secs(60),
+                coingecko_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_base_url: "http://127.0.0.1:1".to_string(),
+                openfigi_api_key: None,
+                twelve_data_base_url: "http://127.0.0.1:1".to_string(),
+                twelve_data_api_key: None,
+                finnhub_base_url: "http://127.0.0.1:1".to_string(),
+                finnhub_api_key: None,
+                alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
+                alpha_vantage_api_key: None,
+                polygon_base_url: "http://127.0.0.1:1".to_string(),
+                polygon_api_key: None,
+                fmp_base_url: "http://127.0.0.1:1".to_string(),
+                fmp_api_key: None,
+                eodhd_base_url: "http://127.0.0.1:1".to_string(),
+                eodhd_api_key: None,
+                tiingo_base_url: "http://127.0.0.1:1".to_string(),
+                tiingo_api_key: None,
+                marketstack_base_url,
+                marketstack_api_key: Some("test-key".to_string()),
+            },
+        )
+        .await
+        .expect("refresh should succeed");
+
+        let asset = get_asset(&pool, asset_id)
+            .await
+            .expect("asset should load with price");
+
+        assert_eq!(updated_count, 1);
+        assert_eq!(asset.current_price.unwrap().to_string(), "165.33");
         assert_eq!(asset.current_price_currency, Some(Currency::Usd));
         assert_eq!(
             asset.current_price_as_of,

@@ -1,13 +1,23 @@
 pub mod alpha_vantage;
 pub mod coingecko;
+pub mod eodhd;
 pub mod finnhub;
+pub mod fmp;
+pub mod marketstack;
 pub mod openfigi;
+pub mod polygon;
+pub mod tiingo;
 pub mod twelve_data;
 
 pub use alpha_vantage::fetch_alpha_vantage_quote;
 pub use coingecko::fetch_coingecko_quote;
+pub use eodhd::fetch_eodhd_quote;
 pub use finnhub::fetch_finnhub_quote;
+pub use fmp::fetch_fmp_quote;
+pub use marketstack::fetch_marketstack_quote;
 pub use openfigi::fetch_openfigi_tickers;
+pub use polygon::fetch_polygon_quote;
+pub use tiingo::fetch_tiingo_quote;
 pub use twelve_data::fetch_twelve_data_quote;
 
 use time::format_description::well_known::Rfc3339;
@@ -32,6 +42,25 @@ fn unix_timestamp_to_rfc3339(ts: i64) -> Result<String, AssetPriceRefreshError> 
 }
 
 fn normalize_provider_datetime(datetime: String) -> Result<String, AssetPriceRefreshError> {
+    // Normalize ISO 8601 offsets without colon (e.g. +0000) to RFC 3339 (e.g. +00:00)
+    let datetime = if datetime.len() >= 20 {
+        let tail = &datetime[datetime.len() - 5..];
+        let (sign, digits) = tail.split_at(1);
+        if (sign == "+" || sign == "-") && digits.chars().all(|c| c.is_ascii_digit()) {
+            format!(
+                "{}{}{}:{}",
+                &datetime[..datetime.len() - 5],
+                sign,
+                &digits[..2],
+                &digits[2..]
+            )
+        } else {
+            datetime
+        }
+    } else {
+        datetime
+    };
+
     if let Ok(value) = OffsetDateTime::parse(&datetime, &Rfc3339) {
         return value.format(&Rfc3339).map_err(|_| {
             AssetPriceRefreshError::Provider(

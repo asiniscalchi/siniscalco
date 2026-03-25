@@ -76,6 +76,62 @@ pub struct Config {
     /// Alpha Vantage API key (enables Alpha Vantage as the stock price provider)
     #[arg(long, env = "ALPHA_VANTAGE_API_KEY")]
     pub alpha_vantage_api_key: Option<String>,
+
+    /// Polygon.io API base URL
+    #[arg(
+        long,
+        env = "POLYGON_BASE_URL",
+        default_value = "https://api.polygon.io"
+    )]
+    pub polygon_base_url: String,
+
+    /// Polygon.io API key (enables Polygon.io as the stock price provider)
+    #[arg(long, env = "POLYGON_API_KEY")]
+    pub polygon_api_key: Option<String>,
+
+    /// Financial Modeling Prep API base URL
+    #[arg(
+        long,
+        env = "FMP_BASE_URL",
+        default_value = "https://financialmodelingprep.com"
+    )]
+    pub fmp_base_url: String,
+
+    /// Financial Modeling Prep API key (enables FMP as the stock price provider)
+    #[arg(long, env = "FMP_API_KEY")]
+    pub fmp_api_key: Option<String>,
+
+    /// EODHD API base URL
+    #[arg(long, env = "EODHD_BASE_URL", default_value = "https://eodhd.com")]
+    pub eodhd_base_url: String,
+
+    /// EODHD API key (enables EODHD as the stock price provider)
+    #[arg(long, env = "EODHD_API_KEY")]
+    pub eodhd_api_key: Option<String>,
+
+    /// Tiingo API base URL
+    #[arg(
+        long,
+        env = "TIINGO_BASE_URL",
+        default_value = "https://api.tiingo.com"
+    )]
+    pub tiingo_base_url: String,
+
+    /// Tiingo API key (enables Tiingo as the stock price provider)
+    #[arg(long, env = "TIINGO_API_KEY")]
+    pub tiingo_api_key: Option<String>,
+
+    /// Marketstack API base URL
+    #[arg(
+        long,
+        env = "MARKETSTACK_BASE_URL",
+        default_value = "https://api.marketstack.com"
+    )]
+    pub marketstack_base_url: String,
+
+    /// Marketstack API key (enables Marketstack as the stock price provider)
+    #[arg(long, env = "MARKETSTACK_API_KEY")]
+    pub marketstack_api_key: Option<String>,
 }
 
 impl Config {
@@ -98,6 +154,16 @@ impl Config {
             finnhub_api_key: non_empty(self.finnhub_api_key.as_deref()),
             alpha_vantage_base_url: trim_url(&self.alpha_vantage_base_url),
             alpha_vantage_api_key: non_empty(self.alpha_vantage_api_key.as_deref()),
+            polygon_base_url: trim_url(&self.polygon_base_url),
+            polygon_api_key: non_empty(self.polygon_api_key.as_deref()),
+            fmp_base_url: trim_url(&self.fmp_base_url),
+            fmp_api_key: non_empty(self.fmp_api_key.as_deref()),
+            eodhd_base_url: trim_url(&self.eodhd_base_url),
+            eodhd_api_key: non_empty(self.eodhd_api_key.as_deref()),
+            tiingo_base_url: trim_url(&self.tiingo_base_url),
+            tiingo_api_key: non_empty(self.tiingo_api_key.as_deref()),
+            marketstack_base_url: trim_url(&self.marketstack_base_url),
+            marketstack_api_key: non_empty(self.marketstack_api_key.as_deref()),
         }
     }
 }
