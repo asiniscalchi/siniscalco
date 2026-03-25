@@ -25,6 +25,8 @@ export type PortfolioAccountTotalResponse = {
   name: string;
   account_type: string;
   summary_status: "ok" | "conversion_unavailable";
+  cash_total_amount: string | null;
+  asset_total_amount: string | null;
   total_amount: string | null;
   total_currency: string;
 };
