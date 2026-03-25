@@ -1,17 +1,19 @@
 use std::{env, time::Duration};
 
 use reqwest::Client;
-use serde::Deserialize;
 use sqlx::SqlitePool;
-use time::format_description::well_known::Rfc3339;
-use time::macros::format_description;
-use time::{Date, OffsetDateTime, PrimitiveDateTime};
 use tokio::time::sleep;
 use tracing::{info, warn};
 
 use crate::{
-    AssetId, AssetType, AssetUnitPrice, Currency, UpsertAssetPriceInput,
-    current_utc_timestamp_iso8601, get_asset, list_assets, upsert_asset_price,
+    AssetId, AssetType, AssetUnitPrice, Currency, UpsertAssetPriceInput, get_asset, list_assets,
+    upsert_asset_price,
+};
+
+mod providers;
+
+pub use providers::{
+    fetch_alpha_vantage_quote, fetch_coingecko_quote, fetch_finnhub_quote, fetch_twelve_data_quote,
 };
 
 const DEFAULT_TWELVE_DATA_BASE_URL: &str = "https://api.twelvedata.com";
@@ -87,17 +89,6 @@ impl From<crate::storage::StorageError> for AssetPriceRefreshError {
     fn from(value: crate::storage::StorageError) -> Self {
         Self::Storage(value)
     }
-}
-
-#[derive(Debug, Deserialize)]
-struct TwelveDataQuoteResponse {
-    close: Option<String>,
-    currency: Option<String>,
-    datetime: Option<String>,
-    timestamp: Option<i64>,
-    code: Option<i64>,
-    message: Option<String>,
-    status: Option<String>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -193,363 +184,6 @@ pub async fn refresh_single_asset_price(
     Ok(true)
 }
 
-pub async fn fetch_twelve_data_quote(
-    client: &Client,
-    base_url: &str,
-    api_key: &str,
-    symbol: &str,
-) -> Result<AssetQuote, AssetPriceRefreshError> {
-    let url = format!("{}/quote", base_url.trim_end_matches('/'));
-    let response = client
-        .get(url)
-        .query(&[("symbol", symbol), ("apikey", api_key)])
-        .send()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
-
-    if !response.status().is_success() {
-        return Err(AssetPriceRefreshError::Provider(format!(
-            "asset price refresh failed: provider returned status {}",
-            response.status()
-        )));
-    }
-
-    let payload = response
-        .json::<TwelveDataQuoteResponse>()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
-
-    if payload.status.as_deref() == Some("error") || payload.code.is_some() {
-        return Err(AssetPriceRefreshError::Provider(
-            payload
-                .message
-                .unwrap_or_else(|| "asset price refresh failed: provider returned an error".into()),
-        ));
-    }
-
-    let price = payload
-        .close
-        .as_deref()
-        .ok_or_else(|| {
-            AssetPriceRefreshError::Provider(
-                "asset price refresh failed: provider response missing close price".into(),
-            )
-        })
-        .and_then(|price| AssetUnitPrice::try_from(price).map_err(AssetPriceRefreshError::from))?;
-
-    let currency = payload
-        .currency
-        .as_deref()
-        .ok_or_else(|| {
-            AssetPriceRefreshError::Provider(
-                "asset price refresh failed: provider response missing currency".into(),
-            )
-        })
-        .and_then(|currency| Currency::try_from(currency).map_err(AssetPriceRefreshError::from))?;
-
-    let as_of = match payload.datetime {
-        Some(datetime) => normalize_provider_datetime(datetime)?,
-        None => current_utc_timestamp_iso8601()?,
-    };
-
-    Ok(AssetQuote {
-        price,
-        currency,
-        as_of,
-    })
-}
-
-#[derive(Debug, Deserialize)]
-struct CoinGeckoPrice {
-    usd: serde_json::Number,
-    last_updated_at: Option<i64>,
-}
-
-pub async fn fetch_coingecko_quote(
-    client: &Client,
-    base_url: &str,
-    coin_id: &str,
-) -> Result<AssetQuote, AssetPriceRefreshError> {
-    let url = format!("{}/simple/price", base_url.trim_end_matches('/'));
-    let response = client
-        .get(url)
-        .query(&[
-            ("ids", coin_id),
-            ("vs_currencies", "usd"),
-            ("include_last_updated_at", "true"),
-        ])
-        .send()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
-
-    if !response.status().is_success() {
-        return Err(AssetPriceRefreshError::Provider(format!(
-            "asset price refresh failed: provider returned status {}",
-            response.status()
-        )));
-    }
-
-    let payload = response
-        .json::<std::collections::BTreeMap<String, CoinGeckoPrice>>()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
-
-    let coin_data = payload.get(coin_id).ok_or_else(|| {
-        AssetPriceRefreshError::Provider(format!(
-            "asset price refresh failed: provider returned no data for coin {coin_id}"
-        ))
-    })?;
-
-    let price = AssetUnitPrice::try_from(coin_data.usd.to_string().as_str())
-        .map_err(AssetPriceRefreshError::from)?;
-
-    let as_of = match coin_data.last_updated_at {
-        Some(ts) => unix_timestamp_to_rfc3339(ts)?,
-        None => current_utc_timestamp_iso8601()?,
-    };
-
-    Ok(AssetQuote {
-        price,
-        currency: Currency::Usd,
-        as_of,
-    })
-}
-
-#[derive(Debug, Deserialize)]
-struct FinnhubQuoteResponse {
-    c: Option<serde_json::Number>,
-    t: Option<i64>,
-    error: Option<String>,
-}
-
-/// Fetches a quote from the Finnhub `/api/v1/quote` endpoint.
-/// Note: Finnhub does not return the currency in this endpoint.
-/// Prices are returned in the currency of the exchange where the symbol trades (defaults to USD).
-pub async fn fetch_finnhub_quote(
-    client: &Client,
-    base_url: &str,
-    api_key: &str,
-    symbol: &str,
-) -> Result<AssetQuote, AssetPriceRefreshError> {
-    let url = format!("{}/api/v1/quote", base_url.trim_end_matches('/'));
-    let response = client
-        .get(url)
-        .query(&[("symbol", symbol), ("token", api_key)])
-        .send()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
-
-    if !response.status().is_success() {
-        return Err(AssetPriceRefreshError::Provider(format!(
-            "asset price refresh failed: provider returned status {}",
-            response.status()
-        )));
-    }
-
-    let payload = response
-        .json::<FinnhubQuoteResponse>()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
-
-    if let Some(error) = payload.error {
-        return Err(AssetPriceRefreshError::Provider(format!(
-            "asset price refresh failed: {error}"
-        )));
-    }
-
-    let timestamp = payload.t.unwrap_or(0);
-    if timestamp == 0 {
-        return Err(AssetPriceRefreshError::Provider(format!(
-            "asset price refresh failed: provider returned no data for symbol {symbol}"
-        )));
-    }
-
-    let price_str = payload.c.as_ref().map(|n| n.to_string()).ok_or_else(|| {
-        AssetPriceRefreshError::Provider(
-            "asset price refresh failed: provider response missing price".into(),
-        )
-    })?;
-
-    let price =
-        AssetUnitPrice::try_from(price_str.as_str()).map_err(AssetPriceRefreshError::from)?;
-
-    let as_of = unix_timestamp_to_rfc3339(timestamp)?;
-
-    Ok(AssetQuote {
-        price,
-        currency: Currency::Usd,
-        as_of,
-    })
-}
-
-#[derive(Debug, Deserialize)]
-struct AlphaVantageGlobalQuote {
-    #[serde(rename = "05. price")]
-    price: Option<String>,
-    #[serde(rename = "07. latest trading day")]
-    latest_trading_day: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct AlphaVantageQuoteResponse {
-    #[serde(rename = "Global Quote")]
-    global_quote: Option<AlphaVantageGlobalQuote>,
-    #[serde(rename = "Information")]
-    information: Option<String>,
-}
-
-/// Fetches a quote from the Alpha Vantage GLOBAL_QUOTE endpoint.
-/// Note: Alpha Vantage does not return the currency in this endpoint.
-/// Prices are returned in the currency of the exchange where the symbol trades (defaults to USD).
-pub async fn fetch_alpha_vantage_quote(
-    client: &Client,
-    base_url: &str,
-    api_key: &str,
-    symbol: &str,
-) -> Result<AssetQuote, AssetPriceRefreshError> {
-    let url = format!("{}/query", base_url.trim_end_matches('/'));
-    let response = client
-        .get(url)
-        .query(&[
-            ("function", "GLOBAL_QUOTE"),
-            ("symbol", symbol),
-            ("apikey", api_key),
-        ])
-        .send()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
-
-    if !response.status().is_success() {
-        return Err(AssetPriceRefreshError::Provider(format!(
-            "asset price refresh failed: provider returned status {}",
-            response.status()
-        )));
-    }
-
-    let payload = response
-        .json::<AlphaVantageQuoteResponse>()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
-
-    if let Some(information) = payload.information {
-        return Err(AssetPriceRefreshError::Provider(format!(
-            "asset price refresh failed: {information}"
-        )));
-    }
-
-    let quote = payload
-        .global_quote
-        .as_ref()
-        .and_then(|q| q.price.as_deref())
-        .filter(|p| !p.is_empty())
-        .ok_or_else(|| {
-            AssetPriceRefreshError::Provider(
-                "asset price refresh failed: provider response missing price".into(),
-            )
-        })?;
-
-    let price = AssetUnitPrice::try_from(quote).map_err(AssetPriceRefreshError::from)?;
-
-    let as_of = payload
-        .global_quote
-        .as_ref()
-        .and_then(|q| q.latest_trading_day.clone())
-        .map(normalize_provider_datetime)
-        .transpose()?
-        .unwrap_or_else(|| current_utc_timestamp_iso8601().unwrap_or_default());
-
-    Ok(AssetQuote {
-        price,
-        currency: Currency::Usd,
-        as_of,
-    })
-}
-
-fn unix_timestamp_to_rfc3339(ts: i64) -> Result<String, AssetPriceRefreshError> {
-    OffsetDateTime::from_unix_timestamp(ts)
-        .map_err(|_| {
-            AssetPriceRefreshError::Provider(
-                "asset price refresh failed: provider returned invalid timestamp".into(),
-            )
-        })?
-        .format(&Rfc3339)
-        .map_err(|_| {
-            AssetPriceRefreshError::Provider(
-                "asset price refresh failed: failed to format timestamp".into(),
-            )
-        })
-}
-
-fn normalize_provider_datetime(datetime: String) -> Result<String, AssetPriceRefreshError> {
-    if let Ok(value) = OffsetDateTime::parse(&datetime, &Rfc3339) {
-        return value.format(&Rfc3339).map_err(|_| {
-            AssetPriceRefreshError::Provider(
-                "asset price refresh failed: provider returned invalid datetime".into(),
-            )
-        });
-    }
-
-    const DATETIME_WITH_SPACE: &[time::format_description::FormatItem<'static>] =
-        format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
-    const DATETIME_WITH_T: &[time::format_description::FormatItem<'static>] =
-        format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]");
-    const DATE_ONLY: &[time::format_description::FormatItem<'static>] =
-        format_description!("[year]-[month]-[day]");
-
-    if let Ok(value) = PrimitiveDateTime::parse(&datetime, DATETIME_WITH_SPACE) {
-        return Ok(format!(
-            "{}Z",
-            value.format(DATETIME_WITH_T).map_err(|_| {
-                AssetPriceRefreshError::Provider(
-                    "asset price refresh failed: provider returned invalid datetime".into(),
-                )
-            })?
-        ));
-    }
-
-    if let Ok(value) = PrimitiveDateTime::parse(&datetime, DATETIME_WITH_T) {
-        return Ok(format!(
-            "{}Z",
-            value.format(DATETIME_WITH_T).map_err(|_| {
-                AssetPriceRefreshError::Provider(
-                    "asset price refresh failed: provider returned invalid datetime".into(),
-                )
-            })?
-        ));
-    }
-
-    if let Ok(value) = Date::parse(&datetime, DATE_ONLY) {
-        return Ok(format!(
-            "{}T00:00:00Z",
-            value.format(DATE_ONLY).map_err(|_| {
-                AssetPriceRefreshError::Provider(
-                    "asset price refresh failed: provider returned invalid datetime".into(),
-                )
-            })?
-        ));
-    }
-
-    Err(AssetPriceRefreshError::Provider(format!(
-        "asset price refresh failed: unsupported datetime format: {datetime}"
-    )))
-}
-
 #[cfg(test)]
 mod tests {
     use std::{str::FromStr, time::Duration};
@@ -561,8 +195,11 @@ mod tests {
     use tokio::net::TcpListener;
 
     use super::{
-        AssetPriceRefreshConfig, fetch_alpha_vantage_quote, fetch_coingecko_quote,
-        fetch_finnhub_quote, fetch_twelve_data_quote, refresh_asset_prices,
+        AssetPriceRefreshConfig, refresh_asset_prices,
+        providers::{
+            fetch_alpha_vantage_quote, fetch_coingecko_quote, fetch_finnhub_quote,
+            fetch_twelve_data_quote,
+        },
     };
     use crate::{AssetType, CreateAssetInput, Currency, get_asset, init_db};
 
