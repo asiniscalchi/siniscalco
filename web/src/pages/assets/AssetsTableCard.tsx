@@ -119,25 +119,15 @@ export function AssetsTableCard({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-2">
                       <ItemLabel primary={asset.symbol} secondary={asset.name} />
+                      <span className="shrink-0 inline-flex items-center rounded-full border bg-muted/50 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {asset.asset_type.replace("_", " ")}
+                      </span>
                     </div>
                     <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center rounded-full border bg-muted/50 px-1.5 py-px font-medium uppercase tracking-wide">
-                          {asset.asset_type.replace("_", " ")}
-                        </span>
-                        <span className="font-mono tabular-nums">{formatPrice(asset)}</span>
-                        {asset.total_quantity && (
-                          <span className="font-mono tabular-nums">
-                            {formatTotalValue(asset) ?? asset.total_quantity}
-                            {formatTotalValue(asset) && asset.total_quantity && (
-                              <span className="text-[10px] text-muted-foreground font-mono tabular-nums">
-                                {" "}{asset.total_quantity}
-                              </span>
-                            )}
-                          </span>
-                        )}
-                      </div>
-                      {asset.isin && <span className="font-mono">{asset.isin}</span>}
+                      <span className="font-mono tabular-nums">{formatPrice(asset)}</span>
+                      {formatTotalValue(asset) && (
+                        <span className="font-mono tabular-nums">{formatTotalValue(asset)}</span>
+                      )}
                     </div>
                   </div>
                   {!isLocked && (
