@@ -61,9 +61,6 @@ export function AssetsTableCard({
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">Assets</h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Manage the assets you use in transactions.
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button
