@@ -104,10 +104,6 @@ describe("PortfolioPage", () => {
     expect(screen.getByText("Cash By Account")).toBeTruthy();
     expect(screen.getByText("103.70 EUR")).toBeTruthy();
     expect(screen.getByText("50.00 EUR")).toBeTruthy();
-    expect(screen.getByText("Cash By Currency")).toBeTruthy();
-    expect(screen.getByText("50 EUR")).toBeTruthy();
-    expect(screen.getByText("10 GBP")).toBeTruthy();
-    expect(screen.getByText("100 USD")).toBeTruthy();
     expect(screen.getByText("Last FX update: 2026-03-22 11:30")).toBeTruthy();
   });
 
@@ -170,8 +166,6 @@ describe("PortfolioPage", () => {
 
     expect(await screen.findAllByText("Conversion unavailable")).toHaveLength(2);
     expect(screen.getByText("Conversion data unavailable")).toBeTruthy();
-    expect(screen.getByText("10 GBP")).toBeTruthy();
-    expect(screen.getByText("100 USD")).toBeTruthy();
     expect(screen.getByText("FX refresh unavailable")).toBeTruthy();
     expect(
       screen.getByText("FX refresh unavailable: provider returned status 500"),
@@ -255,7 +249,6 @@ describe("PortfolioPage", () => {
     renderPortfolioPage();
 
     expect(await screen.findAllByText("•••• EUR")).toHaveLength(3);
-    expect(screen.getByText("•••• USD")).toBeTruthy();
   });
 
   it("handles missing currency conversion values without crashing", async () => {

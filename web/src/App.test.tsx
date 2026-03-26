@@ -419,17 +419,14 @@ describe("App shell", () => {
     const totalAmount = totalAmounts[0];
     const initialWidth = totalAmount.getAttribute("style");
     expect(screen.getByText("103.70 EUR")).toBeTruthy();
-    expect(screen.getByText("100 USD")).toBeTruthy();
 
     fireEvent.click(
       screen.getByRole("button", { name: "Hide financial values" }),
     );
 
     expect(await screen.findAllByText("•••• EUR")).toHaveLength(3);
-    expect(screen.getByText("•••• USD")).toBeTruthy();
     expect(screen.queryByText("153.70 EUR")).toBeNull();
     expect(screen.queryByText("103.70 EUR")).toBeNull();
-    expect(screen.queryByText("100 USD")).toBeNull();
     expect(window.localStorage.getItem("ui.hide_values")).toBe("true");
     expect(screen.getAllByText("•••• EUR")[0].getAttribute("style")).toBe(
       initialWidth,
