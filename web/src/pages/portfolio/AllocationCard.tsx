@@ -1,19 +1,8 @@
-import { Cell, Pie, PieChart, Tooltip } from "recharts";
-
+import { ItemLabel } from "@/components/ItemLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DonutChart, SLICE_COLORS } from "@/components/ui/donut-chart";
 import { type PortfolioAllocationSliceResponse } from "@/lib/api";
-import { MoneyText } from "@/lib/money";
-
-const SLICE_COLORS = [
-  "#3b82f6", // blue
-  "#10b981", // emerald
-  "#f59e0b", // amber
-  "#ef4444", // red
-  "#8b5cf6", // violet
-  "#06b6d4", // cyan
-  "#f97316", // orange
-  "#84cc16", // lime
-];
+import { formatMoney } from "@/lib/format-money";
 
 type Slice = PortfolioAllocationSliceResponse & { value: number };
 
@@ -62,33 +51,12 @@ export function AllocationCard({
         )}
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
           <div className="shrink-0">
-            <PieChart width={180} height={180}>
-              <Pie
-                data={slices}
-                cx={85}
-                cy={85}
-                innerRadius={52}
-                outerRadius={82}
-                dataKey="value"
-                strokeWidth={2}
-              >
-                {slices.map((_, index) => (
-                  <Cell
-                    key={index}
-                    fill={SLICE_COLORS[index % SLICE_COLORS.length]}
-                  />
-                ))}
-              </Pie>
-              {!hideValues && (
-                <Tooltip
-                  formatter={(value) =>
-                    value != null
-                      ? `${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${displayCurrency}`
-                      : ""
-                  }
-                />
-              )}
-            </PieChart>
+            <DonutChart
+              slices={slices.map((s, i) => ({
+                value: s.value,
+                color: SLICE_COLORS[i % SLICE_COLORS.length],
+              }))}
+            />
           </div>
           <div className="w-full space-y-3">
             {slices.map((slice, index) => {
@@ -107,19 +75,14 @@ export function AllocationCard({
                           SLICE_COLORS[index % SLICE_COLORS.length],
                       }}
                     />
-                    <span className="text-sm font-medium">{slice.label}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-right">
-                    <MoneyText
-                      className="text-sm text-muted-foreground"
-                      currency={displayCurrency}
-                      hidden={hideValues}
-                      value={slice.amount}
+                    <ItemLabel
+                      primary={slice.label}
+                      secondary={formatMoney(slice.amount, displayCurrency, hideValues).text}
                     />
-                    <span className="w-14 text-right text-xs text-muted-foreground font-mono tabular-nums">
-                      {hideValues ? "•••%" : `${percentage.toFixed(1)}%`}
-                    </span>
                   </div>
+                  <span className="w-14 text-right text-xs text-muted-foreground font-mono tabular-nums">
+                    {hideValues ? "•••%" : `${percentage.toFixed(1)}%`}
+                  </span>
                 </div>
               );
             })}
