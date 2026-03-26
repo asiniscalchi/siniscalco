@@ -20,7 +20,7 @@ import { MoneyText } from "@/lib/money";
 import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
 
-import { AssetLabel } from "@/components/AssetLabel";
+import { ItemLabel } from "@/components/ItemLabel";
 
 import type { AccountAsset, AccountDetail } from "./types";
 
@@ -266,7 +266,7 @@ export function AccountDetailReadyState({
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2">
-                        <AssetLabel name={asset.name} symbol={asset.symbol} />
+                        <ItemLabel primary={asset.symbol} secondary={asset.name} />
                       </div>
                       <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                         <span className="inline-flex items-center rounded-full border bg-muted/50 px-1.5 py-px font-medium uppercase tracking-wide">
@@ -304,7 +304,7 @@ export function AccountDetailReadyState({
                     {assets.map((asset) => (
                       <tr key={asset.asset_id}>
                         <td className="py-3 pr-4">
-                          <AssetLabel name={asset.name} symbol={asset.symbol} />
+                          <ItemLabel primary={asset.symbol} secondary={asset.name} />
                         </td>
                         <td className="py-3 pr-4">
                           <span className="inline-flex items-center rounded-full border bg-muted/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">

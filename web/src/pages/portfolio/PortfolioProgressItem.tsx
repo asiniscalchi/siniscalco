@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { ItemLabel } from "@/components/ItemLabel";
+
 type PortfolioProgressItemProps = {
   label: string;
   meta?: string;
@@ -16,10 +18,7 @@ export function PortfolioProgressItem({
   return (
     <div className="space-y-1">
       <div className="flex items-end justify-between text-sm">
-        <div className="flex flex-col">
-          <span className="font-medium">{label}</span>
-          {meta ? <span className="text-xs text-muted-foreground opacity-80">{meta}</span> : null}
-        </div>
+        <ItemLabel primary={label} secondary={meta} />
         <div className="text-right">{value}</div>
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
