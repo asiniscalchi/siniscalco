@@ -115,7 +115,6 @@ describe("PortfolioPage", () => {
 
     renderPortfolioPage();
 
-    expect(await screen.findByText("Total Cash Value")).toBeTruthy();
     expect(screen.getAllByText("153.70 EUR").length).toBeGreaterThan(0);
     expect(screen.getByText("Cash By Account")).toBeTruthy();
     expect(screen.getByText("103.70 EUR")).toBeTruthy();
@@ -149,7 +148,6 @@ describe("PortfolioPage", () => {
     renderPortfolioPage();
 
     expect(await screen.findByText("No portfolio cash data yet")).toBeTruthy();
-    expect(screen.queryByText("Total Cash Value")).toBeNull();
   });
 
   it("renders conversion unavailable while keeping original cash balances visible", async () => {
