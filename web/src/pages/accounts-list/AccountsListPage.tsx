@@ -12,9 +12,7 @@ import {
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
   getAccountsApiUrl,
-  getFxRatesApiUrl,
   getPortfolioApiUrl,
-  type FxRateSummaryResponse,
   type PortfolioSummaryResponse,
 } from "@/lib/api";
 import { MoneyText } from "@/lib/money";
@@ -31,26 +29,13 @@ type AccountSummary = {
   total_currency: string | null;
 };
 
-type FxRateSummary = {
-  target_currency: string;
-  rates: {
-    currency: string;
-    rate: string;
-  }[];
-  last_updated: string | null;
-  refresh_status: "available" | "unavailable";
-  refresh_error: string | null;
-};
-
 export function AccountsListPage() {
-  const { hideValues } = useUiState();
   const [requestState, setRequestState] = useState<
     | { status: "loading" }
     | { status: "error" }
     | {
         status: "ready";
         accounts: AccountSummary[];
-        fxRates: FxRateSummary;
         portfolio: PortfolioSummaryResponse;
       }
   >({ status: "loading" });
@@ -63,22 +48,14 @@ export function AccountsListPage() {
       setRequestState({ status: "loading" });
 
       try {
-        const [accountsResponse, fxRatesResponse, portfolioResponse] =
-          await Promise.all([
-            fetch(getAccountsApiUrl()),
-            fetch(getFxRatesApiUrl()),
-            fetch(getPortfolioApiUrl()),
-          ]);
+        const [accountsResponse, portfolioResponse] = await Promise.all([
+          fetch(getAccountsApiUrl()),
+          fetch(getPortfolioApiUrl()),
+        ]);
 
         if (!accountsResponse.ok) {
           throw new Error(
             `accounts request failed with status ${accountsResponse.status}`,
-          );
-        }
-
-        if (!fxRatesResponse.ok) {
-          throw new Error(
-            `fx rates request failed with status ${fxRatesResponse.status}`,
           );
         }
 
@@ -88,9 +65,8 @@ export function AccountsListPage() {
           );
         }
 
-        const [accounts, fxRates, portfolio] = await Promise.all([
+        const [accounts, portfolio] = await Promise.all([
           accountsResponse.json() as Promise<AccountSummary[]>,
-          fxRatesResponse.json() as Promise<FxRateSummaryResponse>,
           portfolioResponse.json() as Promise<PortfolioSummaryResponse>,
         ]);
 
@@ -98,7 +74,7 @@ export function AccountsListPage() {
           return;
         }
 
-        setRequestState({ status: "ready", accounts, fxRates, portfolio });
+        setRequestState({ status: "ready", accounts, portfolio });
       } catch {
         if (!cancelled) {
           setRequestState({ status: "error" });
@@ -139,7 +115,6 @@ export function AccountsListPage() {
           {requestState.status === "ready" ? (
             <AccountsReadyState
               accounts={requestState.accounts}
-              fxRates={requestState.fxRates}
               portfolio={requestState.portfolio}
             />
           ) : null}
@@ -192,11 +167,9 @@ function AccountsErrorState({ onRetry }: { onRetry: () => void }) {
 
 function AccountsReadyState({
   accounts,
-  fxRates,
   portfolio,
 }: {
   accounts: AccountSummary[];
-  fxRates: FxRateSummary;
   portfolio: PortfolioSummaryResponse;
 }) {
   const { hideValues } = useUiState();
@@ -241,36 +214,7 @@ function AccountsReadyState({
           })}
         </div>
       )}
-      <FxRatesFooter summary={fxRates} />
     </>
-  );
-}
-
-function FxRatesFooter({ summary }: { summary: FxRateSummary }) {
-  if (summary.rates.length === 0) {
-    return null;
-  }
-
-  return (
-    <footer
-      className="mt-8 flex flex-wrap items-center justify-between border-t py-4 text-[11px] font-mono text-muted-foreground/60"
-      aria-label={`FX rates against ${summary.target_currency}`}
-    >
-      {summary.rates.map((rate) => (
-        <div key={rate.currency} className="flex items-center gap-1.5">
-          <span className="font-bold">{rate.currency}</span>
-          <span>{formatFxRate(rate.rate)}</span>
-        </div>
-      ))}
-      {summary.refresh_status === "unavailable" && (
-        <div
-          className="text-destructive/80 font-bold uppercase tracking-wider"
-          title={summary.refresh_error || "FX refresh unavailable"}
-        >
-          Refresh Failed
-        </div>
-      )}
-    </footer>
   );
 }
 
@@ -371,12 +315,3 @@ function AccountListItem({
   );
 }
 
-function formatFxRate(rate: string) {
-  const parsedRate = Number(rate);
-
-  if (Number.isNaN(parsedRate)) {
-    return rate;
-  }
-
-  return parsedRate.toFixed(4);
-}

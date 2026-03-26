@@ -410,6 +410,21 @@ describe("App shell", () => {
         );
       }
 
+      if (url.endsWith("/fx-rates")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              target_currency: "EUR",
+              rates: [],
+              last_updated: null,
+              refresh_status: "available",
+              refresh_error: null,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+
       throw new Error(`Unhandled fetch request: ${url}`);
     });
 

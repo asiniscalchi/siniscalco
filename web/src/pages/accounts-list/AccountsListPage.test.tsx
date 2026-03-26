@@ -4,7 +4,6 @@ import {
   render,
   screen,
   waitFor,
-  within,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -24,13 +23,6 @@ function renderAccountsListPage() {
 
 function mockDashboardRequests({
   accounts,
-  fxRates = {
-    target_currency: "EUR",
-    rates: [],
-    last_updated: null,
-    refresh_status: "available",
-    refresh_error: null,
-  },
   portfolio = {
     display_currency: "EUR",
     total_value_status: "ok",
@@ -43,13 +35,6 @@ function mockDashboardRequests({
   },
 }: {
   accounts: unknown[];
-  fxRates?: {
-    target_currency: string;
-    rates: { currency: string; rate: string }[];
-    last_updated: string | null;
-    refresh_status: "available" | "unavailable";
-    refresh_error: string | null;
-  };
   portfolio?: {
     display_currency: string;
     total_value_status: string;
@@ -67,15 +52,6 @@ function mockDashboardRequests({
     if (url.endsWith("/accounts")) {
       return Promise.resolve(
         new Response(JSON.stringify(accounts), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
-    }
-
-    if (url.endsWith("/fx-rates")) {
-      return Promise.resolve(
-        new Response(JSON.stringify(fxRates), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),
@@ -132,16 +108,6 @@ describe("AccountsListPage", () => {
           total_currency: "EUR",
         },
       ],
-      fxRates: {
-        target_currency: "EUR",
-        rates: [
-          { currency: "USD", rate: "0.92" },
-          { currency: "GBP", rate: "1.17" },
-        ],
-        last_updated: "2026-03-22 10:00:00",
-        refresh_status: "available",
-        refresh_error: null,
-      },
       portfolio: {
         display_currency: "EUR",
         total_value_status: "ok",
@@ -169,11 +135,6 @@ describe("AccountsListPage", () => {
     expect(screen.getByText(/broker/i)).toBeTruthy();
     expect(screen.getAllByText(/EUR/).length).toBeGreaterThan(0);
     expect(screen.getAllByText("123.45 EUR").length).toBe(1);
-
-    expect(screen.getByText("USD")).toBeTruthy();
-    expect(screen.getByText("0.9200")).toBeTruthy();
-    expect(screen.getByText("GBP")).toBeTruthy();
-    expect(screen.getByText("1.1700")).toBeTruthy();
     expect(
       screen.getByRole("link", { name: /IBKR/ }).getAttribute("href"),
     ).toBe("/accounts/1");
@@ -259,21 +220,6 @@ describe("AccountsListPage", () => {
         );
       }
 
-      if (url.endsWith("/fx-rates")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              target_currency: "EUR",
-              rates: [],
-              last_updated: null,
-              refresh_status: "available",
-              refresh_error: null,
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
-      }
-
       if (url.endsWith("/portfolio")) {
         return Promise.resolve(
           new Response(
@@ -304,12 +250,11 @@ describe("AccountsListPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Main Bank")).toBeTruthy();
     });
-    // fetch is called for /accounts, /fx-rates, /portfolio.
-    // first attempt: /accounts (fail), /fx-rates (pass), /portfolio (pass) -> but they are parallel.
-    // wait, if one fails, Promise.all rejects.
-    // retry: calls all 3 again.
-    // so total fetch calls should be 6.
-    expect(fetch).toHaveBeenCalledTimes(6);
+    // fetch is called for /accounts and /portfolio.
+    // first attempt: /accounts (fail), /portfolio (pass) -> Promise.all rejects.
+    // retry: calls both again.
+    // so total fetch calls should be 4.
+    expect(fetch).toHaveBeenCalledTimes(4);
   });
 
   it("links to account detail and account creation routes", async () => {
@@ -339,99 +284,6 @@ describe("AccountsListPage", () => {
     expect(
       screen.getByRole("link", { name: "Create account" }).getAttribute("href"),
     ).toBe("/accounts/new");
-  });
-
-  it("renders sorted fx rates, excludes the identity rate, and keeps the card read-only", async () => {
-    mockDashboardRequests({
-      accounts: [
-        {
-          id: 1,
-          name: "IBKR",
-          account_type: "broker",
-          base_currency: "EUR",
-          summary_status: "ok",
-          total_amount: "123.45000000",
-          total_currency: "EUR",
-        },
-      ],
-      fxRates: {
-        target_currency: "EUR",
-        rates: [
-          { currency: "CHF", rate: "1.04" },
-          { currency: "GBP", rate: "1.17" },
-          { currency: "USD", rate: "0.92" },
-        ],
-        last_updated: "2026-03-22 10:00:00",
-        refresh_status: "available",
-        refresh_error: null,
-      },
-    });
-
-    renderAccountsListPage();
-
-    const fxFooter = await screen.findByLabelText("FX rates against EUR");
-    expect(fxFooter).toBeTruthy();
-
-    const fxContent = within(fxFooter as HTMLElement);
-    expect(fxContent.queryByText("CHF")).toBeTruthy();
-    expect(fxContent.queryByText("1.0400")).toBeTruthy();
-    expect(fxContent.queryByText("GBP")).toBeTruthy();
-    expect(fxContent.queryByText("1.1700")).toBeTruthy();
-    expect(fxContent.queryByText("USD")).toBeTruthy();
-    expect(fxContent.queryByText("0.9200")).toBeTruthy();
-    expect(fxContent.queryByText(/^EUR$/)).toBeNull();
-    expect(fxContent.queryByRole("button")).toBeNull();
-    expect(fxContent.queryByRole("textbox")).toBeNull();
-  });
-
-  it("renders the no-data state for fx rates", async () => {
-    mockDashboardRequests({
-      accounts: [
-        {
-          id: 1,
-          name: "IBKR",
-          account_type: "broker",
-          base_currency: "EUR",
-          summary_status: "ok",
-          total_amount: "123.45000000",
-          total_currency: "EUR",
-        },
-      ],
-      fxRates: {
-        target_currency: "EUR",
-        rates: [],
-        last_updated: null,
-        refresh_status: "available",
-        refresh_error: null,
-      },
-    });
-
-    renderAccountsListPage();
-
-    // Footer is hidden when no rates are available
-    expect(screen.queryByLabelText("FX rates against EUR")).toBeNull();
-  });
-
-  it("shows when fx refresh is unavailable while keeping the stored timestamp visible", async () => {
-    mockDashboardRequests({
-      accounts: [],
-      fxRates: {
-        target_currency: "EUR",
-        rates: [{ currency: "USD", rate: "0.92" }],
-        last_updated: "2026-03-22 10:00:00",
-        refresh_status: "unavailable",
-        refresh_error:
-          "FX refresh unavailable: no successful refresh has completed",
-      },
-    });
-
-    renderAccountsListPage();
-
-    expect(await screen.findByText("Refresh Failed")).toBeTruthy();
-    const errorIndicator = screen.getByText("Refresh Failed");
-    expect(errorIndicator.getAttribute("title")).toContain(
-      "no successful refresh has completed",
-    );
   });
 
   it("masks account totals when hidden mode is enabled", async () => {

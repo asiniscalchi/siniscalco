@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 
 import {
+  getFxRatesApiUrl,
   getPortfolioApiUrl,
+  type FxRateSummaryResponse,
   type PortfolioSummaryResponse,
 } from "@/lib/api";
 
+import { FxRatesFooter } from "./FxRatesFooter";
 import { PortfolioErrorState } from "./PortfolioErrorState";
 import { PortfolioLoadingState } from "./PortfolioLoadingState";
 import { PortfolioReadyState } from "./PortfolioReadyState";
@@ -15,7 +18,7 @@ export function PortfolioPage() {
   const [requestState, setRequestState] = useState<
     | { status: "loading" }
     | { status: "error" }
-    | { status: "ready"; summary: PortfolioSummary }
+    | { status: "ready"; summary: PortfolioSummary; fxRates: FxRateSummaryResponse }
   >({ status: "loading" });
   const [retryToken, setRetryToken] = useState(0);
 
@@ -26,18 +29,30 @@ export function PortfolioPage() {
       setRequestState({ status: "loading" });
 
       try {
-        const response = await fetch(getPortfolioApiUrl());
+        const [portfolioResponse, fxRatesResponse] = await Promise.all([
+          fetch(getPortfolioApiUrl()),
+          fetch(getFxRatesApiUrl()),
+        ]);
 
-        if (!response.ok) {
+        if (!portfolioResponse.ok) {
           throw new Error(
-            `portfolio request failed with status ${response.status}`,
+            `portfolio request failed with status ${portfolioResponse.status}`,
           );
         }
 
-        const summary = (await response.json()) as PortfolioSummaryResponse;
+        if (!fxRatesResponse.ok) {
+          throw new Error(
+            `fx rates request failed with status ${fxRatesResponse.status}`,
+          );
+        }
+
+        const [summary, fxRates] = await Promise.all([
+          portfolioResponse.json() as Promise<PortfolioSummaryResponse>,
+          fxRatesResponse.json() as Promise<FxRateSummaryResponse>,
+        ]);
 
         if (!cancelled) {
-          setRequestState({ status: "ready", summary });
+          setRequestState({ status: "ready", summary, fxRates });
         }
       } catch {
         if (!cancelled) {
@@ -60,7 +75,10 @@ export function PortfolioPage() {
         <PortfolioErrorState onRetry={() => setRetryToken((value) => value + 1)} />
       ) : null}
       {requestState.status === "ready" ? (
-        <PortfolioReadyState summary={requestState.summary} />
+        <>
+          <PortfolioReadyState summary={requestState.summary} />
+          <FxRatesFooter summary={requestState.fxRates} />
+        </>
       ) : null}
     </div>
   );
