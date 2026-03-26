@@ -115,7 +115,7 @@ describe("PortfolioPage", () => {
 
     renderPortfolioPage();
 
-    expect(screen.getAllByText("153.70 EUR").length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("153.70 EUR")).length).toBeGreaterThan(0);
     expect(screen.getByText("Cash By Account")).toBeTruthy();
     expect(screen.getByText("103.70 EUR")).toBeTruthy();
     expect(screen.getByText("50.00 EUR")).toBeTruthy();
