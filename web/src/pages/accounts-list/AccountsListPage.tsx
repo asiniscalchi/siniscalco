@@ -202,34 +202,6 @@ function AccountsReadyState({
 
   return (
     <>
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Combined Balance
-          </p>
-          <p className="mt-0.5 text-2xl font-bold">
-            {portfolio.total_value_status === "ok" &&
-            portfolio.total_value_amount ? (
-              <MoneyText
-                currency={portfolio.display_currency}
-                hidden={hideValues}
-                value={portfolio.total_value_amount}
-              />
-            ) : (
-              <span className="text-lg text-muted-foreground">
-                Unavailable
-              </span>
-            )}
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Accounts
-          </p>
-          <p className="mt-0.5 text-2xl font-bold">{accounts.length}</p>
-        </div>
-      </div>
-
       {accounts.length === 0 ? (
         <AccountsEmptyState />
       ) : (

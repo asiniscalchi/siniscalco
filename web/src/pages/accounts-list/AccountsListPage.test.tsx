@@ -119,7 +119,7 @@ describe("AccountsListPage", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("renders fetched account summaries and summary header", async () => {
+  it("renders fetched account summaries", async () => {
     mockDashboardRequests({
       accounts: [
         {
@@ -165,13 +165,10 @@ describe("AccountsListPage", () => {
 
     renderAccountsListPage();
 
-    expect(await screen.findByText("Combined Balance")).toBeTruthy();
-    expect(screen.getAllByText("1").length).toBeGreaterThan(0); // One for total accounts count
-
     expect(await screen.findByText("IBKR")).toBeTruthy();
     expect(screen.getByText(/broker/i)).toBeTruthy();
     expect(screen.getAllByText(/EUR/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("123.45 EUR").length).toBe(2);
+    expect(screen.getAllByText("123.45 EUR").length).toBe(1);
 
     expect(screen.getByText("USD")).toBeTruthy();
     expect(screen.getByText("0.9200")).toBeTruthy();
@@ -461,7 +458,7 @@ describe("AccountsListPage", () => {
     });
     const maskedAmounts = screen.getAllByText("•••• EUR");
 
-    expect(maskedAmounts.length).toBe(2);
+    expect(maskedAmounts.length).toBe(1);
     expect(screen.queryByText("123.45 EUR")).toBeNull();
     expect(accountLink.textContent).toContain("•••• EUR");
     expect(accountLink.textContent).not.toContain("123.45 EUR");
