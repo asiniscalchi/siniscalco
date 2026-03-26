@@ -30,12 +30,12 @@ export function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) 
     <div className="flex flex-col gap-8">
       <PortfolioPageHeader />
       <PortfolioSummarySection summary={summary} hideValues={hideValues} />
-      <PortfolioAccountBreakdown
-        accountTotals={summary.account_totals}
-        hideValues={hideValues}
-        totalValue={totalValue}
-      />
       <div className="grid gap-8 lg:grid-cols-2">
+        <PortfolioAccountBreakdown
+          accountTotals={summary.account_totals}
+          hideValues={hideValues}
+          totalValue={totalValue}
+        />
         <AllocationCard
           allocations={summary.allocation_totals}
           isPartial={summary.allocation_is_partial}
