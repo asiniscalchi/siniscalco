@@ -1,7 +1,8 @@
+import { ItemLabel } from "@/components/ItemLabel";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { DonutChart, SLICE_COLORS } from "@/components/ui/donut-chart";
 import { type PortfolioSummaryResponse } from "@/lib/api";
-import { MoneyText } from "@/lib/money";
+import { formatMoney } from "@/lib/format-money";
 
 export function PortfolioAccountBreakdown({
   accountTotals,
@@ -80,19 +81,14 @@ export function PortfolioAccountBreakdown({
                             SLICE_COLORS[index % SLICE_COLORS.length],
                         }}
                       />
-                      <span className="text-sm font-medium">{account.name}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-right">
-                      <MoneyText
-                        className="text-sm text-muted-foreground"
-                        currency={displayCurrency}
-                        hidden={hideValues}
-                        value={account.value.toString()}
+                      <ItemLabel
+                        primary={account.name}
+                        secondary={formatMoney(account.value.toString(), displayCurrency, hideValues).text}
                       />
-                      <span className="w-14 text-right text-xs text-muted-foreground font-mono tabular-nums">
-                        {hideValues ? "•••%" : `${percentage.toFixed(1)}%`}
-                      </span>
                     </div>
+                    <span className="w-14 text-right text-xs text-muted-foreground font-mono tabular-nums">
+                      {hideValues ? "•••%" : `${percentage.toFixed(1)}%`}
+                    </span>
                   </div>
                 );
               })}

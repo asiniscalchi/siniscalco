@@ -1,7 +1,8 @@
+import { ItemLabel } from "@/components/ItemLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DonutChart, SLICE_COLORS } from "@/components/ui/donut-chart";
 import { type PortfolioAllocationSliceResponse } from "@/lib/api";
-import { MoneyText } from "@/lib/money";
+import { formatMoney } from "@/lib/format-money";
 
 type Slice = PortfolioAllocationSliceResponse & { value: number };
 
@@ -74,19 +75,14 @@ export function AllocationCard({
                           SLICE_COLORS[index % SLICE_COLORS.length],
                       }}
                     />
-                    <span className="text-sm font-medium">{slice.label}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-right">
-                    <MoneyText
-                      className="text-sm text-muted-foreground"
-                      currency={displayCurrency}
-                      hidden={hideValues}
-                      value={slice.amount}
+                    <ItemLabel
+                      primary={slice.label}
+                      secondary={formatMoney(slice.amount, displayCurrency, hideValues).text}
                     />
-                    <span className="w-14 text-right text-xs text-muted-foreground font-mono tabular-nums">
-                      {hideValues ? "•••%" : `${percentage.toFixed(1)}%`}
-                    </span>
                   </div>
+                  <span className="w-14 text-right text-xs text-muted-foreground font-mono tabular-nums">
+                    {hideValues ? "•••%" : `${percentage.toFixed(1)}%`}
+                  </span>
                 </div>
               );
             })}
