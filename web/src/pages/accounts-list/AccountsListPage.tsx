@@ -1,22 +1,18 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { BankIcon, BrokerIcon, CryptoIcon, PlusIcon } from "@/components/Icons";
+import { ItemLabel } from "@/components/ItemLabel";
+import { PlusIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardFooter,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
   getAccountsApiUrl,
-  getFxRatesApiUrl,
   getPortfolioApiUrl,
-  type FxRateSummaryResponse,
   type PortfolioSummaryResponse,
 } from "@/lib/api";
 import { MoneyText } from "@/lib/money";
@@ -33,26 +29,13 @@ type AccountSummary = {
   total_currency: string | null;
 };
 
-type FxRateSummary = {
-  target_currency: string;
-  rates: {
-    currency: string;
-    rate: string;
-  }[];
-  last_updated: string | null;
-  refresh_status: "available" | "unavailable";
-  refresh_error: string | null;
-};
-
 export function AccountsListPage() {
-  const { hideValues } = useUiState();
   const [requestState, setRequestState] = useState<
     | { status: "loading" }
     | { status: "error" }
     | {
         status: "ready";
         accounts: AccountSummary[];
-        fxRates: FxRateSummary;
         portfolio: PortfolioSummaryResponse;
       }
   >({ status: "loading" });
@@ -65,22 +48,14 @@ export function AccountsListPage() {
       setRequestState({ status: "loading" });
 
       try {
-        const [accountsResponse, fxRatesResponse, portfolioResponse] =
-          await Promise.all([
-            fetch(getAccountsApiUrl()),
-            fetch(getFxRatesApiUrl()),
-            fetch(getPortfolioApiUrl()),
-          ]);
+        const [accountsResponse, portfolioResponse] = await Promise.all([
+          fetch(getAccountsApiUrl()),
+          fetch(getPortfolioApiUrl()),
+        ]);
 
         if (!accountsResponse.ok) {
           throw new Error(
             `accounts request failed with status ${accountsResponse.status}`,
-          );
-        }
-
-        if (!fxRatesResponse.ok) {
-          throw new Error(
-            `fx rates request failed with status ${fxRatesResponse.status}`,
           );
         }
 
@@ -90,9 +65,8 @@ export function AccountsListPage() {
           );
         }
 
-        const [accounts, fxRates, portfolio] = await Promise.all([
+        const [accounts, portfolio] = await Promise.all([
           accountsResponse.json() as Promise<AccountSummary[]>,
-          fxRatesResponse.json() as Promise<FxRateSummaryResponse>,
           portfolioResponse.json() as Promise<PortfolioSummaryResponse>,
         ]);
 
@@ -100,7 +74,7 @@ export function AccountsListPage() {
           return;
         }
 
-        setRequestState({ status: "ready", accounts, fxRates, portfolio });
+        setRequestState({ status: "ready", accounts, portfolio });
       } catch {
         if (!cancelled) {
           setRequestState({ status: "error" });
@@ -117,72 +91,35 @@ export function AccountsListPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-      <header className="flex flex-col gap-4 rounded-xl border bg-background px-6 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Accounts</h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            View your cash accounts and manage their details.
-          </p>
-        </div>
-        <Link
-          aria-label="Create account"
-          className={cn(buttonVariants({ size: "icon-lg" }), "self-end")}
-          title="Create account"
-          to="/accounts/new"
-        >
-          <PlusIcon />
-        </Link>
-      </header>
-
-      {requestState.status === "ready" && (
-        <Card className="bg-background">
-          <CardContent className="flex items-center justify-between py-4">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Combined Balance
-              </p>
-              <p className="mt-0.5 text-2xl font-bold">
-                {requestState.portfolio.total_value_status === "ok" &&
-                requestState.portfolio.total_value_amount ? (
-                  <MoneyText
-                    currency={requestState.portfolio.display_currency}
-                    hidden={hideValues}
-                    value={requestState.portfolio.total_value_amount}
-                  />
-                ) : (
-                  <span className="text-lg text-muted-foreground">
-                    Unavailable
-                  </span>
-                )}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Accounts
-              </p>
-              <p className="mt-0.5 text-2xl font-bold">
-                {requestState.accounts.length}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <section className="space-y-4">
-        {requestState.status === "loading" ? <AccountsLoadingState /> : null}
-        {requestState.status === "error" ? (
-          <AccountsErrorState
-            onRetry={() => setRetryToken((value) => value + 1)}
-          />
-        ) : null}
-        {requestState.status === "ready" ? (
-          <AccountsReadyState
-            accounts={requestState.accounts}
-            fxRates={requestState.fxRates}
-            portfolio={requestState.portfolio}
-          />
-        ) : null}
-      </section>
+      <Card className="bg-background">
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-2">
+            <h1 className="flex-1 text-2xl font-semibold tracking-tight">Accounts</h1>
+            <Link
+              aria-label="Create account"
+              className={cn(buttonVariants({ size: "icon-lg" }))}
+              title="Create account"
+              to="/accounts/new"
+            >
+              <PlusIcon />
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {requestState.status === "loading" ? <AccountsLoadingState /> : null}
+          {requestState.status === "error" ? (
+            <AccountsErrorState
+              onRetry={() => setRetryToken((value) => value + 1)}
+            />
+          ) : null}
+          {requestState.status === "ready" ? (
+            <AccountsReadyState
+              accounts={requestState.accounts}
+              portfolio={requestState.portfolio}
+            />
+          ) : null}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -191,15 +128,11 @@ function AccountsLoadingState() {
   return (
     <div className="grid gap-3">
       {Array.from({ length: 3 }).map((_, index) => (
-        <Card key={index} className="border-dashed bg-background/70">
-          <CardHeader>
-            <div className="h-5 w-32 rounded-full bg-muted" />
-            <div className="h-4 w-24 rounded-full bg-muted" />
-          </CardHeader>
-          <CardContent>
-            <div className="h-4 w-20 rounded-full bg-muted" />
-          </CardContent>
-        </Card>
+        <div key={index} className="rounded-xl border border-dashed bg-background/70 p-4">
+          <div className="h-5 w-32 rounded-full bg-muted" />
+          <div className="mt-2 h-4 w-24 rounded-full bg-muted" />
+          <div className="mt-3 h-4 w-20 rounded-full bg-muted" />
+        </div>
       ))}
     </div>
   );
@@ -207,62 +140,36 @@ function AccountsLoadingState() {
 
 function AccountsEmptyState() {
   return (
-    <Card className="border-dashed bg-background">
-      <CardHeader>
-        <CardTitle>No accounts yet</CardTitle>
-        <CardDescription>
-          Create your first cash account to start managing account details.
-        </CardDescription>
-      </CardHeader>
-      <CardFooter className="justify-end">
-        <Link
-          aria-label="Create account"
-          className={cn(buttonVariants({ size: "icon-lg" }))}
-          title="Create account"
-          to="/accounts/new"
-        >
-          <PlusIcon />
-        </Link>
-      </CardFooter>
-    </Card>
+    <div className="py-8 text-center">
+      <p className="font-medium">No accounts yet</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Create your first cash account to start managing account details.
+      </p>
+    </div>
   );
 }
 
 function AccountsErrorState({ onRetry }: { onRetry: () => void }) {
   return (
-    <Card className="border-destructive/30 bg-background">
-      <CardHeader>
-        <CardTitle>Could not load accounts</CardTitle>
-        <CardDescription>
-          The accounts list request failed. Try again to reload the page data.
-        </CardDescription>
-      </CardHeader>
-      <CardFooter className="justify-end gap-3">
-        <Link
-          aria-label="Create account"
-          className={cn(
-            buttonVariants({ size: "icon-lg", variant: "outline" }),
-          )}
-          title="Create account"
-          to="/accounts/new"
-        >
-          <PlusIcon />
-        </Link>
+    <div className="py-4">
+      <p className="font-medium text-destructive">Could not load accounts</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        The accounts list request failed. Try again to reload the page data.
+      </p>
+      <div className="mt-4 flex justify-end">
         <Button onClick={onRetry} size="lg" type="button">
           Retry
         </Button>
-      </CardFooter>
-    </Card>
+      </div>
+    </div>
   );
 }
 
 function AccountsReadyState({
   accounts,
-  fxRates,
   portfolio,
 }: {
   accounts: AccountSummary[];
-  fxRates: FxRateSummary;
   portfolio: PortfolioSummaryResponse;
 }) {
   const { hideValues } = useUiState();
@@ -307,36 +214,7 @@ function AccountsReadyState({
           })}
         </div>
       )}
-      <FxRatesFooter summary={fxRates} />
     </>
-  );
-}
-
-function FxRatesFooter({ summary }: { summary: FxRateSummary }) {
-  if (summary.rates.length === 0) {
-    return null;
-  }
-
-  return (
-    <footer
-      className="mt-8 flex flex-wrap items-center justify-between border-t py-4 text-[11px] font-mono text-muted-foreground/60"
-      aria-label={`FX rates against ${summary.target_currency}`}
-    >
-      {summary.rates.map((rate) => (
-        <div key={rate.currency} className="flex items-center gap-1.5">
-          <span className="font-bold">{rate.currency}</span>
-          <span>{formatFxRate(rate.rate)}</span>
-        </div>
-      ))}
-      {summary.refresh_status === "unavailable" && (
-        <div
-          className="text-destructive/80 font-bold uppercase tracking-wider"
-          title={summary.refresh_error || "FX refresh unavailable"}
-        >
-          Refresh Failed
-        </div>
-      )}
-    </footer>
   );
 }
 
@@ -369,18 +247,14 @@ function AccountListItem({
     <Link className="block" to={`/accounts/${id}`}>
       <Card className="bg-background transition-colors hover:bg-muted/30">
         <CardContent className="flex items-center gap-3 py-4">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-muted/50 text-muted-foreground">
-            {accountType === "bank" ? (
-              <BankIcon />
-            ) : accountType === "broker" ? (
-              <BrokerIcon />
-            ) : (
-              <CryptoIcon />
-            )}
-          </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-baseline justify-between gap-4">
-              <p className="truncate font-semibold">{name}</p>
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <ItemLabel
+                  primary={name}
+                  secondary={`${accountType} · ${baseCurrency}`}
+                />
+              </div>
               {summaryStatus === "ok" && totalAmount && totalCurrency ? (
                 <MoneyText
                   className="shrink-0 font-semibold tabular-nums"
@@ -394,10 +268,7 @@ function AccountListItem({
                 </p>
               )}
             </div>
-            <div className="mt-0.5 flex items-center justify-between gap-4 text-xs text-muted-foreground">
-              <span className="capitalize">
-                {accountType} · {baseCurrency}
-              </span>
+            <div className="mt-0.5 flex items-center justify-end gap-4 text-xs text-muted-foreground">
               {summaryStatus === "ok" && totalCurrency && (
                 <span className="flex shrink-0 gap-3">
                   <span>
@@ -444,12 +315,3 @@ function AccountListItem({
   );
 }
 
-function formatFxRate(rate: string) {
-  const parsedRate = Number(rate);
-
-  if (Number.isNaN(parsedRate)) {
-    return rate;
-  }
-
-  return parsedRate.toFixed(4);
-}

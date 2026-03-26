@@ -22,6 +22,14 @@ function renderPortfolioPage() {
   );
 }
 
+const defaultFxRates = {
+  target_currency: "EUR",
+  rates: [],
+  last_updated: null,
+  refresh_status: "available",
+  refresh_error: null,
+};
+
 function mockPortfolioRequest(summary: unknown) {
   vi.mocked(fetch).mockImplementation((input) => {
     const url = String(input);
@@ -29,6 +37,15 @@ function mockPortfolioRequest(summary: unknown) {
     if (url.endsWith("/portfolio")) {
       return Promise.resolve(
         new Response(JSON.stringify(summary), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    }
+
+    if (url.endsWith("/fx-rates")) {
+      return Promise.resolve(
+        new Response(JSON.stringify(defaultFxRates), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),
@@ -200,6 +217,15 @@ describe("PortfolioPage", () => {
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
+        );
+      }
+
+      if (url.endsWith("/fx-rates")) {
+        return Promise.resolve(
+          new Response(JSON.stringify(defaultFxRates), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
         );
       }
 
