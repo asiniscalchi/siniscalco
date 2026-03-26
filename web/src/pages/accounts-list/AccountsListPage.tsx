@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { BankIcon, BrokerIcon, CryptoIcon, PlusIcon } from "@/components/Icons";
+import { PlusIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -302,15 +302,6 @@ function AccountListItem({
     <Link className="block" to={`/accounts/${id}`}>
       <Card className="bg-background transition-colors hover:bg-muted/30">
         <CardContent className="flex items-center gap-3 py-4">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-muted/50 text-muted-foreground">
-            {accountType === "bank" ? (
-              <BankIcon />
-            ) : accountType === "broker" ? (
-              <BrokerIcon />
-            ) : (
-              <CryptoIcon />
-            )}
-          </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-baseline justify-between gap-4">
               <p className="truncate font-semibold">{name}</p>
