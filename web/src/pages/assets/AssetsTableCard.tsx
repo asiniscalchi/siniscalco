@@ -96,6 +96,11 @@ export function AssetsTableCard({
                         {asset.total_quantity && (
                           <span className="font-mono tabular-nums">
                             {formatTotalValue(asset) ?? asset.total_quantity}
+                            {formatTotalValue(asset) && asset.total_quantity && (
+                              <span className="text-[10px] text-muted-foreground font-mono tabular-nums">
+                                {" "}{asset.total_quantity}
+                              </span>
+                            )}
                           </span>
                         )}
                       </div>
@@ -142,8 +147,8 @@ export function AssetsTableCard({
                   <th className="pb-3 pr-4">Asset</th>
                   <th className="pb-3 pr-4">Type</th>
                   <th className="pb-3 pr-4">Price</th>
-                  <th className="pb-3 pr-4">Holdings</th>
                   <th className="pb-3 pr-4">ISIN</th>
+                  <th className="pb-3 pr-4">Holdings</th>
                   {!isLocked && <th className="pb-3 text-right">Actions</th>}
                 </tr>
               </thead>
@@ -169,18 +174,24 @@ export function AssetsTableCard({
                         {priceLabel(asset)}
                       </div>
                     </td>
-                    <td className="py-3 pr-4">
-                      <div className="font-mono text-[13px] tabular-nums">
-                        {asset.total_quantity ?? "—"}
-                      </div>
-                      {formatTotalValue(asset) && (
-                        <div className="text-[11px] text-muted-foreground font-mono tabular-nums">
-                          {formatTotalValue(asset)}
-                        </div>
-                      )}
-                    </td>
                     <td className="py-3 pr-4 font-mono text-[11px] text-muted-foreground">
                       {asset.isin || "—"}
+                    </td>
+                    <td className="py-3 pr-4">
+                      {formatTotalValue(asset) ? (
+                        <>
+                          <div className="font-mono text-[13px] tabular-nums">
+                            {formatTotalValue(asset)}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground font-mono tabular-nums">
+                            {asset.total_quantity ?? "—"}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="font-mono text-[13px] tabular-nums">
+                          {asset.total_quantity ?? "—"}
+                        </div>
+                      )}
                     </td>
                     {!isLocked && (
                       <td className="py-3 text-right">
