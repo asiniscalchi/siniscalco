@@ -34,7 +34,6 @@ export function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) 
         <PortfolioAccountBreakdown
           accountTotals={summary.account_totals}
           hideValues={hideValues}
-          totalValue={totalValue}
         />
         <AllocationCard
           allocations={summary.allocation_totals}

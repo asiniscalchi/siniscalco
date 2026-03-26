@@ -34,9 +34,16 @@ export function TopHoldingsCard({
     );
   }
 
-  const chartableHoldings: Holding[] = holdingsList
-    .map((h) => ({ ...h, value: Number(h.value) }))
-    .filter((h) => !isNaN(h.value) && h.value > 0);
+  type ChartableHolding = {
+  asset_id: number;
+  symbol: string;
+  name: string;
+  value: number;
+};
+
+const chartableHoldings: ChartableHolding[] = holdingsList
+  .map((h) => ({ ...h, value: Number(h.value) }))
+  .filter((h) => !isNaN(h.value) && h.value > 0);
 
   if (chartableHoldings.length === 0) {
     return (
