@@ -19,7 +19,6 @@ export function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) 
   if (!hasCashData) {
     return (
       <div className="flex flex-col gap-4">
-        <PortfolioPageHeader />
         <PortfolioEmptyState />
       </div>
     );
