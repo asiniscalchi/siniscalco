@@ -12,7 +12,7 @@ export function PortfolioSummarySection({
 }) {
   return (
     <section className="space-y-4">
-      <div className="flex flex-col gap-1.5 px-1">
+      <div className="flex flex-col items-end gap-1.5 px-1">
         <div className="flex flex-col items-baseline gap-1 sm:flex-row sm:gap-4">
           {summary.total_value_status === "ok" && summary.total_value_amount ? (
             <MoneyText
@@ -26,9 +26,6 @@ export function PortfolioSummarySection({
               Conversion unavailable
             </span>
           )}
-          <span className="text-sm font-medium text-muted-foreground">
-            Total Cash Value
-          </span>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           {summary.total_value_status === "conversion_unavailable" && (
