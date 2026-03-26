@@ -115,6 +115,13 @@ impl MutationRoot {
         let currency = Currency::try_from(currency.as_str()).map_err(storage_to_gql)?;
         let amount = Amount::try_from(amount.as_str()).map_err(storage_to_gql)?;
 
+        get_account(pool, account_id).await.map_err(|err| match err {
+            StorageError::Database(sqlx::Error::RowNotFound) => {
+                async_graphql::Error::new("Account not found")
+            }
+            other => storage_to_gql(other),
+        })?;
+
         upsert_account_balance(pool, UpsertAccountBalanceInput { account_id, currency, amount })
             .await
             .map_err(storage_to_gql)?;
@@ -345,7 +352,7 @@ fn validate_asset_input(
     let asset_type_str = asset_type.trim().to_string();
     if asset_type_str.is_empty() {
         field_errors
-            .insert("asset_type".to_string(), vec!["Asset type is required".to_string()]);
+            .insert("assetType".to_string(), vec!["Asset type is required".to_string()]);
     }
 
     let quote_symbol = quote_symbol.and_then(|s| {
@@ -361,7 +368,7 @@ fn validate_asset_input(
         Ok(t) => Some(t),
         Err(_) if !asset_type_str.is_empty() => {
             field_errors.insert(
-                "asset_type".to_string(),
+                "assetType".to_string(),
                 vec!["Asset type must be one of: STOCK, ETF, BOND, CRYPTO, CASH_EQUIVALENT, OTHER"
                     .to_string()],
             );
