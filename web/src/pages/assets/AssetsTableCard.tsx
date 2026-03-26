@@ -1,4 +1,4 @@
-import { AssetLabel } from "@/components/AssetLabel";
+import { ItemLabel } from "@/components/ItemLabel";
 import { PencilIcon, PlusIcon, TrashIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -77,7 +77,7 @@ export function AssetsTableCard({
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-2">
-                      <AssetLabel name={asset.name} symbol={asset.symbol} />
+                      <ItemLabel primary={asset.symbol} secondary={asset.name} />
                     </div>
                     <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                       <div className="flex items-center gap-2">
@@ -140,7 +140,7 @@ export function AssetsTableCard({
                     key={asset.id}
                   >
                     <td className="py-3 pr-4">
-                      <AssetLabel name={asset.name} symbol={asset.symbol} />
+                      <ItemLabel primary={asset.symbol} secondary={asset.name} />
                     </td>
                     <td className="py-3 pr-4">
                       <span className="inline-flex items-center rounded-full border bg-muted/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
