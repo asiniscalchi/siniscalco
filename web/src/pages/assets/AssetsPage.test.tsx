@@ -94,7 +94,7 @@ describe("AssetsPage", () => {
     expect(screen.getAllByText("Bitcoin").length).toBeGreaterThan(0);
     expect(screen.getAllByText("CRYPTO").length).toBeGreaterThan(0);
     expect(screen.getAllByText("BTC/USD").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("10.5").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("1,987.86 USD").length).toBeGreaterThan(0);
 
     // Check that Actions column is NOT present when locked
     expect(screen.queryByText("Actions")).toBeNull();

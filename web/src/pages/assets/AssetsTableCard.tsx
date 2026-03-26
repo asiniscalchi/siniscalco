@@ -34,6 +34,14 @@ export function AssetsTableCard({
     }).text;
   };
 
+  const formatTotalValue = (asset: AssetResponse) => {
+    if (!asset.total_quantity || !asset.current_price || !asset.current_price_currency) {
+      return null;
+    }
+    const value = Number(asset.total_quantity) * Number(asset.current_price);
+    return formatMoney(value, asset.current_price_currency, false).text;
+  };
+
   const priceLabel = (asset: AssetResponse) => {
     if (asset.current_price_as_of) {
       const parsed = new Date(asset.current_price_as_of);
@@ -86,7 +94,9 @@ export function AssetsTableCard({
                         </span>
                         <span className="font-mono tabular-nums">{formatPrice(asset)}</span>
                         {asset.total_quantity && (
-                          <span className="font-mono tabular-nums">{asset.total_quantity}</span>
+                          <span className="font-mono tabular-nums">
+                            {formatTotalValue(asset) ?? asset.total_quantity}
+                          </span>
                         )}
                       </div>
                       {asset.isin && <span className="font-mono">{asset.isin}</span>}
@@ -159,8 +169,15 @@ export function AssetsTableCard({
                         {priceLabel(asset)}
                       </div>
                     </td>
-                    <td className="py-3 pr-4 font-mono text-[13px] tabular-nums">
-                      {asset.total_quantity ?? "—"}
+                    <td className="py-3 pr-4">
+                      <div className="font-mono text-[13px] tabular-nums">
+                        {asset.total_quantity ?? "—"}
+                      </div>
+                      {formatTotalValue(asset) && (
+                        <div className="text-[11px] text-muted-foreground font-mono tabular-nums">
+                          {formatTotalValue(asset)}
+                        </div>
+                      )}
                     </td>
                     <td className="py-3 pr-4 font-mono text-[11px] text-muted-foreground">
                       {asset.isin || "—"}
