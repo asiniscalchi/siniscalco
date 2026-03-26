@@ -44,8 +44,7 @@ describe("AssetsPage", () => {
 
     renderAssetsPage();
 
-    expect(screen.getByText("Assets")).toBeTruthy();
-    expect(screen.getByText("Manage the assets you use in transactions.")).toBeTruthy();
+    expect(document.querySelector(".animate-pulse")).toBeTruthy();
   });
 
   it("renders fetched assets", async () => {
@@ -139,7 +138,7 @@ describe("AssetsPage", () => {
     await screen.findAllByText("AAPL");
     await unlockEditMode();
 
-    const pageRoot = screen.getByRole("heading", { name: "Assets", level: 1 }).closest("header")?.parentElement;
+    const pageRoot = screen.getByRole("heading", { name: "Assets", level: 1 }).closest('[data-slot="card"]')?.parentElement;
     const assetsCard = screen
       .getAllByText("AAPL")[0]
       .closest('[data-slot="card"]');
