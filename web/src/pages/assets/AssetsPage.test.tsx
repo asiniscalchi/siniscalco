@@ -62,6 +62,7 @@ describe("AssetsPage", () => {
             current_price: "189.32",
             current_price_currency: "USD",
             current_price_as_of: "2026-03-24T14:30:00Z",
+            total_quantity: "10.5",
           },
           {
             id: 2,
@@ -73,6 +74,7 @@ describe("AssetsPage", () => {
             current_price: null,
             current_price_currency: null,
             current_price_as_of: null,
+            total_quantity: null,
           },
         ]),
         { status: 200, headers: { "Content-Type": "application/json" } },
@@ -92,6 +94,7 @@ describe("AssetsPage", () => {
     expect(screen.getAllByText("Bitcoin").length).toBeGreaterThan(0);
     expect(screen.getAllByText("CRYPTO").length).toBeGreaterThan(0);
     expect(screen.getAllByText("BTC/USD").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("10.5").length).toBeGreaterThan(0);
 
     // Check that Actions column is NOT present when locked
     expect(screen.queryByText("Actions")).toBeNull();

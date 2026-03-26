@@ -85,6 +85,9 @@ export function AssetsTableCard({
                           {asset.asset_type.replace("_", " ")}
                         </span>
                         <span className="font-mono tabular-nums">{formatPrice(asset)}</span>
+                        {asset.total_quantity && (
+                          <span className="font-mono tabular-nums">{asset.total_quantity}</span>
+                        )}
                       </div>
                       {asset.isin && <span className="font-mono">{asset.isin}</span>}
                     </div>
@@ -129,6 +132,7 @@ export function AssetsTableCard({
                   <th className="pb-3 pr-4">Asset</th>
                   <th className="pb-3 pr-4">Type</th>
                   <th className="pb-3 pr-4">Price</th>
+                  <th className="pb-3 pr-4">Holdings</th>
                   <th className="pb-3 pr-4">ISIN</th>
                   {!isLocked && <th className="pb-3 text-right">Actions</th>}
                 </tr>
@@ -154,6 +158,9 @@ export function AssetsTableCard({
                       <div className="text-[11px] text-muted-foreground">
                         {priceLabel(asset)}
                       </div>
+                    </td>
+                    <td className="py-3 pr-4 font-mono text-[13px] tabular-nums">
+                      {asset.total_quantity ?? "—"}
                     </td>
                     <td className="py-3 pr-4 font-mono text-[11px] text-muted-foreground">
                       {asset.isin || "—"}

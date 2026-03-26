@@ -74,6 +74,7 @@ export type AssetResponse = {
   current_price: string | null;
   current_price_currency: string | null;
   current_price_as_of: string | null;
+  total_quantity: string | null;
 };
 
 export type AssetPositionResponse = {
