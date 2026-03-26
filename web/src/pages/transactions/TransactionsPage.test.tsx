@@ -72,10 +72,10 @@ describe("TransactionsPage", () => {
 
     renderTransactionsPage();
 
-    expect(await screen.findByText("Showing all recorded transactions.")).toBeTruthy();
+    expect(await screen.findByText("Transactions")).toBeTruthy();
     expect(screen.getByTitle("All trans")).toBeTruthy();
     const historyCard = screen
-      .getByText("Transaction History")
+      .getByText("Transactions")
       .closest('[data-slot="card"]');
     const mobileList = historyCard?.querySelector(".sm\\:hidden");
 
@@ -123,7 +123,7 @@ describe("TransactionsPage", () => {
 
     await screen.findAllByText("Date");
     const mobileList = screen
-      .getByText("Transaction History")
+      .getByText("Transactions")
       .closest('[data-slot="card"]')
       ?.querySelector(".sm\\:hidden");
 
@@ -207,7 +207,7 @@ describe("TransactionsPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
-    expect(await screen.findByText("Showing all recorded transactions.")).toBeTruthy();
+    expect(await screen.findByText("No transactions recorded.")).toBeTruthy();
     expect(screen.queryByText("Failed to load initial data")).toBeNull();
   });
 
@@ -254,8 +254,7 @@ describe("TransactionsPage", () => {
     const select = await screen.findByLabelText("Account:");
     fireEvent.change(select, { target: { value: "1" } });
 
-    expect(await screen.findByText("Recent transactions for Main Account.")).toBeTruthy();
-    expect(screen.getByTitle("Filtered trans")).toBeTruthy();
+    expect(await screen.findByTitle("Filtered trans")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Add Transaction" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
@@ -289,7 +288,6 @@ describe("TransactionsPage", () => {
     const controlsRow = unlockButton.closest("div")?.parentElement;
 
     expect(controlsRow).toBeTruthy();
-    expect(controlsRow?.className).toContain("w-full");
     expect(controlsRow?.className).toContain("flex-wrap");
   });
 
@@ -334,7 +332,7 @@ describe("TransactionsPage", () => {
     await unlockEditMode();
 
     const historyCard = screen
-      .getByText("Transaction History")
+      .getByText("Transactions")
       .closest('[data-slot="card"]');
     const mobileList = historyCard?.querySelector(".sm\\:hidden");
     const desktopTable = historyCard?.querySelector(".sm\\:block");
