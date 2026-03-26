@@ -77,7 +77,7 @@ describe("TransactionsPage", () => {
     const historyCard = screen
       .getByText("Transactions")
       .closest('[data-slot="card"]');
-    const mobileList = historyCard?.querySelector(".sm\\:hidden");
+    const mobileList = historyCard?.querySelector(".space-y-2.sm\\:hidden");
 
     expect(within(mobileList as HTMLElement).getByText("10")).toBeTruthy();
     expect(within(mobileList as HTMLElement).getByText("150")).toBeTruthy();
@@ -258,7 +258,7 @@ describe("TransactionsPage", () => {
     expect((screen.getByRole("button", { name: "Add Transaction" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it("keeps the header controls wrappable on mobile when edit mode is unlocked", async () => {
+  it("puts the account selector below the title row on mobile", async () => {
     vi.mocked(fetch).mockImplementation((input) => {
       const url = String(input);
       if (url.endsWith("/accounts")) {
@@ -282,13 +282,13 @@ describe("TransactionsPage", () => {
     renderTransactionsPage();
 
     await screen.findByLabelText("Account:");
-    await unlockEditMode();
 
-    const unlockButton = screen.getByRole("button", { name: /lock edit mode/i });
-    const controlsRow = unlockButton.closest("div")?.parentElement;
+    const titleRow = screen.getByText("Transactions").closest("div");
+    const mobileSelectRow = screen.getByLabelText("Account").closest("div");
 
-    expect(controlsRow).toBeTruthy();
-    expect(controlsRow?.className).toContain("flex-wrap");
+    expect(titleRow).toBeTruthy();
+    expect(mobileSelectRow?.className).toContain("justify-end");
+    expect(mobileSelectRow?.className).toContain("sm:hidden");
   });
 
   it("keeps non-empty transaction history constrained on mobile when edit mode is unlocked", async () => {
@@ -334,7 +334,7 @@ describe("TransactionsPage", () => {
     const historyCard = screen
       .getByText("Transactions")
       .closest('[data-slot="card"]');
-    const mobileList = historyCard?.querySelector(".sm\\:hidden");
+    const mobileList = historyCard?.querySelector(".space-y-2.sm\\:hidden");
     const desktopTable = historyCard?.querySelector(".sm\\:block");
     const mobileGrid = mobileList?.querySelector("dl");
     const mobileCardContent = mobileList?.querySelector('[data-slot="card-content"]');

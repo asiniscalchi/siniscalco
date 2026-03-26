@@ -59,7 +59,7 @@ describe("TransactionsHistoryCard", () => {
     });
 
     const historyCard = screen.getByText("Transactions").closest('[data-slot="card"]');
-    const mobileList = historyCard?.querySelector(".sm\\:hidden");
+    const mobileList = historyCard?.querySelector(".space-y-2.sm\\:hidden");
 
     expect(within(mobileList as HTMLElement).getByText("10")).toBeTruthy();
     expect(within(mobileList as HTMLElement).getByText("150")).toBeTruthy();
@@ -98,6 +98,6 @@ describe("TransactionsHistoryCard", () => {
     });
 
     expect(screen.getByLabelText("Account:")).toBeTruthy();
-    expect(screen.getByText("Main Account")).toBeTruthy();
+    expect(screen.getAllByText("Main Account").length).toBeGreaterThan(0);
   });
 });
