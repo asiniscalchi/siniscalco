@@ -72,12 +72,12 @@ describe("TransactionsPage", () => {
 
     renderTransactionsPage();
 
-    expect(await screen.findByText("Showing all recorded transactions.")).toBeTruthy();
+    expect(await screen.findByText("Transactions")).toBeTruthy();
     expect(screen.getByTitle("All trans")).toBeTruthy();
     const historyCard = screen
-      .getByText("Transaction History")
+      .getByText("Transactions")
       .closest('[data-slot="card"]');
-    const mobileList = historyCard?.querySelector(".sm\\:hidden");
+    const mobileList = historyCard?.querySelector(".space-y-2.sm\\:hidden");
 
     expect(within(mobileList as HTMLElement).getByText("10")).toBeTruthy();
     expect(within(mobileList as HTMLElement).getByText("150")).toBeTruthy();
@@ -123,7 +123,7 @@ describe("TransactionsPage", () => {
 
     await screen.findAllByText("Date");
     const mobileList = screen
-      .getByText("Transaction History")
+      .getByText("Transactions")
       .closest('[data-slot="card"]')
       ?.querySelector(".sm\\:hidden");
 
@@ -207,7 +207,7 @@ describe("TransactionsPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
-    expect(await screen.findByText("Showing all recorded transactions.")).toBeTruthy();
+    expect(await screen.findByText("No transactions recorded.")).toBeTruthy();
     expect(screen.queryByText("Failed to load initial data")).toBeNull();
   });
 
@@ -254,12 +254,11 @@ describe("TransactionsPage", () => {
     const select = await screen.findByLabelText("Account:");
     fireEvent.change(select, { target: { value: "1" } });
 
-    expect(await screen.findByText("Recent transactions for Main Account.")).toBeTruthy();
-    expect(screen.getByTitle("Filtered trans")).toBeTruthy();
+    expect(await screen.findByTitle("Filtered trans")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Add Transaction" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it("keeps the header controls wrappable on mobile when edit mode is unlocked", async () => {
+  it("puts the account selector below the title row on mobile", async () => {
     vi.mocked(fetch).mockImplementation((input) => {
       const url = String(input);
       if (url.endsWith("/accounts")) {
@@ -283,14 +282,13 @@ describe("TransactionsPage", () => {
     renderTransactionsPage();
 
     await screen.findByLabelText("Account:");
-    await unlockEditMode();
 
-    const unlockButton = screen.getByRole("button", { name: /lock edit mode/i });
-    const controlsRow = unlockButton.closest("div")?.parentElement;
+    const titleRow = screen.getByText("Transactions").closest("div");
+    const mobileSelectRow = screen.getByLabelText("Account").closest("div");
 
-    expect(controlsRow).toBeTruthy();
-    expect(controlsRow?.className).toContain("w-full");
-    expect(controlsRow?.className).toContain("flex-wrap");
+    expect(titleRow).toBeTruthy();
+    expect(mobileSelectRow?.className).toContain("justify-end");
+    expect(mobileSelectRow?.className).toContain("sm:hidden");
   });
 
   it("keeps non-empty transaction history constrained on mobile when edit mode is unlocked", async () => {
@@ -334,9 +332,9 @@ describe("TransactionsPage", () => {
     await unlockEditMode();
 
     const historyCard = screen
-      .getByText("Transaction History")
+      .getByText("Transactions")
       .closest('[data-slot="card"]');
-    const mobileList = historyCard?.querySelector(".sm\\:hidden");
+    const mobileList = historyCard?.querySelector(".space-y-2.sm\\:hidden");
     const desktopTable = historyCard?.querySelector(".sm\\:block");
     const mobileGrid = mobileList?.querySelector("dl");
     const mobileCardContent = mobileList?.querySelector('[data-slot="card-content"]');

@@ -19,7 +19,6 @@ import { useUiState } from "@/lib/ui-state";
 
 import { TransactionFormModal } from "./TransactionFormModal";
 import { TransactionsHistoryCard } from "./TransactionsHistoryCard";
-import { TransactionsPageHeader } from "./TransactionsPageHeader";
 import type { Account, Asset, Transaction } from "./types";
 
 export function TransactionsPage() {
@@ -156,8 +155,7 @@ export function TransactionsPage() {
 
   if (loading && transactions.length === 0 && accounts.length === 0) {
     return (
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 py-8">
-        <div className="h-8 w-48 animate-pulse rounded-full bg-muted" />
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
         <div className="h-64 w-full animate-pulse rounded-xl bg-muted" />
       </div>
     );
@@ -183,15 +181,6 @@ export function TransactionsPage() {
 
   return (
     <div className="mx-auto flex min-w-0 w-full max-w-4xl flex-col gap-6 overflow-x-hidden">
-      <TransactionsPageHeader
-        accounts={accounts}
-        isLocked={isLocked}
-        onAccountChange={setSelectedAccountId}
-        onCreateClick={handleCreateClick}
-        onToggleLock={() => setIsLocked((locked) => !locked)}
-        selectedAccountId={selectedAccountId}
-      />
-
       <TransactionsHistoryCard
         accounts={accounts}
         assets={assets}
@@ -199,8 +188,11 @@ export function TransactionsPage() {
         hideValues={hideValues}
         isDeleting={isDeleting}
         isLocked={isLocked}
+        onAccountChange={setSelectedAccountId}
+        onCreateClick={handleCreateClick}
         onDeleteClick={handleDeleteClick}
         onEditClick={handleEditClick}
+        onToggleLock={() => setIsLocked((locked) => !locked)}
         selectedAccountId={selectedAccountId}
         transactions={transactions}
       />

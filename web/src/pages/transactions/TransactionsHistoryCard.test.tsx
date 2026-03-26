@@ -24,8 +24,11 @@ function renderHistoryCard({
       hideValues={false}
       isDeleting={null}
       isLocked={isLocked}
+      onAccountChange={() => undefined}
+      onCreateClick={() => undefined}
       onDeleteClick={() => undefined}
       onEditClick={() => undefined}
+      onToggleLock={() => undefined}
       selectedAccountId={selectedAccountId}
       transactions={transactions}
     />,
@@ -55,8 +58,8 @@ describe("TransactionsHistoryCard", () => {
       ],
     });
 
-    const historyCard = screen.getByText("Transaction History").closest('[data-slot="card"]');
-    const mobileList = historyCard?.querySelector(".sm\\:hidden");
+    const historyCard = screen.getByText("Transactions").closest('[data-slot="card"]');
+    const mobileList = historyCard?.querySelector(".space-y-2.sm\\:hidden");
 
     expect(within(mobileList as HTMLElement).getByText("10")).toBeTruthy();
     expect(within(mobileList as HTMLElement).getByText("150")).toBeTruthy();
@@ -87,15 +90,14 @@ describe("TransactionsHistoryCard", () => {
     expect(screen.queryByTitle("Delete transaction")).toBeNull();
   });
 
-  it("describes the selected account when filtering", () => {
+  it("shows account selector with accounts", () => {
     renderHistoryCard({
       isLocked: true,
       selectedAccountId: "1",
       transactions: [],
     });
 
-    expect(
-      screen.getByText("Recent transactions for Main Account."),
-    ).toBeTruthy();
+    expect(screen.getByLabelText("Account:")).toBeTruthy();
+    expect(screen.getAllByText("Main Account").length).toBeGreaterThan(0);
   });
 });

@@ -1,4 +1,7 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { LockIcon, PlusIcon, UnlockIcon } from "@/components/Icons";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 import { TransactionsHistoryCardDesktopRow } from "./TransactionsHistoryCardDesktopRow";
 import { TransactionsHistoryCardEmptyState } from "./TransactionsHistoryCardEmptyState";
@@ -16,6 +19,9 @@ type TransactionsHistoryCardProps = {
   isDeleting: number | null;
   onEditClick: (transaction: Transaction) => void;
   onDeleteClick: (transactionId: number) => void;
+  onAccountChange: (accountId: string) => void;
+  onToggleLock: () => void;
+  onCreateClick: () => void;
 };
 
 export function TransactionsHistoryCard({
@@ -29,21 +35,71 @@ export function TransactionsHistoryCard({
   isDeleting,
   onEditClick,
   onDeleteClick,
+  onAccountChange,
+  onToggleLock,
+  onCreateClick,
 }: TransactionsHistoryCardProps) {
-  const selectedAccountName = selectedAccountId
-    ? accounts.find((account) => String(account.id) === selectedAccountId)?.name
-    : null;
   const assetById = new Map(assets.map((asset) => [asset.id, asset]));
 
   return (
     <Card className="min-w-0 bg-background">
-      <CardHeader>
-        <CardTitle>Transaction History</CardTitle>
-        <CardDescription>
-          {selectedAccountId
-            ? `Recent transactions for ${selectedAccountName || "selected account"}.`
-            : "Showing all recorded transactions."}
-        </CardDescription>
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <h1 className="flex-1 text-2xl font-semibold tracking-tight">Transactions</h1>
+          <label className="sr-only" htmlFor="account-selector">Account:</label>
+          <select
+            className="hidden rounded-md border bg-background px-3 py-1.5 text-sm shadow-sm transition-colors focus:outline-hidden focus:ring-1 focus:ring-ring sm:block"
+            id="account-selector"
+            onChange={(event) => onAccountChange(event.target.value)}
+            value={selectedAccountId}
+          >
+            <option value="">All Accounts</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={String(account.id)}>
+                {account.name}
+              </option>
+            ))}
+          </select>
+          <Button
+            aria-label={isLocked ? "Unlock edit mode" : "Lock edit mode"}
+            className={cn(
+              "size-9 rounded-full transition-colors",
+              !isLocked &&
+                "bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50",
+            )}
+            onClick={onToggleLock}
+            size="icon"
+            title={isLocked ? "Unlock edit mode" : "Lock edit mode"}
+            type="button"
+            variant="ghost"
+          >
+            {isLocked ? <LockIcon /> : <UnlockIcon />}
+          </Button>
+          <Button
+            aria-label="Add Transaction"
+            disabled={!selectedAccountId}
+            onClick={onCreateClick}
+            size="icon-lg"
+            title="Add Transaction"
+          >
+            <PlusIcon />
+          </Button>
+        </div>
+        <div className="flex justify-end sm:hidden">
+          <select
+            aria-label="Account"
+            className="rounded-md border bg-background px-3 py-1.5 text-sm shadow-sm transition-colors focus:outline-hidden focus:ring-1 focus:ring-ring"
+            onChange={(event) => onAccountChange(event.target.value)}
+            value={selectedAccountId}
+          >
+            <option value="">All Accounts</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={String(account.id)}>
+                {account.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </CardHeader>
       <CardContent className="min-w-0 pt-4">
         {transactions.length === 0 ? (
