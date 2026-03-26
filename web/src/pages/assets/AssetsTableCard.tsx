@@ -1,7 +1,8 @@
 import { ItemLabel } from "@/components/ItemLabel";
-import { PencilIcon, PlusIcon, TrashIcon } from "@/components/Icons";
+import { LockIcon, PencilIcon, PlusIcon, TrashIcon, UnlockIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { formatMoney } from "@/lib/format-money";
 
 import type { AssetResponse } from "@/lib/api";
@@ -13,6 +14,7 @@ type AssetsTableCardProps = {
   onCreateClick: () => void;
   onEditClick: (asset: AssetResponse) => void;
   onDeleteClick: (asset: AssetResponse) => void;
+  onToggleLock: () => void;
 };
 
 export function AssetsTableCard({
@@ -22,6 +24,7 @@ export function AssetsTableCard({
   onCreateClick,
   onEditClick,
   onDeleteClick,
+  onToggleLock,
 }: AssetsTableCardProps) {
   const formatPrice = (asset: AssetResponse) => {
     if (!asset.current_price || !asset.current_price_currency) {
@@ -55,7 +58,37 @@ export function AssetsTableCard({
 
   return (
     <Card className="min-w-0 bg-background">
-      <CardContent className="min-w-0 pt-6">
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Assets</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            aria-label={isLocked ? "Unlock edit mode" : "Lock edit mode"}
+            className={cn(
+              "size-9 rounded-full transition-colors",
+              !isLocked &&
+                "bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50",
+            )}
+            onClick={onToggleLock}
+            size="icon"
+            title={isLocked ? "Unlock edit mode" : "Lock edit mode"}
+            type="button"
+            variant="ghost"
+          >
+            {isLocked ? <LockIcon /> : <UnlockIcon />}
+          </Button>
+          <Button
+            aria-label="Add Asset"
+            onClick={onCreateClick}
+            size="icon-lg"
+            title="Add Asset"
+          >
+            <PlusIcon />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="min-w-0">
         {assets.length === 0 ? (
           <div className="py-12 text-center">
             <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-muted">

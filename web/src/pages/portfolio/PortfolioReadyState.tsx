@@ -4,7 +4,6 @@ import { useUiState } from "@/lib/ui-state";
 import { AllocationCard } from "./AllocationCard";
 import { PortfolioAccountBreakdown } from "./PortfolioAccountBreakdown";
 import { PortfolioEmptyState } from "./PortfolioEmptyState";
-import { PortfolioPageHeader } from "./PortfolioPageHeader";
 import { PortfolioSummarySection } from "./PortfolioSummarySection";
 import { TopHoldingsCard } from "./TopHoldingsCard";
 
@@ -20,7 +19,6 @@ export function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) 
   if (!hasCashData) {
     return (
       <div className="flex flex-col gap-4">
-        <PortfolioPageHeader />
         <PortfolioEmptyState />
       </div>
     );
@@ -28,7 +26,6 @@ export function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) 
 
   return (
     <div className="flex flex-col gap-8">
-      <PortfolioPageHeader />
       <PortfolioSummarySection summary={summary} hideValues={hideValues} />
       <div className="grid gap-8 lg:grid-cols-2">
         <PortfolioAccountBreakdown

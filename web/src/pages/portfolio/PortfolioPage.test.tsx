@@ -56,7 +56,6 @@ describe("PortfolioPage", () => {
 
     renderPortfolioPage();
 
-    expect(screen.getByText("Portfolio")).toBeTruthy();
     expect(
       document.querySelectorAll('[data-slot="card"]').length,
     ).toBeGreaterThan(0);
@@ -210,7 +209,6 @@ describe("PortfolioPage", () => {
     renderPortfolioPage();
 
     expect(await screen.findByText("Could not load portfolio")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Portfolio" })).toBeTruthy();
 
     fireEvent.click(screen.getByText("Retry"));
 

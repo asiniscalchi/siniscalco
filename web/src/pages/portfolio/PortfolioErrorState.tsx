@@ -11,12 +11,9 @@ import {
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 
-import { PortfolioPageHeader } from "./PortfolioPageHeader";
-
 export function PortfolioErrorState({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="flex flex-col gap-4">
-      <PortfolioPageHeader />
       <Card className="border-destructive/30 bg-background">
         <CardHeader>
           <CardTitle>Could not load portfolio</CardTitle>
