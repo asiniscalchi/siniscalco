@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { ItemLabel } from "@/components/ItemLabel";
 import { PlusIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import {
@@ -303,8 +304,13 @@ function AccountListItem({
       <Card className="bg-background transition-colors hover:bg-muted/30">
         <CardContent className="flex items-center gap-3 py-4">
           <div className="min-w-0 flex-1">
-            <div className="flex items-baseline justify-between gap-4">
-              <p className="truncate font-semibold">{name}</p>
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <ItemLabel
+                  primary={name}
+                  secondary={`${accountType} · ${baseCurrency}`}
+                />
+              </div>
               {summaryStatus === "ok" && totalAmount && totalCurrency ? (
                 <MoneyText
                   className="shrink-0 font-semibold tabular-nums"
@@ -318,10 +324,7 @@ function AccountListItem({
                 </p>
               )}
             </div>
-            <div className="mt-0.5 flex items-center justify-between gap-4 text-xs text-muted-foreground">
-              <span className="capitalize">
-                {accountType} · {baseCurrency}
-              </span>
+            <div className="mt-0.5 flex items-center justify-end gap-4 text-xs text-muted-foreground">
               {summaryStatus === "ok" && totalCurrency && (
                 <span className="flex shrink-0 gap-3">
                   <span>
