@@ -139,7 +139,7 @@ describe("AssetsPage", () => {
     await screen.findAllByText("AAPL");
     await unlockEditMode();
 
-    const pageRoot = screen.getByText("Assets").closest("header")?.parentElement;
+    const pageRoot = screen.getByRole("heading", { name: "Assets", level: 1 }).closest("header")?.parentElement;
     const assetsCard = screen
       .getAllByText("AAPL")[0]
       .closest('[data-slot="card"]');
