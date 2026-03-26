@@ -228,7 +228,7 @@ async fn lists_assets_through_api() {
 
     assert_eq!(
         std::str::from_utf8(&body).expect("json body should be utf8"),
-        r#"[{"id":1,"symbol":"AAPL","name":"Apple Inc.","asset_type":"STOCK","quote_symbol":null,"isin":null,"current_price":null,"current_price_currency":null,"current_price_as_of":null}]"#
+        r#"[{"id":1,"symbol":"AAPL","name":"Apple Inc.","asset_type":"STOCK","quote_symbol":null,"isin":null,"current_price":null,"current_price_currency":null,"current_price_as_of":null,"total_quantity":null}]"#
     );
 }
 

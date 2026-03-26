@@ -2,8 +2,8 @@ use sqlx::{Row, SqlitePool};
 
 use crate::storage::records::*;
 use crate::storage::{
-    AssetId, AssetName, AssetSymbol, AssetType, AssetUnitPrice, Currency, StorageError,
-    current_utc_timestamp_iso8601,
+    AssetId, AssetName, AssetQuantity, AssetSymbol, AssetType, AssetUnitPrice, Currency,
+    StorageError, current_utc_timestamp_iso8601,
 };
 
 pub async fn create_asset(
@@ -43,6 +43,11 @@ pub async fn list_assets(pool: &SqlitePool) -> Result<Vec<AssetRecord>, StorageE
             asset_prices.price,
             asset_prices.currency_code,
             asset_prices.as_of,
+            (
+                SELECT SUM(CASE transaction_type WHEN 'BUY' THEN quantity ELSE -quantity END)
+                FROM asset_transactions
+                WHERE asset_id = assets.id
+            ) as total_quantity,
             assets.created_at,
             assets.updated_at
         FROM assets
@@ -69,6 +74,11 @@ pub async fn get_asset(pool: &SqlitePool, asset_id: AssetId) -> Result<AssetReco
             asset_prices.price,
             asset_prices.currency_code,
             asset_prices.as_of,
+            (
+                SELECT SUM(CASE transaction_type WHEN 'BUY' THEN quantity ELSE -quantity END)
+                FROM asset_transactions
+                WHERE asset_id = assets.id
+            ) as total_quantity,
             assets.created_at,
             assets.updated_at
         FROM assets
@@ -127,6 +137,12 @@ pub async fn delete_asset(pool: &SqlitePool, asset_id: AssetId) -> Result<(), St
 }
 
 fn map_asset_row(row: sqlx::sqlite::SqliteRow) -> Result<AssetRecord, StorageError> {
+    let total_quantity = row
+        .get::<Option<i64>, _>("total_quantity")
+        .filter(|&q| q > 0)
+        .map(AssetQuantity::from_scaled_i64)
+        .transpose()?;
+
     Ok(AssetRecord {
         id: AssetId::try_from(row.get::<i64, _>("id"))?,
         symbol: AssetSymbol::try_from(row.get::<&str, _>("symbol"))?,
@@ -143,6 +159,7 @@ fn map_asset_row(row: sqlx::sqlite::SqliteRow) -> Result<AssetRecord, StorageErr
             .map(|currency| Currency::try_from(currency.as_str()))
             .transpose()?,
         current_price_as_of: row.get::<Option<String>, _>("as_of"),
+        total_quantity,
         created_at: row.get("created_at"),
         updated_at: row.get("updated_at"),
     })
