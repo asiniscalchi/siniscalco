@@ -93,6 +93,7 @@ pub struct AssetResponse {
     pub current_price: Option<String>,
     pub current_price_currency: Option<Currency>,
     pub current_price_as_of: Option<String>,
+    pub total_quantity: Option<String>,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq)]

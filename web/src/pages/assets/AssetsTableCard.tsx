@@ -34,6 +34,14 @@ export function AssetsTableCard({
     }).text;
   };
 
+  const formatTotalValue = (asset: AssetResponse) => {
+    if (!asset.total_quantity || !asset.current_price || !asset.current_price_currency) {
+      return null;
+    }
+    const value = Number(asset.total_quantity) * Number(asset.current_price);
+    return formatMoney(value, asset.current_price_currency, false).text;
+  };
+
   const priceLabel = (asset: AssetResponse) => {
     if (asset.current_price_as_of) {
       const parsed = new Date(asset.current_price_as_of);
@@ -85,6 +93,16 @@ export function AssetsTableCard({
                           {asset.asset_type.replace("_", " ")}
                         </span>
                         <span className="font-mono tabular-nums">{formatPrice(asset)}</span>
+                        {asset.total_quantity && (
+                          <span className="font-mono tabular-nums">
+                            {formatTotalValue(asset) ?? asset.total_quantity}
+                            {formatTotalValue(asset) && asset.total_quantity && (
+                              <span className="text-[10px] text-muted-foreground font-mono tabular-nums">
+                                {" "}{asset.total_quantity}
+                              </span>
+                            )}
+                          </span>
+                        )}
                       </div>
                       {asset.isin && <span className="font-mono">{asset.isin}</span>}
                     </div>
@@ -130,6 +148,7 @@ export function AssetsTableCard({
                   <th className="pb-3 pr-4">Type</th>
                   <th className="pb-3 pr-4">Price</th>
                   <th className="pb-3 pr-4">ISIN</th>
+                  <th className="pb-3 pr-4">Holdings</th>
                   {!isLocked && <th className="pb-3 text-right">Actions</th>}
                 </tr>
               </thead>
@@ -157,6 +176,22 @@ export function AssetsTableCard({
                     </td>
                     <td className="py-3 pr-4 font-mono text-[11px] text-muted-foreground">
                       {asset.isin || "—"}
+                    </td>
+                    <td className="py-3 pr-4">
+                      {formatTotalValue(asset) ? (
+                        <>
+                          <div className="font-mono text-[13px] tabular-nums">
+                            {formatTotalValue(asset)}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground font-mono tabular-nums">
+                            {asset.total_quantity ?? "—"}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="font-mono text-[13px] tabular-nums">
+                          {asset.total_quantity ?? "—"}
+                        </div>
+                      )}
                     </td>
                     {!isLocked && (
                       <td className="py-3 text-right">

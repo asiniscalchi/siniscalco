@@ -114,6 +114,9 @@ pub(super) fn to_asset_response(asset: AssetRecord) -> AssetResponse {
             .map(|price| normalize_amount_output(&price.to_string())),
         current_price_currency: asset.current_price_currency,
         current_price_as_of: asset.current_price_as_of,
+        total_quantity: asset
+            .total_quantity
+            .map(|qty| normalize_amount_output(&qty.to_string())),
     }
 }
 
