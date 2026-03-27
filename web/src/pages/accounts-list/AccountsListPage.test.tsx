@@ -8,6 +8,7 @@ import {
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { type PortfolioSummary } from "@/lib/api";
 import { UiStateProvider } from "@/lib/ui-state-provider";
 import { AccountsListPage } from ".";
 
@@ -30,7 +31,7 @@ function gqlResponse(data: unknown) {
   );
 }
 
-const defaultPortfolio = {
+const defaultPortfolio: PortfolioSummary = {
   displayCurrency: "EUR",
   totalValueStatus: "ok",
   totalValueAmount: "100.00000000",

@@ -419,7 +419,7 @@ describe("AssetsPage", () => {
     const createButton = await screen.findAllByRole("button", { name: "Add Asset" });
     fireEvent.click(createButton[0]);
 
-    vi.mocked(fetch).mockResolvedValueOnce(
+    vi.mocked(fetch).mockReturnValueOnce(
       gqlErrorResponse("Validation failed", {
         symbol: ["Symbol is already taken"],
       }),

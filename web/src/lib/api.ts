@@ -115,7 +115,7 @@ export type AccountDetail = {
   name: string;
   accountType: string;
   baseCurrency: string;
-  summaryStatus: string;
+  summaryStatus: "ok" | "conversion_unavailable";
   cashTotalAmount: string | null;
   assetTotalAmount: string | null;
   totalAmount: string | null;
