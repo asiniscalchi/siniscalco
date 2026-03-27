@@ -1,8 +1,14 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApolloClient, HttpLink, InMemoryCache } from "@apollo/client";
+import { ApolloProvider } from "@apollo/client/react";
 
 import { AccountNewPage } from ".";
+
+function createTestClient() {
+  return new ApolloClient({ link: new HttpLink({ uri: "http://localhost/graphql" }), cache: new InMemoryCache() });
+}
 
 function gqlResponse(data: unknown, status = 200) {
   return Promise.resolve(
@@ -48,9 +54,11 @@ describe("AccountNewPage", () => {
     );
 
     render(
-      <MemoryRouter>
-        <AccountNewPage />
-      </MemoryRouter>,
+      <ApolloProvider client={createTestClient()}>
+        <MemoryRouter>
+          <AccountNewPage />
+        </MemoryRouter>
+      </ApolloProvider>,
     );
 
     expect(screen.getByText("New Account")).toBeTruthy();
@@ -90,12 +98,14 @@ describe("AccountNewPage", () => {
     });
 
     render(
-      <MemoryRouter initialEntries={["/accounts/new"]}>
-        <Routes>
-          <Route path="/accounts/new" element={<AccountNewPage />} />
-          <Route path="/accounts" element={<div>Accounts Route</div>} />
-        </Routes>
-      </MemoryRouter>,
+      <ApolloProvider client={createTestClient()}>
+        <MemoryRouter initialEntries={["/accounts/new"]}>
+          <Routes>
+            <Route path="/accounts/new" element={<AccountNewPage />} />
+            <Route path="/accounts" element={<div>Accounts Route</div>} />
+          </Routes>
+        </MemoryRouter>
+      </ApolloProvider>,
     );
 
     fireEvent.change(screen.getByLabelText("Name"), {
@@ -146,12 +156,14 @@ describe("AccountNewPage", () => {
     });
 
     render(
-      <MemoryRouter initialEntries={["/accounts/new"]}>
-        <Routes>
-          <Route path="/accounts/new" element={<AccountNewPage />} />
-          <Route path="/accounts" element={<div>Accounts Route</div>} />
-        </Routes>
-      </MemoryRouter>,
+      <ApolloProvider client={createTestClient()}>
+        <MemoryRouter initialEntries={["/accounts/new"]}>
+          <Routes>
+            <Route path="/accounts/new" element={<AccountNewPage />} />
+            <Route path="/accounts" element={<div>Accounts Route</div>} />
+          </Routes>
+        </MemoryRouter>
+      </ApolloProvider>,
     );
 
     fireEvent.change(screen.getByLabelText("Name"), {
@@ -184,9 +196,11 @@ describe("AccountNewPage", () => {
     });
 
     render(
-      <MemoryRouter>
-        <AccountNewPage />
-      </MemoryRouter>,
+      <ApolloProvider client={createTestClient()}>
+        <MemoryRouter>
+          <AccountNewPage />
+        </MemoryRouter>
+      </ApolloProvider>,
     );
 
     fireEvent.change(screen.getByLabelText("Name"), {
@@ -209,9 +223,11 @@ describe("AccountNewPage", () => {
     );
 
     render(
-      <MemoryRouter>
-        <AccountNewPage />
-      </MemoryRouter>,
+      <ApolloProvider client={createTestClient()}>
+        <MemoryRouter>
+          <AccountNewPage />
+        </MemoryRouter>
+      </ApolloProvider>,
     );
 
     const baseCurrency = (await screen.findByLabelText(

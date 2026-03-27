@@ -7,18 +7,26 @@ import {
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApolloClient, HttpLink, InMemoryCache } from "@apollo/client";
+import { ApolloProvider } from "@apollo/client/react";
 
 import { UiStateProvider } from "@/lib/ui-state-provider";
 
 import { PortfolioPage } from ".";
 
+function createTestClient() {
+  return new ApolloClient({ link: new HttpLink({ uri: "http://localhost/graphql" }), cache: new InMemoryCache() });
+}
+
 function renderPortfolioPage() {
   return render(
-    <UiStateProvider>
-      <MemoryRouter>
-        <PortfolioPage />
-      </MemoryRouter>
-    </UiStateProvider>,
+    <ApolloProvider client={createTestClient()}>
+      <UiStateProvider>
+        <MemoryRouter>
+          <PortfolioPage />
+        </MemoryRouter>
+      </UiStateProvider>
+    </ApolloProvider>,
   );
 }
 
