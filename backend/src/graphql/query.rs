@@ -23,12 +23,9 @@ pub(crate) fn storage_to_gql(err: StorageError) -> async_graphql::Error {
 
 pub(crate) async fn read_fx_refresh_status(
     status: &SharedFxRefreshStatus,
-) -> (String, Option<String>) {
+) -> (RefreshAvailability, Option<String>) {
     let status = status.read().await;
-    (
-        status.availability.as_str().to_string(),
-        status.last_error.clone(),
-    )
+    (status.availability.into(), status.last_error.clone())
 }
 
 pub(crate) fn to_account_detail(
@@ -39,9 +36,9 @@ pub(crate) fn to_account_detail(
     AccountDetail {
         id: account.id.as_i64(),
         name: account.name.to_string(),
-        account_type: account.account_type.as_str().to_string(),
+        account_type: account.account_type.into(),
         base_currency: account.base_currency.as_str().to_string(),
-        summary_status: value_summary.summary_status.as_str().to_string(),
+        summary_status: value_summary.summary_status.into(),
         cash_total_amount: value_summary
             .cash_total_amount
             .map(|a| normalize_amount_output(&a.to_string())),
@@ -70,7 +67,7 @@ pub(crate) fn to_asset(asset: crate::AssetRecord) -> Asset {
         id: asset.id.as_i64(),
         symbol: asset.symbol.to_string(),
         name: asset.name.to_string(),
-        asset_type: asset.asset_type.as_str().to_string(),
+        asset_type: asset.asset_type.into(),
         quote_symbol: asset.quote_symbol,
         isin: asset.isin,
         current_price: asset
@@ -81,8 +78,8 @@ pub(crate) fn to_asset(asset: crate::AssetRecord) -> Asset {
         total_quantity: asset
             .total_quantity
             .map(|q| normalize_amount_output(&q.to_string())),
-        created_at: Some(asset.created_at),
-        updated_at: Some(asset.updated_at),
+        created_at: asset.created_at,
+        updated_at: asset.updated_at,
     }
 }
 
@@ -91,7 +88,7 @@ pub(crate) fn to_transaction(tx: crate::AssetTransactionRecord) -> Transaction {
         id: tx.id,
         account_id: tx.account_id.as_i64(),
         asset_id: tx.asset_id.as_i64(),
-        transaction_type: tx.transaction_type.as_str().to_string(),
+        transaction_type: tx.transaction_type.into(),
         trade_date: tx.trade_date.to_string(),
         quantity: normalize_amount_output(&tx.quantity.to_string()),
         unit_price: normalize_amount_output(&tx.unit_price.to_string()),
@@ -230,9 +227,9 @@ fn to_account_summary(account: crate::AccountSummaryRecord) -> AccountSummary {
     AccountSummary {
         id: account.id.as_i64(),
         name: account.name.to_string(),
-        account_type: account.account_type.as_str().to_string(),
+        account_type: account.account_type.into(),
         base_currency: account.base_currency.as_str().to_string(),
-        summary_status: account.summary_status.as_str().to_string(),
+        summary_status: account.summary_status.into(),
         cash_total_amount: account
             .cash_total_amount
             .map(|a| normalize_amount_output(&a.to_string())),
@@ -248,7 +245,7 @@ fn to_account_summary(account: crate::AccountSummaryRecord) -> AccountSummary {
 
 fn to_fx_rate_summary(
     summary: crate::FxRateSummaryRecord,
-    refresh_status: String,
+    refresh_status: RefreshAvailability,
     refresh_error: Option<String>,
 ) -> FxRateSummary {
     FxRateSummary {
@@ -269,12 +266,12 @@ fn to_fx_rate_summary(
 
 fn to_portfolio_summary(
     summary: crate::PortfolioSummaryRecord,
-    refresh_status: String,
+    refresh_status: RefreshAvailability,
     refresh_error: Option<String>,
 ) -> PortfolioSummary {
     PortfolioSummary {
         display_currency: summary.display_currency.as_str().to_string(),
-        total_value_status: summary.total_value_status.as_str().to_string(),
+        total_value_status: summary.total_value_status.into(),
         total_value_amount: summary
             .total_value_amount
             .map(|a| normalize_amount_output(&a.to_string())),
@@ -284,8 +281,8 @@ fn to_portfolio_summary(
             .map(|a| PortfolioAccountTotal {
                 id: a.id.as_i64(),
                 name: a.name.to_string(),
-                account_type: a.account_type.as_str().to_string(),
-                summary_status: a.summary_status.as_str().to_string(),
+                account_type: a.account_type.into(),
+                summary_status: a.summary_status.into(),
                 cash_total_amount: a
                     .cash_total_amount
                     .map(|x| normalize_amount_output(&x.to_string())),

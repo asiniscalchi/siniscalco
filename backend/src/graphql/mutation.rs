@@ -5,11 +5,8 @@ use sqlx::SqlitePool;
 use tracing::warn;
 
 use crate::{
-    AccountId, AccountName, AccountType, Amount, AssetId, AssetName, AssetPriceRefreshConfig,
-    AssetQuantity, AssetSymbol, AssetTransactionType, AssetType, AssetUnitPrice,
-    CreateAccountInput, CreateAssetInput, CreateAssetTransactionInput, Currency, TradeDate,
-    UpdateAccountInput, UpdateAssetInput, UpdateAssetTransactionInput, UpsertAccountBalanceInput,
-    create_account, create_asset, create_asset_transaction, delete_account, delete_account_balance,
+    AccountId, AccountName, Amount, AssetId, AssetName, AssetPriceRefreshConfig, AssetQuantity,
+    AssetSymbol, AssetUnitPrice, Currency, TradeDate, delete_account, delete_account_balance,
     delete_asset, delete_asset_transaction, get_account, get_account_value_summary, get_asset,
     list_account_balances, normalize_amount_output, refresh_single_asset_price,
     storage::StorageError, update_account, update_asset, update_asset_transaction,
@@ -18,7 +15,11 @@ use crate::{
 
 use super::{
     query::{storage_to_gql, to_account_detail, to_asset, to_transaction},
-    types::*,
+    types::{
+        AccountDetail, Asset, Balance, CreateAccountInput, CreateAssetInput,
+        CreateTransactionInput, UpdateAccountInput, UpdateAssetInput, UpdateTransactionInput,
+        UpsertBalanceInput,
+    },
 };
 
 pub struct MutationRoot;
@@ -28,18 +29,17 @@ impl MutationRoot {
     async fn create_account(
         &self,
         ctx: &Context<'_>,
-        name: String,
-        account_type: String,
-        base_currency: String,
+        input: CreateAccountInput,
     ) -> async_graphql::Result<AccountDetail> {
         let pool = ctx.data::<SqlitePool>()?;
-        let name = AccountName::try_from(name.as_str()).map_err(storage_to_gql)?;
-        let account_type = AccountType::try_from(account_type.as_str()).map_err(storage_to_gql)?;
-        let base_currency = Currency::try_from(base_currency.as_str()).map_err(storage_to_gql)?;
+        let name = AccountName::try_from(input.name.as_str()).map_err(storage_to_gql)?;
+        let account_type: crate::AccountType = input.account_type.into();
+        let base_currency =
+            Currency::try_from(input.base_currency.as_str()).map_err(storage_to_gql)?;
 
-        let account_id = create_account(
+        let account_id = crate::create_account(
             pool,
-            CreateAccountInput {
+            crate::CreateAccountInput {
                 name,
                 account_type,
                 base_currency,
@@ -64,20 +64,19 @@ impl MutationRoot {
         &self,
         ctx: &Context<'_>,
         id: i64,
-        name: String,
-        account_type: String,
-        base_currency: String,
+        input: UpdateAccountInput,
     ) -> async_graphql::Result<AccountDetail> {
         let pool = ctx.data::<SqlitePool>()?;
         let account_id = AccountId::try_from(id).map_err(storage_to_gql)?;
-        let name = AccountName::try_from(name.as_str()).map_err(storage_to_gql)?;
-        let account_type = AccountType::try_from(account_type.as_str()).map_err(storage_to_gql)?;
-        let base_currency = Currency::try_from(base_currency.as_str()).map_err(storage_to_gql)?;
+        let name = AccountName::try_from(input.name.as_str()).map_err(storage_to_gql)?;
+        let account_type: crate::AccountType = input.account_type.into();
+        let base_currency =
+            Currency::try_from(input.base_currency.as_str()).map_err(storage_to_gql)?;
 
         let account = update_account(
             pool,
             account_id,
-            UpdateAccountInput {
+            crate::UpdateAccountInput {
                 name,
                 account_type,
                 base_currency,
@@ -118,13 +117,12 @@ impl MutationRoot {
         &self,
         ctx: &Context<'_>,
         account_id: i64,
-        currency: String,
-        amount: String,
+        input: UpsertBalanceInput,
     ) -> async_graphql::Result<Balance> {
         let pool = ctx.data::<SqlitePool>()?;
         let account_id = AccountId::try_from(account_id).map_err(storage_to_gql)?;
-        let currency = Currency::try_from(currency.as_str()).map_err(storage_to_gql)?;
-        let amount = Amount::try_from(amount.as_str()).map_err(storage_to_gql)?;
+        let currency = Currency::try_from(input.currency.as_str()).map_err(storage_to_gql)?;
+        let amount = Amount::try_from(input.amount.as_str()).map_err(storage_to_gql)?;
 
         get_account(pool, account_id)
             .await
@@ -137,7 +135,7 @@ impl MutationRoot {
 
         upsert_account_balance(
             pool,
-            UpsertAccountBalanceInput {
+            crate::UpsertAccountBalanceInput {
                 account_id,
                 currency,
                 amount,
@@ -183,16 +181,12 @@ impl MutationRoot {
     async fn create_asset(
         &self,
         ctx: &Context<'_>,
-        symbol: String,
-        name: String,
-        asset_type: String,
-        quote_symbol: Option<String>,
-        isin: Option<String>,
+        input: CreateAssetInput,
     ) -> async_graphql::Result<Asset> {
         let pool = ctx.data::<SqlitePool>()?;
         let config = ctx.data::<AssetPriceRefreshConfig>()?;
-        let input = validate_asset_input(symbol, name, asset_type, quote_symbol, isin)?;
-        let asset_id = create_asset(pool, input)
+        let storage_input = validate_asset_input(input)?;
+        let asset_id = crate::create_asset(pool, storage_input)
             .await
             .map_err(asset_storage_error)?;
         refresh_asset_price(pool, config, asset_id).await;
@@ -204,25 +198,27 @@ impl MutationRoot {
         &self,
         ctx: &Context<'_>,
         id: i64,
-        symbol: String,
-        name: String,
-        asset_type: String,
-        quote_symbol: Option<String>,
-        isin: Option<String>,
+        input: UpdateAssetInput,
     ) -> async_graphql::Result<Asset> {
         let pool = ctx.data::<SqlitePool>()?;
         let config = ctx.data::<AssetPriceRefreshConfig>()?;
         let asset_id = AssetId::try_from(id).map_err(storage_to_gql)?;
-        let input = validate_asset_input(symbol, name, asset_type, quote_symbol, isin)?;
+        let storage_input = validate_asset_input(CreateAssetInput {
+            symbol: input.symbol,
+            name: input.name,
+            asset_type: input.asset_type,
+            quote_symbol: input.quote_symbol,
+            isin: input.isin,
+        })?;
         update_asset(
             pool,
             asset_id,
-            UpdateAssetInput {
-                symbol: input.symbol,
-                name: input.name,
-                asset_type: input.asset_type,
-                quote_symbol: input.quote_symbol,
-                isin: input.isin,
+            crate::UpdateAssetInput {
+                symbol: storage_input.symbol,
+                name: storage_input.name,
+                asset_type: storage_input.asset_type,
+                quote_symbol: storage_input.quote_symbol,
+                isin: storage_input.isin,
             },
         )
         .await
@@ -259,29 +255,13 @@ impl MutationRoot {
     async fn create_transaction(
         &self,
         ctx: &Context<'_>,
-        account_id: i64,
-        asset_id: i64,
-        transaction_type: String,
-        trade_date: String,
-        quantity: String,
-        unit_price: String,
-        currency_code: String,
-        notes: Option<String>,
-    ) -> async_graphql::Result<Transaction> {
+        input: CreateTransactionInput,
+    ) -> async_graphql::Result<super::types::Transaction> {
         let pool = ctx.data::<SqlitePool>()?;
-        let input = parse_transaction_input(
-            account_id,
-            asset_id,
-            transaction_type,
-            trade_date,
-            quantity,
-            unit_price,
-            currency_code,
-            notes,
-        )?;
-        ensure_account_exists(pool, input.account_id).await?;
-        ensure_asset_exists(pool, input.asset_id).await?;
-        let tx = create_asset_transaction(pool, input)
+        let storage_input = parse_transaction_input(input)?;
+        ensure_account_exists(pool, storage_input.account_id).await?;
+        ensure_asset_exists(pool, storage_input.asset_id).await?;
+        let tx = crate::create_asset_transaction(pool, storage_input)
             .await
             .map_err(storage_to_gql)?;
         Ok(to_transaction(tx))
@@ -291,29 +271,10 @@ impl MutationRoot {
         &self,
         ctx: &Context<'_>,
         id: i64,
-        account_id: i64,
-        asset_id: i64,
-        transaction_type: String,
-        trade_date: String,
-        quantity: String,
-        unit_price: String,
-        currency_code: String,
-        notes: Option<String>,
-    ) -> async_graphql::Result<Transaction> {
+        input: UpdateTransactionInput,
+    ) -> async_graphql::Result<super::types::Transaction> {
         let pool = ctx.data::<SqlitePool>()?;
-        let input = parse_transaction_input(
-            account_id,
-            asset_id,
-            transaction_type,
-            trade_date,
-            quantity,
-            unit_price,
-            currency_code,
-            notes,
-        )?;
-        ensure_account_exists(pool, input.account_id).await?;
-        ensure_asset_exists(pool, input.asset_id).await?;
-        let update_input = UpdateAssetTransactionInput {
+        let storage_input = parse_transaction_input(CreateTransactionInput {
             account_id: input.account_id,
             asset_id: input.asset_id,
             transaction_type: input.transaction_type,
@@ -322,6 +283,18 @@ impl MutationRoot {
             unit_price: input.unit_price,
             currency_code: input.currency_code,
             notes: input.notes,
+        })?;
+        ensure_account_exists(pool, storage_input.account_id).await?;
+        ensure_asset_exists(pool, storage_input.asset_id).await?;
+        let update_input = crate::UpdateAssetTransactionInput {
+            account_id: storage_input.account_id,
+            asset_id: storage_input.asset_id,
+            transaction_type: storage_input.transaction_type,
+            trade_date: storage_input.trade_date,
+            quantity: storage_input.quantity,
+            unit_price: storage_input.unit_price,
+            currency_code: storage_input.currency_code,
+            notes: storage_input.notes,
         };
         let tx = update_asset_transaction(pool, id, update_input)
             .await
@@ -348,55 +321,27 @@ impl MutationRoot {
     }
 }
 
-fn validate_asset_input(
-    symbol: String,
-    name: String,
-    asset_type: String,
-    quote_symbol: Option<String>,
-    isin: Option<String>,
-) -> async_graphql::Result<CreateAssetInput> {
+fn validate_asset_input(input: CreateAssetInput) -> async_graphql::Result<crate::CreateAssetInput> {
     let mut field_errors: BTreeMap<String, Vec<String>> = BTreeMap::new();
 
-    let symbol = symbol.trim().to_uppercase();
+    let symbol = input.symbol.trim().to_uppercase();
     if symbol.is_empty() {
         field_errors.insert("symbol".to_string(), vec!["Symbol is required".to_string()]);
     }
 
-    let name = name.trim().to_string();
+    let name = input.name.trim().to_string();
     if name.is_empty() {
         field_errors.insert("name".to_string(), vec!["Name is required".to_string()]);
     }
 
-    let asset_type_str = asset_type.trim().to_string();
-    if asset_type_str.is_empty() {
-        field_errors.insert(
-            "assetType".to_string(),
-            vec!["Asset type is required".to_string()],
-        );
-    }
-
-    let quote_symbol = quote_symbol.and_then(|s| {
+    let quote_symbol = input.quote_symbol.and_then(|s| {
         let t = s.trim().to_uppercase();
         (!t.is_empty()).then_some(t)
     });
-    let isin = isin.and_then(|s| {
+    let isin = input.isin.and_then(|s| {
         let t = s.trim().to_string();
         (!t.is_empty()).then_some(t)
     });
-
-    let parsed_asset_type =
-        match AssetType::try_from(asset_type_str.as_str()) {
-            Ok(t) => Some(t),
-            Err(_) if !asset_type_str.is_empty() => {
-                field_errors.insert(
-                "assetType".to_string(),
-                vec!["Asset type must be one of: STOCK, ETF, BOND, CRYPTO, CASH_EQUIVALENT, OTHER"
-                    .to_string()],
-            );
-                None
-            }
-            Err(_) => None,
-        };
 
     if !field_errors.is_empty() {
         let val = field_errors_to_value(field_errors);
@@ -404,10 +349,10 @@ fn validate_asset_input(
             .extend_with(|_, e| e.set("field_errors", val)));
     }
 
-    Ok(CreateAssetInput {
+    Ok(crate::CreateAssetInput {
         symbol: AssetSymbol::try_from(symbol.as_str()).map_err(storage_to_gql)?,
         name: AssetName::try_from(name.as_str()).map_err(storage_to_gql)?,
-        asset_type: parsed_asset_type.expect("validated"),
+        asset_type: input.asset_type.into(),
         quote_symbol,
         isin,
     })
@@ -462,39 +407,30 @@ fn single_field_error(field: &str, message: &str) -> Value {
 }
 
 fn parse_transaction_input(
-    account_id: i64,
-    asset_id: i64,
-    transaction_type: String,
-    trade_date: String,
-    quantity: String,
-    unit_price: String,
-    currency_code: String,
-    notes: Option<String>,
-) -> async_graphql::Result<CreateAssetTransactionInput> {
-    let account_id = AccountId::try_from(account_id).map_err(storage_to_gql)?;
-    let asset_id = AssetId::try_from(asset_id).map_err(storage_to_gql)?;
-    let transaction_type =
-        AssetTransactionType::try_from(transaction_type.as_str()).map_err(storage_to_gql)?;
-    let trade_date = TradeDate::try_from(trade_date.as_str()).map_err(storage_to_gql)?;
-    let quantity = AssetQuantity::try_from(quantity.as_str()).map_err(storage_to_gql)?;
-    let unit_price = AssetUnitPrice::try_from(unit_price.as_str()).map_err(storage_to_gql)?;
-    let currency_code = Currency::try_from(currency_code.as_str()).map_err(storage_to_gql)?;
+    input: CreateTransactionInput,
+) -> async_graphql::Result<crate::CreateAssetTransactionInput> {
+    let account_id = AccountId::try_from(input.account_id).map_err(storage_to_gql)?;
+    let asset_id = AssetId::try_from(input.asset_id).map_err(storage_to_gql)?;
+    let trade_date = TradeDate::try_from(input.trade_date.as_str()).map_err(storage_to_gql)?;
+    let quantity = AssetQuantity::try_from(input.quantity.as_str()).map_err(storage_to_gql)?;
+    let unit_price = AssetUnitPrice::try_from(input.unit_price.as_str()).map_err(storage_to_gql)?;
+    let currency_code = Currency::try_from(input.currency_code.as_str()).map_err(storage_to_gql)?;
 
-    Ok(CreateAssetTransactionInput {
+    Ok(crate::CreateAssetTransactionInput {
         account_id,
         asset_id,
-        transaction_type,
+        transaction_type: input.transaction_type.into(),
         trade_date,
         quantity,
         unit_price,
         currency_code,
-        notes,
+        notes: input.notes,
     })
 }
 
 async fn ensure_account_exists(
     pool: &SqlitePool,
-    account_id: AccountId,
+    account_id: crate::AccountId,
 ) -> async_graphql::Result<()> {
     get_account(pool, account_id)
         .await
@@ -507,7 +443,10 @@ async fn ensure_account_exists(
         })
 }
 
-async fn ensure_asset_exists(pool: &SqlitePool, asset_id: AssetId) -> async_graphql::Result<()> {
+async fn ensure_asset_exists(
+    pool: &SqlitePool,
+    asset_id: crate::AssetId,
+) -> async_graphql::Result<()> {
     get_asset(pool, asset_id)
         .await
         .map(|_| ())
@@ -522,7 +461,7 @@ async fn ensure_asset_exists(pool: &SqlitePool, asset_id: AssetId) -> async_grap
 async fn refresh_asset_price(
     pool: &SqlitePool,
     config: &AssetPriceRefreshConfig,
-    asset_id: AssetId,
+    asset_id: crate::AssetId,
 ) {
     let client = reqwest::Client::new();
     if let Err(error) = refresh_single_asset_price(pool, &client, config, asset_id).await {
