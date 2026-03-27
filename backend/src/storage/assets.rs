@@ -48,6 +48,19 @@ pub async fn list_assets(pool: &SqlitePool) -> Result<Vec<AssetRecord>, StorageE
                 FROM asset_transactions
                 WHERE asset_id = assets.id
             ) as total_quantity,
+            (
+                SELECT CAST(
+                    SUM(CAST(quantity AS REAL) * CAST(unit_price AS REAL))
+                    / NULLIF(CAST(SUM(quantity) AS REAL), 0.0)
+                AS INTEGER)
+                FROM asset_transactions
+                WHERE asset_id = assets.id AND transaction_type = 'BUY'
+            ) as avg_cost_basis,
+            (
+                SELECT CASE WHEN MIN(currency_code) = MAX(currency_code) THEN MIN(currency_code) ELSE NULL END
+                FROM asset_transactions
+                WHERE asset_id = assets.id AND transaction_type = 'BUY'
+            ) as avg_cost_basis_currency,
             assets.created_at,
             assets.updated_at
         FROM assets
@@ -79,6 +92,19 @@ pub async fn get_asset(pool: &SqlitePool, asset_id: AssetId) -> Result<AssetReco
                 FROM asset_transactions
                 WHERE asset_id = assets.id
             ) as total_quantity,
+            (
+                SELECT CAST(
+                    SUM(CAST(quantity AS REAL) * CAST(unit_price AS REAL))
+                    / NULLIF(CAST(SUM(quantity) AS REAL), 0.0)
+                AS INTEGER)
+                FROM asset_transactions
+                WHERE asset_id = assets.id AND transaction_type = 'BUY'
+            ) as avg_cost_basis,
+            (
+                SELECT CASE WHEN MIN(currency_code) = MAX(currency_code) THEN MIN(currency_code) ELSE NULL END
+                FROM asset_transactions
+                WHERE asset_id = assets.id AND transaction_type = 'BUY'
+            ) as avg_cost_basis_currency,
             assets.created_at,
             assets.updated_at
         FROM assets
@@ -143,6 +169,16 @@ fn map_asset_row(row: sqlx::sqlite::SqliteRow) -> Result<AssetRecord, StorageErr
         .map(AssetQuantity::from_scaled_i64)
         .transpose()?;
 
+    let avg_cost_basis = row
+        .get::<Option<i64>, _>("avg_cost_basis")
+        .map(AssetUnitPrice::from_scaled_i64)
+        .transpose()?;
+
+    let avg_cost_basis_currency = row
+        .get::<Option<String>, _>("avg_cost_basis_currency")
+        .map(|c| Currency::try_from(c.as_str()))
+        .transpose()?;
+
     Ok(AssetRecord {
         id: AssetId::try_from(row.get::<i64, _>("id"))?,
         symbol: AssetSymbol::try_from(row.get::<&str, _>("symbol"))?,
@@ -160,6 +196,8 @@ fn map_asset_row(row: sqlx::sqlite::SqliteRow) -> Result<AssetRecord, StorageErr
             .transpose()?,
         current_price_as_of: row.get::<Option<String>, _>("as_of"),
         total_quantity,
+        avg_cost_basis,
+        avg_cost_basis_currency,
         created_at: row.get("created_at"),
         updated_at: row.get("updated_at"),
     })

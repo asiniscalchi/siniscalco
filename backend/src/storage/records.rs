@@ -152,6 +152,8 @@ pub struct AssetRecord {
     pub current_price_currency: Option<Currency>,
     pub current_price_as_of: Option<String>,
     pub total_quantity: Option<AssetQuantity>,
+    pub avg_cost_basis: Option<AssetUnitPrice>,
+    pub avg_cost_basis_currency: Option<Currency>,
     pub created_at: String,
     pub updated_at: String,
 }
