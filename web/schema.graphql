@@ -1,0 +1,248 @@
+type AccountDetail {
+	id: Int!
+	name: String!
+	accountType: AccountType!
+	baseCurrency: String!
+	summaryStatus: SummaryStatus!
+	cashTotalAmount: String
+	assetTotalAmount: String
+	totalAmount: String
+	totalCurrency: String
+	createdAt: String!
+	balances: [Balance!]!
+}
+
+type AccountSummary {
+	id: Int!
+	name: String!
+	accountType: AccountType!
+	baseCurrency: String!
+	summaryStatus: SummaryStatus!
+	cashTotalAmount: String
+	assetTotalAmount: String
+	totalAmount: String
+	totalCurrency: String
+}
+
+enum AccountType {
+	BANK
+	BROKER
+	CRYPTO
+}
+
+type Asset {
+	id: Int!
+	symbol: String!
+	name: String!
+	assetType: AssetType!
+	quoteSymbol: String
+	isin: String
+	currentPrice: String
+	currentPriceCurrency: String
+	currentPriceAsOf: String
+	totalQuantity: String
+	createdAt: String!
+	updatedAt: String!
+}
+
+type AssetPosition {
+	accountId: Int!
+	assetId: Int!
+	quantity: String!
+}
+
+enum AssetType {
+	STOCK
+	ETF
+	BOND
+	CRYPTO
+	CASH_EQUIVALENT
+	OTHER
+}
+
+type Balance {
+	currency: String!
+	amount: String!
+	updatedAt: String!
+}
+
+input CreateAccountInput {
+	name: String!
+	accountType: AccountType!
+	baseCurrency: String!
+}
+
+input CreateAssetInput {
+	symbol: String!
+	name: String!
+	assetType: AssetType!
+	quoteSymbol: String
+	isin: String
+}
+
+input CreateTransactionInput {
+	accountId: Int!
+	assetId: Int!
+	transactionType: TransactionType!
+	tradeDate: String!
+	quantity: String!
+	unitPrice: String!
+	currencyCode: String!
+	notes: String
+}
+
+type FxRateSummary {
+	targetCurrency: String!
+	rates: [FxRateSummaryItem!]!
+	lastUpdated: String
+	refreshStatus: RefreshAvailability!
+	refreshError: String
+}
+
+type FxRateSummaryItem {
+	currency: String!
+	rate: String!
+}
+
+type MutationRoot {
+	createAccount(input: CreateAccountInput!): AccountDetail!
+	updateAccount(id: Int!, input: UpdateAccountInput!): AccountDetail!
+	deleteAccount(id: Int!): Boolean!
+	upsertBalance(accountId: Int!, input: UpsertBalanceInput!): Balance!
+	deleteBalance(accountId: Int!, currency: String!): Boolean!
+	createAsset(input: CreateAssetInput!): Asset!
+	updateAsset(id: Int!, input: UpdateAssetInput!): Asset!
+	deleteAsset(id: Int!): Boolean!
+	createTransaction(input: CreateTransactionInput!): Transaction!
+	updateTransaction(id: Int!, input: UpdateTransactionInput!): Transaction!
+	deleteTransaction(id: Int!): Boolean!
+}
+
+type PortfolioAccountTotal {
+	id: Int!
+	name: String!
+	accountType: AccountType!
+	summaryStatus: SummaryStatus!
+	cashTotalAmount: String
+	assetTotalAmount: String
+	totalAmount: String
+	totalCurrency: String!
+}
+
+type PortfolioAllocationSlice {
+	label: String!
+	amount: String!
+}
+
+type PortfolioCashByCurrency {
+	currency: String!
+	amount: String!
+	convertedAmount: String
+}
+
+type PortfolioHolding {
+	assetId: Int!
+	symbol: String!
+	name: String!
+	value: String!
+}
+
+type PortfolioSummary {
+	displayCurrency: String!
+	totalValueStatus: SummaryStatus!
+	totalValueAmount: String
+	accountTotals: [PortfolioAccountTotal!]!
+	cashByCurrency: [PortfolioCashByCurrency!]!
+	fxLastUpdated: String
+	fxRefreshStatus: RefreshAvailability!
+	fxRefreshError: String
+	allocationTotals: [PortfolioAllocationSlice!]!
+	allocationIsPartial: Boolean!
+	holdings: [PortfolioHolding!]!
+	holdingsIsPartial: Boolean!
+}
+
+type QueryRoot {
+	portfolio: PortfolioSummary!
+	accounts: [AccountSummary!]!
+	account(id: Int!): AccountDetail!
+	accountPositions(accountId: Int!): [AssetPosition!]!
+	assets: [Asset!]!
+	asset(id: Int!): Asset!
+	transactions(accountId: Int): [Transaction!]!
+	transaction(id: Int!): Transaction!
+	currencies: [String!]!
+	fxRates: FxRateSummary!
+}
+
+enum RefreshAvailability {
+	AVAILABLE
+	UNAVAILABLE
+}
+
+enum SummaryStatus {
+	OK
+	CONVERSION_UNAVAILABLE
+}
+
+type Transaction {
+	id: Int!
+	accountId: Int!
+	assetId: Int!
+	transactionType: TransactionType!
+	tradeDate: String!
+	quantity: String!
+	unitPrice: String!
+	currencyCode: String!
+	notes: String
+	createdAt: String!
+	updatedAt: String!
+}
+
+enum TransactionType {
+	BUY
+	SELL
+}
+
+input UpdateAccountInput {
+	name: String!
+	accountType: AccountType!
+	baseCurrency: String!
+}
+
+input UpdateAssetInput {
+	symbol: String!
+	name: String!
+	assetType: AssetType!
+	quoteSymbol: String
+	isin: String
+}
+
+input UpdateTransactionInput {
+	accountId: Int!
+	assetId: Int!
+	transactionType: TransactionType!
+	tradeDate: String!
+	quantity: String!
+	unitPrice: String!
+	currencyCode: String!
+	notes: String
+}
+
+input UpsertBalanceInput {
+	currency: String!
+	amount: String!
+}
+
+"""
+Directs the executor to include this field or fragment only when the `if` argument is true.
+"""
+directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"""
+Directs the executor to skip this field or fragment when the `if` argument is true.
+"""
+directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+schema {
+	query: QueryRoot
+	mutation: MutationRoot
+}

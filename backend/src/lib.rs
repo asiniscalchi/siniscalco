@@ -21,7 +21,7 @@ pub use fx_refresh::{
     SharedFxRefreshStatus, fetch_frankfurter_rates, new_shared_fx_refresh_status, refresh_fx_rates,
     spawn_fx_refresh_task,
 };
-pub use graphql::{AppState, build_router, build_router_with_state};
+pub use graphql::{AppState, build_router, build_router_with_state, schema_sdl};
 pub use logging::{default_log_filter, init_tracing};
 pub use storage::{
     AccountBalanceRecord, AccountId, AccountName, AccountRecord, AccountSummaryRecord,

@@ -6,9 +6,10 @@ import { LockIcon, PlusIcon, UnlockIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { extractGqlErrorMessage } from "@/lib/gql";
+import { type TransactionAccountsQuery, type TransactionAssetsQuery, type TransactionsQuery } from "@/gql/types";
 
 const ACCOUNTS_QUERY = gql`
-  {
+  query TransactionAccounts {
     accounts {
       id name accountType baseCurrency
     }
@@ -16,7 +17,7 @@ const ACCOUNTS_QUERY = gql`
 `;
 
 const ASSETS_QUERY = gql`
-  {
+  query TransactionAssets {
     assets {
       id symbol name assetType
     }
@@ -44,7 +45,6 @@ import { TransactionFormModal } from "./TransactionFormModal";
 import { TransactionsHistoryCardDesktopRow } from "./TransactionsHistoryCardDesktopRow";
 import { TransactionsHistoryCardEmptyState } from "./TransactionsHistoryCardEmptyState";
 import { TransactionsHistoryCardMobileItem } from "./TransactionsHistoryCardMobileItem";
-import type { Account, Asset, Transaction } from "./types";
 
 export function TransactionsHistoryCard() {
   const { hideValues } = useUiState();
@@ -57,11 +57,11 @@ export function TransactionsHistoryCard() {
   const accountIdVar = selectedAccountId ? parseInt(selectedAccountId) : null;
 
   const { data: accountsData, loading: accountsLoading, error: accountsError, refetch: refetchAccounts } =
-    useQuery<{ accounts: Account[] }>(ACCOUNTS_QUERY);
+    useQuery<TransactionAccountsQuery>(ACCOUNTS_QUERY);
   const { data: assetsData, loading: assetsLoading, error: assetsError, refetch: refetchAssets } =
-    useQuery<{ assets: Asset[] }>(ASSETS_QUERY);
+    useQuery<TransactionAssetsQuery>(ASSETS_QUERY);
   const { data: transactionsData, error: transactionsError, refetch: refetchTransactions } =
-    useQuery<{ transactions: Transaction[] }>(TRANSACTIONS_QUERY, { variables: { accountId: accountIdVar } });
+    useQuery<TransactionsQuery>(TRANSACTIONS_QUERY, { variables: { accountId: accountIdVar } });
 
   const [deleteTransactionMutation] = useMutation(DELETE_TRANSACTION_MUTATION);
 

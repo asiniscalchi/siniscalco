@@ -1,19 +1,4 @@
-export type AccountBalance = {
-  currency: string;
-  amount: string;
-  updatedAt: string;
-};
+import type { AccountQuery } from "@/gql/types";
 
-export type AccountDetail = {
-  id: number;
-  name: string;
-  accountType: string;
-  baseCurrency: string;
-  summaryStatus: "OK" | "CONVERSION_UNAVAILABLE";
-  cashTotalAmount: string | null;
-  assetTotalAmount: string | null;
-  totalAmount: string | null;
-  totalCurrency: string | null;
-  createdAt: string;
-  balances: AccountBalance[];
-};
+export type AccountDetail = AccountQuery["account"];
+export type AccountBalance = AccountDetail["balances"][number];

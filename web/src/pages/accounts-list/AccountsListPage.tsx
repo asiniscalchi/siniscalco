@@ -11,10 +11,10 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { type AccountSummary, type PortfolioSummary } from "@/lib/types";
+import { type AccountsListQuery, type AccountsListPortfolioQuery } from "@/gql/types";
 
 const ACCOUNTS_QUERY = gql`
-  {
+  query AccountsList {
     accounts {
       id name accountType baseCurrency summaryStatus
       cashTotalAmount assetTotalAmount totalAmount totalCurrency
@@ -23,7 +23,7 @@ const ACCOUNTS_QUERY = gql`
 `;
 
 const PORTFOLIO_QUERY = gql`
-  {
+  query AccountsListPortfolio {
     portfolio {
       displayCurrency totalValueAmount
       accountTotals {
@@ -38,8 +38,8 @@ import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
 
 export function AccountsListPage() {
-  const { data: accountsData, loading: accountsLoading, error: accountsError, refetch: refetchAccounts } = useQuery<{ accounts: AccountSummary[] }>(ACCOUNTS_QUERY);
-  const { data: portfolioData, loading: portfolioLoading, error: portfolioError, refetch: refetchPortfolio } = useQuery<{ portfolio: PortfolioSummary }>(PORTFOLIO_QUERY);
+  const { data: accountsData, loading: accountsLoading, error: accountsError, refetch: refetchAccounts } = useQuery<AccountsListQuery>(ACCOUNTS_QUERY);
+  const { data: portfolioData, loading: portfolioLoading, error: portfolioError, refetch: refetchPortfolio } = useQuery<AccountsListPortfolioQuery>(PORTFOLIO_QUERY);
 
   const loading = accountsLoading || portfolioLoading;
   const error = accountsError ?? portfolioError;
@@ -127,8 +127,8 @@ function AccountsReadyState({
   accounts,
   portfolio,
 }: {
-  accounts: AccountSummary[];
-  portfolio: PortfolioSummary;
+  accounts: AccountsListQuery["accounts"];
+  portfolio: AccountsListPortfolioQuery["portfolio"];
 }) {
   const { hideValues } = useUiState();
 

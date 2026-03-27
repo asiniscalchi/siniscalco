@@ -8,10 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { extractGqlErrorMessage } from "@/lib/gql";
-import { type AccountType } from "@/lib/types";
+import { type AccountType, type NewAccountCurrenciesQuery } from "@/gql/types";
 
 const CURRENCIES_QUERY = gql`
-  {
+  query NewAccountCurrencies {
     currencies
   }
 `;
@@ -31,7 +31,7 @@ export function AccountNewPage() {
   const [accountType, setAccountType] = useState<AccountType>("BANK");
   const [baseCurrency, setBaseCurrency] = useState("EUR");
 
-  const { data: currenciesData, loading: currenciesLoading, error: currenciesError } = useQuery<{ currencies: string[] }>(CURRENCIES_QUERY);
+  const { data: currenciesData, loading: currenciesLoading, error: currenciesError } = useQuery<NewAccountCurrenciesQuery>(CURRENCIES_QUERY);
 
   const [createAccount, { loading: submitting, error: submitError }] = useMutation(CREATE_ACCOUNT_MUTATION, {
     onCompleted: () => navigate("/accounts"),

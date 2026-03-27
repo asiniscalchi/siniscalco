@@ -1,10 +1,10 @@
 import { gql } from "@apollo/client/core";
 import { useQuery } from "@apollo/client/react";
 
-import { type PortfolioSummary } from "@/lib/types";
+import { type PortfolioQuery } from "@/gql/types";
 
 const PORTFOLIO_QUERY = gql`
-  {
+  query Portfolio {
     portfolio {
       displayCurrency totalValueStatus totalValueAmount
       fxLastUpdated fxRefreshStatus fxRefreshError
@@ -26,7 +26,7 @@ import { PortfolioLoadingState } from "./PortfolioLoadingState";
 import { PortfolioReadyState } from "./PortfolioReadyState";
 
 export function PortfolioPage() {
-  const { data, loading, error, refetch } = useQuery<{ portfolio: PortfolioSummary }>(PORTFOLIO_QUERY);
+  const { data, loading, error, refetch } = useQuery<PortfolioQuery>(PORTFOLIO_QUERY);
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">

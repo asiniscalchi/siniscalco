@@ -9,10 +9,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/lib/format-money";
 import { extractGqlErrorMessage } from "@/lib/gql";
-import { type Asset } from "@/lib/types";
+import { type AssetsQuery } from "@/gql/types";
 
 const ASSETS_QUERY = gql`
-  {
+  query Assets {
     assets {
       id symbol name assetType quoteSymbol isin
       currentPrice currentPriceCurrency currentPriceAsOf totalQuantity
@@ -31,15 +31,17 @@ import { AssetFormModal } from "./AssetFormModal";
 export function AssetsTableCard() {
   const [isLocked, setIsLocked] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+  const [editingAsset, setEditingAsset] = useState<AssetsQuery["assets"][number] | null>(null);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
 
-  const { data, loading, error, refetch } = useQuery<{ assets: Asset[] }>(ASSETS_QUERY);
+  type AssetItem = AssetsQuery["assets"][number];
+
+  const { data, loading, error, refetch } = useQuery<AssetsQuery>(ASSETS_QUERY);
   const assets = data?.assets ?? [];
 
   const [deleteAssetMutation] = useMutation(DELETE_ASSET_MUTATION);
 
-  const handleDeleteClick = async (asset: Asset) => {
+  const handleDeleteClick = async (asset: AssetItem) => {
     if (!window.confirm(`Are you sure you want to delete ${asset.symbol}?`)) {
       return;
     }
@@ -55,7 +57,7 @@ export function AssetsTableCard() {
     }
   };
 
-  const formatPrice = (asset: Asset) => {
+  const formatPrice = (asset: AssetItem) => {
     if (!asset.currentPrice || !asset.currentPriceCurrency) {
       return "Pending";
     }
@@ -66,7 +68,7 @@ export function AssetsTableCard() {
     }).text;
   };
 
-  const formatTotalValue = (asset: Asset) => {
+  const formatTotalValue = (asset: AssetItem) => {
     if (!asset.totalQuantity || !asset.currentPrice || !asset.currentPriceCurrency) {
       return null;
     }
@@ -74,7 +76,7 @@ export function AssetsTableCard() {
     return formatMoney(value, asset.currentPriceCurrency, false).text;
   };
 
-  const priceLabel = (asset: Asset) => {
+  const priceLabel = (asset: AssetItem) => {
     if (asset.currentPriceAsOf) {
       const parsed = new Date(asset.currentPriceAsOf);
       if (!Number.isNaN(parsed.getTime())) {

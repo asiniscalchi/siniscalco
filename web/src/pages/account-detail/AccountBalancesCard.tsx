@@ -12,9 +12,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { extractGqlErrorMessage } from "@/lib/gql";
+import { type AccountBalancesQuery } from "@/gql/types";
 
 const ACCOUNT_QUERY = gql`
-  query Account($id: Int!) {
+  query AccountBalances($id: Int!) {
     account(id: $id) {
       id baseCurrency
       balances { currency amount updatedAt }
@@ -23,7 +24,7 @@ const ACCOUNT_QUERY = gql`
 `;
 
 const CURRENCIES_QUERY = gql`
-  {
+  query BalanceCurrencies {
     currencies
   }
 `;
@@ -44,7 +45,7 @@ const DELETE_BALANCE_MUTATION = gql`
 import { MoneyText } from "@/lib/money";
 import { useUiState } from "@/lib/ui-state";
 
-import type { AccountDetail } from "./types";
+import { type BalanceCurrenciesQuery } from "@/gql/types";
 
 type AccountBalancesCardProps = {
   accountId: number;
@@ -58,12 +59,12 @@ export function AccountBalancesCard({ accountId, baseCurrency }: AccountBalances
   const [balanceError, setBalanceError] = useState<string | null>(null);
   const [deletingCurrency, setDeletingCurrency] = useState<string | null>(null);
 
-  const { data: accountData, refetch } = useQuery<{ account: AccountDetail }>(
+  const { data: accountData, refetch } = useQuery<AccountBalancesQuery>(
     ACCOUNT_QUERY,
     { variables: { id: accountId } },
   );
 
-  const { data: currenciesData } = useQuery<{ currencies: string[] }>(CURRENCIES_QUERY);
+  const { data: currenciesData } = useQuery<BalanceCurrenciesQuery>(CURRENCIES_QUERY);
 
   const [upsertBalance, { loading: savingBalance }] = useMutation(UPSERT_BALANCE_MUTATION);
   const [deleteBalance] = useMutation(DELETE_BALANCE_MUTATION);

@@ -3,6 +3,10 @@ name = "backend"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "schema-export"
+path = "src/bin/schema_export.rs"
+
 [dependencies]
 async-graphql = { version = "7", features = ["chrono"] }
 async-graphql-axum = "7"

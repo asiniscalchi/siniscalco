@@ -1,10 +1,10 @@
 import { gql } from "@apollo/client/core";
 import { useQuery } from "@apollo/client/react";
 
-import { type FxRateSummary } from "@/lib/types";
+import { type FxRatesQuery } from "@/gql/types";
 
 const FX_RATES_QUERY = gql`
-  {
+  query FxRates {
     fxRates {
       targetCurrency lastUpdated refreshStatus refreshError
       rates { currency rate }
@@ -22,7 +22,7 @@ function formatFxRate(rate: string) {
   return parsedRate.toFixed(4);
 }
 
-function FxRatesFooterContent({ summary }: { summary: FxRateSummary }) {
+function FxRatesFooterContent({ summary }: { summary: FxRatesQuery["fxRates"] }) {
   if (summary.rates.length === 0) {
     return null;
   }
@@ -51,7 +51,7 @@ function FxRatesFooterContent({ summary }: { summary: FxRateSummary }) {
 }
 
 export function FxRatesFooter() {
-  const { data } = useQuery<{ fxRates: FxRateSummary }>(FX_RATES_QUERY);
+  const { data } = useQuery<FxRatesQuery>(FX_RATES_QUERY);
 
   if (!data) {
     return null;
