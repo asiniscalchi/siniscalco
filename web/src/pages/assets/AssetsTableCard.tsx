@@ -16,6 +16,7 @@ const ASSETS_QUERY = gql`
     assets {
       id symbol name assetType quoteSymbol isin
       currentPrice currentPriceCurrency currentPriceAsOf totalQuantity
+      avgCostBasis avgCostBasisCurrency
     }
   }
 `;
@@ -74,6 +75,29 @@ export function AssetsTableCard() {
     }
     const value = Number(asset.totalQuantity) * Number(asset.currentPrice);
     return formatMoney(value, asset.currentPriceCurrency, false).text;
+  };
+
+  const formatGain = (asset: AssetItem) => {
+    const { currentPrice, currentPriceCurrency, totalQuantity, avgCostBasis, avgCostBasisCurrency } =
+      asset;
+    if (!currentPrice || !avgCostBasis || !totalQuantity) return null;
+
+    const price = Number(currentPrice);
+    const cost = Number(avgCostBasis);
+    const qty = Number(totalQuantity);
+    if (Number.isNaN(price) || Number.isNaN(cost) || Number.isNaN(qty) || cost === 0) return null;
+
+    const gainPct = ((price - cost) / cost) * 100;
+    const sameCurrency = currentPriceCurrency && avgCostBasisCurrency === currentPriceCurrency;
+    const gainAbs = sameCurrency ? (price - cost) * qty : null;
+
+    const sign = gainPct >= 0 ? "+" : "";
+    const pct = `${sign}${gainPct.toFixed(2)}%`;
+    const abs = gainAbs !== null
+      ? `${sign}${formatMoney(gainAbs, currentPriceCurrency ?? undefined, false).text}`
+      : null;
+
+    return { pct, abs, positive: gainPct >= 0 };
   };
 
   const priceLabel = (asset: AssetItem) => {
@@ -185,6 +209,15 @@ export function AssetsTableCard() {
                           <span className="font-mono tabular-nums">{formatTotalValue(asset)}</span>
                         )}
                       </div>
+                      {(() => {
+                        const gain = formatGain(asset);
+                        if (!gain) return null;
+                        return (
+                          <div className={`mt-0.5 font-mono tabular-nums text-[11px] ${gain.positive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                            {gain.abs ? `${gain.abs} (${gain.pct})` : gain.pct}
+                          </div>
+                        );
+                      })()}
                     </div>
                     {!isLocked && (
                       <div className="flex shrink-0 gap-0.5">
@@ -231,6 +264,7 @@ export function AssetsTableCard() {
                       <th className="pb-3 pr-4">Price</th>
                       <th className="pb-3 pr-4">ISIN</th>
                       <th className="pb-3 pr-4">Holdings</th>
+                      <th className="pb-3 pr-4">Gain</th>
                       {!isLocked && <th className="pb-3 text-right">Actions</th>}
                     </tr>
                   </thead>
@@ -274,6 +308,20 @@ export function AssetsTableCard() {
                               {asset.totalQuantity ?? "—"}
                             </div>
                           )}
+                        </td>
+                        <td className="py-3 pr-4">
+                          {(() => {
+                            const gain = formatGain(asset);
+                            if (!gain) return <span className="text-muted-foreground">—</span>;
+                            return (
+                              <div className={gain.positive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
+                                {gain.abs && (
+                                  <div className="font-mono text-[13px] tabular-nums">{gain.abs}</div>
+                                )}
+                                <div className="font-mono text-[11px] tabular-nums">{gain.pct}</div>
+                              </div>
+                            );
+                          })()}
                         </td>
                         {!isLocked && (
                           <td className="py-3 text-right">

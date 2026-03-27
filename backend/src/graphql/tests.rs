@@ -222,6 +222,63 @@ async fn lists_assets() {
     assert!(assets[0]["quoteSymbol"].is_null());
     assert!(assets[0]["currentPrice"].is_null());
     assert!(assets[0]["totalQuantity"].is_null());
+    assert!(assets[0]["avgCostBasis"].is_null());
+    assert!(assets[0]["avgCostBasisCurrency"].is_null());
+}
+
+#[tokio::test]
+async fn asset_avg_cost_basis_computed_from_buy_transactions() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Broker"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::try_from("USD").unwrap(),
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    // Buy 10 @ 100 and 10 @ 200 → avg = 150
+    for (qty, price) in [("10", "100"), ("10", "200")] {
+        create_asset_transaction(
+            &pool,
+            CreateAssetTransactionInput {
+                account_id,
+                asset_id,
+                transaction_type: AssetTransactionType::Buy,
+                trade_date: trade_date("2024-01-01"),
+                quantity: AssetQuantity::try_from(qty).unwrap(),
+                unit_price: AssetUnitPrice::try_from(price).unwrap(),
+                currency_code: Currency::try_from("USD").unwrap(),
+                notes: None,
+            },
+        )
+        .await
+        .expect("transaction insert should succeed");
+    }
+
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let json = gql(app, "{ assets { avgCostBasis avgCostBasisCurrency } }").await;
+
+    let asset = &json["data"]["assets"][0];
+    assert_eq!(asset["avgCostBasis"], "150.000000");
+    assert_eq!(asset["avgCostBasisCurrency"], "USD");
 }
 
 #[tokio::test]

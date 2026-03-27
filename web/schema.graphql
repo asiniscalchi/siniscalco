@@ -47,6 +47,8 @@ type Asset {
 	currentPriceCurrency: String
 	currentPriceAsOf: String
 	totalQuantity: String
+	avgCostBasis: String
+	avgCostBasisCurrency: String
 	createdAt: String!
 	updatedAt: String!
 }
