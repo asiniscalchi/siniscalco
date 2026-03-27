@@ -1,4 +1,16 @@
-import { type FxRateSummary } from "@/lib/api";
+import { gql } from "@apollo/client/core";
+import { useQuery } from "@apollo/client/react";
+
+import { type FxRateSummary } from "@/lib/types";
+
+const FX_RATES_QUERY = gql`
+  {
+    fxRates {
+      targetCurrency lastUpdated refreshStatus refreshError
+      rates { currency rate }
+    }
+  }
+`;
 
 function formatFxRate(rate: string) {
   const parsedRate = Number(rate);
@@ -10,7 +22,7 @@ function formatFxRate(rate: string) {
   return parsedRate.toFixed(4);
 }
 
-export function FxRatesFooter({ summary }: { summary: FxRateSummary }) {
+function FxRatesFooterContent({ summary }: { summary: FxRateSummary }) {
   if (summary.rates.length === 0) {
     return null;
   }
@@ -36,4 +48,14 @@ export function FxRatesFooter({ summary }: { summary: FxRateSummary }) {
       )}
     </footer>
   );
+}
+
+export function FxRatesFooter() {
+  const { data } = useQuery<{ fxRates: FxRateSummary }>(FX_RATES_QUERY);
+
+  if (!data) {
+    return null;
+  }
+
+  return <FxRatesFooterContent summary={data.fxRates} />;
 }

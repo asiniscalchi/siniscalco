@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
-import { getHealthApiUrl } from "@/lib/api";
+import { getHealthApiUrl } from "@/lib/env";
 import {
   EyeClosedIcon,
   EyeIcon,

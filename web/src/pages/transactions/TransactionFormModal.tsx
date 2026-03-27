@@ -1,13 +1,28 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
+import { gql } from "@apollo/client/core";
 import { useMutation } from "@apollo/client/react";
 
 import { Button } from "@/components/ui/button";
-import {
-  CREATE_TRANSACTION_MUTATION,
-  UPDATE_TRANSACTION_MUTATION,
-  extractGqlErrorMessage,
-} from "@/lib/api";
+import { extractGqlErrorMessage } from "@/lib/gql";
+
+const CREATE_TRANSACTION_MUTATION = gql`
+  mutation CreateTransaction($input: CreateTransactionInput!) {
+    createTransaction(input: $input) {
+      id accountId assetId transactionType tradeDate
+      quantity unitPrice currencyCode notes
+    }
+  }
+`;
+
+const UPDATE_TRANSACTION_MUTATION = gql`
+  mutation UpdateTransaction($id: Int!, $input: UpdateTransactionInput!) {
+    updateTransaction(id: $id, input: $input) {
+      id accountId assetId transactionType tradeDate
+      quantity unitPrice currencyCode notes
+    }
+  }
+`;
 
 import type { Account, Asset, Transaction } from "./types";
 

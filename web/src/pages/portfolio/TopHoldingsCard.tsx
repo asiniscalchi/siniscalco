@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { type PortfolioHolding } from "@/lib/api";
+import { type PortfolioHolding } from "@/lib/types";
 import { MoneyText } from "@/lib/money";
 
 import { PortfolioProgressItem } from "./PortfolioProgressItem";

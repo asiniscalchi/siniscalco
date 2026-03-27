@@ -1,4 +1,4 @@
-import { type PortfolioSummary } from "@/lib/api";
+import { type PortfolioSummary } from "@/lib/types";
 import { useUiState } from "@/lib/ui-state";
 
 import { AllocationCard } from "./AllocationCard";

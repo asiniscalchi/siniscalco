@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApolloClient, HttpLink, InMemoryCache } from "@apollo/client";
 import { ApolloProvider } from "@apollo/client/react";
 
-import { type PortfolioSummary } from "@/lib/api";
+import { type PortfolioSummary } from "@/lib/types";
 import { UiStateProvider } from "@/lib/ui-state-provider";
 import { AccountsListPage } from ".";
 
