@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { type PortfolioHoldingResponse } from "@/lib/api";
+import { type PortfolioHolding } from "@/lib/api";
 import { MoneyText } from "@/lib/money";
 
 import { PortfolioProgressItem } from "./PortfolioProgressItem";
@@ -11,7 +11,7 @@ export function TopHoldingsCard({
   hideValues,
   totalValue,
 }: {
-  holdings: PortfolioHoldingResponse[];
+  holdings: PortfolioHolding[];
   isPartial: boolean;
   displayCurrency: string;
   hideValues: boolean;
@@ -35,7 +35,7 @@ export function TopHoldingsCard({
   }
 
   type ChartableHolding = {
-  asset_id: number;
+  assetId: number;
   symbol: string;
   name: string;
   value: number;

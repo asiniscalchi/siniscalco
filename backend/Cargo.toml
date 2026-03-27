@@ -4,11 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+async-graphql = { version = "7", features = ["chrono"] }
+async-graphql-axum = "7"
 async-trait = "0.1"
 axum = "0.8.6"
 clap = { version = "4", features = ["derive", "env"] }
 dotenvy = "0.15"
 if-addrs = "0.13.4"
+indexmap = "2"
 reqwest = { version = "0.12.24", default-features = false, features = ["json", "rustls-tls"] }
 rust_decimal = "1.39.0"
 serde = { version = "1.0.228", features = ["derive"] }

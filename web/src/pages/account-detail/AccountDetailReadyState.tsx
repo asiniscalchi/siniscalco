@@ -12,9 +12,10 @@ import {
 } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
-  getAccountBalanceApiUrl,
-  getAccountDetailApiUrl,
-  readApiErrorMessage,
+  upsertBalance,
+  deleteBalance,
+  deleteAccount,
+  extractGqlErrorMessage,
 } from "@/lib/api";
 import { MoneyText } from "@/lib/money";
 import { useUiState } from "@/lib/ui-state";
@@ -40,7 +41,7 @@ export function AccountDetailReadyState({
   onRefresh,
 }: AccountDetailReadyStateProps) {
   const { hideValues } = useUiState();
-  const [currency, setCurrency] = useState(account.base_currency);
+  const [currency, setCurrency] = useState(account.baseCurrency);
   const [amount, setAmount] = useState("");
   const [requestState, setRequestState] = useState<
     | { status: "idle" }
@@ -51,12 +52,12 @@ export function AccountDetailReadyState({
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   useEffect(() => {
-    setCurrency(account.base_currency);
+    setCurrency(account.baseCurrency);
     setAmount("");
     setRequestState({ status: "idle" });
     setDeletingCurrency(null);
     setIsDeletingAccount(false);
-  }, [account.base_currency, account.id]);
+  }, [account.baseCurrency, account.id]);
 
   async function handleBalanceSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -64,35 +65,14 @@ export function AccountDetailReadyState({
     setRequestState({ status: "submitting" });
 
     try {
-      const response = await fetch(
-        getAccountBalanceApiUrl(String(account.id), currency),
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            amount: amount.trim(),
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        const message = await readApiErrorMessage(
-          response,
-          "Could not save balance.",
-        );
-        throw new Error(message);
-      }
-
+      await upsertBalance(account.id, currency, amount.trim());
       setAmount("");
       setRequestState({ status: "idle" });
       onRefresh();
     } catch (error) {
       setRequestState({
         status: "error",
-        message:
-          error instanceof Error ? error.message : "Could not save balance.",
+        message: extractGqlErrorMessage(error, "Could not save balance."),
       });
     }
   }
@@ -102,27 +82,12 @@ export function AccountDetailReadyState({
     setRequestState({ status: "idle" });
 
     try {
-      const response = await fetch(
-        getAccountBalanceApiUrl(String(account.id), balanceCurrency),
-        {
-          method: "DELETE",
-        },
-      );
-
-      if (!response.ok) {
-        const message = await readApiErrorMessage(
-          response,
-          "Could not delete balance.",
-        );
-        throw new Error(message);
-      }
-
+      await deleteBalance(account.id, balanceCurrency);
       onRefresh();
     } catch (error) {
       setRequestState({
         status: "error",
-        message:
-          error instanceof Error ? error.message : "Could not delete balance.",
+        message: extractGqlErrorMessage(error, "Could not delete balance."),
       });
     } finally {
       setDeletingCurrency(null);
@@ -134,24 +99,12 @@ export function AccountDetailReadyState({
     setRequestState({ status: "idle" });
 
     try {
-      const response = await fetch(getAccountDetailApiUrl(String(account.id)), {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        const message = await readApiErrorMessage(
-          response,
-          "Could not delete account.",
-        );
-        throw new Error(message);
-      }
-
+      await deleteAccount(account.id);
       onDeleteSuccess();
     } catch (error) {
       setRequestState({
         status: "error",
-        message:
-          error instanceof Error ? error.message : "Could not delete account.",
+        message: extractGqlErrorMessage(error, "Could not delete account."),
       });
       setIsDeletingAccount(false);
     }
@@ -168,7 +121,7 @@ export function AccountDetailReadyState({
             {account.name}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {account.account_type} · base currency {account.base_currency}
+            {account.accountType} · base currency {account.baseCurrency}
           </p>
         </div>
         <Link
@@ -193,17 +146,17 @@ export function AccountDetailReadyState({
       <Card className="bg-background">
         <CardHeader>
           <CardTitle>Account Summary</CardTitle>
-          <CardDescription>Created at {account.created_at}</CardDescription>
+          <CardDescription>Created at {account.createdAt}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 text-sm sm:grid-cols-3">
           <div className="rounded-xl border p-4">
             <p className="text-muted-foreground">Cash</p>
-            {account.summary_status === "ok" && account.cash_total_amount && account.total_currency ? (
+            {account.summaryStatus === "ok" && account.cashTotalAmount && account.totalCurrency ? (
               <MoneyText
                 className="mt-2 block font-semibold"
-                currency={account.total_currency}
+                currency={account.totalCurrency}
                 hidden={hideValues}
-                value={account.cash_total_amount}
+                value={account.cashTotalAmount}
               />
             ) : (
               <p className="mt-2 font-medium text-muted-foreground">Unavailable</p>
@@ -211,12 +164,12 @@ export function AccountDetailReadyState({
           </div>
           <div className="rounded-xl border p-4">
             <p className="text-muted-foreground">Assets</p>
-            {account.summary_status === "ok" && account.asset_total_amount && account.total_currency ? (
+            {account.summaryStatus === "ok" && account.assetTotalAmount && account.totalCurrency ? (
               <MoneyText
                 className="mt-2 block font-semibold"
-                currency={account.total_currency}
+                currency={account.totalCurrency}
                 hidden={hideValues}
-                value={account.asset_total_amount}
+                value={account.assetTotalAmount}
               />
             ) : (
               <p className="mt-2 font-medium text-muted-foreground">Unavailable</p>
@@ -224,12 +177,12 @@ export function AccountDetailReadyState({
           </div>
           <div className="rounded-xl border p-4">
             <p className="text-muted-foreground">Total</p>
-            {account.summary_status === "ok" && account.total_amount && account.total_currency ? (
+            {account.summaryStatus === "ok" && account.totalAmount && account.totalCurrency ? (
               <MoneyText
                 className="mt-2 block font-semibold"
-                currency={account.total_currency}
+                currency={account.totalCurrency}
                 hidden={hideValues}
-                value={account.total_amount}
+                value={account.totalAmount}
               />
             ) : (
               <p className="mt-2 font-medium text-muted-foreground">Unavailable</p>
@@ -262,7 +215,7 @@ export function AccountDetailReadyState({
                 {assets.map((asset) => (
                   <div
                     className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm"
-                    key={asset.asset_id}
+                    key={asset.assetId}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2">
@@ -270,13 +223,13 @@ export function AccountDetailReadyState({
                       </div>
                       <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                         <span className="inline-flex items-center rounded-full border bg-muted/50 px-1.5 py-px font-medium uppercase tracking-wide">
-                          {asset.asset_type.replace("_", " ")}
+                          {asset.assetType.replace("_", " ")}
                         </span>
                         <div className="flex items-center gap-2 font-mono tabular-nums">
                           <span>{parseFloat(asset.quantity)}</span>
                           {asset.value ? (
                             <MoneyText
-                              currency={account.base_currency}
+                              currency={account.baseCurrency}
                               hidden={hideValues}
                               value={asset.value}
                             />
@@ -302,13 +255,13 @@ export function AccountDetailReadyState({
                   </thead>
                   <tbody className="divide-y">
                     {assets.map((asset) => (
-                      <tr key={asset.asset_id}>
+                      <tr key={asset.assetId}>
                         <td className="py-3 pr-4">
                           <ItemLabel primary={asset.symbol} secondary={asset.name} />
                         </td>
                         <td className="py-3 pr-4">
                           <span className="inline-flex items-center rounded-full border bg-muted/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
-                            {asset.asset_type.replace("_", " ")}
+                            {asset.assetType.replace("_", " ")}
                           </span>
                         </td>
                         <td className="py-3 pr-4 text-right font-mono tabular-nums">
@@ -317,7 +270,7 @@ export function AccountDetailReadyState({
                         <td className="py-3 text-right">
                           {asset.value ? (
                             <MoneyText
-                              currency={account.base_currency}
+                              currency={account.baseCurrency}
                               hidden={hideValues}
                               value={asset.value}
                             />
@@ -429,7 +382,7 @@ export function AccountDetailReadyState({
                 <CardHeader>
                   <CardTitle>{balance.currency}</CardTitle>
                   <CardDescription>
-                    Updated at {balance.updated_at}
+                    Updated at {balance.updatedAt}
                   </CardDescription>
                   <CardAction>
                     <Button

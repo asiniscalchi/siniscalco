@@ -1,10 +1,10 @@
 import { ItemLabel } from "@/components/ItemLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DonutChart, SLICE_COLORS } from "@/components/ui/donut-chart";
-import { type PortfolioAllocationSliceResponse } from "@/lib/api";
+import { type PortfolioAllocationSlice } from "@/lib/api";
 import { formatMoney } from "@/lib/format-money";
 
-type Slice = PortfolioAllocationSliceResponse & { value: number };
+type Slice = PortfolioAllocationSlice & { value: number };
 
 export function AllocationCard({
   allocations,
@@ -12,7 +12,7 @@ export function AllocationCard({
   displayCurrency,
   hideValues,
 }: {
-  allocations: PortfolioAllocationSliceResponse[];
+  allocations: PortfolioAllocationSlice[];
   isPartial: boolean;
   displayCurrency: string;
   hideValues: boolean;

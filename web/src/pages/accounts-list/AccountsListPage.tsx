@@ -11,23 +11,14 @@ import {
 } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
-  getAccountsApiUrl,
-  getPortfolioApiUrl,
-  type PortfolioSummaryResponse,
+  fetchAccounts,
+  fetchPortfolio,
+  type AccountSummary,
+  type PortfolioSummary,
 } from "@/lib/api";
 import { MoneyText } from "@/lib/money";
 import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
-
-type AccountSummary = {
-  id: number;
-  name: string;
-  account_type: string;
-  base_currency: string;
-  summary_status: "ok" | "conversion_unavailable";
-  total_amount: string | null;
-  total_currency: string | null;
-};
 
 export function AccountsListPage() {
   const [requestState, setRequestState] = useState<
@@ -36,7 +27,7 @@ export function AccountsListPage() {
     | {
         status: "ready";
         accounts: AccountSummary[];
-        portfolio: PortfolioSummaryResponse;
+        portfolio: PortfolioSummary;
       }
   >({ status: "loading" });
   const [retryToken, setRetryToken] = useState(0);
@@ -48,26 +39,9 @@ export function AccountsListPage() {
       setRequestState({ status: "loading" });
 
       try {
-        const [accountsResponse, portfolioResponse] = await Promise.all([
-          fetch(getAccountsApiUrl()),
-          fetch(getPortfolioApiUrl()),
-        ]);
-
-        if (!accountsResponse.ok) {
-          throw new Error(
-            `accounts request failed with status ${accountsResponse.status}`,
-          );
-        }
-
-        if (!portfolioResponse.ok) {
-          throw new Error(
-            `portfolio request failed with status ${portfolioResponse.status}`,
-          );
-        }
-
         const [accounts, portfolio] = await Promise.all([
-          accountsResponse.json() as Promise<AccountSummary[]>,
-          portfolioResponse.json() as Promise<PortfolioSummaryResponse>,
+          fetchAccounts(),
+          fetchPortfolio(),
         ]);
 
         if (cancelled) {
@@ -170,7 +144,7 @@ function AccountsReadyState({
   portfolio,
 }: {
   accounts: AccountSummary[];
-  portfolio: PortfolioSummaryResponse;
+  portfolio: PortfolioSummary;
 }) {
   const { hideValues } = useUiState();
 
@@ -181,17 +155,17 @@ function AccountsReadyState({
       ) : (
         <div className="grid gap-3">
           {accounts.map((account) => {
-            const portfolioAccount = portfolio.account_totals.find(
+            const portfolioAccount = portfolio.accountTotals.find(
               (a) => a.id === account.id,
             );
-            const totalValue = portfolio.total_value_amount
-              ? Number(portfolio.total_value_amount)
+            const totalValue = portfolio.totalValueAmount
+              ? Number(portfolio.totalValueAmount)
               : 0;
-            const accountValue = portfolioAccount?.total_amount
-              ? Number(portfolioAccount.total_amount)
+            const accountValue = portfolioAccount?.totalAmount
+              ? Number(portfolioAccount.totalAmount)
               : 0;
             const percentage =
-              totalValue > 0 && portfolioAccount?.summary_status === "ok"
+              totalValue > 0 && portfolioAccount?.summaryStatus === "ok"
                 ? (accountValue / totalValue) * 100
                 : 0;
 
@@ -200,13 +174,13 @@ function AccountsReadyState({
                 key={account.id}
                 id={String(account.id)}
                 name={account.name}
-                accountType={account.account_type}
-                baseCurrency={account.base_currency}
-                summaryStatus={account.summary_status}
-                cashTotalAmount={portfolioAccount?.cash_total_amount ?? null}
-                assetTotalAmount={portfolioAccount?.asset_total_amount ?? null}
-                totalAmount={account.total_amount}
-                totalCurrency={account.total_currency}
+                accountType={account.accountType}
+                baseCurrency={account.baseCurrency}
+                summaryStatus={account.summaryStatus}
+                cashTotalAmount={portfolioAccount?.cashTotalAmount ?? null}
+                assetTotalAmount={portfolioAccount?.assetTotalAmount ?? null}
+                totalAmount={account.totalAmount}
+                totalCurrency={account.totalCurrency}
                 hideValues={hideValues}
                 weight={percentage}
               />
@@ -235,7 +209,7 @@ function AccountListItem({
   name: string;
   accountType: string;
   baseCurrency: string;
-  summaryStatus: "ok" | "conversion_unavailable";
+  summaryStatus: string;
   cashTotalAmount: string | null;
   assetTotalAmount: string | null;
   totalAmount: string | null;
@@ -314,4 +288,3 @@ function AccountListItem({
     </Link>
   );
 }
-

@@ -1,13 +1,12 @@
-mod api;
 mod asset_price_refresh;
 mod config;
 mod db;
 mod format;
 mod fx_refresh;
+mod graphql;
 mod logging;
 mod storage;
 
-pub use api::{ApiError, ApiErrorResponse, AppState, build_router, build_router_with_state};
 pub use asset_price_refresh::{
     AssetPriceRefreshConfig, fetch_alpha_vantage_quote, fetch_coingecko_quote, fetch_eodhd_quote,
     fetch_finnhub_quote, fetch_fmp_quote, fetch_marketstack_quote, fetch_openfigi_tickers,
@@ -22,6 +21,7 @@ pub use fx_refresh::{
     SharedFxRefreshStatus, fetch_frankfurter_rates, new_shared_fx_refresh_status, refresh_fx_rates,
     spawn_fx_refresh_task,
 };
+pub use graphql::{AppState, build_router, build_router_with_state};
 pub use logging::{default_log_filter, init_tracing};
 pub use storage::{
     AccountBalanceRecord, AccountId, AccountName, AccountRecord, AccountSummaryRecord,

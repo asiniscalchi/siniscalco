@@ -15,6 +15,72 @@ function renderApp(initialEntries: string[]) {
   );
 }
 
+function gqlResponse(data: unknown) {
+  return Promise.resolve(
+    new Response(JSON.stringify({ data }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+}
+
+const emptyPortfolio = {
+  displayCurrency: "EUR",
+  totalValueStatus: "ok",
+  totalValueAmount: "0.00000000",
+  accountTotals: [],
+  cashByCurrency: [],
+  fxLastUpdated: null,
+  fxRefreshStatus: "available",
+  fxRefreshError: null,
+  allocationTotals: [],
+  allocationIsPartial: false,
+  holdings: [],
+  holdingsIsPartial: false,
+};
+
+const emptyFxRates = {
+  targetCurrency: "EUR",
+  rates: [],
+  lastUpdated: null,
+  refreshStatus: "available",
+  refreshError: null,
+};
+
+function mockGqlAndHealth(
+  healthStatus: number,
+  overrides?: (query: string) => Promise<Response> | null,
+) {
+  vi.mocked(fetch).mockImplementation((input, init) => {
+    const url = String(input);
+
+    if (url.endsWith("/health")) {
+      return Promise.resolve(new Response(null, { status: healthStatus }));
+    }
+
+    const body = init?.body
+      ? (JSON.parse(String(init.body)) as { query: string })
+      : null;
+    const query = body?.query ?? "";
+
+    if (overrides) {
+      const result = overrides(query);
+      if (result !== null) return result;
+    }
+
+    if (query.includes("accounts {")) return gqlResponse({ accounts: [] });
+    if (query.includes("portfolio {")) return gqlResponse({ portfolio: emptyPortfolio });
+    if (query.includes("fxRates {")) return gqlResponse({ fxRates: emptyFxRates });
+    if (query.includes("currencies")) return gqlResponse({ currencies: ["EUR", "USD"] });
+    if (query.includes("account(")) return gqlResponse({ account: null });
+    if (query.includes("accountPositions")) return gqlResponse({ accountPositions: [] });
+    if (query.includes("assets {")) return gqlResponse({ assets: [] });
+    if (query.includes("transactions {")) return gqlResponse({ transactions: [] });
+
+    throw new Error(`Unhandled GQL query: ${query}`);
+  });
+}
+
 describe("App shell", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
@@ -28,64 +94,7 @@ describe("App shell", () => {
   });
 
   it("requests health on shell mount and shows connected from the response status", async () => {
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input);
-
-      if (url.endsWith("/health")) {
-        return Promise.resolve(
-          new Response("not-used", {
-            status: 200,
-            headers: { "Content-Type": "text/plain" },
-          }),
-        );
-      }
-
-      if (url.endsWith("/accounts")) {
-        return Promise.resolve(
-          new Response(JSON.stringify([]), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          }),
-        );
-      }
-
-      if (url.endsWith("/fx-rates")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              target_currency: "EUR",
-              rates: [],
-              last_updated: null,
-              refresh_status: "available",
-              refresh_error: null,
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
-      }
-
-      if (url.endsWith("/portfolio")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              display_currency: "EUR",
-              total_value_status: "ok",
-              total_value_amount: "0.00000000",
-              account_totals: [],
-              cash_by_currency: [],
-              fx_last_updated: null,
-              fx_refresh_status: "available",
-              fx_refresh_error: null,
-              allocation_totals: [],
-              allocation_is_partial: false,
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
-      }
-
-      throw new Error(`Unhandled fetch request: ${url}`);
-    });
+    mockGqlAndHealth(200);
 
     renderApp(["/accounts"]);
 
@@ -94,59 +103,7 @@ describe("App shell", () => {
   });
 
   it("shows unavailable when the health request returns a non-success status", async () => {
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input);
-
-      if (url.endsWith("/health")) {
-        return Promise.resolve(new Response("down", { status: 503 }));
-      }
-
-      if (url.endsWith("/accounts")) {
-        return Promise.resolve(
-          new Response(JSON.stringify([]), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          }),
-        );
-      }
-
-      if (url.endsWith("/fx-rates")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              target_currency: "EUR",
-              rates: [],
-              last_updated: null,
-              refresh_status: "available",
-              refresh_error: null,
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
-      }
-
-      if (url.endsWith("/portfolio")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              display_currency: "EUR",
-              total_value_status: "ok",
-              total_value_amount: "0.00000000",
-              account_totals: [],
-              cash_by_currency: [],
-              fx_last_updated: null,
-              fx_refresh_status: "available",
-              fx_refresh_error: null,
-              allocation_totals: [],
-              allocation_is_partial: false,
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
-      }
-
-      throw new Error(`Unhandled fetch request: ${url}`);
-    });
+    mockGqlAndHealth(503);
 
     renderApp(["/accounts"]);
 
@@ -154,59 +111,7 @@ describe("App shell", () => {
   });
 
   it("shows connected when the health request returns another successful status", async () => {
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input);
-
-      if (url.endsWith("/health")) {
-        return Promise.resolve(new Response(null, { status: 204 }));
-      }
-
-      if (url.endsWith("/accounts")) {
-        return Promise.resolve(
-          new Response(JSON.stringify([]), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          }),
-        );
-      }
-
-      if (url.endsWith("/fx-rates")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              target_currency: "EUR",
-              rates: [],
-              last_updated: null,
-              refresh_status: "available",
-              refresh_error: null,
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
-      }
-
-      if (url.endsWith("/portfolio")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              display_currency: "EUR",
-              total_value_status: "ok",
-              total_value_amount: "0.00000000",
-              account_totals: [],
-              cash_by_currency: [],
-              fx_last_updated: null,
-              fx_refresh_status: "available",
-              fx_refresh_error: null,
-              allocation_totals: [],
-              allocation_is_partial: false,
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
-      }
-
-      throw new Error(`Unhandled fetch request: ${url}`);
-    });
+    mockGqlAndHealth(204);
 
     renderApp(["/accounts"]);
 
@@ -226,105 +131,66 @@ describe("App shell", () => {
   });
 
   it("keeps the shell rendered while navigating between wrapped routes", async () => {
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input);
-
-      if (url.endsWith("/health")) {
-        return Promise.resolve(new Response("ok", { status: 200 }));
-      }
-
-      if (url.endsWith("/accounts/7")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
+    mockGqlAndHealth(200, (query) => {
+      if (query.includes("accounts {")) {
+        return gqlResponse({
+          accounts: [
+            {
               id: 7,
               name: "IBKR",
-              account_type: "broker",
-              base_currency: "EUR",
-              created_at: "2026-03-22 00:00:00",
-              balances: [],
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
+              accountType: "broker",
+              baseCurrency: "EUR",
+              summaryStatus: "ok",
+              cashTotalAmount: null,
+              assetTotalAmount: null,
+              totalAmount: "1.00000000",
+              totalCurrency: "EUR",
+            },
+          ],
+        });
       }
-
-      if (url.endsWith("/portfolio")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              display_currency: "EUR",
-              total_value_status: "ok",
-              total_value_amount: "1.00000000",
-              account_totals: [
-                {
-                  id: 7,
-                  name: "IBKR",
-                  account_type: "broker",
-                  summary_status: "ok",
-                  total_amount: "1.00000000",
-                  total_currency: "EUR",
-                },
-              ],
-              cash_by_currency: [{ currency: "EUR", amount: "1.00000000" }],
-              fx_last_updated: null,
-              fx_refresh_status: "available",
-              fx_refresh_error: null,
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
-      }
-
-      if (url.endsWith("/currencies")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify([
-              { code: "CHF" },
-              { code: "EUR" },
-              { code: "GBP" },
-              { code: "USD" },
-            ]),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
-      }
-
-      if (url.endsWith("/accounts")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify([
+      if (query.includes("portfolio {")) {
+        return gqlResponse({
+          portfolio: {
+            ...emptyPortfolio,
+            totalValueAmount: "1.00000000",
+            accountTotals: [
               {
                 id: 7,
                 name: "IBKR",
-                account_type: "broker",
-                base_currency: "EUR",
-                summary_status: "ok",
-                total_amount: "1.00000000",
-                total_currency: "EUR",
+                accountType: "broker",
+                summaryStatus: "ok",
+                cashTotalAmount: null,
+                assetTotalAmount: null,
+                totalAmount: "1.00000000",
+                totalCurrency: "EUR",
               },
-            ]),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
+            ],
+            cashByCurrency: [{ currency: "EUR", amount: "1.00000000", convertedAmount: null }],
+          },
+        });
       }
-
-      if (url.endsWith("/fx-rates")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              target_currency: "EUR",
-              rates: [],
-              last_updated: null,
-              refresh_status: "available",
-              refresh_error: null,
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
+      if (query.includes("account(")) {
+        return gqlResponse({
+          account: {
+            id: 7,
+            name: "IBKR",
+            accountType: "broker",
+            baseCurrency: "EUR",
+            summaryStatus: "ok",
+            createdAt: "2026-03-22 00:00:00",
+            cashTotalAmount: null,
+            assetTotalAmount: null,
+            totalAmount: null,
+            totalCurrency: null,
+            balances: [],
+          },
+        });
       }
-
-      throw new Error(`Unhandled fetch request: ${url}`);
+      if (query.includes("currencies")) {
+        return gqlResponse({ currencies: ["CHF", "EUR", "GBP", "USD"] });
+      }
+      return null;
     });
 
     renderApp(["/accounts"]);
@@ -368,64 +234,46 @@ describe("App shell", () => {
   });
 
   it("toggles hidden values, persists the choice, and keeps amount width stable", async () => {
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input);
-
-      if (url.endsWith("/health")) {
-        return Promise.resolve(new Response("ok", { status: 200 }));
+    mockGqlAndHealth(200, (query) => {
+      if (query.includes("portfolio {")) {
+        return gqlResponse({
+          portfolio: {
+            displayCurrency: "EUR",
+            totalValueStatus: "ok",
+            totalValueAmount: "153.70000000",
+            accountTotals: [
+              {
+                id: 1,
+                name: "IBKR",
+                accountType: "broker",
+                summaryStatus: "ok",
+                cashTotalAmount: null,
+                assetTotalAmount: null,
+                totalAmount: "103.70000000",
+                totalCurrency: "EUR",
+              },
+            ],
+            cashByCurrency: [
+              {
+                currency: "USD",
+                amount: "100.00000000",
+                convertedAmount: "92.00000000",
+              },
+            ],
+            fxLastUpdated: null,
+            fxRefreshStatus: "available",
+            fxRefreshError: null,
+            allocationTotals: [{ label: "Cash", amount: "92.00000000" }],
+            allocationIsPartial: false,
+            holdings: [],
+            holdingsIsPartial: false,
+          },
+        });
       }
-
-      if (url.endsWith("/portfolio")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              display_currency: "EUR",
-              total_value_status: "ok",
-              total_value_amount: "153.70000000",
-              account_totals: [
-                {
-                  id: 1,
-                  name: "IBKR",
-                  account_type: "broker",
-                  summary_status: "ok",
-                  total_amount: "103.70000000",
-                  total_currency: "EUR",
-                },
-              ],
-              cash_by_currency: [
-                {
-                  currency: "USD",
-                  amount: "100.00000000",
-                  converted_amount: "92.00000000",
-                },
-              ],
-              fx_last_updated: null,
-              fx_refresh_status: "available",
-              fx_refresh_error: null,
-              allocation_totals: [{ label: "Cash", amount: "92.00000000" }],
-              allocation_is_partial: false,
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
+      if (query.includes("fxRates {")) {
+        return gqlResponse({ fxRates: emptyFxRates });
       }
-
-      if (url.endsWith("/fx-rates")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              target_currency: "EUR",
-              rates: [],
-              last_updated: null,
-              refresh_status: "available",
-              refresh_error: null,
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
-      }
-
-      throw new Error(`Unhandled fetch request: ${url}`);
+      return null;
     });
 
     const view = renderApp(["/portfolio"]);

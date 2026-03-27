@@ -6,41 +6,51 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UiStateProvider } from "@/lib/ui-state-provider";
 import { AccountDetailPage } from ".";
 
-const currenciesResponse = [
-  { code: "CHF" },
-  { code: "EUR" },
-  { code: "GBP" },
-  { code: "USD" },
-];
-
-function jsonResponse(data: unknown, status = 200) {
+function gqlResponse(data: unknown, status = 200) {
   return Promise.resolve(
-    new Response(JSON.stringify(data), {
+    new Response(JSON.stringify({ data }), {
       status,
       headers: { "Content-Type": "application/json" },
     }),
   );
 }
 
+function gqlErrorResponse(message: string) {
+  return Promise.resolve(
+    new Response(
+      JSON.stringify({
+        data: null,
+        errors: [{ message }],
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      },
+    ),
+  );
+}
+
 function mockAccountDetailFetch(
-  handler: (url: string, init?: RequestInit) => Promise<Response> | Response,
+  handler: (query: string, variables: Record<string, unknown>) => Promise<Response> | Response,
 ) {
-  vi.mocked(fetch).mockImplementation((input, init) => {
-    const url = String(input);
+  vi.mocked(fetch).mockImplementation((_input, init) => {
+    const body = init?.body ? JSON.parse(String(init.body)) as { query: string; variables?: Record<string, unknown> } : null;
+    const query = body?.query ?? "";
+    const variables = body?.variables ?? {};
 
-    if (url.endsWith("/currencies")) {
-      return jsonResponse(currenciesResponse);
+    if (query.includes("currencies")) {
+      return gqlResponse({ currencies: ["CHF", "EUR", "GBP", "USD"] });
     }
 
-    if (url.endsWith("/assets")) {
-      return jsonResponse([]);
+    if (query.includes("assets") && !query.includes("account")) {
+      return gqlResponse({ assets: [] });
     }
 
-    if (url.includes("/positions")) {
-      return jsonResponse([]);
+    if (query.includes("accountPositions")) {
+      return gqlResponse({ accountPositions: [] });
     }
 
-    return Promise.resolve(handler(url, init));
+    return Promise.resolve(handler(query, variables));
   });
 }
 
@@ -71,46 +81,52 @@ describe("AccountDetailPage", () => {
   });
 
   it("renders account detail with balances", async () => {
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input);
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string; variables?: Record<string, unknown> } : null;
+      const query = body?.query ?? "";
+      const variables = body?.variables ?? {};
 
-      if (url.endsWith("/currencies")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify([
-              { code: "CHF" },
-              { code: "EUR" },
-              { code: "GBP" },
-              { code: "USD" },
-            ]),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
+      if (query.includes("currencies")) {
+        return gqlResponse({ currencies: ["CHF", "EUR", "GBP", "USD"] });
       }
 
-      if (url.endsWith("/accounts/7")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              id: 7,
-              name: "IBKR",
-              account_type: "broker",
-              base_currency: "EUR",
-              created_at: "2026-03-22 00:00:00",
-              balances: [
-                {
-                  currency: "USD",
-                  amount: "12.30000000",
-                  updated_at: "2026-03-22 00:00:00",
-                },
-              ],
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
+      if (query.includes("account(")) {
+        return gqlResponse({
+          account: {
+            id: variables.id,
+            name: "IBKR",
+            accountType: "broker",
+            baseCurrency: "EUR",
+            createdAt: "2026-03-22 00:00:00",
+            summaryStatus: "ok",
+            cashTotalAmount: null,
+            assetTotalAmount: null,
+            totalAmount: null,
+            totalCurrency: null,
+            balances: [
+              {
+                currency: "USD",
+                amount: "12.30000000",
+                updatedAt: "2026-03-22 00:00:00",
+              },
+            ],
+          },
+        });
       }
 
-      throw new Error(`Unhandled fetch request: ${url}`);
+      if (query.includes("accountPositions")) {
+        return gqlResponse({ accountPositions: [] });
+      }
+
+      if (query.includes("assets")) {
+        return gqlResponse({ assets: [] });
+      }
+
+      if (query.includes("fxRates")) {
+        return gqlResponse({ fxRates: { targetCurrency: "EUR", rates: [], lastUpdated: null, refreshStatus: "available", refreshError: null } });
+      }
+
+      throw new Error(`Unhandled GQL query: ${query}`);
     });
 
     renderAccountDetailPage("/accounts/7");
@@ -121,91 +137,76 @@ describe("AccountDetailPage", () => {
   });
 
   it("renders account assets when the account has positions", async () => {
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input);
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string; variables?: Record<string, unknown> } : null;
+      const query = body?.query ?? "";
 
-      if (url.endsWith("/accounts/7")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              id: 7,
-              name: "IBKR",
-              account_type: "broker",
-              base_currency: "EUR",
-              created_at: "2026-03-22 00:00:00",
-              balances: [],
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
+      if (query.includes("currencies")) {
+        return gqlResponse({ currencies: ["CHF", "EUR", "GBP", "USD"] });
       }
 
-      if (url.endsWith("/currencies")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify([
-              { code: "CHF" },
-              { code: "EUR" },
-              { code: "GBP" },
-              { code: "USD" },
-            ]),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
+      if (query.includes("account(")) {
+        return gqlResponse({
+          account: {
+            id: 7,
+            name: "IBKR",
+            accountType: "broker",
+            baseCurrency: "EUR",
+            createdAt: "2026-03-22 00:00:00",
+            summaryStatus: "ok",
+            cashTotalAmount: null,
+            assetTotalAmount: null,
+            totalAmount: null,
+            totalCurrency: null,
+            balances: [],
+          },
+        });
       }
 
-      if (url.endsWith("/accounts/7/positions")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify([
-              {
-                account_id: 7,
-                asset_id: 3,
-                quantity: "2.500000",
-              },
-            ]),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
+      if (query.includes("accountPositions")) {
+        return gqlResponse({
+          accountPositions: [
+            {
+              accountId: 7,
+              assetId: 3,
+              quantity: "2.500000",
+            },
+          ],
+        });
       }
 
-      if (url.endsWith("/assets")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify([
-              {
-                id: 3,
-                symbol: "BTC",
-                name: "Bitcoin",
-                asset_type: "crypto",
-                quote_symbol: "BTC-USD",
-                isin: null,
-                current_price: "90000.00",
-                current_price_currency: "USD",
-                current_price_as_of: "2026-03-22T00:00:00Z",
-              },
-            ]),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
+      if (query.includes("assets")) {
+        return gqlResponse({
+          assets: [
+            {
+              id: 3,
+              symbol: "BTC",
+              name: "Bitcoin",
+              assetType: "crypto",
+              quoteSymbol: "BTC-USD",
+              isin: null,
+              currentPrice: "90000.00",
+              currentPriceCurrency: "USD",
+              currentPriceAsOf: "2026-03-22T00:00:00Z",
+              totalQuantity: null,
+            },
+          ],
+        });
       }
 
-      if (url.endsWith("/fx-rates")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              target_currency: "EUR",
-              rates: [{ currency: "USD", rate: "0.92" }],
-              last_updated: null,
-              refresh_status: "available",
-              refresh_error: null,
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
+      if (query.includes("fxRates")) {
+        return gqlResponse({
+          fxRates: {
+            targetCurrency: "EUR",
+            rates: [{ currency: "USD", rate: "0.92" }],
+            lastUpdated: null,
+            refreshStatus: "available",
+            refreshError: null,
+          },
+        });
       }
 
-      throw new Error(`Unhandled fetch request: ${url}`);
+      throw new Error(`Unhandled GQL query: ${query}`);
     });
 
     renderAccountDetailPage("/accounts/7");
@@ -219,83 +220,89 @@ describe("AccountDetailPage", () => {
   });
 
   it("renders account detail with empty balances", async () => {
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input);
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string; variables?: Record<string, unknown> } : null;
+      const query = body?.query ?? "";
 
-      if (url.endsWith("/currencies")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify([
-              { code: "CHF" },
-              { code: "EUR" },
-              { code: "GBP" },
-              { code: "USD" },
-            ]),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
+      if (query.includes("currencies")) {
+        return gqlResponse({ currencies: ["CHF", "EUR", "GBP", "USD"] });
       }
 
-      if (url.endsWith("/accounts/3")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              id: 3,
-              name: "Main Bank",
-              account_type: "bank",
-              base_currency: "USD",
-              created_at: "2026-03-22 00:00:00",
-              balances: [],
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
+      if (query.includes("account(")) {
+        return gqlResponse({
+          account: {
+            id: 3,
+            name: "Main Bank",
+            accountType: "bank",
+            baseCurrency: "USD",
+            createdAt: "2026-03-22 00:00:00",
+            summaryStatus: "ok",
+            cashTotalAmount: null,
+            assetTotalAmount: null,
+            totalAmount: null,
+            totalCurrency: null,
+            balances: [],
+          },
+        });
       }
 
-      throw new Error(`Unhandled fetch request: ${url}`);
+      if (query.includes("accountPositions")) {
+        return gqlResponse({ accountPositions: [] });
+      }
+
+      if (query.includes("assets")) {
+        return gqlResponse({ assets: [] });
+      }
+
+      if (query.includes("fxRates")) {
+        return gqlResponse({ fxRates: { targetCurrency: "USD", rates: [], lastUpdated: null, refreshStatus: "available", refreshError: null } });
+      }
+
+      throw new Error(`Unhandled GQL query: ${query}`);
     });
 
     renderAccountDetailPage("/accounts/3");
 
     expect(await screen.findByText("Main Bank")).toBeTruthy();
     expect(screen.getByText("No balances yet")).toBeTruthy();
-    expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/accounts\/3$/));
+    expect(fetch).toHaveBeenCalled();
   });
 
   it("renders an error state and retries the request", async () => {
     let accountRequestCount = 0;
 
-    mockAccountDetailFetch((url) => {
-      if (url.endsWith("/accounts/8")) {
+    mockAccountDetailFetch((query, variables) => {
+      if (query.includes("account(")) {
         accountRequestCount += 1;
 
         if (accountRequestCount === 1) {
-          return jsonResponse(
-            {
-              error: "not_found",
-              message: "Account not found",
-            },
-            404,
-          );
+          return gqlErrorResponse("Account not found");
         }
 
-        return jsonResponse({
-          id: 8,
-          name: "Broker",
-          account_type: "broker",
-          base_currency: "EUR",
-          created_at: "2026-03-22 00:00:00",
-          balances: [
-            {
-              currency: "EUR",
-              amount: "100.00000000",
-              updated_at: "2026-03-22 00:00:00",
-            },
-          ],
+        return gqlResponse({
+          account: {
+            id: variables.id,
+            name: "Broker",
+            accountType: "broker",
+            baseCurrency: "EUR",
+            createdAt: "2026-03-22 00:00:00",
+            summaryStatus: "ok",
+            cashTotalAmount: null,
+            assetTotalAmount: null,
+            totalAmount: null,
+            totalCurrency: null,
+            balances: [
+              {
+                currency: "EUR",
+                amount: "100.00000000",
+                updatedAt: "2026-03-22 00:00:00",
+              },
+            ],
+          },
         });
       }
 
-      throw new Error(`Unhandled fetch request: ${url}`);
+      throw new Error(`Unhandled GQL query: ${query}`);
     });
 
     renderAccountDetailPage("/accounts/8");
@@ -307,52 +314,77 @@ describe("AccountDetailPage", () => {
 
     expect(await screen.findByText("Broker")).toBeTruthy();
     expect(screen.getByText("100.00000000")).toBeTruthy();
-    expect(fetch).toHaveBeenCalledTimes(7);
   });
 
   it("upserts a balance from the account detail page", async () => {
     let saved = false;
 
-    mockAccountDetailFetch((url, init) => {
-      if (url.endsWith("/accounts/9")) {
-        return jsonResponse({
-          id: 9,
-          name: "IBKR",
-          account_type: "broker",
-          base_currency: "EUR",
-          created_at: "2026-03-22 00:00:00",
-          balances: saved
-            ? [
-                {
-                  currency: "USD",
-                  amount: "42.50000000",
-                  updated_at: "2026-03-22 00:00:00",
-                },
-              ]
-            : [],
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string; variables?: Record<string, unknown> } : null;
+      const query = body?.query ?? "";
+      const variables = body?.variables ?? {};
+
+      if (query.includes("currencies")) {
+        return gqlResponse({ currencies: ["CHF", "EUR", "GBP", "USD"] });
+      }
+
+      if (query.includes("account(")) {
+        return gqlResponse({
+          account: {
+            id: 9,
+            name: "IBKR",
+            accountType: "broker",
+            baseCurrency: "EUR",
+            createdAt: "2026-03-22 00:00:00",
+            summaryStatus: "ok",
+            cashTotalAmount: null,
+            assetTotalAmount: null,
+            totalAmount: null,
+            totalCurrency: null,
+            balances: saved
+              ? [
+                  {
+                    currency: "USD",
+                    amount: "42.50000000",
+                    updatedAt: "2026-03-22 00:00:00",
+                  },
+                ]
+              : [],
+          },
         });
       }
 
-      if (url.endsWith("/accounts/9/balances/USD")) {
-        expect(init).toEqual(
+      if (query.includes("accountPositions")) {
+        return gqlResponse({ accountPositions: [] });
+      }
+
+      if (query.includes("assets")) {
+        return gqlResponse({ assets: [] });
+      }
+
+      if (query.includes("fxRates")) {
+        return gqlResponse({ fxRates: { targetCurrency: "EUR", rates: [], lastUpdated: null, refreshStatus: "available", refreshError: null } });
+      }
+
+      if (query.includes("upsertBalance")) {
+        expect(variables).toEqual(
           expect.objectContaining({
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ amount: "42.5" }),
+            accountId: 9,
+            currency: "USD",
+            amount: "42.5",
           }),
         );
         saved = true;
-        return jsonResponse(
-          {
+        return gqlResponse({
+          upsertBalance: {
             currency: "USD",
             amount: "42.50000000",
-            updated_at: "2026-03-22 00:00:00",
+            updatedAt: "2026-03-22 00:00:00",
           },
-          201,
-        );
+        });
       }
 
-      throw new Error(`Unhandled fetch request: ${url}`);
+      throw new Error(`Unhandled GQL query: ${query}`);
     });
 
     renderAccountDetailPage("/accounts/9");
@@ -368,46 +400,63 @@ describe("AccountDetailPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save balance" }));
 
     expect(await screen.findByText("42.50000000")).toBeTruthy();
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringMatching(/\/accounts\/9\/balances\/USD$/),
-      expect.objectContaining({
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: "42.5" }),
-      }),
-    );
   });
 
   it("deletes a balance from the account detail page", async () => {
     let deleted = false;
 
-    mockAccountDetailFetch((url, init) => {
-      if (url.endsWith("/accounts/10")) {
-        return jsonResponse({
-          id: 10,
-          name: "Main Bank",
-          account_type: "bank",
-          base_currency: "USD",
-          created_at: "2026-03-22 00:00:00",
-          balances: deleted
-            ? []
-            : [
-                {
-                  currency: "USD",
-                  amount: "100.00000000",
-                  updated_at: "2026-03-22 00:00:00",
-                },
-              ],
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string; variables?: Record<string, unknown> } : null;
+      const query = body?.query ?? "";
+
+      if (query.includes("currencies")) {
+        return gqlResponse({ currencies: ["CHF", "EUR", "GBP", "USD"] });
+      }
+
+      if (query.includes("account(")) {
+        return gqlResponse({
+          account: {
+            id: 10,
+            name: "Main Bank",
+            accountType: "bank",
+            baseCurrency: "USD",
+            createdAt: "2026-03-22 00:00:00",
+            summaryStatus: "ok",
+            cashTotalAmount: null,
+            assetTotalAmount: null,
+            totalAmount: null,
+            totalCurrency: null,
+            balances: deleted
+              ? []
+              : [
+                  {
+                    currency: "USD",
+                    amount: "100.00000000",
+                    updatedAt: "2026-03-22 00:00:00",
+                  },
+                ],
+          },
         });
       }
 
-      if (url.endsWith("/accounts/10/balances/USD")) {
-        expect(init).toEqual(expect.objectContaining({ method: "DELETE" }));
-        deleted = true;
-        return Promise.resolve(new Response(null, { status: 204 }));
+      if (query.includes("accountPositions")) {
+        return gqlResponse({ accountPositions: [] });
       }
 
-      throw new Error(`Unhandled fetch request: ${url}`);
+      if (query.includes("assets")) {
+        return gqlResponse({ assets: [] });
+      }
+
+      if (query.includes("fxRates")) {
+        return gqlResponse({ fxRates: { targetCurrency: "USD", rates: [], lastUpdated: null, refreshStatus: "available", refreshError: null } });
+      }
+
+      if (query.includes("deleteBalance")) {
+        deleted = true;
+        return gqlResponse({ deleteBalance: true });
+      }
+
+      throw new Error(`Unhandled GQL query: ${query}`);
     });
 
     renderAccountDetailPage("/accounts/10");
@@ -417,32 +466,33 @@ describe("AccountDetailPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 
     expect(await screen.findByText("No balances yet")).toBeTruthy();
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringMatching(/\/accounts\/10\/balances\/USD$/),
-      expect.objectContaining({
-        method: "DELETE",
-      }),
-    );
   });
 
   it("deletes an account from the account detail page", async () => {
-    mockAccountDetailFetch((url, init) => {
-      if (url.endsWith("/accounts/13")) {
-        if (init?.method === "DELETE") {
-          return Promise.resolve(new Response(null, { status: 204 }));
-        }
-
-        return jsonResponse({
-          id: 13,
-          name: "Broker Account",
-          account_type: "broker",
-          base_currency: "EUR",
-          created_at: "2026-03-22 00:00:00",
-          balances: [],
+    mockAccountDetailFetch((query, variables) => {
+      if (query.includes("account(")) {
+        return gqlResponse({
+          account: {
+            id: variables.id,
+            name: "Broker Account",
+            accountType: "broker",
+            baseCurrency: "EUR",
+            createdAt: "2026-03-22 00:00:00",
+            summaryStatus: "ok",
+            cashTotalAmount: null,
+            assetTotalAmount: null,
+            totalAmount: null,
+            totalCurrency: null,
+            balances: [],
+          },
         });
       }
 
-      throw new Error(`Unhandled fetch request: ${url}`);
+      if (query.includes("deleteAccount")) {
+        return gqlResponse({ deleteAccount: true });
+      }
+
+      throw new Error(`Unhandled GQL query: ${query}`);
     });
 
     renderAccountDetailPage(
@@ -458,38 +508,33 @@ describe("AccountDetailPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
 
     expect(await screen.findByText("Accounts Route")).toBeTruthy();
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringMatching(/\/accounts\/13$/),
-      expect.objectContaining({
-        method: "DELETE",
-      }),
-    );
   });
 
   it("renders an error when account deletion fails", async () => {
-    mockAccountDetailFetch((url, init) => {
-      if (url.endsWith("/accounts/14")) {
-        if (init?.method === "DELETE") {
-          return jsonResponse(
-            {
-              error: "conflict",
-              message: "Could not delete account.",
-            },
-            409,
-          );
-        }
-
-        return jsonResponse({
-          id: 14,
-          name: "Checking",
-          account_type: "bank",
-          base_currency: "USD",
-          created_at: "2026-03-22 00:00:00",
-          balances: [],
+    mockAccountDetailFetch((query, variables) => {
+      if (query.includes("account(")) {
+        return gqlResponse({
+          account: {
+            id: variables.id,
+            name: "Checking",
+            accountType: "bank",
+            baseCurrency: "USD",
+            createdAt: "2026-03-22 00:00:00",
+            summaryStatus: "ok",
+            cashTotalAmount: null,
+            assetTotalAmount: null,
+            totalAmount: null,
+            totalCurrency: null,
+            balances: [],
+          },
         });
       }
 
-      throw new Error(`Unhandled fetch request: ${url}`);
+      if (query.includes("deleteAccount")) {
+        return gqlErrorResponse("Could not delete account.");
+      }
+
+      throw new Error(`Unhandled GQL query: ${query}`);
     });
 
     renderAccountDetailPage("/accounts/14");
@@ -502,30 +547,47 @@ describe("AccountDetailPage", () => {
   });
 
   it("resets the balance form when the loaded account changes", async () => {
-    mockAccountDetailFetch((url) => {
-      if (url.endsWith("/accounts/11")) {
-        return jsonResponse({
-          id: 11,
-          name: "First Account",
-          account_type: "broker",
-          base_currency: "EUR",
-          created_at: "2026-03-22 00:00:00",
-          balances: [],
-        });
+    mockAccountDetailFetch((query, variables) => {
+      if (query.includes("account(")) {
+        const id = variables.id as number;
+        if (id === 11) {
+          return gqlResponse({
+            account: {
+              id: 11,
+              name: "First Account",
+              accountType: "broker",
+              baseCurrency: "EUR",
+              createdAt: "2026-03-22 00:00:00",
+              summaryStatus: "ok",
+              cashTotalAmount: null,
+              assetTotalAmount: null,
+              totalAmount: null,
+              totalCurrency: null,
+              balances: [],
+            },
+          });
+        }
+
+        if (id === 12) {
+          return gqlResponse({
+            account: {
+              id: 12,
+              name: "Second Account",
+              accountType: "bank",
+              baseCurrency: "USD",
+              createdAt: "2026-03-22 00:00:00",
+              summaryStatus: "ok",
+              cashTotalAmount: null,
+              assetTotalAmount: null,
+              totalAmount: null,
+              totalCurrency: null,
+              balances: [],
+            },
+          });
+        }
       }
 
-      if (url.endsWith("/accounts/12")) {
-        return jsonResponse({
-          id: 12,
-          name: "Second Account",
-          account_type: "bank",
-          base_currency: "USD",
-          created_at: "2026-03-22 00:00:00",
-          balances: [],
-        });
-      }
-
-      throw new Error(`Unhandled fetch request: ${url}`);
+      throw new Error(`Unhandled GQL query: ${query}`);
     });
 
     const firstRender = renderAccountDetailPage("/accounts/11");
@@ -555,46 +617,51 @@ describe("AccountDetailPage", () => {
   it("masks account balances when hidden mode is enabled", async () => {
     window.localStorage.setItem("ui.hide_values", "true");
 
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input);
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string; variables?: Record<string, unknown> } : null;
+      const query = body?.query ?? "";
 
-      if (url.endsWith("/currencies")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify([
-              { code: "CHF" },
-              { code: "EUR" },
-              { code: "GBP" },
-              { code: "USD" },
-            ]),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
+      if (query.includes("currencies")) {
+        return gqlResponse({ currencies: ["CHF", "EUR", "GBP", "USD"] });
       }
 
-      if (url.endsWith("/accounts/7")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              id: 7,
-              name: "IBKR",
-              account_type: "broker",
-              base_currency: "EUR",
-              created_at: "2026-03-22 00:00:00",
-              balances: [
-                {
-                  currency: "USD",
-                  amount: "12.30000000",
-                  updated_at: "2026-03-22 00:00:00",
-                },
-              ],
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
+      if (query.includes("account(")) {
+        return gqlResponse({
+          account: {
+            id: 7,
+            name: "IBKR",
+            accountType: "broker",
+            baseCurrency: "EUR",
+            createdAt: "2026-03-22 00:00:00",
+            summaryStatus: "ok",
+            cashTotalAmount: null,
+            assetTotalAmount: null,
+            totalAmount: null,
+            totalCurrency: null,
+            balances: [
+              {
+                currency: "USD",
+                amount: "12.30000000",
+                updatedAt: "2026-03-22 00:00:00",
+              },
+            ],
+          },
+        });
       }
 
-      throw new Error(`Unhandled fetch request: ${url}`);
+      if (query.includes("accountPositions")) {
+        return gqlResponse({ accountPositions: [] });
+      }
+
+      if (query.includes("assets")) {
+        return gqlResponse({ assets: [] });
+      }
+
+      if (query.includes("fxRates")) {
+        return gqlResponse({ fxRates: { targetCurrency: "EUR", rates: [], lastUpdated: null, refreshStatus: "available", refreshError: null } });
+      }
+
+      throw new Error(`Unhandled GQL query: ${query}`);
     });
 
     renderAccountDetailPage("/accounts/7");

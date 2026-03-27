@@ -3,9 +3,9 @@ import { createPortal } from "react-dom";
 
 import { Button } from "@/components/ui/button";
 import {
-  getTransactionDetailApiUrl,
-  getTransactionsApiUrl,
-  readApiErrorMessage,
+  createTransaction,
+  updateTransaction,
+  extractGqlErrorMessage,
 } from "@/lib/api";
 
 import type { Account, Asset, Transaction } from "./types";
@@ -41,7 +41,7 @@ function getDefaultCurrency(accounts: Account[], selectedAccountId: string) {
 
   return (
     accounts.find((account) => String(account.id) === selectedAccountId)
-      ?.base_currency ?? ""
+      ?.baseCurrency ?? ""
   );
 }
 
@@ -62,12 +62,12 @@ function buildCreateState(
 
 function buildEditState(transaction: Transaction): FormState {
   return {
-    assetId: String(transaction.asset_id),
-    type: transaction.transaction_type,
-    tradeDate: transaction.trade_date,
+    assetId: String(transaction.assetId),
+    type: transaction.transactionType,
+    tradeDate: transaction.tradeDate,
     quantity: transaction.quantity,
-    unitPrice: transaction.unit_price,
-    currency: transaction.currency_code,
+    unitPrice: transaction.unitPrice,
+    currency: transaction.currencyCode,
     notes: transaction.notes || "",
   };
 }
@@ -134,40 +134,36 @@ export function TransactionFormModal({
     setIsSubmitting(true);
 
     try {
-      const payload = {
-        account_id: parseInt(selectedAccountId),
-        asset_id: parseInt(formState.assetId),
-        transaction_type: formState.type,
-        trade_date: formState.tradeDate,
-        quantity: formState.quantity,
-        unit_price: formState.unitPrice,
-        currency_code: formState.currency,
-        notes: formState.notes || null,
-      };
-
-      const url = transactionId
-        ? getTransactionDetailApiUrl(transactionId)
-        : getTransactionsApiUrl();
-      const method = transactionId ? "PUT" : "POST";
-
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const message = await readApiErrorMessage(
-          response,
-          transactionId ? "Failed to update transaction" : "Failed to create transaction",
+      if (transactionId) {
+        await updateTransaction(
+          transactionId,
+          parseInt(selectedAccountId),
+          parseInt(formState.assetId),
+          formState.type,
+          formState.tradeDate,
+          formState.quantity,
+          formState.unitPrice,
+          formState.currency,
+          formState.notes || null,
         );
-        setSubmitError(message);
-        return;
+      } else {
+        await createTransaction(
+          parseInt(selectedAccountId),
+          parseInt(formState.assetId),
+          formState.type,
+          formState.tradeDate,
+          formState.quantity,
+          formState.unitPrice,
+          formState.currency,
+          formState.notes || null,
+        );
       }
-
       onSaved();
-    } catch {
-      setSubmitError("Network error");
+    } catch (error) {
+      setSubmitError(extractGqlErrorMessage(
+        error,
+        transactionId ? "Failed to update transaction" : "Failed to create transaction",
+      ));
     } finally {
       setIsSubmitting(false);
     }

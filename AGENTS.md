@@ -59,6 +59,11 @@ Frontend: React + Vite + Tailwind + shadcn
 ## Done criteria
 - project builds successfully
 - tests pass
-- before pushing, check formatting and linting
+- before pushing, run all of the following and fix any errors:
+  - backend: `cargo fmt --check`
+  - backend: `cargo test`
+  - frontend: `npm run lint`
+  - frontend: `npm run typecheck`
+  - frontend: `npm test -- --run`
 - no unused code
 - push only after all plan steps are completed
