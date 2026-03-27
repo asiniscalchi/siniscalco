@@ -2,11 +2,10 @@ use async_graphql::{Context, Object};
 use sqlx::SqlitePool;
 
 use crate::{
-    AccountId, AssetId, PRODUCT_BASE_CURRENCY, SharedFxRefreshStatus,
-    compact_decimal_output, get_account, get_account_value_summary, get_asset,
-    get_portfolio_summary, get_transaction, list_account_balances, list_account_positions,
-    list_account_summaries, list_asset_transactions, list_assets, list_currencies,
-    list_fx_rate_summary, list_transactions, normalize_amount_output,
+    AccountId, AssetId, PRODUCT_BASE_CURRENCY, SharedFxRefreshStatus, compact_decimal_output,
+    get_account, get_account_value_summary, get_asset, get_portfolio_summary, get_transaction,
+    list_account_balances, list_account_positions, list_account_summaries, list_asset_transactions,
+    list_assets, list_currencies, list_fx_rate_summary, list_transactions, normalize_amount_output,
     storage::StorageError,
 };
 
@@ -124,12 +123,14 @@ impl QueryRoot {
     async fn account(&self, ctx: &Context<'_>, id: i64) -> async_graphql::Result<AccountDetail> {
         let pool = ctx.data::<SqlitePool>()?;
         let account_id = AccountId::try_from(id).map_err(storage_to_gql)?;
-        let account = get_account(pool, account_id).await.map_err(|err| match err {
-            StorageError::Database(sqlx::Error::RowNotFound) => {
-                async_graphql::Error::new("Account not found")
-            }
-            other => storage_to_gql(other),
-        })?;
+        let account = get_account(pool, account_id)
+            .await
+            .map_err(|err| match err {
+                StorageError::Database(sqlx::Error::RowNotFound) => {
+                    async_graphql::Error::new("Account not found")
+                }
+                other => storage_to_gql(other),
+            })?;
         let balances = list_account_balances(pool, account_id)
             .await
             .map_err(storage_to_gql)?;
@@ -194,11 +195,7 @@ impl QueryRoot {
         Ok(transactions.into_iter().map(to_transaction).collect())
     }
 
-    async fn transaction(
-        &self,
-        ctx: &Context<'_>,
-        id: i64,
-    ) -> async_graphql::Result<Transaction> {
+    async fn transaction(&self, ctx: &Context<'_>, id: i64) -> async_graphql::Result<Transaction> {
         let pool = ctx.data::<SqlitePool>()?;
         let transaction = get_transaction(pool, id).await.map_err(|err| match err {
             StorageError::Database(sqlx::Error::RowNotFound) => {

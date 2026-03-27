@@ -6,8 +6,8 @@ use tracing::{error, info};
 
 use backend::{
     AppState, AssetPriceRefreshConfig, Config, FxRefreshConfig, build_router_with_state,
-    connect_db_file, init_tracing, new_shared_fx_refresh_status,
-    spawn_asset_price_refresh_task, spawn_fx_refresh_task,
+    connect_db_file, init_tracing, new_shared_fx_refresh_status, spawn_asset_price_refresh_task,
+    spawn_fx_refresh_task,
 };
 
 #[tokio::main]

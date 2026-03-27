@@ -18,9 +18,9 @@ use crate::{
     AccountName, AccountType, Amount, AssetName, AssetPriceRefreshConfig, AssetQuantity,
     AssetSymbol, AssetTransactionType, AssetType, AssetUnitPrice, CreateAccountInput,
     CreateAssetInput, CreateAssetTransactionInput, Currency, FxRate, FxRefreshAvailability,
-    FxRefreshStatus, TradeDate, UpsertAccountBalanceInput, UpsertAssetPriceInput, UpsertFxRateInput,
-    create_account, create_asset, create_asset_transaction, init_db, upsert_account_balance,
-    upsert_asset_price, upsert_fx_rate,
+    FxRefreshStatus, TradeDate, UpsertAccountBalanceInput, UpsertAssetPriceInput,
+    UpsertFxRateInput, create_account, create_asset, create_asset_transaction, init_db,
+    upsert_account_balance, upsert_asset_price, upsert_fx_rate,
 };
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -106,10 +106,7 @@ fn build_app_with_fx_status(
     })
 }
 
-fn build_app_with_price_config(
-    pool: sqlx::SqlitePool,
-    config: AssetPriceRefreshConfig,
-) -> Router {
+fn build_app_with_price_config(pool: sqlx::SqlitePool, config: AssetPriceRefreshConfig) -> Router {
     build_router_with_state(AppState {
         pool,
         fx_refresh_status: std::sync::Arc::new(RwLock::new(FxRefreshStatus::available())),
@@ -184,7 +181,10 @@ async fn lists_allowed_currencies() {
 
     let json = gql(app, "{ currencies }").await;
 
-    assert_eq!(json["data"]["currencies"], json!(["CHF", "EUR", "GBP", "USD"]));
+    assert_eq!(
+        json["data"]["currencies"],
+        json!(["CHF", "EUR", "GBP", "USD"])
+    );
 }
 
 // ── assets ────────────────────────────────────────────────────────────────────
@@ -380,7 +380,10 @@ async fn gets_asset_detail() {
     let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
     let json = gql(
         app,
-        &format!("{{ asset(id: {}) {{ id symbol name assetType createdAt updatedAt }} }}", asset_id.as_i64()),
+        &format!(
+            "{{ asset(id: {}) {{ id symbol name assetType createdAt updatedAt }} }}",
+            asset_id.as_i64()
+        ),
     )
     .await;
 
@@ -537,8 +540,16 @@ async fn lists_fx_rates_for_eur() {
     assert_eq!(fx["refreshStatus"], "available");
     assert!(fx["refreshError"].is_null());
     let rates = fx["rates"].as_array().unwrap();
-    assert!(rates.iter().any(|r| r["currency"] == "USD" && r["rate"] == "0.92"));
-    assert!(rates.iter().any(|r| r["currency"] == "GBP" && r["rate"] == "1.17"));
+    assert!(
+        rates
+            .iter()
+            .any(|r| r["currency"] == "USD" && r["rate"] == "0.92")
+    );
+    assert!(
+        rates
+            .iter()
+            .any(|r| r["currency"] == "GBP" && r["rate"] == "1.17")
+    );
 }
 
 #[tokio::test]
@@ -740,7 +751,11 @@ async fn lists_asset_transactions_in_trade_date_order() {
     .await
     .expect("asset insert should succeed");
 
-    for (date, qty) in [("2026-03-01", "5"), ("2026-01-15", "10"), ("2026-02-20", "3")] {
+    for (date, qty) in [
+        ("2026-03-01", "5"),
+        ("2026-01-15", "10"),
+        ("2026-02-20", "3"),
+    ] {
         create_asset_transaction(
             &pool,
             CreateAssetTransactionInput {
@@ -945,7 +960,11 @@ async fn deletes_asset_transaction() {
     .expect("transaction insert should succeed");
 
     let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
-    let json = gql(app, &format!("mutation {{ deleteTransaction(id: {}) }}", tx.id)).await;
+    let json = gql(
+        app,
+        &format!("mutation {{ deleteTransaction(id: {}) }}", tx.id),
+    )
+    .await;
 
     assert_eq!(json["data"]["deleteTransaction"], true);
 }
