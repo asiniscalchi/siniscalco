@@ -14,7 +14,7 @@ import {
 import { AccountDetailErrorState } from "./AccountDetailErrorState";
 import { AccountDetailLoadingState } from "./AccountDetailLoadingState";
 import { AccountDetailReadyState } from "./AccountDetailReadyState";
-import type { AccountDetail, ReadyState } from "./types";
+import type { ReadyState } from "./types";
 
 function computeAssetValue(
   quantity: string,
@@ -53,14 +53,11 @@ export function AccountDetailPage() {
     | { status: "loading" }
     | { status: "error"; message: string }
     | { status: "ready"; data: ReadyState }
-  >({ status: "loading" });
+  >(accountId ? { status: "loading" } : { status: "error", message: "Account not found." });
   const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
-    if (!accountId) {
-      setRequestState({ status: "error", message: "Account not found." });
-      return;
-    }
+    if (!accountId) return;
 
     const resolvedAccountId = parseInt(accountId);
     let cancelled = false;
