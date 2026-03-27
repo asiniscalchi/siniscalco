@@ -2,16 +2,13 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import {
-  getAccountPositionsApiUrl,
-  getAccountDetailApiUrl,
-  getAssetsApiUrl,
-  getCurrenciesApiUrl,
-  getFxRatesApiUrl,
-  readApiErrorMessage,
-  type AssetPositionResponse,
-  type AssetResponse,
-  type CurrencyResponse,
-  type FxRateSummaryResponse,
+  fetchAccount,
+  fetchAccountPositions,
+  fetchAssets,
+  fetchCurrencies,
+  fetchFxRates,
+  extractGqlErrorMessage,
+  type FxRateSummary,
 } from "@/lib/api";
 
 import { AccountDetailErrorState } from "./AccountDetailErrorState";
@@ -24,7 +21,7 @@ function computeAssetValue(
   price: string | null,
   priceCurrency: string | null,
   baseCurrency: string,
-  fxRates: FxRateSummaryResponse | null,
+  fxRates: FxRateSummary | null,
 ): string | null {
   if (!price || !priceCurrency) return null;
 
@@ -33,10 +30,10 @@ function computeAssetValue(
   if (priceCurrency === baseCurrency) return rawValue.toFixed(2);
   if (!fxRates) return null;
 
-  const { target_currency, rates } = fxRates;
+  const { targetCurrency, rates } = fxRates;
 
   const rateToTarget = (currency: string): number | null => {
-    if (currency === target_currency) return 1;
+    if (currency === targetCurrency) return 1;
     const entry = rates.find((r) => r.currency === currency);
     return entry ? parseFloat(entry.rate) : null;
   };
@@ -65,66 +62,36 @@ export function AccountDetailPage() {
       return;
     }
 
-    const resolvedAccountId = accountId;
+    const resolvedAccountId = parseInt(accountId);
     let cancelled = false;
 
     async function loadAccount() {
       setRequestState({ status: "loading" });
 
       try {
-        const [accountResponse, currenciesResponse] = await Promise.all([
-          fetch(getAccountDetailApiUrl(resolvedAccountId)),
-          fetch(getCurrenciesApiUrl()),
-        ]);
-
-        if (!accountResponse.ok) {
-          const message = await readApiErrorMessage(
-            accountResponse,
-            "Could not load account.",
-          );
-          throw new Error(message);
-        }
-
-        if (!currenciesResponse.ok) {
-          const message = await readApiErrorMessage(
-            currenciesResponse,
-            "Could not load currencies.",
-          );
-          throw new Error(message);
-        }
-
         const [account, currencies] = await Promise.all([
-          accountResponse.json() as Promise<AccountDetail>,
-          currenciesResponse.json() as Promise<CurrencyResponse[]>,
+          fetchAccount(resolvedAccountId),
+          fetchCurrencies(),
         ]);
 
         const [positionsResult, assetsResult, fxRatesResult] = await Promise.allSettled([
-          Promise.resolve().then(() =>
-            fetch(getAccountPositionsApiUrl(resolvedAccountId)),
-          ),
-          Promise.resolve().then(() => fetch(getAssetsApiUrl())),
-          Promise.resolve().then(() => fetch(getFxRatesApiUrl())),
+          fetchAccountPositions(resolvedAccountId),
+          fetchAssets(),
+          fetchFxRates(),
         ]);
 
         const positions =
-          positionsResult.status === "fulfilled" && positionsResult.value.ok
-            ? ((await positionsResult.value.json()) as AssetPositionResponse[])
-            : [];
+          positionsResult.status === "fulfilled" ? positionsResult.value : [];
 
         const assets =
-          assetsResult.status === "fulfilled" && assetsResult.value.ok
-            ? ((await assetsResult.value.json()) as AssetResponse[])
-            : [];
+          assetsResult.status === "fulfilled" ? assetsResult.value : [];
 
         const fxRates =
-          fxRatesResult.status === "fulfilled" && fxRatesResult.value.ok
-            ? ((await fxRatesResult.value.json()) as FxRateSummaryResponse)
-            : null;
+          fxRatesResult.status === "fulfilled" ? fxRatesResult.value : null;
 
-        const currenciesList = currencies.map((currency) => currency.code);
         const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
         const accountAssets = positions.flatMap((position) => {
-          const asset = assetsById.get(position.asset_id);
+          const asset = assetsById.get(position.assetId);
 
           if (!asset) {
             return [];
@@ -132,16 +99,16 @@ export function AccountDetailPage() {
 
           return [
             {
-              asset_id: position.asset_id,
+              assetId: position.assetId,
               symbol: asset.symbol,
               name: asset.name,
-              asset_type: asset.asset_type,
+              assetType: asset.assetType,
               quantity: position.quantity,
               value: computeAssetValue(
                 position.quantity,
-                asset.current_price,
-                asset.current_price_currency,
-                account.base_currency,
+                asset.currentPrice,
+                asset.currentPriceCurrency,
+                account.baseCurrency,
                 fxRates,
               ),
             },
@@ -151,17 +118,14 @@ export function AccountDetailPage() {
         if (!cancelled) {
           setRequestState({
             status: "ready",
-            data: { account, currencies: currenciesList, assets: accountAssets },
+            data: { account, currencies, assets: accountAssets },
           });
         }
       } catch (error) {
         if (!cancelled) {
           setRequestState({
             status: "error",
-            message:
-              error instanceof Error
-                ? error.message
-                : "Could not load account.",
+            message: extractGqlErrorMessage(error, "Could not load account."),
           });
         }
       }

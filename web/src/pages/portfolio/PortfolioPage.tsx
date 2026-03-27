@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 
 import {
-  getFxRatesApiUrl,
-  getPortfolioApiUrl,
-  type FxRateSummaryResponse,
-  type PortfolioSummaryResponse,
+  fetchFxRates,
+  fetchPortfolio,
+  type FxRateSummary,
+  type PortfolioSummary,
 } from "@/lib/api";
 
 import { FxRatesFooter } from "./FxRatesFooter";
@@ -12,13 +12,11 @@ import { PortfolioErrorState } from "./PortfolioErrorState";
 import { PortfolioLoadingState } from "./PortfolioLoadingState";
 import { PortfolioReadyState } from "./PortfolioReadyState";
 
-type PortfolioSummary = PortfolioSummaryResponse;
-
 export function PortfolioPage() {
   const [requestState, setRequestState] = useState<
     | { status: "loading" }
     | { status: "error" }
-    | { status: "ready"; summary: PortfolioSummary; fxRates: FxRateSummaryResponse }
+    | { status: "ready"; summary: PortfolioSummary; fxRates: FxRateSummary }
   >({ status: "loading" });
   const [retryToken, setRetryToken] = useState(0);
 
@@ -29,26 +27,9 @@ export function PortfolioPage() {
       setRequestState({ status: "loading" });
 
       try {
-        const [portfolioResponse, fxRatesResponse] = await Promise.all([
-          fetch(getPortfolioApiUrl()),
-          fetch(getFxRatesApiUrl()),
-        ]);
-
-        if (!portfolioResponse.ok) {
-          throw new Error(
-            `portfolio request failed with status ${portfolioResponse.status}`,
-          );
-        }
-
-        if (!fxRatesResponse.ok) {
-          throw new Error(
-            `fx rates request failed with status ${fxRatesResponse.status}`,
-          );
-        }
-
         const [summary, fxRates] = await Promise.all([
-          portfolioResponse.json() as Promise<PortfolioSummaryResponse>,
-          fxRatesResponse.json() as Promise<FxRateSummaryResponse>,
+          fetchPortfolio(),
+          fetchFxRates(),
         ]);
 
         if (!cancelled) {

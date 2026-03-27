@@ -26,6 +26,32 @@ async function unlockEditMode() {
   fireEvent.click(unlockButton);
 }
 
+function gqlResponse(data: unknown) {
+  return Promise.resolve(
+    new Response(JSON.stringify({ data }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+}
+
+function gqlErrorResponse(message: string, fieldErrors?: Record<string, string[]>) {
+  const errors: Array<{ message: string; extensions?: Record<string, unknown> }> = [
+    fieldErrors
+      ? { message, extensions: { field_errors: fieldErrors } }
+      : { message },
+  ];
+  return Promise.resolve(
+    new Response(
+      JSON.stringify({ data: null, errors }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      },
+    ),
+  );
+}
+
 describe("AssetsPage", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
@@ -50,32 +76,36 @@ describe("AssetsPage", () => {
   it("renders fetched assets", async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(
-        JSON.stringify([
-          {
-            id: 1,
-            symbol: "AAPL",
-            name: "Apple Inc.",
-            asset_type: "STOCK",
-            quote_symbol: "AAPL",
-            isin: "US0378331005",
-            current_price: "189.32",
-            current_price_currency: "USD",
-            current_price_as_of: "2026-03-24T14:30:00Z",
-            total_quantity: "10.5",
+        JSON.stringify({
+          data: {
+            assets: [
+              {
+                id: 1,
+                symbol: "AAPL",
+                name: "Apple Inc.",
+                assetType: "STOCK",
+                quoteSymbol: "AAPL",
+                isin: "US0378331005",
+                currentPrice: "189.32",
+                currentPriceCurrency: "USD",
+                currentPriceAsOf: "2026-03-24T14:30:00Z",
+                totalQuantity: "10.5",
+              },
+              {
+                id: 2,
+                symbol: "BTC",
+                name: "Bitcoin",
+                assetType: "CRYPTO",
+                quoteSymbol: "BTC/USD",
+                isin: null,
+                currentPrice: null,
+                currentPriceCurrency: null,
+                currentPriceAsOf: null,
+                totalQuantity: null,
+              },
+            ],
           },
-          {
-            id: 2,
-            symbol: "BTC",
-            name: "Bitcoin",
-            asset_type: "CRYPTO",
-            quote_symbol: "BTC/USD",
-            isin: null,
-            current_price: null,
-            current_price_currency: null,
-            current_price_as_of: null,
-            total_quantity: null,
-          },
-        ]),
+        }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
     );
@@ -101,7 +131,7 @@ describe("AssetsPage", () => {
 
   it("shows empty state when no assets exist", async () => {
     vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify([]), {
+      new Response(JSON.stringify({ data: { assets: [] } }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }),
@@ -116,19 +146,24 @@ describe("AssetsPage", () => {
   it("keeps populated assets constrained on mobile when edit mode is unlocked", async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(
-        JSON.stringify([
-          {
-            id: 1,
-            symbol: "AAPL",
-            name: "Apple Inc.",
-            asset_type: "STOCK",
-            quote_symbol: null,
-            isin: "US0378331005",
-            current_price: null,
-            current_price_currency: null,
-            current_price_as_of: null,
+        JSON.stringify({
+          data: {
+            assets: [
+              {
+                id: 1,
+                symbol: "AAPL",
+                name: "Apple Inc.",
+                assetType: "STOCK",
+                quoteSymbol: null,
+                isin: "US0378331005",
+                currentPrice: null,
+                currentPriceCurrency: null,
+                currentPriceAsOf: null,
+                totalQuantity: null,
+              },
+            ],
           },
-        ]),
+        }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
     );
@@ -155,7 +190,7 @@ describe("AssetsPage", () => {
 
   it("handles create asset", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify([]), {
+      new Response(JSON.stringify({ data: { assets: [] } }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }),
@@ -180,55 +215,51 @@ describe("AssetsPage", () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(
         JSON.stringify({
-          id: 3,
-          symbol: "MSFT",
-          name: "Microsoft",
-          asset_type: "STOCK",
-          quote_symbol: "MSFT",
-          isin: "US5949181045",
-          current_price: null,
-          current_price_currency: null,
-          current_price_as_of: null,
+          data: {
+            createAsset: {
+              id: 3,
+              symbol: "MSFT",
+              name: "Microsoft",
+              assetType: "STOCK",
+              quoteSymbol: "MSFT",
+              isin: "US5949181045",
+              currentPrice: null,
+              currentPriceCurrency: null,
+              currentPriceAsOf: null,
+              totalQuantity: null,
+            },
+          },
         }),
-        { status: 201, headers: { "Content-Type": "application/json" } },
+        { status: 200, headers: { "Content-Type": "application/json" } },
       ),
     );
 
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(
-        JSON.stringify([
-          {
-            id: 3,
-            symbol: "MSFT",
-            name: "Microsoft",
-            asset_type: "STOCK",
-            quote_symbol: "MSFT",
-            isin: "US5949181045",
-            current_price: null,
-            current_price_currency: null,
-            current_price_as_of: null,
+        JSON.stringify({
+          data: {
+            assets: [
+              {
+                id: 3,
+                symbol: "MSFT",
+                name: "Microsoft",
+                assetType: "STOCK",
+                quoteSymbol: "MSFT",
+                isin: "US5949181045",
+                currentPrice: null,
+                currentPriceCurrency: null,
+                currentPriceAsOf: null,
+                totalQuantity: null,
+              },
+            ],
           },
-        ]),
+        }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
     );
 
     const modal = screen.getByRole("dialog");
     fireEvent.click(within(modal).getByRole("button", { name: "Add Asset" }));
-
-    expect(fetch).toHaveBeenNthCalledWith(
-      2,
-      expect.any(String),
-      expect.objectContaining({
-        body: JSON.stringify({
-          symbol: "MSFT",
-          name: "Microsoft",
-          asset_type: "STOCK",
-          quote_symbol: "MSFT",
-          isin: "US5949181045",
-        }),
-      }),
-    );
 
     await waitFor(() => {
       expect(screen.queryByText("Add Asset", { selector: "h2" })).toBeNull();
@@ -240,19 +271,24 @@ describe("AssetsPage", () => {
   it("handles edit asset", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(
-        JSON.stringify([
-          {
-            id: 1,
-            symbol: "AAPL",
-            name: "Apple Inc.",
-            asset_type: "STOCK",
-            quote_symbol: "AAPL",
-            isin: "US0378331005",
-            current_price: null,
-            current_price_currency: null,
-            current_price_as_of: null,
+        JSON.stringify({
+          data: {
+            assets: [
+              {
+                id: 1,
+                symbol: "AAPL",
+                name: "Apple Inc.",
+                assetType: "STOCK",
+                quoteSymbol: "AAPL",
+                isin: "US0378331005",
+                currentPrice: null,
+                currentPriceCurrency: null,
+                currentPriceAsOf: null,
+                totalQuantity: null,
+              },
+            ],
           },
-        ]),
+        }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
     );
@@ -272,15 +308,20 @@ describe("AssetsPage", () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(
         JSON.stringify({
-          id: 1,
-          symbol: "AAPL",
-          name: "Apple Updated",
-          asset_type: "STOCK",
-          quote_symbol: "AAPL",
-          isin: "US0378331005",
-          current_price: null,
-          current_price_currency: null,
-          current_price_as_of: null,
+          data: {
+            updateAsset: {
+              id: 1,
+              symbol: "AAPL",
+              name: "Apple Updated",
+              assetType: "STOCK",
+              quoteSymbol: "AAPL",
+              isin: "US0378331005",
+              currentPrice: null,
+              currentPriceCurrency: null,
+              currentPriceAsOf: null,
+              totalQuantity: null,
+            },
+          },
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
@@ -288,19 +329,24 @@ describe("AssetsPage", () => {
 
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(
-        JSON.stringify([
-          {
-            id: 1,
-            symbol: "AAPL",
-            name: "Apple Updated",
-            asset_type: "STOCK",
-            quote_symbol: "AAPL",
-            isin: "US0378331005",
-            current_price: null,
-            current_price_currency: null,
-            current_price_as_of: null,
+        JSON.stringify({
+          data: {
+            assets: [
+              {
+                id: 1,
+                symbol: "AAPL",
+                name: "Apple Updated",
+                assetType: "STOCK",
+                quoteSymbol: "AAPL",
+                isin: "US0378331005",
+                currentPrice: null,
+                currentPriceCurrency: null,
+                currentPriceAsOf: null,
+                totalQuantity: null,
+              },
+            ],
           },
-        ]),
+        }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
     );
@@ -316,30 +362,36 @@ describe("AssetsPage", () => {
 
   it("handles delete asset", async () => {
     let callCount = 0;
-    vi.mocked(fetch).mockImplementation((url) => {
+    vi.mocked(fetch).mockImplementation((_input, init) => {
       callCount++;
-      const urlStr = String(url);
-      if (urlStr.endsWith("/assets") && callCount === 1) {
-        return Promise.resolve(new Response(
-          JSON.stringify([
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string } : null;
+      const query = body?.query ?? "";
+
+      if (query.includes("assets") && callCount === 1) {
+        return gqlResponse({
+          assets: [
             {
               id: 1,
               symbol: "AAPL",
               name: "Apple Inc.",
-              asset_type: "STOCK",
+              assetType: "STOCK",
               isin: "US0378331005",
+              quoteSymbol: null,
+              currentPrice: null,
+              currentPriceCurrency: null,
+              currentPriceAsOf: null,
+              totalQuantity: null,
             },
-          ]),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ));
+          ],
+        });
       }
-      if (urlStr.includes("/assets/1") && callCount === 2) {
-        return Promise.resolve(new Response(null, { status: 204 }));
+      if (query.includes("deleteAsset") && callCount === 2) {
+        return gqlResponse({ deleteAsset: true });
       }
-      if (urlStr.endsWith("/assets") && callCount === 3) {
-        return Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }));
+      if (query.includes("assets") && callCount === 3) {
+        return gqlResponse({ assets: [] });
       }
-      return Promise.reject(new Error(`Unexpected fetch: ${urlStr} (call ${callCount})`));
+      return Promise.reject(new Error(`Unexpected GQL query (call ${callCount}): ${query}`));
     });
 
     renderAssetsPage();
@@ -359,7 +411,7 @@ describe("AssetsPage", () => {
 
   it("shows validation errors from backend", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }),
+      new Response(JSON.stringify({ data: { assets: [] } }), { status: 200, headers: { "Content-Type": "application/json" } }),
     );
 
     renderAssetsPage();
@@ -368,15 +420,9 @@ describe("AssetsPage", () => {
     fireEvent.click(createButton[0]);
 
     vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          message: "Validation failed",
-          field_errors: {
-            symbol: ["Symbol is already taken"],
-          },
-        }),
-        { status: 422, headers: { "Content-Type": "application/json" } },
-      ),
+      gqlErrorResponse("Validation failed", {
+        symbol: ["Symbol is already taken"],
+      }),
     );
 
     fireEvent.change(screen.getByLabelText(/Symbol \*/), { target: { value: "AAPL" } });

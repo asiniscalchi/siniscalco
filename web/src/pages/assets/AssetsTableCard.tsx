@@ -5,15 +5,15 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/lib/format-money";
 
-import type { AssetResponse } from "@/lib/api";
+import type { Asset } from "@/lib/api";
 
 type AssetsTableCardProps = {
-  assets: AssetResponse[];
+  assets: Asset[];
   isLocked: boolean;
   isDeleting: number | null;
   onCreateClick: () => void;
-  onEditClick: (asset: AssetResponse) => void;
-  onDeleteClick: (asset: AssetResponse) => void;
+  onEditClick: (asset: Asset) => void;
+  onDeleteClick: (asset: Asset) => void;
   onToggleLock: () => void;
 };
 
@@ -26,34 +26,34 @@ export function AssetsTableCard({
   onDeleteClick,
   onToggleLock,
 }: AssetsTableCardProps) {
-  const formatPrice = (asset: AssetResponse) => {
-    if (!asset.current_price || !asset.current_price_currency) {
+  const formatPrice = (asset: Asset) => {
+    if (!asset.currentPrice || !asset.currentPriceCurrency) {
       return "Pending";
     }
 
-    return formatMoney(asset.current_price, asset.current_price_currency, false, {
+    return formatMoney(asset.currentPrice, asset.currentPriceCurrency, false, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 6,
     }).text;
   };
 
-  const formatTotalValue = (asset: AssetResponse) => {
-    if (!asset.total_quantity || !asset.current_price || !asset.current_price_currency) {
+  const formatTotalValue = (asset: Asset) => {
+    if (!asset.totalQuantity || !asset.currentPrice || !asset.currentPriceCurrency) {
       return null;
     }
-    const value = Number(asset.total_quantity) * Number(asset.current_price);
-    return formatMoney(value, asset.current_price_currency, false).text;
+    const value = Number(asset.totalQuantity) * Number(asset.currentPrice);
+    return formatMoney(value, asset.currentPriceCurrency, false).text;
   };
 
-  const priceLabel = (asset: AssetResponse) => {
-    if (asset.current_price_as_of) {
-      const parsed = new Date(asset.current_price_as_of);
+  const priceLabel = (asset: Asset) => {
+    if (asset.currentPriceAsOf) {
+      const parsed = new Date(asset.currentPriceAsOf);
       if (!Number.isNaN(parsed.getTime())) {
         return `Updated ${parsed.toLocaleString()}`;
       }
     }
 
-    return asset.quote_symbol || asset.symbol;
+    return asset.quoteSymbol || asset.symbol;
   };
 
   return (
@@ -120,7 +120,7 @@ export function AssetsTableCard({
                     <div className="flex items-baseline justify-between gap-2">
                       <ItemLabel primary={asset.symbol} secondary={asset.name} />
                       <span className="shrink-0 inline-flex items-center rounded-full border bg-muted/50 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                        {asset.asset_type.replace("_", " ")}
+                        {asset.assetType.replace("_", " ")}
                       </span>
                     </div>
                     <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
@@ -186,7 +186,7 @@ export function AssetsTableCard({
                     </td>
                     <td className="py-3 pr-4">
                       <span className="inline-flex items-center rounded-full border bg-muted/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
-                        {asset.asset_type.replace("_", " ")}
+                        {asset.assetType.replace("_", " ")}
                       </span>
                     </td>
                     <td className="py-3 pr-4">
@@ -207,12 +207,12 @@ export function AssetsTableCard({
                             {formatTotalValue(asset)}
                           </div>
                           <div className="text-[11px] text-muted-foreground font-mono tabular-nums">
-                            {asset.total_quantity ?? "—"}
+                            {asset.totalQuantity ?? "—"}
                           </div>
                         </>
                       ) : (
                         <div className="font-mono text-[13px] tabular-nums">
-                          {asset.total_quantity ?? "—"}
+                          {asset.totalQuantity ?? "—"}
                         </div>
                       )}
                     </td>

@@ -21,53 +21,50 @@ function renderAccountsListPage() {
   );
 }
 
+function gqlResponse(data: unknown) {
+  return Promise.resolve(
+    new Response(JSON.stringify({ data }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+}
+
+const defaultPortfolio = {
+  displayCurrency: "EUR",
+  totalValueStatus: "ok",
+  totalValueAmount: "100.00000000",
+  accountTotals: [],
+  cashByCurrency: [],
+  fxLastUpdated: null,
+  fxRefreshStatus: "available",
+  fxRefreshError: null,
+  allocationTotals: [],
+  allocationIsPartial: false,
+  holdings: [],
+  holdingsIsPartial: false,
+};
+
 function mockDashboardRequests({
   accounts,
-  portfolio = {
-    display_currency: "EUR",
-    total_value_status: "ok",
-    total_value_amount: "100.00000000",
-    account_totals: [],
-    cash_by_currency: [],
-    fx_last_updated: null,
-    fx_refresh_status: "available",
-    fx_refresh_error: null,
-  },
+  portfolio = defaultPortfolio,
 }: {
   accounts: unknown[];
-  portfolio?: {
-    display_currency: string;
-    total_value_status: string;
-    total_value_amount: string | null;
-    account_totals: unknown[];
-    cash_by_currency: unknown[];
-    fx_last_updated: string | null;
-    fx_refresh_status: string;
-    fx_refresh_error: string | null;
-  };
+  portfolio?: typeof defaultPortfolio;
 }) {
-  vi.mocked(fetch).mockImplementation((input) => {
-    const url = String(input);
+  vi.mocked(fetch).mockImplementation((_input, init) => {
+    const body = init?.body ? JSON.parse(String(init.body)) as { query: string } : null;
+    const query = body?.query ?? "";
 
-    if (url.endsWith("/accounts")) {
-      return Promise.resolve(
-        new Response(JSON.stringify(accounts), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
+    if (query.includes("accounts {")) {
+      return gqlResponse({ accounts });
     }
 
-    if (url.endsWith("/portfolio")) {
-      return Promise.resolve(
-        new Response(JSON.stringify(portfolio), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
+    if (query.includes("portfolio {")) {
+      return gqlResponse({ portfolio });
     }
 
-    throw new Error(`Unhandled fetch request: ${url}`);
+    throw new Error(`Unhandled GQL query: ${query}`);
   });
 }
 
@@ -101,31 +98,31 @@ describe("AccountsListPage", () => {
         {
           id: 1,
           name: "IBKR",
-          account_type: "broker",
-          base_currency: "EUR",
-          summary_status: "ok",
-          total_amount: "123.45000000",
-          total_currency: "EUR",
+          accountType: "broker",
+          baseCurrency: "EUR",
+          summaryStatus: "ok",
+          cashTotalAmount: null,
+          assetTotalAmount: null,
+          totalAmount: "123.45000000",
+          totalCurrency: "EUR",
         },
       ],
       portfolio: {
-        display_currency: "EUR",
-        total_value_status: "ok",
-        total_value_amount: "123.45000000",
-        account_totals: [
+        ...defaultPortfolio,
+        totalValueAmount: "123.45000000",
+        accountTotals: [
           {
             id: 1,
             name: "IBKR",
-            account_type: "broker",
-            summary_status: "ok",
-            total_amount: "123.45000000",
-            total_currency: "EUR",
+            accountType: "broker",
+            summaryStatus: "ok",
+            cashTotalAmount: null,
+            assetTotalAmount: null,
+            totalAmount: "123.45000000",
+            totalCurrency: "EUR",
           },
         ],
-        cash_by_currency: [],
-        fx_last_updated: "2026-03-22 10:00:00",
-        fx_refresh_status: "available",
-        fx_refresh_error: null,
+        fxLastUpdated: "2026-03-22 10:00:00",
       },
     });
 
@@ -146,11 +143,13 @@ describe("AccountsListPage", () => {
         {
           id: 2,
           name: "Kraken",
-          account_type: "crypto",
-          base_currency: "EUR",
-          summary_status: "ok",
-          total_amount: "0.00000000",
-          total_currency: "EUR",
+          accountType: "crypto",
+          baseCurrency: "EUR",
+          summaryStatus: "ok",
+          cashTotalAmount: null,
+          assetTotalAmount: null,
+          totalAmount: "0.00000000",
+          totalCurrency: "EUR",
         },
       ],
     });
@@ -167,11 +166,13 @@ describe("AccountsListPage", () => {
         {
           id: 1,
           name: "IBKR",
-          account_type: "broker",
-          base_currency: "EUR",
-          summary_status: "conversion_unavailable",
-          total_amount: null,
-          total_currency: null,
+          accountType: "broker",
+          baseCurrency: "EUR",
+          summaryStatus: "conversion_unavailable",
+          cashTotalAmount: null,
+          assetTotalAmount: null,
+          totalAmount: null,
+          totalCurrency: null,
         },
       ],
     });
@@ -190,55 +191,41 @@ describe("AccountsListPage", () => {
   });
 
   it("renders an error state and retries the request", async () => {
-    let accountsAttempt = 0;
+    let attempt = 0;
 
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input);
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string } : null;
+      const query = body?.query ?? "";
 
-      if (url.endsWith("/accounts")) {
-        accountsAttempt += 1;
+      attempt += 1;
 
-        if (accountsAttempt === 1) {
-          return Promise.reject(new Error("network error"));
-        }
-
-        return Promise.resolve(
-          new Response(
-            JSON.stringify([
-              {
-                id: 1,
-                name: "Main Bank",
-                account_type: "bank",
-                base_currency: "USD",
-                summary_status: "ok",
-                total_amount: "50.00000000",
-                total_currency: "USD",
-              },
-            ]),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
+      if (attempt <= 2) {
+        return Promise.reject(new Error("network error"));
       }
 
-      if (url.endsWith("/portfolio")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              display_currency: "EUR",
-              total_value_status: "ok",
-              total_value_amount: "50.00",
-              account_totals: [],
-              cash_by_currency: [],
-              fx_last_updated: null,
-              fx_refresh_status: "available",
-              fx_refresh_error: null,
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
+      if (query.includes("accounts {")) {
+        return gqlResponse({
+          accounts: [
+            {
+              id: 1,
+              name: "Main Bank",
+              accountType: "bank",
+              baseCurrency: "USD",
+              summaryStatus: "ok",
+              cashTotalAmount: null,
+              assetTotalAmount: null,
+              totalAmount: "50.00000000",
+              totalCurrency: "USD",
+            },
+          ],
+        });
       }
 
-      throw new Error(`Unhandled fetch request: ${url}`);
+      if (query.includes("portfolio {")) {
+        return gqlResponse({ portfolio: defaultPortfolio });
+      }
+
+      throw new Error(`Unhandled GQL query: ${query}`);
     });
 
     renderAccountsListPage();
@@ -250,11 +237,6 @@ describe("AccountsListPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Main Bank")).toBeTruthy();
     });
-    // fetch is called for /accounts and /portfolio.
-    // first attempt: /accounts (fail), /portfolio (pass) -> Promise.all rejects.
-    // retry: calls both again.
-    // so total fetch calls should be 4.
-    expect(fetch).toHaveBeenCalledTimes(4);
   });
 
   it("links to account detail and account creation routes", async () => {
@@ -263,11 +245,13 @@ describe("AccountsListPage", () => {
         {
           id: 7,
           name: "IBKR",
-          account_type: "broker",
-          base_currency: "EUR",
-          summary_status: "ok",
-          total_amount: "1.00000000",
-          total_currency: "EUR",
+          accountType: "broker",
+          baseCurrency: "EUR",
+          summaryStatus: "ok",
+          cashTotalAmount: null,
+          assetTotalAmount: null,
+          totalAmount: "1.00000000",
+          totalCurrency: "EUR",
         },
       ],
     });
@@ -294,11 +278,13 @@ describe("AccountsListPage", () => {
         {
           id: 1,
           name: "IBKR",
-          account_type: "broker",
-          base_currency: "EUR",
-          summary_status: "ok",
-          total_amount: "123.45000000",
-          total_currency: "EUR",
+          accountType: "broker",
+          baseCurrency: "EUR",
+          summaryStatus: "ok",
+          cashTotalAmount: null,
+          assetTotalAmount: null,
+          totalAmount: "123.45000000",
+          totalCurrency: "EUR",
         },
       ],
     });

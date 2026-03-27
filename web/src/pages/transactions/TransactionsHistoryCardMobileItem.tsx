@@ -38,10 +38,10 @@ export function TransactionsHistoryCardMobileItem({
           <span
             className={cn(
               "inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
-              getTransactionTypeClassName(transaction.transaction_type),
+              getTransactionTypeClassName(transaction.transactionType),
             )}
           >
-            {transaction.transaction_type}
+            {transaction.transactionType}
           </span>
         </div>
 
@@ -49,7 +49,7 @@ export function TransactionsHistoryCardMobileItem({
           <div>
             <dt className="text-[10px] text-muted-foreground">Date</dt>
             <dd className="mt-0.5 font-medium tabular-nums">
-              {transaction.trade_date}
+              {transaction.tradeDate}
             </dd>
           </div>
           <div className="text-center">
@@ -67,14 +67,14 @@ export function TransactionsHistoryCardMobileItem({
                 includeCurrency={false}
                 maximumFractionDigits={8}
                 minimumFractionDigits={0}
-                value={transaction.unit_price}
+                value={transaction.unitPrice}
               />
             </dd>
           </div>
           <div className="text-right">
             <dt className="text-[10px] text-muted-foreground">Curr</dt>
             <dd className="mt-0.5 font-mono text-[10px] text-muted-foreground">
-              {transaction.currency_code}
+              {transaction.currencyCode}
             </dd>
           </div>
         </dl>

@@ -35,7 +35,7 @@ export function TransactionsHistoryCardDesktopRow({
       )}
     >
       <td className="py-3 pr-4 whitespace-nowrap tabular-nums">
-        {transaction.trade_date}
+        {transaction.tradeDate}
       </td>
       <td className="py-3 pr-4">
         <ItemLabel primary={asset?.symbol || "Unknown"} secondary={asset?.name} />
@@ -44,10 +44,10 @@ export function TransactionsHistoryCardDesktopRow({
         <span
           className={cn(
             "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
-            getTransactionTypeClassName(transaction.transaction_type),
+            getTransactionTypeClassName(transaction.transactionType),
           )}
         >
-          {transaction.transaction_type}
+          {transaction.transactionType}
         </span>
       </td>
       <td className="py-3 pr-4 text-right font-mono tabular-nums">
@@ -60,11 +60,11 @@ export function TransactionsHistoryCardDesktopRow({
           includeCurrency={false}
           maximumFractionDigits={8}
           minimumFractionDigits={0}
-          value={transaction.unit_price}
+          value={transaction.unitPrice}
         />
       </td>
       <td className="py-3 pr-4 font-mono text-[11px] text-muted-foreground">
-        {transaction.currency_code}
+        {transaction.currencyCode}
       </td>
       <td
         className="max-w-[150px] truncate py-3 pr-4 italic text-muted-foreground"

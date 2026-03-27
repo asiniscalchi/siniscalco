@@ -9,11 +9,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  getAccountsApiUrl,
-  getAssetsApiUrl,
-  getTransactionDetailApiUrl,
-  getTransactionsApiUrl,
-  readApiErrorMessage,
+  fetchAccounts,
+  fetchAssets,
+  fetchTransactions,
+  deleteTransaction,
+  extractGqlErrorMessage,
 } from "@/lib/api";
 import { useUiState } from "@/lib/ui-state";
 
@@ -45,24 +45,26 @@ export function TransactionsPage() {
       setInitialDataError(null);
 
       try {
-        const [accountsRes, assetsRes] = await Promise.all([
-          fetch(getAccountsApiUrl()),
-          fetch(getAssetsApiUrl()),
+        const [accountsData, assetsData] = await Promise.all([
+          fetchAccounts(),
+          fetchAssets(),
         ]);
 
         if (cancelled) return;
 
-        if (!accountsRes.ok || !assetsRes.ok) {
-          throw new Error("Failed to load initial data");
-        }
-
-        const [accountsData, assetsData] = await Promise.all([
-          accountsRes.json() as Promise<Account[]>,
-          assetsRes.json() as Promise<Asset[]>,
-        ]);
-
-        setAccounts(accountsData);
-        setAssets(assetsData);
+        setAccounts(accountsData.map((a) => ({
+          id: a.id,
+          name: a.name,
+          accountType: a.accountType,
+          baseCurrency: a.baseCurrency,
+        })));
+        setAssets(assetsData.map((a) => ({
+          id: a.id,
+          symbol: a.symbol,
+          name: a.name,
+          assetType: a.assetType,
+          isin: a.isin,
+        })));
       } catch {
         if (!cancelled) {
           setInitialDataError("Failed to load initial data");
@@ -88,16 +90,22 @@ export function TransactionsPage() {
       setTransactionsError(null);
 
       try {
-        const res = await fetch(getTransactionsApiUrl(selectedAccountId || undefined));
+        const accountId = selectedAccountId ? parseInt(selectedAccountId) : undefined;
+        const data = await fetchTransactions(accountId);
 
         if (cancelled) return;
 
-        if (!res.ok) {
-          throw new Error("Failed to load transactions");
-        }
-
-        const data = (await res.json()) as Transaction[];
-        setTransactions(data);
+        setTransactions(data.map((t) => ({
+          id: t.id,
+          accountId: t.accountId,
+          assetId: t.assetId,
+          transactionType: t.transactionType as "BUY" | "SELL",
+          tradeDate: t.tradeDate,
+          quantity: t.quantity,
+          unitPrice: t.unitPrice,
+          currencyCode: t.currencyCode,
+          notes: t.notes,
+        })));
       } catch {
         if (!cancelled) {
           setTransactionsError("Failed to load transactions");
@@ -129,19 +137,10 @@ export function TransactionsPage() {
 
     setIsDeleting(transactionId);
     try {
-      const res = await fetch(getTransactionDetailApiUrl(transactionId), {
-        method: "DELETE",
-      });
-
-      if (!res.ok) {
-        const msg = await readApiErrorMessage(res, "Failed to delete transaction");
-        alert(msg);
-        return;
-      }
-
+      await deleteTransaction(transactionId);
       setRetryToken((t) => t + 1);
-    } catch {
-      alert("Network error while deleting transaction");
+    } catch (error) {
+      alert(extractGqlErrorMessage(error, "Failed to delete transaction"));
     } finally {
       setIsDeleting(null);
     }

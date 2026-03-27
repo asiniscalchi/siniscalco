@@ -2,13 +2,17 @@ import { useEffect, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 
 import { Button } from "@/components/ui/button";
-import { getAssetDetailApiUrl, getAssetsApiUrl, readApiErrorMessage } from "@/lib/api";
-
-import type { AssetResponse } from "@/lib/api";
+import {
+  createAsset,
+  updateAsset,
+  extractGqlErrorMessage,
+  extractGqlFieldErrors,
+  type Asset,
+} from "@/lib/api";
 
 type AssetFormModalProps = {
   open: boolean;
-  editingAsset: AssetResponse | null;
+  editingAsset: Asset | null;
   onClose: () => void;
   onSaved: () => void;
 };
@@ -50,8 +54,8 @@ export function AssetFormModal({
         ? {
             symbol: editingAsset.symbol,
             name: editingAsset.name,
-            type: editingAsset.asset_type,
-            quoteSymbol: editingAsset.quote_symbol || "",
+            type: editingAsset.assetType,
+            quoteSymbol: editingAsset.quoteSymbol || "",
             isin: editingAsset.isin || "",
           }
         : initialFormState,
@@ -84,47 +88,33 @@ export function AssetFormModal({
     setIsSubmitting(true);
 
     try {
-      const payload = {
-        symbol: formState.symbol,
-        name: formState.name,
-        asset_type: formState.type,
-        quote_symbol: formState.quoteSymbol || null,
-        isin: formState.isin || null,
-      };
-
-      const url = editingAsset
-        ? getAssetDetailApiUrl(editingAsset.id)
-        : getAssetsApiUrl();
-      const method = editingAsset ? "PUT" : "POST";
-
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.status === 422) {
-        const data = (await response.json()) as {
-          message: string;
-          field_errors: Record<string, string[]>;
-        };
-        setSubmitError(data.message);
-        setFieldErrors(data.field_errors ?? {});
-        return;
-      }
-
-      if (!response.ok) {
-        const message = await readApiErrorMessage(
-          response,
-          editingAsset ? "Failed to update asset" : "Failed to create asset",
+      if (editingAsset) {
+        await updateAsset(
+          editingAsset.id,
+          formState.symbol,
+          formState.name,
+          formState.type,
+          formState.quoteSymbol || null,
+          formState.isin || null,
         );
-        setSubmitError(message);
-        return;
+      } else {
+        await createAsset(
+          formState.symbol,
+          formState.name,
+          formState.type,
+          formState.quoteSymbol || null,
+          formState.isin || null,
+        );
       }
-
       onSaved();
-    } catch {
-      setSubmitError("Network error");
+    } catch (error) {
+      const fieldErrs = extractGqlFieldErrors(error);
+      if (fieldErrs) {
+        setFieldErrors(fieldErrs);
+        setSubmitError(extractGqlErrorMessage(error, editingAsset ? "Failed to update asset" : "Failed to create asset"));
+      } else {
+        setSubmitError(extractGqlErrorMessage(error, editingAsset ? "Failed to update asset" : "Failed to create asset"));
+      }
     } finally {
       setIsSubmitting(false);
     }

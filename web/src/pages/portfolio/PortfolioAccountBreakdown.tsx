@@ -1,28 +1,28 @@
 import { ItemLabel } from "@/components/ItemLabel";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { DonutChart, SLICE_COLORS } from "@/components/ui/donut-chart";
-import { type PortfolioSummaryResponse } from "@/lib/api";
+import { type PortfolioSummary } from "@/lib/api";
 import { formatMoney } from "@/lib/format-money";
 
 export function PortfolioAccountBreakdown({
   accountTotals,
   hideValues,
 }: {
-  accountTotals: PortfolioSummaryResponse["account_totals"];
+  accountTotals: PortfolioSummary["accountTotals"];
   hideValues: boolean;
 }) {
   const sortedAccountTotals = [...accountTotals].sort((a, b) => {
-    const valueA = a.total_amount ? Number(a.total_amount) : 0;
-    const valueB = b.total_amount ? Number(b.total_amount) : 0;
+    const valueA = a.totalAmount ? Number(a.totalAmount) : 0;
+    const valueB = b.totalAmount ? Number(b.totalAmount) : 0;
     return valueB - valueA;
   });
 
   const validAccounts = sortedAccountTotals.filter(
-    (a) => a.summary_status === "ok" && a.total_amount,
+    (a) => a.summaryStatus === "ok" && a.totalAmount,
   );
 
   const accountsWithIssues = sortedAccountTotals.filter(
-    (a) => a.summary_status !== "ok" || !a.total_amount,
+    (a) => a.summaryStatus !== "ok" || !a.totalAmount,
   );
 
   if (validAccounts.length === 0 && accountsWithIssues.length === 0) {
@@ -42,12 +42,12 @@ export function PortfolioAccountBreakdown({
 
   const chartData = validAccounts.map((account) => ({
     name: account.name,
-    value: Number(account.total_amount),
-    currency: account.total_currency,
+    value: Number(account.totalAmount),
+    currency: account.totalCurrency,
   }));
 
   const total = chartData.reduce((sum, a) => sum + a.value, 0);
-  const displayCurrency = validAccounts[0]?.total_currency ?? "USD";
+  const displayCurrency = validAccounts[0]?.totalCurrency ?? "USD";
 
   return (
     <Card className="self-start bg-background">

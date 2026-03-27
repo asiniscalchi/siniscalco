@@ -8,10 +8,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  getAssetDetailApiUrl,
-  getAssetsApiUrl,
-  readApiErrorMessage,
-  type AssetResponse,
+  fetchAssets,
+  deleteAsset,
+  extractGqlErrorMessage,
+  type Asset,
 } from "@/lib/api";
 
 import { AssetFormModal } from "./AssetFormModal";
@@ -19,13 +19,13 @@ import { AssetsTableCard } from "./AssetsTableCard";
 
 export function AssetsPage() {
   const [isLocked, setIsLocked] = useState(true);
-  const [assets, setAssets] = useState<AssetResponse[]>([]);
+  const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryToken, setRetryToken] = useState(0);
 
   const [showModal, setShowModal] = useState(false);
-  const [editingAsset, setEditingAsset] = useState<AssetResponse | null>(null);
+  const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
 
   useEffect(() => {
@@ -36,13 +36,7 @@ export function AssetsPage() {
       setError(null);
 
       try {
-        const response = await fetch(getAssetsApiUrl());
-
-        if (!response.ok) {
-          throw new Error("Failed to load assets");
-        }
-
-        const data = (await response.json()) as AssetResponse[];
+        const data = await fetchAssets();
 
         if (!cancelled) {
           setAssets(data);
@@ -70,34 +64,22 @@ export function AssetsPage() {
     setShowModal(true);
   };
 
-  const handleEditClick = (asset: AssetResponse) => {
+  const handleEditClick = (asset: Asset) => {
     setEditingAsset(asset);
     setShowModal(true);
   };
 
-  const handleDeleteClick = async (asset: AssetResponse) => {
+  const handleDeleteClick = async (asset: Asset) => {
     if (!window.confirm(`Are you sure you want to delete ${asset.symbol}?`)) {
       return;
     }
 
     setIsDeleting(asset.id);
     try {
-      const response = await fetch(getAssetDetailApiUrl(asset.id), {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        const message = await readApiErrorMessage(
-          response,
-          "Failed to delete asset",
-        );
-        alert(message);
-        return;
-      }
-
+      await deleteAsset(asset.id);
       setRetryToken((t) => t + 1);
-    } catch {
-      alert("Network error while deleting asset");
+    } catch (error) {
+      alert(extractGqlErrorMessage(error, "Failed to delete asset"));
     } finally {
       setIsDeleting(null);
     }

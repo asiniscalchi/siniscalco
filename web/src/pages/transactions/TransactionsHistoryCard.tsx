@@ -109,7 +109,7 @@ export function TransactionsHistoryCard({
             <div className="space-y-2 sm:hidden">
               {transactions.map((transaction) => (
                 <TransactionsHistoryCardMobileItem
-                  asset={assetById.get(transaction.asset_id)}
+                  asset={assetById.get(transaction.assetId)}
                   hideValues={hideValues}
                   isDeleting={isDeleting}
                   isEditing={editingTransactionId === transaction.id}
@@ -139,7 +139,7 @@ export function TransactionsHistoryCard({
                 <tbody className="divide-y">
                   {transactions.map((transaction) => (
                     <TransactionsHistoryCardDesktopRow
-                      asset={assetById.get(transaction.asset_id)}
+                      asset={assetById.get(transaction.assetId)}
                       hideValues={hideValues}
                       isDeleting={isDeleting}
                       isEditing={editingTransactionId === transaction.id}

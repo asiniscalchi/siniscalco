@@ -23,36 +23,36 @@ function renderPortfolioPage() {
 }
 
 const defaultFxRates = {
-  target_currency: "EUR",
+  targetCurrency: "EUR",
   rates: [],
-  last_updated: null,
-  refresh_status: "available",
-  refresh_error: null,
+  lastUpdated: null,
+  refreshStatus: "available",
+  refreshError: null,
 };
 
+function gqlResponse(data: unknown) {
+  return Promise.resolve(
+    new Response(JSON.stringify({ data }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+}
+
 function mockPortfolioRequest(summary: unknown) {
-  vi.mocked(fetch).mockImplementation((input) => {
-    const url = String(input);
+  vi.mocked(fetch).mockImplementation((_input, init) => {
+    const body = init?.body ? JSON.parse(String(init.body)) as { query: string } : null;
+    const query = body?.query ?? "";
 
-    if (url.endsWith("/portfolio")) {
-      return Promise.resolve(
-        new Response(JSON.stringify(summary), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
+    if (query.includes("portfolio")) {
+      return gqlResponse({ portfolio: summary });
     }
 
-    if (url.endsWith("/fx-rates")) {
-      return Promise.resolve(
-        new Response(JSON.stringify(defaultFxRates), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
+    if (query.includes("fxRates")) {
+      return gqlResponse({ fxRates: defaultFxRates });
     }
 
-    throw new Error(`Unhandled fetch request: ${url}`);
+    throw new Error(`Unhandled GQL query: ${query}`);
   });
 }
 
@@ -80,37 +80,39 @@ describe("PortfolioPage", () => {
 
   it("renders the portfolio overview when cash data exists", async () => {
     mockPortfolioRequest({
-      display_currency: "EUR",
-      total_value_status: "ok",
-      total_value_amount: "153.70000000",
-      account_totals: [
+      displayCurrency: "EUR",
+      totalValueStatus: "ok",
+      totalValueAmount: "153.70000000",
+      accountTotals: [
         {
           id: 1,
           name: "IBKR",
-          account_type: "broker",
-          summary_status: "ok",
-          total_amount: "103.70000000",
-          total_currency: "EUR",
+          accountType: "broker",
+          summaryStatus: "ok",
+          totalAmount: "103.70000000",
+          totalCurrency: "EUR",
         },
         {
           id: 2,
           name: "Main Bank",
-          account_type: "bank",
-          summary_status: "ok",
-          total_amount: "50.00000000",
-          total_currency: "EUR",
+          accountType: "bank",
+          summaryStatus: "ok",
+          totalAmount: "50.00000000",
+          totalCurrency: "EUR",
         },
       ],
-      cash_by_currency: [
-        { currency: "EUR", amount: "50.00000000", converted_amount: "50.00000000" },
-        { currency: "GBP", amount: "10.00000000", converted_amount: "11.70000000" },
-        { currency: "USD", amount: "100.00000000", converted_amount: "92.00000000" },
+      cashByCurrency: [
+        { currency: "EUR", amount: "50.00000000", convertedAmount: "50.00000000" },
+        { currency: "GBP", amount: "10.00000000", convertedAmount: "11.70000000" },
+        { currency: "USD", amount: "100.00000000", convertedAmount: "92.00000000" },
       ],
-      fx_last_updated: "2026-03-22 11:30:00",
-      fx_refresh_status: "available",
-      fx_refresh_error: null,
-      allocation_totals: [{ label: "Cash", amount: "153.70000000" }],
-      allocation_is_partial: false,
+      fxLastUpdated: "2026-03-22 11:30:00",
+      fxRefreshStatus: "available",
+      fxRefreshError: null,
+      allocationTotals: [{ label: "Cash", amount: "153.70000000" }],
+      allocationIsPartial: false,
+      holdings: [],
+      holdingsIsPartial: false,
     });
 
     renderPortfolioPage();
@@ -124,25 +126,27 @@ describe("PortfolioPage", () => {
 
   it("renders the empty state when no cash balances exist", async () => {
     mockPortfolioRequest({
-      display_currency: "EUR",
-      total_value_status: "ok",
-      total_value_amount: "0.00000000",
-      account_totals: [
+      displayCurrency: "EUR",
+      totalValueStatus: "ok",
+      totalValueAmount: "0.00000000",
+      accountTotals: [
         {
           id: 1,
           name: "IBKR",
-          account_type: "broker",
-          summary_status: "ok",
-          total_amount: "0.00000000",
-          total_currency: "EUR",
+          accountType: "broker",
+          summaryStatus: "ok",
+          totalAmount: "0.00000000",
+          totalCurrency: "EUR",
         },
       ],
-      cash_by_currency: [],
-      fx_last_updated: null,
-      fx_refresh_status: "unavailable",
-      fx_refresh_error: "FX refresh unavailable: no successful refresh has completed",
-      allocation_totals: [],
-      allocation_is_partial: false,
+      cashByCurrency: [],
+      fxLastUpdated: null,
+      fxRefreshStatus: "unavailable",
+      fxRefreshError: "FX refresh unavailable: no successful refresh has completed",
+      allocationTotals: [],
+      allocationIsPartial: false,
+      holdings: [],
+      holdingsIsPartial: false,
     });
 
     renderPortfolioPage();
@@ -152,28 +156,30 @@ describe("PortfolioPage", () => {
 
   it("renders conversion unavailable while keeping original cash balances visible", async () => {
     mockPortfolioRequest({
-      display_currency: "EUR",
-      total_value_status: "conversion_unavailable",
-      total_value_amount: null,
-      account_totals: [
+      displayCurrency: "EUR",
+      totalValueStatus: "conversion_unavailable",
+      totalValueAmount: null,
+      accountTotals: [
         {
           id: 1,
           name: "IBKR",
-          account_type: "broker",
-          summary_status: "conversion_unavailable",
-          total_amount: null,
-          total_currency: "EUR",
+          accountType: "broker",
+          summaryStatus: "conversion_unavailable",
+          totalAmount: null,
+          totalCurrency: "EUR",
         },
       ],
-      cash_by_currency: [
-        { currency: "GBP", amount: "10.00000000", converted_amount: null },
-        { currency: "USD", amount: "100.00000000", converted_amount: null },
+      cashByCurrency: [
+        { currency: "GBP", amount: "10.00000000", convertedAmount: null },
+        { currency: "USD", amount: "100.00000000", convertedAmount: null },
       ],
-      fx_last_updated: "2026-03-22 10:00:00",
-      fx_refresh_status: "unavailable",
-      fx_refresh_error: "FX refresh unavailable: provider returned status 500",
-      allocation_totals: [],
-      allocation_is_partial: true,
+      fxLastUpdated: "2026-03-22 10:00:00",
+      fxRefreshStatus: "unavailable",
+      fxRefreshError: "FX refresh unavailable: provider returned status 500",
+      allocationTotals: [],
+      allocationIsPartial: true,
+      holdings: [],
+      holdingsIsPartial: false,
     });
 
     renderPortfolioPage();
@@ -189,45 +195,40 @@ describe("PortfolioPage", () => {
   it("renders an error state and retries the request", async () => {
     let attempt = 0;
 
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input);
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string } : null;
+      const query = body?.query ?? "";
 
-      if (url.endsWith("/portfolio")) {
+      if (query.includes("portfolio")) {
         attempt += 1;
 
         if (attempt === 1) {
           return Promise.reject(new Error("network error"));
         }
 
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              display_currency: "EUR",
-              total_value_status: "ok",
-              total_value_amount: "1.00000000",
-              account_totals: [],
-              cash_by_currency: [{ currency: "EUR", amount: "1.00000000", converted_amount: "1.00000000" }],
-              fx_last_updated: null,
-              fx_refresh_status: "available",
-              fx_refresh_error: null,
-              allocation_totals: [{ label: "Cash", amount: "1.00000000" }],
-              allocation_is_partial: false,
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        );
+        return gqlResponse({
+          portfolio: {
+            displayCurrency: "EUR",
+            totalValueStatus: "ok",
+            totalValueAmount: "1.00000000",
+            accountTotals: [],
+            cashByCurrency: [{ currency: "EUR", amount: "1.00000000", convertedAmount: "1.00000000" }],
+            fxLastUpdated: null,
+            fxRefreshStatus: "available",
+            fxRefreshError: null,
+            allocationTotals: [{ label: "Cash", amount: "1.00000000" }],
+            allocationIsPartial: false,
+            holdings: [],
+            holdingsIsPartial: false,
+          },
+        });
       }
 
-      if (url.endsWith("/fx-rates")) {
-        return Promise.resolve(
-          new Response(JSON.stringify(defaultFxRates), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          }),
-        );
+      if (query.includes("fxRates")) {
+        return gqlResponse({ fxRates: defaultFxRates });
       }
 
-      throw new Error(`Unhandled fetch request: ${url}`);
+      throw new Error(`Unhandled GQL query: ${query}`);
     });
 
     renderPortfolioPage();
@@ -245,27 +246,29 @@ describe("PortfolioPage", () => {
     window.localStorage.setItem("ui.hide_values", "true");
 
     mockPortfolioRequest({
-      display_currency: "EUR",
-      total_value_status: "ok",
-      total_value_amount: "153.70000000",
-      account_totals: [
+      displayCurrency: "EUR",
+      totalValueStatus: "ok",
+      totalValueAmount: "153.70000000",
+      accountTotals: [
         {
           id: 1,
           name: "IBKR",
-          account_type: "broker",
-          summary_status: "ok",
-          total_amount: "103.70000000",
-          total_currency: "EUR",
+          accountType: "broker",
+          summaryStatus: "ok",
+          totalAmount: "103.70000000",
+          totalCurrency: "EUR",
         },
       ],
-      cash_by_currency: [
-        { currency: "USD", amount: "100.00000000", converted_amount: "92.00000000" },
+      cashByCurrency: [
+        { currency: "USD", amount: "100.00000000", convertedAmount: "92.00000000" },
       ],
-      fx_last_updated: "2026-03-22 11:30:00",
-      fx_refresh_status: "available",
-      fx_refresh_error: null,
-      allocation_totals: [{ label: "Cash", amount: "92.00000000" }],
-      allocation_is_partial: false,
+      fxLastUpdated: "2026-03-22 11:30:00",
+      fxRefreshStatus: "available",
+      fxRefreshError: null,
+      allocationTotals: [{ label: "Cash", amount: "92.00000000" }],
+      allocationIsPartial: false,
+      holdings: [],
+      holdingsIsPartial: false,
     });
 
     renderPortfolioPage();
@@ -275,27 +278,29 @@ describe("PortfolioPage", () => {
 
   it("handles missing currency conversion values without crashing", async () => {
     mockPortfolioRequest({
-      display_currency: "EUR",
-      total_value_status: "ok",
-      total_value_amount: "10.00000000",
-      account_totals: [
+      displayCurrency: "EUR",
+      totalValueStatus: "ok",
+      totalValueAmount: "10.00000000",
+      accountTotals: [
         {
           id: 1,
           name: "Empty Account",
-          account_type: "bank",
-          summary_status: "conversion_unavailable",
-          total_amount: null,
-          total_currency: "EUR",
+          accountType: "bank",
+          summaryStatus: "conversion_unavailable",
+          totalAmount: null,
+          totalCurrency: "EUR",
         },
       ],
-      cash_by_currency: [
-        { currency: "JPY", amount: "1000.00000000", converted_amount: null },
+      cashByCurrency: [
+        { currency: "JPY", amount: "1000.00000000", convertedAmount: null },
       ],
-      fx_last_updated: null,
-      fx_refresh_status: "available",
-      fx_refresh_error: null,
-      allocation_totals: [],
-      allocation_is_partial: true,
+      fxLastUpdated: null,
+      fxRefreshStatus: "available",
+      fxRefreshError: null,
+      allocationTotals: [],
+      allocationIsPartial: true,
+      holdings: [],
+      holdingsIsPartial: false,
     });
 
     renderPortfolioPage();
@@ -306,21 +311,23 @@ describe("PortfolioPage", () => {
 
   it("renders the allocation card with slices and labels", async () => {
     mockPortfolioRequest({
-      display_currency: "EUR",
-      total_value_status: "ok",
-      total_value_amount: "300.00000000",
-      account_totals: [],
-      cash_by_currency: [
-        { currency: "EUR", amount: "100.00000000", converted_amount: "100.00000000" },
+      displayCurrency: "EUR",
+      totalValueStatus: "ok",
+      totalValueAmount: "300.00000000",
+      accountTotals: [],
+      cashByCurrency: [
+        { currency: "EUR", amount: "100.00000000", convertedAmount: "100.00000000" },
       ],
-      fx_last_updated: null,
-      fx_refresh_status: "available",
-      fx_refresh_error: null,
-      allocation_totals: [
+      fxLastUpdated: null,
+      fxRefreshStatus: "available",
+      fxRefreshError: null,
+      allocationTotals: [
         { label: "Stock", amount: "200.00000000" },
         { label: "Cash", amount: "100.00000000" },
       ],
-      allocation_is_partial: false,
+      allocationIsPartial: false,
+      holdings: [],
+      holdingsIsPartial: false,
     });
 
     renderPortfolioPage();
@@ -334,20 +341,22 @@ describe("PortfolioPage", () => {
     expect(screen.getByText("33.3%")).toBeTruthy();
   });
 
-  it("shows the partial banner when allocation_is_partial is true", async () => {
+  it("shows the partial banner when allocationIsPartial is true", async () => {
     mockPortfolioRequest({
-      display_currency: "EUR",
-      total_value_status: "ok",
-      total_value_amount: "100.00000000",
-      account_totals: [],
-      cash_by_currency: [
-        { currency: "EUR", amount: "100.00000000", converted_amount: "100.00000000" },
+      displayCurrency: "EUR",
+      totalValueStatus: "ok",
+      totalValueAmount: "100.00000000",
+      accountTotals: [],
+      cashByCurrency: [
+        { currency: "EUR", amount: "100.00000000", convertedAmount: "100.00000000" },
       ],
-      fx_last_updated: null,
-      fx_refresh_status: "available",
-      fx_refresh_error: null,
-      allocation_totals: [{ label: "Cash", amount: "100.00000000" }],
-      allocation_is_partial: true,
+      fxLastUpdated: null,
+      fxRefreshStatus: "available",
+      fxRefreshError: null,
+      allocationTotals: [{ label: "Cash", amount: "100.00000000" }],
+      allocationIsPartial: true,
+      holdings: [],
+      holdingsIsPartial: false,
     });
 
     renderPortfolioPage();
@@ -359,20 +368,22 @@ describe("PortfolioPage", () => {
     ).toBeTruthy();
   });
 
-  it("shows no-data message when allocation_totals is empty and not partial", async () => {
+  it("shows no-data message when allocationTotals is empty and not partial", async () => {
     mockPortfolioRequest({
-      display_currency: "EUR",
-      total_value_status: "ok",
-      total_value_amount: "100.00000000",
-      account_totals: [],
-      cash_by_currency: [
-        { currency: "EUR", amount: "100.00000000", converted_amount: "100.00000000" },
+      displayCurrency: "EUR",
+      totalValueStatus: "ok",
+      totalValueAmount: "100.00000000",
+      accountTotals: [],
+      cashByCurrency: [
+        { currency: "EUR", amount: "100.00000000", convertedAmount: "100.00000000" },
       ],
-      fx_last_updated: null,
-      fx_refresh_status: "available",
-      fx_refresh_error: null,
-      allocation_totals: [],
-      allocation_is_partial: false,
+      fxLastUpdated: null,
+      fxRefreshStatus: "available",
+      fxRefreshError: null,
+      allocationTotals: [],
+      allocationIsPartial: false,
+      holdings: [],
+      holdingsIsPartial: false,
     });
 
     renderPortfolioPage();
@@ -384,21 +395,23 @@ describe("PortfolioPage", () => {
     window.localStorage.setItem("ui.hide_values", "true");
 
     mockPortfolioRequest({
-      display_currency: "EUR",
-      total_value_status: "ok",
-      total_value_amount: "300.00000000",
-      account_totals: [],
-      cash_by_currency: [
-        { currency: "EUR", amount: "100.00000000", converted_amount: "100.00000000" },
+      displayCurrency: "EUR",
+      totalValueStatus: "ok",
+      totalValueAmount: "300.00000000",
+      accountTotals: [],
+      cashByCurrency: [
+        { currency: "EUR", amount: "100.00000000", convertedAmount: "100.00000000" },
       ],
-      fx_last_updated: null,
-      fx_refresh_status: "available",
-      fx_refresh_error: null,
-      allocation_totals: [
+      fxLastUpdated: null,
+      fxRefreshStatus: "available",
+      fxRefreshError: null,
+      allocationTotals: [
         { label: "Stock", amount: "200.00000000" },
         { label: "Cash", amount: "100.00000000" },
       ],
-      allocation_is_partial: false,
+      allocationIsPartial: false,
+      holdings: [],
+      holdingsIsPartial: false,
     });
 
     renderPortfolioPage();

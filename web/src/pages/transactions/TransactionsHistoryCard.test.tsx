@@ -13,8 +13,8 @@ function renderHistoryCard({
   selectedAccountId?: string;
   transactions: Transaction[];
 }) {
-  const accounts: Account[] = [{ id: 1, name: "Main Account", account_type: "bank", base_currency: "USD" }];
-  const assets: Asset[] = [{ id: 1, symbol: "AAPL", name: "Apple Inc.", asset_type: "stock" }];
+  const accounts: Account[] = [{ id: 1, name: "Main Account", accountType: "bank", baseCurrency: "USD" }];
+  const assets: Asset[] = [{ id: 1, symbol: "AAPL", name: "Apple Inc.", assetType: "stock" }];
 
   return render(
     <TransactionsHistoryCard
@@ -46,13 +46,13 @@ describe("TransactionsHistoryCard", () => {
       transactions: [
         {
           id: 1,
-          account_id: 1,
-          asset_id: 1,
-          transaction_type: "BUY",
-          trade_date: "2026-03-23",
+          accountId: 1,
+          assetId: 1,
+          transactionType: "BUY",
+          tradeDate: "2026-03-23",
           quantity: "10.00",
-          unit_price: "150.00",
-          currency_code: "USD",
+          unitPrice: "150.00",
+          currencyCode: "USD",
           notes: null,
         },
       ],
@@ -73,13 +73,13 @@ describe("TransactionsHistoryCard", () => {
       transactions: [
         {
           id: 1,
-          account_id: 1,
-          asset_id: 1,
-          transaction_type: "BUY",
-          trade_date: "2026-03-23",
+          accountId: 1,
+          assetId: 1,
+          transactionType: "BUY",
+          tradeDate: "2026-03-23",
           quantity: "10.00",
-          unit_price: "150.00",
-          currency_code: "USD",
+          unitPrice: "150.00",
+          currencyCode: "USD",
           notes: "Sample note",
         },
       ],

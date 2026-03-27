@@ -5,7 +5,7 @@ export function trimTrailingZeros(value: string) {
 }
 
 export function getTransactionTypeClassName(
-  transactionType: Transaction["transaction_type"],
+  transactionType: Transaction["transactionType"],
 ) {
   return transactionType === "BUY"
     ? "border border-emerald-200 bg-emerald-50 text-emerald-700"

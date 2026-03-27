@@ -29,6 +29,15 @@ async function unlockEditMode() {
   fireEvent.click(unlockButton);
 }
 
+function gqlResponse(data: unknown) {
+  return Promise.resolve(
+    new Response(JSON.stringify({ data }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+}
+
 describe("TransactionsPage", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
@@ -45,29 +54,32 @@ describe("TransactionsPage", () => {
     const transactions = [
       {
         id: 1,
-        account_id: 1,
-        asset_id: 1,
-        transaction_type: "BUY",
-        trade_date: "2026-03-23",
+        accountId: 1,
+        assetId: 1,
+        transactionType: "BUY",
+        tradeDate: "2026-03-23",
         quantity: "10.00",
-        unit_price: "150.00",
-        currency_code: "USD",
+        unitPrice: "150.00",
+        currencyCode: "USD",
         notes: "All trans",
+        createdAt: "2026-03-23T00:00:00Z",
+        updatedAt: "2026-03-23T00:00:00Z",
       },
     ];
 
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input);
-      if (url.endsWith("/accounts")) {
-        return Promise.resolve(new Response(JSON.stringify([])));
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string } : null;
+      const query = body?.query ?? "";
+      if (query.includes("accounts")) {
+        return gqlResponse({ accounts: [] });
       }
-      if (url.endsWith("/assets")) {
-        return Promise.resolve(new Response(JSON.stringify([])));
+      if (query.includes("assets")) {
+        return gqlResponse({ assets: [] });
       }
-      if (url.includes("/transactions")) {
-        return Promise.resolve(new Response(JSON.stringify(transactions)));
+      if (query.includes("transactions")) {
+        return gqlResponse({ transactions });
       }
-      return Promise.reject(new Error(`Unhandled fetch request: ${url}`));
+      return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
     renderTransactionsPage();
@@ -94,29 +106,32 @@ describe("TransactionsPage", () => {
     const transactions = [
       {
         id: 1,
-        account_id: 1,
-        asset_id: 1,
-        transaction_type: "BUY",
-        trade_date: "2026-03-23",
+        accountId: 1,
+        assetId: 1,
+        transactionType: "BUY",
+        tradeDate: "2026-03-23",
         quantity: "10.00",
-        unit_price: "150.00",
-        currency_code: "USD",
+        unitPrice: "150.00",
+        currencyCode: "USD",
         notes: null,
+        createdAt: "2026-03-23T00:00:00Z",
+        updatedAt: "2026-03-23T00:00:00Z",
       },
     ];
 
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input);
-      if (url.endsWith("/accounts")) {
-        return Promise.resolve(new Response(JSON.stringify([])));
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string } : null;
+      const query = body?.query ?? "";
+      if (query.includes("accounts")) {
+        return gqlResponse({ accounts: [] });
       }
-      if (url.endsWith("/assets")) {
-        return Promise.resolve(new Response(JSON.stringify([])));
+      if (query.includes("assets")) {
+        return gqlResponse({ assets: [] });
       }
-      if (url.includes("/transactions")) {
-        return Promise.resolve(new Response(JSON.stringify(transactions)));
+      if (query.includes("transactions")) {
+        return gqlResponse({ transactions });
       }
-      return Promise.reject(new Error(`Unhandled fetch request: ${url}`));
+      return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
     renderTransactionsPage();
@@ -134,28 +149,27 @@ describe("TransactionsPage", () => {
   it("clears a transaction load error after a successful retry", async () => {
     let transactionFetchCount = 0;
 
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input);
-      if (url.endsWith("/accounts")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify([
-              { id: 1, name: "Main Account", account_type: "bank", base_currency: "USD" },
-            ]),
-          ),
-        );
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string } : null;
+      const query = body?.query ?? "";
+      if (query.includes("accounts")) {
+        return gqlResponse({
+          accounts: [
+            { id: 1, name: "Main Account", accountType: "bank", baseCurrency: "USD", summaryStatus: "ok", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
+          ],
+        });
       }
-      if (url.endsWith("/assets")) {
-        return Promise.resolve(new Response(JSON.stringify([])));
+      if (query.includes("assets")) {
+        return gqlResponse({ assets: [] });
       }
-      if (url.includes("/transactions")) {
+      if (query.includes("transactions")) {
         transactionFetchCount += 1;
         if (transactionFetchCount === 1) {
           return Promise.resolve(new Response(null, { status: 500 }));
         }
-        return Promise.resolve(new Response(JSON.stringify([])));
+        return gqlResponse({ transactions: [] });
       }
-      return Promise.reject(new Error(`Unhandled fetch request: ${url}`));
+      return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
     renderTransactionsPage();
@@ -171,34 +185,31 @@ describe("TransactionsPage", () => {
   it("retries initial data after a load failure", async () => {
     let accountsFetchCount = 0;
 
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input);
-      if (url.endsWith("/accounts")) {
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string } : null;
+      const query = body?.query ?? "";
+      if (query.includes("accounts")) {
         accountsFetchCount += 1;
         if (accountsFetchCount === 1) {
           return Promise.resolve(new Response(null, { status: 500 }));
         }
-        return Promise.resolve(
-          new Response(
-            JSON.stringify([
-              { id: 1, name: "Main Account", account_type: "bank", base_currency: "USD" },
-            ]),
-          ),
-        );
+        return gqlResponse({
+          accounts: [
+            { id: 1, name: "Main Account", accountType: "bank", baseCurrency: "USD", summaryStatus: "ok", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
+          ],
+        });
       }
-      if (url.endsWith("/assets")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify([
-              { id: 1, symbol: "AAPL", name: "Apple Inc", asset_type: "stock" },
-            ]),
-          ),
-        );
+      if (query.includes("assets")) {
+        return gqlResponse({
+          assets: [
+            { id: 1, symbol: "AAPL", name: "Apple Inc", assetType: "stock", quoteSymbol: null, isin: null, currentPrice: null, currentPriceCurrency: null, currentPriceAsOf: null, totalQuantity: null },
+          ],
+        });
       }
-      if (url.includes("/transactions")) {
-        return Promise.resolve(new Response(JSON.stringify([])));
+      if (query.includes("transactions")) {
+        return gqlResponse({ transactions: [] });
       }
-      return Promise.reject(new Error(`Unhandled fetch request: ${url}`));
+      return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
     renderTransactionsPage();
@@ -213,40 +224,44 @@ describe("TransactionsPage", () => {
 
   it("loads transactions when an account is selected", async () => {
     const accounts = [
-      { id: 1, name: "Main Account", account_type: "bank", base_currency: "USD" },
+      { id: 1, name: "Main Account", accountType: "bank", baseCurrency: "USD", summaryStatus: "ok", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
     ];
     const assets = [
-      { id: 1, symbol: "AAPL", name: "Apple Inc", asset_type: "stock" },
+      { id: 1, symbol: "AAPL", name: "Apple Inc", assetType: "stock", quoteSymbol: null, isin: null, currentPrice: null, currentPriceCurrency: null, currentPriceAsOf: null, totalQuantity: null },
     ];
     const transactions = [
       {
         id: 1,
-        account_id: 1,
-        asset_id: 1,
-        transaction_type: "BUY",
-        trade_date: "2026-03-23",
+        accountId: 1,
+        assetId: 1,
+        transactionType: "BUY",
+        tradeDate: "2026-03-23",
         quantity: "10.00000000",
-        unit_price: "150.00000000",
-        currency_code: "USD",
+        unitPrice: "150.00000000",
+        currencyCode: "USD",
         notes: "Filtered trans",
+        createdAt: "2026-03-23T00:00:00Z",
+        updatedAt: "2026-03-23T00:00:00Z",
       },
     ];
 
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input);
-      if (url.endsWith("/accounts")) {
-        return Promise.resolve(new Response(JSON.stringify(accounts)));
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string; variables?: Record<string, unknown> } : null;
+      const query = body?.query ?? "";
+      const variables = body?.variables ?? {};
+      if (query.includes("accounts")) {
+        return gqlResponse({ accounts });
       }
-      if (url.endsWith("/assets")) {
-        return Promise.resolve(new Response(JSON.stringify(assets)));
+      if (query.includes("assets")) {
+        return gqlResponse({ assets });
       }
-      if (url.includes("/transactions?account_id=1")) {
-        return Promise.resolve(new Response(JSON.stringify(transactions)));
+      if (query.includes("transactions")) {
+        if (variables.accountId === 1) {
+          return gqlResponse({ transactions });
+        }
+        return gqlResponse({ transactions: [] });
       }
-      if (url.includes("/transactions")) {
-        return Promise.resolve(new Response(JSON.stringify([])));
-      }
-      return Promise.reject(new Error(`Unhandled fetch request: ${url}`));
+      return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
     renderTransactionsPage();
@@ -259,24 +274,23 @@ describe("TransactionsPage", () => {
   });
 
   it("puts the account selector below the title row on mobile", async () => {
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input);
-      if (url.endsWith("/accounts")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify([
-              { id: 1, name: "Main Account", account_type: "bank", base_currency: "USD" },
-            ]),
-          ),
-        );
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string } : null;
+      const query = body?.query ?? "";
+      if (query.includes("accounts")) {
+        return gqlResponse({
+          accounts: [
+            { id: 1, name: "Main Account", accountType: "bank", baseCurrency: "USD", summaryStatus: "ok", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
+          ],
+        });
       }
-      if (url.endsWith("/assets")) {
-        return Promise.resolve(new Response(JSON.stringify([])));
+      if (query.includes("assets")) {
+        return gqlResponse({ assets: [] });
       }
-      if (url.includes("/transactions")) {
-        return Promise.resolve(new Response(JSON.stringify([])));
+      if (query.includes("transactions")) {
+        return gqlResponse({ transactions: [] });
       }
-      return Promise.reject(new Error(`Unhandled fetch request: ${url}`));
+      return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
     renderTransactionsPage();
@@ -293,37 +307,40 @@ describe("TransactionsPage", () => {
 
   it("keeps non-empty transaction history constrained on mobile when edit mode is unlocked", async () => {
     const accounts = [
-      { id: 1, name: "Main Account", account_type: "bank", base_currency: "USD" },
+      { id: 1, name: "Main Account", accountType: "bank", baseCurrency: "USD", summaryStatus: "ok", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
     ];
     const assets = [
-      { id: 1, symbol: "AAPL", name: "Apple Inc", asset_type: "stock" },
+      { id: 1, symbol: "AAPL", name: "Apple Inc", assetType: "stock", quoteSymbol: null, isin: null, currentPrice: null, currentPriceCurrency: null, currentPriceAsOf: null, totalQuantity: null },
     ];
     const transactions = [
       {
         id: 1,
-        account_id: 1,
-        asset_id: 1,
-        transaction_type: "BUY",
-        trade_date: "2026-03-23",
+        accountId: 1,
+        assetId: 1,
+        transactionType: "BUY",
+        tradeDate: "2026-03-23",
         quantity: "10.00000000",
-        unit_price: "150.00000000",
-        currency_code: "USD",
+        unitPrice: "150.00000000",
+        currencyCode: "USD",
         notes: "Overflow regression",
+        createdAt: "2026-03-23T00:00:00Z",
+        updatedAt: "2026-03-23T00:00:00Z",
       },
     ];
 
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = String(input);
-      if (url.endsWith("/accounts")) {
-        return Promise.resolve(new Response(JSON.stringify(accounts)));
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string } : null;
+      const query = body?.query ?? "";
+      if (query.includes("accounts")) {
+        return gqlResponse({ accounts });
       }
-      if (url.endsWith("/assets")) {
-        return Promise.resolve(new Response(JSON.stringify(assets)));
+      if (query.includes("assets")) {
+        return gqlResponse({ assets });
       }
-      if (url.includes("/transactions")) {
-        return Promise.resolve(new Response(JSON.stringify(transactions)));
+      if (query.includes("transactions")) {
+        return gqlResponse({ transactions });
       }
-      return Promise.reject(new Error(`Unhandled fetch request: ${url}`));
+      return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
     renderTransactionsPage();
@@ -350,21 +367,36 @@ describe("TransactionsPage", () => {
 
   it("handles create transaction via modal", async () => {
     const accounts = [
-      { id: 1, name: "Main Account", account_type: "bank", base_currency: "USD" },
+      { id: 1, name: "Main Account", accountType: "bank", baseCurrency: "USD", summaryStatus: "ok", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
     ];
     const assets = [
-      { id: 1, symbol: "AAPL", name: "Apple Inc", asset_type: "stock" },
+      { id: 1, symbol: "AAPL", name: "Apple Inc", assetType: "stock", quoteSymbol: null, isin: null, currentPrice: null, currentPriceCurrency: null, currentPriceAsOf: null, totalQuantity: null },
     ];
 
-    vi.mocked(fetch).mockImplementation((input, init) => {
-      const url = String(input);
-      if (url.endsWith("/accounts")) return Promise.resolve(new Response(JSON.stringify(accounts)));
-      if (url.endsWith("/assets")) return Promise.resolve(new Response(JSON.stringify(assets)));
-      if (url.includes("/transactions") && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify({ id: 1 }), { status: 201 }));
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string } : null;
+      const query = body?.query ?? "";
+      if (query.includes("accounts")) return gqlResponse({ accounts });
+      if (query.includes("assets")) return gqlResponse({ assets });
+      if (query.includes("createTransaction")) {
+        return gqlResponse({
+          createTransaction: {
+            id: 1,
+            accountId: 1,
+            assetId: 1,
+            transactionType: "BUY",
+            tradeDate: "2026-03-23",
+            quantity: "10",
+            unitPrice: "150",
+            currencyCode: "USD",
+            notes: null,
+            createdAt: "2026-03-23T00:00:00Z",
+            updatedAt: "2026-03-23T00:00:00Z",
+          },
+        });
       }
-      if (url.includes("/transactions")) return Promise.resolve(new Response(JSON.stringify([])));
-      return Promise.reject(new Error(`Unhandled: ${url}`));
+      if (query.includes("transactions")) return gqlResponse({ transactions: [] });
+      return Promise.reject(new Error(`Unhandled: ${query}`));
     });
 
     renderTransactionsPage();
@@ -391,34 +423,37 @@ describe("TransactionsPage", () => {
 
   it("handles edit transaction", async () => {
     const accounts = [
-      { id: 1, name: "Main Account", account_type: "bank", base_currency: "USD" },
+      { id: 1, name: "Main Account", accountType: "bank", baseCurrency: "USD", summaryStatus: "ok", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
     ];
     const assets = [
-      { id: 1, symbol: "AAPL", name: "Apple Inc", asset_type: "stock" },
+      { id: 1, symbol: "AAPL", name: "Apple Inc", assetType: "stock", quoteSymbol: null, isin: null, currentPrice: null, currentPriceCurrency: null, currentPriceAsOf: null, totalQuantity: null },
     ];
     const transactions = [
       {
         id: 123,
-        account_id: 1,
-        asset_id: 1,
-        transaction_type: "BUY",
-        trade_date: "2026-03-23",
+        accountId: 1,
+        assetId: 1,
+        transactionType: "BUY",
+        tradeDate: "2026-03-23",
         quantity: "10.00",
-        unit_price: "150.00",
-        currency_code: "USD",
+        unitPrice: "150.00",
+        currencyCode: "USD",
         notes: "Old notes",
+        createdAt: "2026-03-23T00:00:00Z",
+        updatedAt: "2026-03-23T00:00:00Z",
       },
     ];
 
-    vi.mocked(fetch).mockImplementation((input, init) => {
-      const url = String(input);
-      if (url.endsWith("/accounts")) return Promise.resolve(new Response(JSON.stringify(accounts)));
-      if (url.endsWith("/assets")) return Promise.resolve(new Response(JSON.stringify(assets)));
-      if (url.includes("/transactions/123") && init?.method === "PUT") {
-        return Promise.resolve(new Response(JSON.stringify(transactions[0])));
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string } : null;
+      const query = body?.query ?? "";
+      if (query.includes("accounts")) return gqlResponse({ accounts });
+      if (query.includes("assets")) return gqlResponse({ assets });
+      if (query.includes("updateTransaction")) {
+        return gqlResponse({ updateTransaction: transactions[0] });
       }
-      if (url.includes("/transactions")) return Promise.resolve(new Response(JSON.stringify(transactions)));
-      return Promise.reject(new Error(`Unhandled: ${url}`));
+      if (query.includes("transactions")) return gqlResponse({ transactions });
+      return Promise.reject(new Error(`Unhandled: ${query}`));
     });
 
     renderTransactionsPage();
@@ -445,30 +480,33 @@ describe("TransactionsPage", () => {
     const transactions = [
       {
         id: 123,
-        account_id: 1,
-        asset_id: 1,
-        transaction_type: "BUY",
-        trade_date: "2026-03-23",
+        accountId: 1,
+        assetId: 1,
+        transactionType: "BUY",
+        tradeDate: "2026-03-23",
         quantity: "10.00",
-        unit_price: "150.00",
-        currency_code: "USD",
+        unitPrice: "150.00",
+        currencyCode: "USD",
         notes: "To be deleted",
+        createdAt: "2026-03-23T00:00:00Z",
+        updatedAt: "2026-03-23T00:00:00Z",
       },
     ];
 
     vi.stubGlobal("confirm", vi.fn(() => true));
 
-    vi.mocked(fetch).mockImplementation((input, init) => {
-      const url = String(input);
-      if (url.endsWith("/accounts")) return Promise.resolve(new Response(JSON.stringify([])));
-      if (url.endsWith("/assets")) return Promise.resolve(new Response(JSON.stringify([])));
-      if (url.includes("/transactions/123") && init?.method === "DELETE") {
-        return Promise.resolve(new Response(null, { status: 204 }));
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string } : null;
+      const query = body?.query ?? "";
+      if (query.includes("accounts")) return gqlResponse({ accounts: [] });
+      if (query.includes("assets")) return gqlResponse({ assets: [] });
+      if (query.includes("deleteTransaction")) {
+        return gqlResponse({ deleteTransaction: true });
       }
-      if (url.includes("/transactions")) {
-        return Promise.resolve(new Response(JSON.stringify(transactions)));
+      if (query.includes("transactions")) {
+        return gqlResponse({ transactions });
       }
-      return Promise.reject(new Error(`Unhandled: ${url}`));
+      return Promise.reject(new Error(`Unhandled: ${query}`));
     });
 
     renderTransactionsPage();
@@ -479,10 +517,12 @@ describe("TransactionsPage", () => {
     expect(window.confirm).toHaveBeenCalled();
 
     await waitFor(() => {
-      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-        expect.stringContaining("/transactions/123"),
-        expect.objectContaining({ method: "DELETE" }),
+      const calls = vi.mocked(fetch).mock.calls;
+      const hasDeleteCall = calls.some(
+        ([, opts]) =>
+          opts?.body != null && String(opts.body).includes("deleteTransaction"),
       );
+      expect(hasDeleteCall).toBe(true);
     });
   });
 });

@@ -1,28 +1,28 @@
 export type AccountBalance = {
   currency: string;
   amount: string;
-  updated_at: string;
+  updatedAt: string;
 };
 
 export type AccountDetail = {
   id: number;
   name: string;
-  account_type: string;
-  base_currency: string;
-  summary_status: "ok" | "conversion_unavailable";
-  cash_total_amount: string | null;
-  asset_total_amount: string | null;
-  total_amount: string | null;
-  total_currency: string | null;
-  created_at: string;
+  accountType: string;
+  baseCurrency: string;
+  summaryStatus: "ok" | "conversion_unavailable";
+  cashTotalAmount: string | null;
+  assetTotalAmount: string | null;
+  totalAmount: string | null;
+  totalCurrency: string | null;
+  createdAt: string;
   balances: AccountBalance[];
 };
 
 export type AccountAsset = {
-  asset_id: number;
+  assetId: number;
   symbol: string;
   name: string;
-  asset_type: string;
+  assetType: string;
   quantity: string;
   value: string | null;
 };

@@ -6,10 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
-  getAccountsApiUrl,
-  getCurrenciesApiUrl,
-  readApiErrorMessage,
-  type CurrencyResponse,
+  fetchCurrencies,
+  createAccount,
+  extractGqlErrorMessage,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -38,18 +37,7 @@ export function AccountNewPage() {
       setCurrenciesState({ status: "loading" });
 
       try {
-        const response = await fetch(getCurrenciesApiUrl());
-
-        if (!response.ok) {
-          const message = await readApiErrorMessage(
-            response,
-            "Could not load currencies.",
-          );
-          throw new Error(message);
-        }
-
-        const data = (await response.json()) as CurrencyResponse[];
-        const codes = data.map((currency) => currency.code);
+        const codes = await fetchCurrencies();
 
         if (!cancelled) {
           setCurrenciesState({ status: "ready", codes });
@@ -61,10 +49,7 @@ export function AccountNewPage() {
         if (!cancelled) {
           setCurrenciesState({
             status: "error",
-            message:
-              error instanceof Error
-                ? error.message
-                : "Could not load currencies.",
+            message: extractGqlErrorMessage(error, "Could not load currencies."),
           });
         }
       }
@@ -83,32 +68,12 @@ export function AccountNewPage() {
     setRequestState({ status: "submitting" });
 
     try {
-      const response = await fetch(getAccountsApiUrl(), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: name.trim(),
-          account_type: accountType,
-          base_currency: baseCurrency,
-        }),
-      });
-
-      if (!response.ok) {
-        const message = await readApiErrorMessage(
-          response,
-          "Could not create account.",
-        );
-        throw new Error(message);
-      }
-
+      await createAccount(name.trim(), accountType, baseCurrency);
       navigate("/accounts");
     } catch (error) {
       setRequestState({
         status: "error",
-        message:
-          error instanceof Error ? error.message : "Could not create account.",
+        message: extractGqlErrorMessage(error, "Could not create account."),
       });
     }
   }
