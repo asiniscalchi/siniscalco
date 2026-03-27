@@ -73,9 +73,9 @@ describe("AccountNewPage", () => {
           createAccount: {
             id: 12,
             name: "IBKR",
-            accountType: "broker",
+            accountType: "BROKER",
             baseCurrency: "EUR",
-            summaryStatus: "ok",
+            summaryStatus: "OK",
             cashTotalAmount: null,
             assetTotalAmount: null,
             totalAmount: "0.00000000",
@@ -129,9 +129,9 @@ describe("AccountNewPage", () => {
           createAccount: {
             id: 13,
             name: "Kraken",
-            accountType: "crypto",
+            accountType: "CRYPTO",
             baseCurrency: "EUR",
-            summaryStatus: "ok",
+            summaryStatus: "OK",
             cashTotalAmount: null,
             assetTotalAmount: null,
             totalAmount: "0.00000000",

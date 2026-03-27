@@ -26,7 +26,7 @@ const defaultFxRates = {
   targetCurrency: "EUR",
   rates: [],
   lastUpdated: null,
-  refreshStatus: "available",
+  refreshStatus: "AVAILABLE",
   refreshError: null,
 };
 
@@ -81,22 +81,22 @@ describe("PortfolioPage", () => {
   it("renders the portfolio overview when cash data exists", async () => {
     mockPortfolioRequest({
       displayCurrency: "EUR",
-      totalValueStatus: "ok",
+      totalValueStatus: "OK",
       totalValueAmount: "153.70000000",
       accountTotals: [
         {
           id: 1,
           name: "IBKR",
-          accountType: "broker",
-          summaryStatus: "ok",
+          accountType: "BROKER",
+          summaryStatus: "OK",
           totalAmount: "103.70000000",
           totalCurrency: "EUR",
         },
         {
           id: 2,
           name: "Main Bank",
-          accountType: "bank",
-          summaryStatus: "ok",
+          accountType: "BANK",
+          summaryStatus: "OK",
           totalAmount: "50.00000000",
           totalCurrency: "EUR",
         },
@@ -107,7 +107,7 @@ describe("PortfolioPage", () => {
         { currency: "USD", amount: "100.00000000", convertedAmount: "92.00000000" },
       ],
       fxLastUpdated: "2026-03-22 11:30:00",
-      fxRefreshStatus: "available",
+      fxRefreshStatus: "AVAILABLE",
       fxRefreshError: null,
       allocationTotals: [{ label: "Cash", amount: "153.70000000" }],
       allocationIsPartial: false,
@@ -127,21 +127,21 @@ describe("PortfolioPage", () => {
   it("renders the empty state when no cash balances exist", async () => {
     mockPortfolioRequest({
       displayCurrency: "EUR",
-      totalValueStatus: "ok",
+      totalValueStatus: "OK",
       totalValueAmount: "0.00000000",
       accountTotals: [
         {
           id: 1,
           name: "IBKR",
-          accountType: "broker",
-          summaryStatus: "ok",
+          accountType: "BROKER",
+          summaryStatus: "OK",
           totalAmount: "0.00000000",
           totalCurrency: "EUR",
         },
       ],
       cashByCurrency: [],
       fxLastUpdated: null,
-      fxRefreshStatus: "unavailable",
+      fxRefreshStatus: "UNAVAILABLE",
       fxRefreshError: "FX refresh unavailable: no successful refresh has completed",
       allocationTotals: [],
       allocationIsPartial: false,
@@ -157,14 +157,14 @@ describe("PortfolioPage", () => {
   it("renders conversion unavailable while keeping original cash balances visible", async () => {
     mockPortfolioRequest({
       displayCurrency: "EUR",
-      totalValueStatus: "conversion_unavailable",
+      totalValueStatus: "CONVERSION_UNAVAILABLE",
       totalValueAmount: null,
       accountTotals: [
         {
           id: 1,
           name: "IBKR",
-          accountType: "broker",
-          summaryStatus: "conversion_unavailable",
+          accountType: "BROKER",
+          summaryStatus: "CONVERSION_UNAVAILABLE",
           totalAmount: null,
           totalCurrency: "EUR",
         },
@@ -174,7 +174,7 @@ describe("PortfolioPage", () => {
         { currency: "USD", amount: "100.00000000", convertedAmount: null },
       ],
       fxLastUpdated: "2026-03-22 10:00:00",
-      fxRefreshStatus: "unavailable",
+      fxRefreshStatus: "UNAVAILABLE",
       fxRefreshError: "FX refresh unavailable: provider returned status 500",
       allocationTotals: [],
       allocationIsPartial: true,
@@ -209,12 +209,12 @@ describe("PortfolioPage", () => {
         return gqlResponse({
           portfolio: {
             displayCurrency: "EUR",
-            totalValueStatus: "ok",
+            totalValueStatus: "OK",
             totalValueAmount: "1.00000000",
             accountTotals: [],
             cashByCurrency: [{ currency: "EUR", amount: "1.00000000", convertedAmount: "1.00000000" }],
             fxLastUpdated: null,
-            fxRefreshStatus: "available",
+            fxRefreshStatus: "AVAILABLE",
             fxRefreshError: null,
             allocationTotals: [{ label: "Cash", amount: "1.00000000" }],
             allocationIsPartial: false,
@@ -247,14 +247,14 @@ describe("PortfolioPage", () => {
 
     mockPortfolioRequest({
       displayCurrency: "EUR",
-      totalValueStatus: "ok",
+      totalValueStatus: "OK",
       totalValueAmount: "153.70000000",
       accountTotals: [
         {
           id: 1,
           name: "IBKR",
-          accountType: "broker",
-          summaryStatus: "ok",
+          accountType: "BROKER",
+          summaryStatus: "OK",
           totalAmount: "103.70000000",
           totalCurrency: "EUR",
         },
@@ -263,7 +263,7 @@ describe("PortfolioPage", () => {
         { currency: "USD", amount: "100.00000000", convertedAmount: "92.00000000" },
       ],
       fxLastUpdated: "2026-03-22 11:30:00",
-      fxRefreshStatus: "available",
+      fxRefreshStatus: "AVAILABLE",
       fxRefreshError: null,
       allocationTotals: [{ label: "Cash", amount: "92.00000000" }],
       allocationIsPartial: false,
@@ -279,14 +279,14 @@ describe("PortfolioPage", () => {
   it("handles missing currency conversion values without crashing", async () => {
     mockPortfolioRequest({
       displayCurrency: "EUR",
-      totalValueStatus: "ok",
+      totalValueStatus: "OK",
       totalValueAmount: "10.00000000",
       accountTotals: [
         {
           id: 1,
           name: "Empty Account",
-          accountType: "bank",
-          summaryStatus: "conversion_unavailable",
+          accountType: "BANK",
+          summaryStatus: "CONVERSION_UNAVAILABLE",
           totalAmount: null,
           totalCurrency: "EUR",
         },
@@ -295,7 +295,7 @@ describe("PortfolioPage", () => {
         { currency: "JPY", amount: "1000.00000000", convertedAmount: null },
       ],
       fxLastUpdated: null,
-      fxRefreshStatus: "available",
+      fxRefreshStatus: "AVAILABLE",
       fxRefreshError: null,
       allocationTotals: [],
       allocationIsPartial: true,
@@ -312,14 +312,14 @@ describe("PortfolioPage", () => {
   it("renders the allocation card with slices and labels", async () => {
     mockPortfolioRequest({
       displayCurrency: "EUR",
-      totalValueStatus: "ok",
+      totalValueStatus: "OK",
       totalValueAmount: "300.00000000",
       accountTotals: [],
       cashByCurrency: [
         { currency: "EUR", amount: "100.00000000", convertedAmount: "100.00000000" },
       ],
       fxLastUpdated: null,
-      fxRefreshStatus: "available",
+      fxRefreshStatus: "AVAILABLE",
       fxRefreshError: null,
       allocationTotals: [
         { label: "Stock", amount: "200.00000000" },
@@ -344,14 +344,14 @@ describe("PortfolioPage", () => {
   it("shows the partial banner when allocationIsPartial is true", async () => {
     mockPortfolioRequest({
       displayCurrency: "EUR",
-      totalValueStatus: "ok",
+      totalValueStatus: "OK",
       totalValueAmount: "100.00000000",
       accountTotals: [],
       cashByCurrency: [
         { currency: "EUR", amount: "100.00000000", convertedAmount: "100.00000000" },
       ],
       fxLastUpdated: null,
-      fxRefreshStatus: "available",
+      fxRefreshStatus: "AVAILABLE",
       fxRefreshError: null,
       allocationTotals: [{ label: "Cash", amount: "100.00000000" }],
       allocationIsPartial: true,
@@ -371,14 +371,14 @@ describe("PortfolioPage", () => {
   it("shows no-data message when allocationTotals is empty and not partial", async () => {
     mockPortfolioRequest({
       displayCurrency: "EUR",
-      totalValueStatus: "ok",
+      totalValueStatus: "OK",
       totalValueAmount: "100.00000000",
       accountTotals: [],
       cashByCurrency: [
         { currency: "EUR", amount: "100.00000000", convertedAmount: "100.00000000" },
       ],
       fxLastUpdated: null,
-      fxRefreshStatus: "available",
+      fxRefreshStatus: "AVAILABLE",
       fxRefreshError: null,
       allocationTotals: [],
       allocationIsPartial: false,
@@ -396,14 +396,14 @@ describe("PortfolioPage", () => {
 
     mockPortfolioRequest({
       displayCurrency: "EUR",
-      totalValueStatus: "ok",
+      totalValueStatus: "OK",
       totalValueAmount: "300.00000000",
       accountTotals: [],
       cashByCurrency: [
         { currency: "EUR", amount: "100.00000000", convertedAmount: "100.00000000" },
       ],
       fxLastUpdated: null,
-      fxRefreshStatus: "available",
+      fxRefreshStatus: "AVAILABLE",
       fxRefreshError: null,
       allocationTotals: [
         { label: "Stock", amount: "200.00000000" },

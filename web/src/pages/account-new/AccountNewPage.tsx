@@ -9,15 +9,14 @@ import {
   fetchCurrencies,
   createAccount,
   extractGqlErrorMessage,
+  type AccountType,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 export function AccountNewPage() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
-  const [accountType, setAccountType] = useState<"bank" | "broker" | "crypto">(
-    "bank",
-  );
+  const [accountType, setAccountType] = useState<AccountType>("BANK");
   const [baseCurrency, setBaseCurrency] = useState("EUR");
   const [currenciesState, setCurrenciesState] = useState<
     | { status: "loading" }
@@ -118,15 +117,13 @@ export function AccountNewPage() {
                 id="account-type"
                 name="account_type"
                 onChange={(event) =>
-                  setAccountType(
-                    event.target.value as "bank" | "broker" | "crypto",
-                  )
+                  setAccountType(event.target.value as AccountType)
                 }
                 value={accountType}
               >
-                <option value="bank">bank</option>
-                <option value="broker">broker</option>
-                <option value="crypto">crypto</option>
+                <option value="BANK">bank</option>
+                <option value="BROKER">broker</option>
+                <option value="CRYPTO">crypto</option>
               </select>
             </div>
 

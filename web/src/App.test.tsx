@@ -26,12 +26,12 @@ function gqlResponse(data: unknown) {
 
 const emptyPortfolio = {
   displayCurrency: "EUR",
-  totalValueStatus: "ok",
+  totalValueStatus: "OK",
   totalValueAmount: "0.00000000",
   accountTotals: [],
   cashByCurrency: [],
   fxLastUpdated: null,
-  fxRefreshStatus: "available",
+  fxRefreshStatus: "AVAILABLE",
   fxRefreshError: null,
   allocationTotals: [],
   allocationIsPartial: false,
@@ -43,7 +43,7 @@ const emptyFxRates = {
   targetCurrency: "EUR",
   rates: [],
   lastUpdated: null,
-  refreshStatus: "available",
+  refreshStatus: "AVAILABLE",
   refreshError: null,
 };
 
@@ -138,9 +138,9 @@ describe("App shell", () => {
             {
               id: 7,
               name: "IBKR",
-              accountType: "broker",
+              accountType: "BROKER",
               baseCurrency: "EUR",
-              summaryStatus: "ok",
+              summaryStatus: "OK",
               cashTotalAmount: null,
               assetTotalAmount: null,
               totalAmount: "1.00000000",
@@ -158,8 +158,8 @@ describe("App shell", () => {
               {
                 id: 7,
                 name: "IBKR",
-                accountType: "broker",
-                summaryStatus: "ok",
+                accountType: "BROKER",
+                summaryStatus: "OK",
                 cashTotalAmount: null,
                 assetTotalAmount: null,
                 totalAmount: "1.00000000",
@@ -175,9 +175,9 @@ describe("App shell", () => {
           account: {
             id: 7,
             name: "IBKR",
-            accountType: "broker",
+            accountType: "BROKER",
             baseCurrency: "EUR",
-            summaryStatus: "ok",
+            summaryStatus: "OK",
             createdAt: "2026-03-22 00:00:00",
             cashTotalAmount: null,
             assetTotalAmount: null,
@@ -239,14 +239,14 @@ describe("App shell", () => {
         return gqlResponse({
           portfolio: {
             displayCurrency: "EUR",
-            totalValueStatus: "ok",
+            totalValueStatus: "OK",
             totalValueAmount: "153.70000000",
             accountTotals: [
               {
                 id: 1,
                 name: "IBKR",
-                accountType: "broker",
-                summaryStatus: "ok",
+                accountType: "BROKER",
+                summaryStatus: "OK",
                 cashTotalAmount: null,
                 assetTotalAmount: null,
                 totalAmount: "103.70000000",
@@ -261,7 +261,7 @@ describe("App shell", () => {
               },
             ],
             fxLastUpdated: null,
-            fxRefreshStatus: "available",
+            fxRefreshStatus: "AVAILABLE",
             fxRefreshError: null,
             allocationTotals: [{ label: "Cash", amount: "92.00000000" }],
             allocationIsPartial: false,

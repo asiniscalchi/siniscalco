@@ -18,11 +18,11 @@ export function PortfolioAccountBreakdown({
   });
 
   const validAccounts = sortedAccountTotals.filter(
-    (a) => a.summaryStatus === "ok" && a.totalAmount,
+    (a) => a.summaryStatus === "OK" && a.totalAmount,
   );
 
   const accountsWithIssues = sortedAccountTotals.filter(
-    (a) => a.summaryStatus !== "ok" || !a.totalAmount,
+    (a) => a.summaryStatus !== "OK" || !a.totalAmount,
   );
 
   if (validAccounts.length === 0 && accountsWithIssues.length === 0) {

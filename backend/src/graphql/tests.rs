@@ -230,12 +230,12 @@ async fn creates_asset_with_normalized_fields() {
     let json = gql(
         app,
         r#"mutation {
-            createAsset(
+            createAsset(input: {
                 symbol: "  aapl  "
                 name: "  Apple Inc.  "
-                assetType: "STOCK"
+                assetType: STOCK
                 quoteSymbol: "  aapl  "
-            ) { id symbol name assetType quoteSymbol }
+            }) { id symbol name assetType quoteSymbol }
         }"#,
     )
     .await;
@@ -267,7 +267,7 @@ async fn creates_asset_and_fetches_price_immediately() {
     let json = gql(
         app,
         r#"mutation {
-            createAsset(symbol: "AAPL", name: "Apple Inc.", assetType: "CRYPTO") {
+            createAsset(input: { symbol: "AAPL", name: "Apple Inc.", assetType: CRYPTO }) {
                 id symbol
             }
         }"#,
@@ -285,7 +285,7 @@ async fn rejects_invalid_asset_creation_with_field_errors() {
 
     let json = gql(
         app,
-        r#"mutation { createAsset(symbol: "   ", name: "   ", assetType: "stock") { id } }"#,
+        r#"mutation { createAsset(input: { symbol: "   ", name: "   ", assetType: STOCK }) { id } }"#,
     )
     .await;
 
@@ -295,7 +295,6 @@ async fn rejects_invalid_asset_creation_with_field_errors() {
     let field_errors = &err["extensions"]["field_errors"];
     assert!(field_errors["symbol"].is_array());
     assert!(field_errors["name"].is_array());
-    assert!(field_errors["assetType"].is_array());
 }
 
 #[tokio::test]
@@ -319,7 +318,7 @@ async fn rejects_duplicate_asset_symbol() {
     let json = gql(
         app,
         r#"mutation {
-            createAsset(symbol: "AAPL", name: "Apple Common Stock", assetType: "STOCK", isin: "US0378331006") { id }
+            createAsset(input: { symbol: "AAPL", name: "Apple Common Stock", assetType: STOCK, isin: "US0378331006" }) { id }
         }"#,
     )
     .await;
@@ -350,7 +349,7 @@ async fn rejects_duplicate_asset_isin() {
     let json = gql(
         app,
         r#"mutation {
-            createAsset(symbol: "VWCE", name: "Vanguard FTSE All-World UCITS ETF", assetType: "ETF", isin: "US9229087690") { id }
+            createAsset(input: { symbol: "VWCE", name: "Vanguard FTSE All-World UCITS ETF", assetType: ETF, isin: "US9229087690" }) { id }
         }"#,
     )
     .await;
@@ -415,7 +414,7 @@ async fn updates_asset() {
     let json = gql(
         app,
         &format!(
-            r#"mutation {{ updateAsset(id: {}, symbol: "AAPL", name: "Apple Inc. Updated", assetType: "STOCK") {{ symbol name }} }}"#,
+            r#"mutation {{ updateAsset(id: {}, input: {{ symbol: "AAPL", name: "Apple Inc. Updated", assetType: STOCK }}) {{ symbol name }} }}"#,
             asset_id.as_i64()
         ),
     )
@@ -537,7 +536,7 @@ async fn lists_fx_rates_for_eur() {
 
     let fx = &json["data"]["fxRates"];
     assert_eq!(fx["targetCurrency"], "EUR");
-    assert_eq!(fx["refreshStatus"], "available");
+    assert_eq!(fx["refreshStatus"], "AVAILABLE");
     assert!(fx["refreshError"].is_null());
     let rates = fx["rates"].as_array().unwrap();
     assert!(
@@ -610,9 +609,9 @@ async fn returns_portfolio_summary() {
 
     let p = &json["data"]["portfolio"];
     assert_eq!(p["displayCurrency"], "EUR");
-    assert_eq!(p["totalValueStatus"], "ok");
+    assert_eq!(p["totalValueStatus"], "OK");
     assert_eq!(p["totalValueAmount"], "92.000000");
-    assert_eq!(p["fxRefreshStatus"], "available");
+    assert_eq!(p["fxRefreshStatus"], "AVAILABLE");
 }
 
 #[tokio::test]
@@ -626,7 +625,7 @@ async fn returns_empty_portfolio_summary_when_no_cash_exists() {
     .await;
 
     let p = &json["data"]["portfolio"];
-    assert_eq!(p["totalValueStatus"], "ok");
+    assert_eq!(p["totalValueStatus"], "OK");
     assert_eq!(p["accountTotals"], json!([]));
 }
 
@@ -660,7 +659,7 @@ async fn returns_conversion_unavailable_portfolio_when_fx_is_missing() {
     let json = gql(app, "{ portfolio { totalValueStatus totalValueAmount } }").await;
 
     let p = &json["data"]["portfolio"];
-    assert_eq!(p["totalValueStatus"], "conversion_unavailable");
+    assert_eq!(p["totalValueStatus"], "CONVERSION_UNAVAILABLE");
     assert!(p["totalValueAmount"].is_null());
 }
 
@@ -699,15 +698,15 @@ async fn creates_asset_transaction() {
         app,
         &format!(
             r#"mutation {{
-                createTransaction(
+                createTransaction(input: {{
                     accountId: {}
                     assetId: {}
-                    transactionType: "BUY"
+                    transactionType: BUY
                     tradeDate: "2026-03-20"
                     quantity: "10"
                     unitPrice: "150.00"
                     currencyCode: "USD"
-                ) {{ id accountId assetId transactionType tradeDate quantity unitPrice currencyCode }}
+                }}) {{ id accountId assetId transactionType tradeDate quantity unitPrice currencyCode }}
             }}"#,
             account_id.as_i64(),
             asset_id.as_i64()
@@ -892,16 +891,15 @@ async fn updates_asset_transaction() {
         app,
         &format!(
             r#"mutation {{
-                updateTransaction(
-                    id: {}
+                updateTransaction(id: {}, input: {{
                     accountId: {}
                     assetId: {}
-                    transactionType: "BUY"
+                    transactionType: BUY
                     tradeDate: "2026-03-20"
                     quantity: "20"
                     unitPrice: "200.00"
                     currencyCode: "USD"
-                ) {{ quantity unitPrice }}
+                }}) {{ quantity unitPrice }}
             }}"#,
             tx.id,
             account_id.as_i64(),
@@ -1109,7 +1107,7 @@ async fn creates_account() {
     let json = gql(
         app,
         r#"mutation {
-            createAccount(name: "IBKR", accountType: "broker", baseCurrency: "USD") {
+            createAccount(input: { name: "IBKR", accountType: BROKER, baseCurrency: "USD" }) {
                 id name accountType baseCurrency summaryStatus
             }
         }"#,
@@ -1118,9 +1116,9 @@ async fn creates_account() {
 
     let account = &json["data"]["createAccount"];
     assert_eq!(account["name"], "IBKR");
-    assert_eq!(account["accountType"], "broker");
+    assert_eq!(account["accountType"], "BROKER");
     assert_eq!(account["baseCurrency"], "USD");
-    assert_eq!(account["summaryStatus"], "ok");
+    assert_eq!(account["summaryStatus"], "OK");
 }
 
 #[tokio::test]
@@ -1131,14 +1129,14 @@ async fn creates_crypto_account() {
     let json = gql(
         app,
         r#"mutation {
-            createAccount(name: "Ledger", accountType: "crypto", baseCurrency: "EUR") {
+            createAccount(input: { name: "Ledger", accountType: CRYPTO, baseCurrency: "EUR" }) {
                 accountType baseCurrency
             }
         }"#,
     )
     .await;
 
-    assert_eq!(json["data"]["createAccount"]["accountType"], "crypto");
+    assert_eq!(json["data"]["createAccount"]["accountType"], "CRYPTO");
     assert_eq!(json["data"]["createAccount"]["baseCurrency"], "EUR");
 }
 
@@ -1149,7 +1147,7 @@ async fn rejects_invalid_account_type() {
 
     let json = gql(
         app,
-        r#"mutation { createAccount(name: "Test", accountType: "invalid", baseCurrency: "EUR") { id } }"#,
+        r#"mutation { createAccount(input: { name: "Test", accountType: INVALID, baseCurrency: "EUR" }) { id } }"#,
     )
     .await;
 
@@ -1164,7 +1162,7 @@ async fn rejects_invalid_base_currency() {
 
     let json = gql(
         app,
-        r#"mutation { createAccount(name: "Test", accountType: "bank", baseCurrency: "XYZ") { id } }"#,
+        r#"mutation { createAccount(input: { name: "Test", accountType: BANK, baseCurrency: "XYZ" }) { id } }"#,
     )
     .await;
 
@@ -1191,7 +1189,7 @@ async fn updates_account() {
     let json = gql(
         app,
         &format!(
-            r#"mutation {{ updateAccount(id: {}, name: "Updated Name", accountType: "broker", baseCurrency: "USD") {{ name }} }}"#,
+            r#"mutation {{ updateAccount(id: {}, input: {{ name: "Updated Name", accountType: BROKER, baseCurrency: "USD" }}) {{ name }} }}"#,
             account_id.as_i64()
         ),
     )
@@ -1321,7 +1319,7 @@ async fn lists_account_summaries_with_totals() {
     .await;
 
     let accounts = json["data"]["accounts"].as_array().unwrap();
-    assert_eq!(accounts[0]["summaryStatus"], "ok");
+    assert_eq!(accounts[0]["summaryStatus"], "OK");
     assert_eq!(accounts[0]["cashTotalAmount"], "10.000000");
     assert_eq!(accounts[0]["assetTotalAmount"], "100.000000");
     assert_eq!(accounts[0]["totalAmount"], "110.000000");
@@ -1362,7 +1360,7 @@ async fn returns_conversion_unavailable_when_fx_rate_missing() {
     .await;
 
     let accounts = json["data"]["accounts"].as_array().unwrap();
-    assert_eq!(accounts[0]["summaryStatus"], "conversion_unavailable");
+    assert_eq!(accounts[0]["summaryStatus"], "CONVERSION_UNAVAILABLE");
     assert!(accounts[0]["cashTotalAmount"].is_null());
     assert!(accounts[0]["totalAmount"].is_null());
     assert!(accounts[0]["totalCurrency"].is_null());
@@ -1414,7 +1412,7 @@ async fn rounds_converted_account_totals() {
     .await;
 
     let accounts = json["data"]["accounts"].as_array().unwrap();
-    assert_eq!(accounts[0]["summaryStatus"], "ok");
+    assert_eq!(accounts[0]["summaryStatus"], "OK");
     assert_eq!(accounts[0]["cashTotalAmount"], "0.666666");
     assert_eq!(accounts[0]["assetTotalAmount"], "0.000000");
     assert_eq!(accounts[0]["totalAmount"], "0.666666");
@@ -1458,7 +1456,7 @@ async fn gets_account_detail_with_balances() {
 
     let a = &json["data"]["account"];
     assert_eq!(a["name"], "IBKR");
-    assert_eq!(a["summaryStatus"], "conversion_unavailable");
+    assert_eq!(a["summaryStatus"], "CONVERSION_UNAVAILABLE");
     assert!(a["cashTotalAmount"].is_null());
     assert_eq!(a["assetTotalAmount"], "0.000000");
     assert!(a["totalAmount"].is_null());
@@ -1541,7 +1539,7 @@ async fn creates_balance() {
     let json = gql(
         app,
         &format!(
-            r#"mutation {{ upsertBalance(accountId: {}, currency: "USD", amount: "1234.56") {{ currency amount }} }}"#,
+            r#"mutation {{ upsertBalance(accountId: {}, input: {{ currency: "USD", amount: "1234.56" }}) {{ currency amount }} }}"#,
             account_id.as_i64()
         ),
     )
@@ -1571,7 +1569,7 @@ async fn rejects_invalid_amount_for_balance() {
     let json = gql(
         app,
         &format!(
-            r#"mutation {{ upsertBalance(accountId: {}, currency: "USD", amount: "not_a_number") {{ currency }} }}"#,
+            r#"mutation {{ upsertBalance(accountId: {}, input: {{ currency: "USD", amount: "not_a_number" }}) {{ currency }} }}"#,
             account_id.as_i64()
         ),
     )
@@ -1600,7 +1598,7 @@ async fn rejects_invalid_currency_for_balance() {
     let json = gql(
         app,
         &format!(
-            r#"mutation {{ upsertBalance(accountId: {}, currency: "XYZ", amount: "100") {{ currency }} }}"#,
+            r#"mutation {{ upsertBalance(accountId: {}, input: {{ currency: "XYZ", amount: "100" }}) {{ currency }} }}"#,
             account_id.as_i64()
         ),
     )
@@ -1640,7 +1638,7 @@ async fn updates_balance() {
     let json = gql(
         app,
         &format!(
-            r#"mutation {{ upsertBalance(accountId: {}, currency: "USD", amount: "999.99") {{ amount }} }}"#,
+            r#"mutation {{ upsertBalance(accountId: {}, input: {{ currency: "USD", amount: "999.99" }}) {{ amount }} }}"#,
             account_id.as_i64()
         ),
     )
@@ -1655,7 +1653,7 @@ async fn returns_not_found_when_writing_balance_for_missing_account() {
     let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
     let json = gql(
         app,
-        r#"mutation { upsertBalance(accountId: 999, currency: "USD", amount: "100") { currency } }"#,
+        r#"mutation { upsertBalance(accountId: 999, input: { currency: "USD", amount: "100" }) { currency } }"#,
     )
     .await;
 

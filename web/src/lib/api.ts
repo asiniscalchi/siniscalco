@@ -35,6 +35,12 @@ export function extractGqlFieldErrors(
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
+export type AccountType = "BANK" | "BROKER" | "CRYPTO";
+export type AssetType = "STOCK" | "ETF" | "BOND" | "CRYPTO" | "CASH_EQUIVALENT" | "OTHER";
+export type TransactionType = "BUY" | "SELL";
+export type SummaryStatus = "OK" | "CONVERSION_UNAVAILABLE";
+export type RefreshAvailability = "AVAILABLE" | "UNAVAILABLE";
+
 export type FxRateSummaryItem = {
   currency: string;
   rate: string;
@@ -44,15 +50,15 @@ export type FxRateSummary = {
   targetCurrency: string;
   rates: FxRateSummaryItem[];
   lastUpdated: string | null;
-  refreshStatus: string;
+  refreshStatus: RefreshAvailability;
   refreshError: string | null;
 };
 
 export type PortfolioAccountTotal = {
   id: number;
   name: string;
-  accountType: string;
-  summaryStatus: string;
+  accountType: AccountType;
+  summaryStatus: SummaryStatus;
   cashTotalAmount: string | null;
   assetTotalAmount: string | null;
   totalAmount: string | null;
@@ -79,12 +85,12 @@ export type PortfolioHolding = {
 
 export type PortfolioSummary = {
   displayCurrency: string;
-  totalValueStatus: string;
+  totalValueStatus: SummaryStatus;
   totalValueAmount: string | null;
   accountTotals: PortfolioAccountTotal[];
   cashByCurrency: PortfolioCashByCurrency[];
   fxLastUpdated: string | null;
-  fxRefreshStatus: string;
+  fxRefreshStatus: RefreshAvailability;
   fxRefreshError: string | null;
   allocationTotals: PortfolioAllocationSlice[];
   allocationIsPartial: boolean;
@@ -101,9 +107,9 @@ export type Balance = {
 export type AccountSummary = {
   id: number;
   name: string;
-  accountType: string;
+  accountType: AccountType;
   baseCurrency: string;
-  summaryStatus: string;
+  summaryStatus: SummaryStatus;
   cashTotalAmount: string | null;
   assetTotalAmount: string | null;
   totalAmount: string | null;
@@ -113,9 +119,9 @@ export type AccountSummary = {
 export type AccountDetail = {
   id: number;
   name: string;
-  accountType: string;
+  accountType: AccountType;
   baseCurrency: string;
-  summaryStatus: "ok" | "conversion_unavailable";
+  summaryStatus: SummaryStatus;
   cashTotalAmount: string | null;
   assetTotalAmount: string | null;
   totalAmount: string | null;
@@ -128,15 +134,15 @@ export type Asset = {
   id: number;
   symbol: string;
   name: string;
-  assetType: string;
+  assetType: AssetType;
   quoteSymbol: string | null;
   isin: string | null;
   currentPrice: string | null;
   currentPriceCurrency: string | null;
   currentPriceAsOf: string | null;
   totalQuantity: string | null;
-  createdAt?: string | null;
-  updatedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type AssetPosition = {
@@ -149,7 +155,7 @@ export type Transaction = {
   id: number;
   accountId: number;
   assetId: number;
-  transactionType: string;
+  transactionType: TransactionType;
   tradeDate: string;
   quantity: string;
   unitPrice: string;
@@ -283,20 +289,12 @@ export async function fetchCurrencies(): Promise<string[]> {
 
 export async function createAccount(
   name: string,
-  accountType: string,
+  accountType: AccountType,
   baseCurrency: string,
 ): Promise<AccountDetail> {
   const mutation = gql`
-    mutation CreateAccount(
-      $name: String!
-      $accountType: String!
-      $baseCurrency: String!
-    ) {
-      createAccount(
-        name: $name
-        accountType: $accountType
-        baseCurrency: $baseCurrency
-      ) {
+    mutation CreateAccount($input: CreateAccountInput!) {
+      createAccount(input: $input) {
         id name accountType baseCurrency summaryStatus createdAt
         cashTotalAmount assetTotalAmount totalAmount totalCurrency
         balances { currency amount updatedAt }
@@ -305,7 +303,7 @@ export async function createAccount(
   `;
   const data = await client().request<{ createAccount: AccountDetail }>(
     mutation,
-    { name, accountType, baseCurrency },
+    { input: { name, accountType, baseCurrency } },
   );
   return data.createAccount;
 }
@@ -313,22 +311,12 @@ export async function createAccount(
 export async function updateAccount(
   id: number,
   name: string,
-  accountType: string,
+  accountType: AccountType,
   baseCurrency: string,
 ): Promise<AccountDetail> {
   const mutation = gql`
-    mutation UpdateAccount(
-      $id: Int!
-      $name: String!
-      $accountType: String!
-      $baseCurrency: String!
-    ) {
-      updateAccount(
-        id: $id
-        name: $name
-        accountType: $accountType
-        baseCurrency: $baseCurrency
-      ) {
+    mutation UpdateAccount($id: Int!, $input: UpdateAccountInput!) {
+      updateAccount(id: $id, input: $input) {
         id name accountType baseCurrency summaryStatus createdAt
         cashTotalAmount assetTotalAmount totalAmount totalCurrency
         balances { currency amount updatedAt }
@@ -337,7 +325,7 @@ export async function updateAccount(
   `;
   const data = await client().request<{ updateAccount: AccountDetail }>(
     mutation,
-    { id, name, accountType, baseCurrency },
+    { id, input: { name, accountType, baseCurrency } },
   );
   return data.updateAccount;
 }
@@ -357,20 +345,15 @@ export async function upsertBalance(
   amount: string,
 ): Promise<Balance> {
   const mutation = gql`
-    mutation UpsertBalance(
-      $accountId: Int!
-      $currency: String!
-      $amount: String!
-    ) {
-      upsertBalance(accountId: $accountId, currency: $currency, amount: $amount) {
+    mutation UpsertBalance($accountId: Int!, $input: UpsertBalanceInput!) {
+      upsertBalance(accountId: $accountId, input: $input) {
         currency amount updatedAt
       }
     }
   `;
   const data = await client().request<{ upsertBalance: Balance }>(mutation, {
     accountId,
-    currency,
-    amount,
+    input: { currency, amount },
   });
   return data.upsertBalance;
 }
@@ -390,25 +373,13 @@ export async function deleteBalance(
 export async function createAsset(
   symbol: string,
   name: string,
-  assetType: string,
+  assetType: AssetType,
   quoteSymbol?: string | null,
   isin?: string | null,
 ): Promise<Asset> {
   const mutation = gql`
-    mutation CreateAsset(
-      $symbol: String!
-      $name: String!
-      $assetType: String!
-      $quoteSymbol: String
-      $isin: String
-    ) {
-      createAsset(
-        symbol: $symbol
-        name: $name
-        assetType: $assetType
-        quoteSymbol: $quoteSymbol
-        isin: $isin
-      ) {
+    mutation CreateAsset($input: CreateAssetInput!) {
+      createAsset(input: $input) {
         id symbol name assetType quoteSymbol isin
         currentPrice currentPriceCurrency currentPriceAsOf totalQuantity
         createdAt updatedAt
@@ -416,11 +387,13 @@ export async function createAsset(
     }
   `;
   const data = await client().request<{ createAsset: Asset }>(mutation, {
-    symbol,
-    name,
-    assetType,
-    quoteSymbol: quoteSymbol ?? null,
-    isin: isin ?? null,
+    input: {
+      symbol,
+      name,
+      assetType,
+      quoteSymbol: quoteSymbol ?? null,
+      isin: isin ?? null,
+    },
   });
   return data.createAsset;
 }
@@ -429,27 +402,13 @@ export async function updateAsset(
   id: number,
   symbol: string,
   name: string,
-  assetType: string,
+  assetType: AssetType,
   quoteSymbol?: string | null,
   isin?: string | null,
 ): Promise<Asset> {
   const mutation = gql`
-    mutation UpdateAsset(
-      $id: Int!
-      $symbol: String!
-      $name: String!
-      $assetType: String!
-      $quoteSymbol: String
-      $isin: String
-    ) {
-      updateAsset(
-        id: $id
-        symbol: $symbol
-        name: $name
-        assetType: $assetType
-        quoteSymbol: $quoteSymbol
-        isin: $isin
-      ) {
+    mutation UpdateAsset($id: Int!, $input: UpdateAssetInput!) {
+      updateAsset(id: $id, input: $input) {
         id symbol name assetType quoteSymbol isin
         currentPrice currentPriceCurrency currentPriceAsOf totalQuantity
         createdAt updatedAt
@@ -458,11 +417,13 @@ export async function updateAsset(
   `;
   const data = await client().request<{ updateAsset: Asset }>(mutation, {
     id,
-    symbol,
-    name,
-    assetType,
-    quoteSymbol: quoteSymbol ?? null,
-    isin: isin ?? null,
+    input: {
+      symbol,
+      name,
+      assetType,
+      quoteSymbol: quoteSymbol ?? null,
+      isin: isin ?? null,
+    },
   });
   return data.updateAsset;
 }
@@ -479,7 +440,7 @@ export async function deleteAsset(id: number): Promise<void> {
 export async function createTransaction(
   accountId: number,
   assetId: number,
-  transactionType: string,
+  transactionType: TransactionType,
   tradeDate: string,
   quantity: string,
   unitPrice: string,
@@ -487,26 +448,8 @@ export async function createTransaction(
   notes: string | null,
 ): Promise<Transaction> {
   const mutation = gql`
-    mutation CreateTransaction(
-      $accountId: Int!
-      $assetId: Int!
-      $transactionType: String!
-      $tradeDate: String!
-      $quantity: String!
-      $unitPrice: String!
-      $currencyCode: String!
-      $notes: String
-    ) {
-      createTransaction(
-        accountId: $accountId
-        assetId: $assetId
-        transactionType: $transactionType
-        tradeDate: $tradeDate
-        quantity: $quantity
-        unitPrice: $unitPrice
-        currencyCode: $currencyCode
-        notes: $notes
-      ) {
+    mutation CreateTransaction($input: CreateTransactionInput!) {
+      createTransaction(input: $input) {
         id accountId assetId transactionType tradeDate
         quantity unitPrice currencyCode notes createdAt updatedAt
       }
@@ -515,14 +458,16 @@ export async function createTransaction(
   const data = await client().request<{ createTransaction: Transaction }>(
     mutation,
     {
-      accountId,
-      assetId,
-      transactionType,
-      tradeDate,
-      quantity,
-      unitPrice,
-      currencyCode,
-      notes,
+      input: {
+        accountId,
+        assetId,
+        transactionType,
+        tradeDate,
+        quantity,
+        unitPrice,
+        currencyCode,
+        notes,
+      },
     },
   );
   return data.createTransaction;
@@ -532,7 +477,7 @@ export async function updateTransaction(
   id: number,
   accountId: number,
   assetId: number,
-  transactionType: string,
+  transactionType: TransactionType,
   tradeDate: string,
   quantity: string,
   unitPrice: string,
@@ -540,28 +485,8 @@ export async function updateTransaction(
   notes: string | null,
 ): Promise<Transaction> {
   const mutation = gql`
-    mutation UpdateTransaction(
-      $id: Int!
-      $accountId: Int!
-      $assetId: Int!
-      $transactionType: String!
-      $tradeDate: String!
-      $quantity: String!
-      $unitPrice: String!
-      $currencyCode: String!
-      $notes: String
-    ) {
-      updateTransaction(
-        id: $id
-        accountId: $accountId
-        assetId: $assetId
-        transactionType: $transactionType
-        tradeDate: $tradeDate
-        quantity: $quantity
-        unitPrice: $unitPrice
-        currencyCode: $currencyCode
-        notes: $notes
-      ) {
+    mutation UpdateTransaction($id: Int!, $input: UpdateTransactionInput!) {
+      updateTransaction(id: $id, input: $input) {
         id accountId assetId transactionType tradeDate
         quantity unitPrice currencyCode notes createdAt updatedAt
       }
@@ -571,14 +496,16 @@ export async function updateTransaction(
     mutation,
     {
       id,
-      accountId,
-      assetId,
-      transactionType,
-      tradeDate,
-      quantity,
-      unitPrice,
-      currencyCode,
-      notes,
+      input: {
+        accountId,
+        assetId,
+        transactionType,
+        tradeDate,
+        quantity,
+        unitPrice,
+        currencyCode,
+        notes,
+      },
     },
   );
   return data.updateTransaction;
