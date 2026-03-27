@@ -52,8 +52,11 @@ pub fn build_router(pool: SqlitePool) -> Router {
 }
 
 pub fn build_router_with_state(state: AppState) -> Router {
-    let schema =
-        build_schema(state.pool, state.fx_refresh_status, state.asset_price_refresh_config);
+    let schema = build_schema(
+        state.pool,
+        state.fx_refresh_status,
+        state.asset_price_refresh_config,
+    );
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST])
