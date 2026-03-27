@@ -1,3 +1,4 @@
+import { gql } from "@apollo/client/core";
 import { useQuery } from "@apollo/client/react";
 import { Link } from "react-router-dom";
 
@@ -10,12 +11,28 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
-import {
-  ACCOUNTS_QUERY,
-  PORTFOLIO_QUERY,
-  type AccountSummary,
-  type PortfolioSummary,
-} from "@/lib/api";
+import { type AccountSummary, type PortfolioSummary } from "@/lib/api";
+
+const ACCOUNTS_QUERY = gql`
+  {
+    accounts {
+      id name accountType baseCurrency summaryStatus
+      cashTotalAmount assetTotalAmount totalAmount totalCurrency
+    }
+  }
+`;
+
+const PORTFOLIO_QUERY = gql`
+  {
+    portfolio {
+      displayCurrency totalValueAmount
+      accountTotals {
+        id summaryStatus
+        cashTotalAmount assetTotalAmount totalAmount
+      }
+    }
+  }
+`;
 import { MoneyText } from "@/lib/money";
 import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";

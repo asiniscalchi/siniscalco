@@ -1,16 +1,28 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
+import { gql } from "@apollo/client/core";
 import { useMutation } from "@apollo/client/react";
 
 import { Button } from "@/components/ui/button";
-import {
-  CREATE_ASSET_MUTATION,
-  UPDATE_ASSET_MUTATION,
-  extractGqlErrorMessage,
-  extractGqlFieldErrors,
-  type Asset,
-  type AssetType,
-} from "@/lib/api";
+import { extractGqlErrorMessage, extractGqlFieldErrors, type Asset, type AssetType } from "@/lib/api";
+
+const CREATE_ASSET_MUTATION = gql`
+  mutation CreateAsset($input: CreateAssetInput!) {
+    createAsset(input: $input) {
+      id symbol name assetType quoteSymbol isin
+      currentPrice currentPriceCurrency currentPriceAsOf totalQuantity
+    }
+  }
+`;
+
+const UPDATE_ASSET_MUTATION = gql`
+  mutation UpdateAsset($id: Int!, $input: UpdateAssetInput!) {
+    updateAsset(id: $id, input: $input) {
+      id symbol name assetType quoteSymbol isin
+      currentPrice currentPriceCurrency currentPriceAsOf totalQuantity
+    }
+  }
+`;
 
 type AssetFormModalProps = {
   open: boolean;

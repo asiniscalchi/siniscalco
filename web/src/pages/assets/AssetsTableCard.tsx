@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { gql } from "@apollo/client/core";
 import { useMutation, useQuery } from "@apollo/client/react";
 
 import { ItemLabel } from "@/components/ItemLabel";
@@ -7,12 +8,22 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/lib/format-money";
-import {
-  ASSETS_QUERY,
-  DELETE_ASSET_MUTATION,
-  extractGqlErrorMessage,
-  type Asset,
-} from "@/lib/api";
+import { extractGqlErrorMessage, type Asset } from "@/lib/api";
+
+const ASSETS_QUERY = gql`
+  {
+    assets {
+      id symbol name assetType quoteSymbol isin
+      currentPrice currentPriceCurrency currentPriceAsOf totalQuantity
+    }
+  }
+`;
+
+const DELETE_ASSET_MUTATION = gql`
+  mutation DeleteAsset($id: Int!) {
+    deleteAsset(id: $id)
+  }
+`;
 
 import { AssetFormModal } from "./AssetFormModal";
 

@@ -1,6 +1,24 @@
+import { gql } from "@apollo/client/core";
 import { useQuery } from "@apollo/client/react";
 
-import { PORTFOLIO_QUERY, type PortfolioSummary } from "@/lib/api";
+import { type PortfolioSummary } from "@/lib/api";
+
+const PORTFOLIO_QUERY = gql`
+  {
+    portfolio {
+      displayCurrency totalValueStatus totalValueAmount
+      fxLastUpdated fxRefreshStatus fxRefreshError
+      allocationIsPartial holdingsIsPartial
+      accountTotals {
+        id name accountType summaryStatus
+        cashTotalAmount assetTotalAmount totalAmount totalCurrency
+      }
+      cashByCurrency { currency amount convertedAmount }
+      allocationTotals { label amount }
+      holdings { assetId symbol name value }
+    }
+  }
+`;
 
 import { FxRatesFooter } from "./FxRatesFooter";
 import { PortfolioErrorState } from "./PortfolioErrorState";

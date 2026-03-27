@@ -1,16 +1,42 @@
 import { useState } from "react";
+import { gql } from "@apollo/client/core";
 import { useMutation, useQuery } from "@apollo/client/react";
 
 import { LockIcon, PlusIcon, UnlockIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  ACCOUNTS_QUERY,
-  ASSETS_QUERY,
-  DELETE_TRANSACTION_MUTATION,
-  TRANSACTIONS_QUERY,
-  extractGqlErrorMessage,
-} from "@/lib/api";
+import { extractGqlErrorMessage } from "@/lib/api";
+
+const ACCOUNTS_QUERY = gql`
+  {
+    accounts {
+      id name accountType baseCurrency
+    }
+  }
+`;
+
+const ASSETS_QUERY = gql`
+  {
+    assets {
+      id symbol name assetType
+    }
+  }
+`;
+
+const TRANSACTIONS_QUERY = gql`
+  query Transactions($accountId: Int) {
+    transactions(accountId: $accountId) {
+      id accountId assetId transactionType tradeDate
+      quantity unitPrice currencyCode notes
+    }
+  }
+`;
+
+const DELETE_TRANSACTION_MUTATION = gql`
+  mutation DeleteTransaction($id: Int!) {
+    deleteTransaction(id: $id)
+  }
+`;
 import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
 

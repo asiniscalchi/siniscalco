@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { gql } from "@apollo/client/core";
 import { useMutation } from "@apollo/client/react";
 
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { DELETE_ACCOUNT_MUTATION, extractGqlErrorMessage } from "@/lib/api";
+import { extractGqlErrorMessage } from "@/lib/api";
+
+const DELETE_ACCOUNT_MUTATION = gql`
+  mutation DeleteAccount($id: Int!) {
+    deleteAccount(id: $id)
+  }
+`;
 import { MoneyText } from "@/lib/money";
 import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";

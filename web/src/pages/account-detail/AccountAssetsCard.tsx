@@ -1,13 +1,35 @@
+import { gql } from "@apollo/client/core";
 import { useQuery } from "@apollo/client/react";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ItemLabel } from "@/components/ItemLabel";
-import {
-  ACCOUNT_POSITIONS_QUERY,
-  ASSETS_QUERY,
-  FX_RATES_QUERY,
-  type FxRateSummary,
-} from "@/lib/api";
+import { type FxRateSummary } from "@/lib/api";
+
+const ACCOUNT_POSITIONS_QUERY = gql`
+  query AccountPositions($accountId: Int!) {
+    accountPositions(accountId: $accountId) {
+      accountId assetId quantity
+    }
+  }
+`;
+
+const ASSETS_QUERY = gql`
+  {
+    assets {
+      id symbol name assetType
+      currentPrice currentPriceCurrency
+    }
+  }
+`;
+
+const FX_RATES_QUERY = gql`
+  {
+    fxRates {
+      targetCurrency
+      rates { currency rate }
+    }
+  }
+`;
 import { MoneyText } from "@/lib/money";
 import { useUiState } from "@/lib/ui-state";
 

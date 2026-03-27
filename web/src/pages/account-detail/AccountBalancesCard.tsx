@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { gql } from "@apollo/client/core";
 import { useQuery, useMutation } from "@apollo/client/react";
 
 import { Button } from "@/components/ui/button";
@@ -10,13 +11,36 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  ACCOUNT_QUERY,
-  CURRENCIES_QUERY,
-  UPSERT_BALANCE_MUTATION,
-  DELETE_BALANCE_MUTATION,
-  extractGqlErrorMessage,
-} from "@/lib/api";
+import { extractGqlErrorMessage } from "@/lib/api";
+
+const ACCOUNT_QUERY = gql`
+  query Account($id: Int!) {
+    account(id: $id) {
+      id baseCurrency
+      balances { currency amount updatedAt }
+    }
+  }
+`;
+
+const CURRENCIES_QUERY = gql`
+  {
+    currencies
+  }
+`;
+
+const UPSERT_BALANCE_MUTATION = gql`
+  mutation UpsertBalance($accountId: Int!, $input: UpsertBalanceInput!) {
+    upsertBalance(accountId: $accountId, input: $input) {
+      currency amount updatedAt
+    }
+  }
+`;
+
+const DELETE_BALANCE_MUTATION = gql`
+  mutation DeleteBalance($accountId: Int!, $currency: String!) {
+    deleteBalance(accountId: $accountId, currency: $currency)
+  }
+`;
 import { MoneyText } from "@/lib/money";
 import { useUiState } from "@/lib/ui-state";
 

@@ -1,10 +1,18 @@
+import { gql } from "@apollo/client/core";
 import { useQuery } from "@apollo/client/react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import {
-  ACCOUNT_QUERY,
-  extractGqlErrorMessage,
-} from "@/lib/api";
+import { extractGqlErrorMessage } from "@/lib/api";
+
+const ACCOUNT_QUERY = gql`
+  query Account($id: Int!) {
+    account(id: $id) {
+      id name accountType baseCurrency summaryStatus createdAt
+      cashTotalAmount assetTotalAmount totalAmount totalCurrency
+      balances { currency amount updatedAt }
+    }
+  }
+`;
 
 import { AccountDetailErrorState } from "./AccountDetailErrorState";
 import { AccountDetailLoadingState } from "./AccountDetailLoadingState";

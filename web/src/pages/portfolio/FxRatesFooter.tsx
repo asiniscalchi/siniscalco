@@ -1,6 +1,16 @@
+import { gql } from "@apollo/client/core";
 import { useQuery } from "@apollo/client/react";
 
-import { FX_RATES_QUERY, type FxRateSummary } from "@/lib/api";
+import { type FxRateSummary } from "@/lib/api";
+
+const FX_RATES_QUERY = gql`
+  {
+    fxRates {
+      targetCurrency lastUpdated refreshStatus refreshError
+      rates { currency rate }
+    }
+  }
+`;
 
 function formatFxRate(rate: string) {
   const parsedRate = Number(rate);

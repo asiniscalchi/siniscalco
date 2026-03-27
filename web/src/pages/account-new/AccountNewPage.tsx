@@ -1,17 +1,27 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { gql } from "@apollo/client/core";
 import { useMutation, useQuery } from "@apollo/client/react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
-import {
-  CREATE_ACCOUNT_MUTATION,
-  CURRENCIES_QUERY,
-  extractGqlErrorMessage,
-  type AccountType,
-} from "@/lib/api";
+import { extractGqlErrorMessage, type AccountType } from "@/lib/api";
+
+const CURRENCIES_QUERY = gql`
+  {
+    currencies
+  }
+`;
+
+const CREATE_ACCOUNT_MUTATION = gql`
+  mutation CreateAccount($input: CreateAccountInput!) {
+    createAccount(input: $input) {
+      id name accountType baseCurrency
+    }
+  }
+`;
 import { cn } from "@/lib/utils";
 
 export function AccountNewPage() {
