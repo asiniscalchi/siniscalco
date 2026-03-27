@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { extractGqlErrorMessage } from "@/lib/api";
+import { extractGqlErrorMessage } from "@/lib/gql";
 
 const ACCOUNT_QUERY = gql`
   query Account($id: Int!) {

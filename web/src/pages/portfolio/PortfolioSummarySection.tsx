@@ -1,4 +1,4 @@
-import { type PortfolioSummary } from "@/lib/api";
+import { type PortfolioSummary } from "@/lib/types";
 import { MoneyText } from "@/lib/money";
 
 export function PortfolioSummarySection({

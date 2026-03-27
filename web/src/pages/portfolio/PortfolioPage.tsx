@@ -1,7 +1,7 @@
 import { gql } from "@apollo/client/core";
 import { useQuery } from "@apollo/client/react";
 
-import { type PortfolioSummary } from "@/lib/api";
+import { type PortfolioSummary } from "@/lib/types";
 
 const PORTFOLIO_QUERY = gql`
   {

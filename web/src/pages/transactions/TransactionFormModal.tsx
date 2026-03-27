@@ -4,7 +4,7 @@ import { gql } from "@apollo/client/core";
 import { useMutation } from "@apollo/client/react";
 
 import { Button } from "@/components/ui/button";
-import { extractGqlErrorMessage } from "@/lib/api";
+import { extractGqlErrorMessage } from "@/lib/gql";
 
 const CREATE_TRANSACTION_MUTATION = gql`
   mutation CreateTransaction($input: CreateTransactionInput!) {

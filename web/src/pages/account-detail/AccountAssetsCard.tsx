@@ -3,7 +3,7 @@ import { useQuery } from "@apollo/client/react";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ItemLabel } from "@/components/ItemLabel";
-import { type FxRateSummary } from "@/lib/api";
+import { type FxRateSummary } from "@/lib/types";
 
 const ACCOUNT_POSITIONS_QUERY = gql`
   query AccountPositions($accountId: Int!) {

@@ -1,7 +1,7 @@
 import { ItemLabel } from "@/components/ItemLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DonutChart, SLICE_COLORS } from "@/components/ui/donut-chart";
-import { type PortfolioAllocationSlice } from "@/lib/api";
+import { type PortfolioAllocationSlice } from "@/lib/types";
 import { formatMoney } from "@/lib/format-money";
 
 type Slice = PortfolioAllocationSlice & { value: number };

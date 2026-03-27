@@ -4,7 +4,8 @@ import { gql } from "@apollo/client/core";
 import { useMutation } from "@apollo/client/react";
 
 import { Button } from "@/components/ui/button";
-import { extractGqlErrorMessage, extractGqlFieldErrors, type Asset, type AssetType } from "@/lib/api";
+import { extractGqlErrorMessage, extractGqlFieldErrors } from "@/lib/gql";
+import { type Asset, type AssetType } from "@/lib/types";
 
 const CREATE_ASSET_MUTATION = gql`
   mutation CreateAsset($input: CreateAssetInput!) {

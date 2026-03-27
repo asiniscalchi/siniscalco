@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/lib/format-money";
-import { extractGqlErrorMessage, type Asset } from "@/lib/api";
+import { extractGqlErrorMessage } from "@/lib/gql";
+import { type Asset } from "@/lib/types";
 
 const ASSETS_QUERY = gql`
   {

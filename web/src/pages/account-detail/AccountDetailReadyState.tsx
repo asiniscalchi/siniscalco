@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { extractGqlErrorMessage } from "@/lib/api";
+import { extractGqlErrorMessage } from "@/lib/gql";
 
 const DELETE_ACCOUNT_MUTATION = gql`
   mutation DeleteAccount($id: Int!) {

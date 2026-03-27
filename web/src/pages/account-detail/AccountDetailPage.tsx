@@ -2,7 +2,7 @@ import { gql } from "@apollo/client/core";
 import { useQuery } from "@apollo/client/react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { extractGqlErrorMessage } from "@/lib/api";
+import { extractGqlErrorMessage } from "@/lib/gql";
 
 const ACCOUNT_QUERY = gql`
   query Account($id: Int!) {

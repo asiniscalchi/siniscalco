@@ -11,7 +11,7 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { type AccountSummary, type PortfolioSummary } from "@/lib/api";
+import { type AccountSummary, type PortfolioSummary } from "@/lib/types";
 
 const ACCOUNTS_QUERY = gql`
   {

@@ -5,7 +5,7 @@ import { useMutation, useQuery } from "@apollo/client/react";
 import { LockIcon, PlusIcon, UnlockIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { extractGqlErrorMessage } from "@/lib/api";
+import { extractGqlErrorMessage } from "@/lib/gql";
 
 const ACCOUNTS_QUERY = gql`
   {

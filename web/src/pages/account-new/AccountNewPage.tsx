@@ -7,7 +7,8 @@ import { useMutation, useQuery } from "@apollo/client/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { extractGqlErrorMessage, type AccountType } from "@/lib/api";
+import { extractGqlErrorMessage } from "@/lib/gql";
+import { type AccountType } from "@/lib/types";
 
 const CURRENCIES_QUERY = gql`
   {

@@ -1,7 +1,7 @@
 import { gql } from "@apollo/client/core";
 import { useQuery } from "@apollo/client/react";
 
-import { type FxRateSummary } from "@/lib/api";
+import { type FxRateSummary } from "@/lib/types";
 
 const FX_RATES_QUERY = gql`
   {
