@@ -1,4 +1,6 @@
-import { type FxRateSummary } from "@/lib/api";
+import { useQuery } from "@apollo/client/react";
+
+import { FX_RATES_QUERY, type FxRateSummary } from "@/lib/api";
 
 function formatFxRate(rate: string) {
   const parsedRate = Number(rate);
@@ -10,7 +12,7 @@ function formatFxRate(rate: string) {
   return parsedRate.toFixed(4);
 }
 
-export function FxRatesFooter({ summary }: { summary: FxRateSummary }) {
+function FxRatesFooterContent({ summary }: { summary: FxRateSummary }) {
   if (summary.rates.length === 0) {
     return null;
   }
@@ -36,4 +38,14 @@ export function FxRatesFooter({ summary }: { summary: FxRateSummary }) {
       )}
     </footer>
   );
+}
+
+export function FxRatesFooter() {
+  const { data } = useQuery<{ fxRates: FxRateSummary }>(FX_RATES_QUERY);
+
+  if (!data) {
+    return null;
+  }
+
+  return <FxRatesFooterContent summary={data.fxRates} />;
 }
