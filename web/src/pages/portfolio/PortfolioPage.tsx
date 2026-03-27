@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@apollo/client/react";
 
 import {
-  fetchFxRates,
-  fetchPortfolio,
+  FX_RATES_QUERY,
+  PORTFOLIO_QUERY,
   type FxRateSummary,
   type PortfolioSummary,
 } from "@/lib/api";
@@ -13,52 +13,27 @@ import { PortfolioLoadingState } from "./PortfolioLoadingState";
 import { PortfolioReadyState } from "./PortfolioReadyState";
 
 export function PortfolioPage() {
-  const [requestState, setRequestState] = useState<
-    | { status: "loading" }
-    | { status: "error" }
-    | { status: "ready"; summary: PortfolioSummary; fxRates: FxRateSummary }
-  >({ status: "loading" });
-  const [retryToken, setRetryToken] = useState(0);
+  const { data: portfolioData, loading: portfolioLoading, error: portfolioError, refetch: refetchPortfolio } = useQuery<{ portfolio: PortfolioSummary }>(PORTFOLIO_QUERY);
+  const { data: fxData, loading: fxLoading, error: fxError, refetch: refetchFxRates } = useQuery<{ fxRates: FxRateSummary }>(FX_RATES_QUERY);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loading = portfolioLoading || fxLoading;
+  const error = portfolioError ?? fxError;
 
-    async function loadPortfolio() {
-      setRequestState({ status: "loading" });
-
-      try {
-        const [summary, fxRates] = await Promise.all([
-          fetchPortfolio(),
-          fetchFxRates(),
-        ]);
-
-        if (!cancelled) {
-          setRequestState({ status: "ready", summary, fxRates });
-        }
-      } catch {
-        if (!cancelled) {
-          setRequestState({ status: "error" });
-        }
-      }
-    }
-
-    void loadPortfolio();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [retryToken]);
+  function handleRetry() {
+    void refetchPortfolio();
+    void refetchFxRates();
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
-      {requestState.status === "loading" ? <PortfolioLoadingState /> : null}
-      {requestState.status === "error" ? (
-        <PortfolioErrorState onRetry={() => setRetryToken((value) => value + 1)} />
+      {loading ? <PortfolioLoadingState /> : null}
+      {!loading && error ? (
+        <PortfolioErrorState onRetry={handleRetry} />
       ) : null}
-      {requestState.status === "ready" ? (
+      {!loading && !error && portfolioData && fxData ? (
         <>
-          <PortfolioReadyState summary={requestState.summary} />
-          <FxRatesFooter summary={requestState.fxRates} />
+          <PortfolioReadyState summary={portfolioData.portfolio} />
+          <FxRatesFooter summary={fxData.fxRates} />
         </>
       ) : null}
     </div>

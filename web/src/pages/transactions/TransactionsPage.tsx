@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery } from "@apollo/client/react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -9,10 +10,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  fetchAccounts,
-  fetchAssets,
-  fetchTransactions,
-  deleteTransaction,
+  ACCOUNTS_QUERY,
+  ASSETS_QUERY,
+  DELETE_TRANSACTION_MUTATION,
+  TRANSACTIONS_QUERY,
   extractGqlErrorMessage,
 } from "@/lib/api";
 import { useUiState } from "@/lib/ui-state";
@@ -24,101 +25,30 @@ import type { Account, Asset, Transaction } from "./types";
 export function TransactionsPage() {
   const [isLocked, setIsLocked] = useState(true);
   const { hideValues } = useUiState();
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [assets, setAssets] = useState<Asset[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [initialDataError, setInitialDataError] = useState<string | null>(null);
-  const [transactionsError, setTransactionsError] = useState<string | null>(null);
-  const [retryToken, setRetryToken] = useState(0);
-
-  const [showModal, setShowModal] = useState(false);
   const [editingTransactionId, setEditingTransactionId] = useState<number | null>(null);
+  const [showModal, setShowModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const accountIdVar = selectedAccountId ? parseInt(selectedAccountId) : null;
 
-    async function loadInitialData() {
-      setLoading(true);
-      setInitialDataError(null);
+  const { data: accountsData, loading: accountsLoading, error: accountsError, refetch: refetchAccounts } = useQuery<{ accounts: Account[] }>(ACCOUNTS_QUERY);
+  const { data: assetsData, loading: assetsLoading, error: assetsError, refetch: refetchAssets } = useQuery<{ assets: Asset[] }>(ASSETS_QUERY);
+  const { data: transactionsData, error: transactionsError, refetch: refetchTransactions } = useQuery<{ transactions: Transaction[] }>(
+    TRANSACTIONS_QUERY,
+    { variables: { accountId: accountIdVar } },
+  );
 
-      try {
-        const [accountsData, assetsData] = await Promise.all([
-          fetchAccounts(),
-          fetchAssets(),
-        ]);
+  const [deleteTransactionMutation] = useMutation(DELETE_TRANSACTION_MUTATION);
 
-        if (cancelled) return;
+  const accounts = accountsData?.accounts ?? [];
+  const assets = assetsData?.assets ?? [];
+  const transactions = transactionsData?.transactions ?? [];
 
-        setAccounts(accountsData.map((a) => ({
-          id: a.id,
-          name: a.name,
-          accountType: a.accountType,
-          baseCurrency: a.baseCurrency,
-        })));
-        setAssets(assetsData.map((a) => ({
-          id: a.id,
-          symbol: a.symbol,
-          name: a.name,
-          assetType: a.assetType,
-          isin: a.isin,
-        })));
-      } catch {
-        if (!cancelled) {
-          setInitialDataError("Failed to load initial data");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    void loadInitialData();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [retryToken]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadTransactions() {
-      setTransactionsError(null);
-
-      try {
-        const accountId = selectedAccountId ? parseInt(selectedAccountId) : undefined;
-        const data = await fetchTransactions(accountId);
-
-        if (cancelled) return;
-
-        setTransactions(data.map((t) => ({
-          id: t.id,
-          accountId: t.accountId,
-          assetId: t.assetId,
-          transactionType: t.transactionType as "BUY" | "SELL",
-          tradeDate: t.tradeDate,
-          quantity: t.quantity,
-          unitPrice: t.unitPrice,
-          currencyCode: t.currencyCode,
-          notes: t.notes,
-        })));
-      } catch {
-        if (!cancelled) {
-          setTransactionsError("Failed to load transactions");
-        }
-      }
-    }
-
-    void loadTransactions();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedAccountId, retryToken]);
+  const loading = accountsLoading || assetsLoading;
+  const initialDataError = accountsError ?? assetsError;
+  const pageError = initialDataError ?? transactionsError;
+  const pageErrorMessage = initialDataError ? "Failed to load initial data" : "Failed to load transactions";
 
   const handleCreateClick = () => {
     setEditingTransactionId(null);
@@ -137,8 +67,8 @@ export function TransactionsPage() {
 
     setIsDeleting(transactionId);
     try {
-      await deleteTransaction(transactionId);
-      setRetryToken((t) => t + 1);
+      await deleteTransactionMutation({ variables: { id: transactionId } });
+      await refetchTransactions();
     } catch (error) {
       alert(extractGqlErrorMessage(error, "Failed to delete transaction"));
     } finally {
@@ -149,7 +79,7 @@ export function TransactionsPage() {
   const handleModalSaved = () => {
     setShowModal(false);
     setEditingTransactionId(null);
-    setRetryToken((t) => t + 1);
+    void refetchTransactions();
   };
 
   if (loading && transactions.length === 0 && accounts.length === 0) {
@@ -160,18 +90,22 @@ export function TransactionsPage() {
     );
   }
 
-  const pageError = initialDataError ?? transactionsError;
-
   if (pageError && transactions.length === 0) {
     return (
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 py-8">
         <Card className="border-destructive/30 bg-background">
           <CardHeader>
             <CardTitle>Error</CardTitle>
-            <CardDescription>{pageError}</CardDescription>
+            <CardDescription>{pageErrorMessage}</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => setRetryToken((t) => t + 1)}>Retry</Button>
+            <Button onClick={() => {
+              void refetchAccounts();
+              void refetchAssets();
+              void refetchTransactions();
+            }}>
+              Retry
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -197,6 +131,7 @@ export function TransactionsPage() {
       />
 
       <TransactionFormModal
+        key={showModal ? (editingTransactionId ?? "new") : "closed"}
         accounts={accounts}
         assets={assets}
         editingTransaction={editingTransactionId

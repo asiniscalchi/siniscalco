@@ -1,10 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
+import { useMutation } from "@apollo/client/react";
 
 import { Button } from "@/components/ui/button";
 import {
-  createAsset,
-  updateAsset,
+  CREATE_ASSET_MUTATION,
+  UPDATE_ASSET_MUTATION,
   extractGqlErrorMessage,
   extractGqlFieldErrors,
   type Asset,
@@ -40,30 +41,23 @@ export function AssetFormModal({
   onClose,
   onSaved,
 }: AssetFormModalProps) {
-  const [formState, setFormState] = useState<FormState>(initialFormState);
+  const [formState, setFormState] = useState<FormState>(
+    editingAsset
+      ? {
+          symbol: editingAsset.symbol,
+          name: editingAsset.name,
+          type: editingAsset.assetType,
+          quoteSymbol: editingAsset.quoteSymbol || "",
+          isin: editingAsset.isin || "",
+        }
+      : initialFormState,
+  );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    setFormState(
-      editingAsset
-        ? {
-            symbol: editingAsset.symbol,
-            name: editingAsset.name,
-            type: editingAsset.assetType,
-            quoteSymbol: editingAsset.quoteSymbol || "",
-            isin: editingAsset.isin || "",
-          }
-        : initialFormState,
-    );
-    setFieldErrors({});
-    setSubmitError(null);
-  }, [editingAsset, open]);
+  const [createAsset, { loading: creating }] = useMutation(CREATE_ASSET_MUTATION);
+  const [updateAsset, { loading: updating }] = useMutation(UPDATE_ASSET_MUTATION);
+  const isSubmitting = creating || updating;
 
   useEffect(() => {
     if (!open) {
@@ -86,38 +80,43 @@ export function AssetFormModal({
     event.preventDefault();
     setFieldErrors({});
     setSubmitError(null);
-    setIsSubmitting(true);
 
     try {
       if (editingAsset) {
-        await updateAsset(
-          editingAsset.id,
-          formState.symbol,
-          formState.name,
-          formState.type,
-          formState.quoteSymbol || null,
-          formState.isin || null,
-        );
+        await updateAsset({
+          variables: {
+            id: editingAsset.id,
+            input: {
+              symbol: formState.symbol,
+              name: formState.name,
+              assetType: formState.type,
+              quoteSymbol: formState.quoteSymbol || null,
+              isin: formState.isin || null,
+            },
+          },
+        });
       } else {
-        await createAsset(
-          formState.symbol,
-          formState.name,
-          formState.type,
-          formState.quoteSymbol || null,
-          formState.isin || null,
-        );
+        await createAsset({
+          variables: {
+            input: {
+              symbol: formState.symbol,
+              name: formState.name,
+              assetType: formState.type,
+              quoteSymbol: formState.quoteSymbol || null,
+              isin: formState.isin || null,
+            },
+          },
+        });
       }
       onSaved();
     } catch (error) {
       const fieldErrs = extractGqlFieldErrors(error);
       if (fieldErrs) {
         setFieldErrors(fieldErrs);
-        setSubmitError(extractGqlErrorMessage(error, editingAsset ? "Failed to update asset" : "Failed to create asset"));
-      } else {
-        setSubmitError(extractGqlErrorMessage(error, editingAsset ? "Failed to update asset" : "Failed to create asset"));
       }
-    } finally {
-      setIsSubmitting(false);
+      setSubmitError(
+        extractGqlErrorMessage(error, editingAsset ? "Failed to update asset" : "Failed to create asset"),
+      );
     }
   };
 

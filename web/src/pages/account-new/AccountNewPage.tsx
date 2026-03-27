@@ -1,13 +1,14 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useMutation, useQuery } from "@apollo/client/react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
-  fetchCurrencies,
-  createAccount,
+  CREATE_ACCOUNT_MUTATION,
+  CURRENCIES_QUERY,
   extractGqlErrorMessage,
   type AccountType,
 } from "@/lib/api";
@@ -18,63 +19,20 @@ export function AccountNewPage() {
   const [name, setName] = useState("");
   const [accountType, setAccountType] = useState<AccountType>("BANK");
   const [baseCurrency, setBaseCurrency] = useState("EUR");
-  const [currenciesState, setCurrenciesState] = useState<
-    | { status: "loading" }
-    | { status: "error"; message: string }
-    | { status: "ready"; codes: string[] }
-  >({ status: "loading" });
-  const [requestState, setRequestState] = useState<
-    | { status: "idle" }
-    | { status: "submitting" }
-    | { status: "error"; message: string }
-  >({ status: "idle" });
 
-  useEffect(() => {
-    let cancelled = false;
+  const { data: currenciesData, loading: currenciesLoading, error: currenciesError } = useQuery<{ currencies: string[] }>(CURRENCIES_QUERY);
 
-    async function loadCurrencies() {
-      setCurrenciesState({ status: "loading" });
+  const [createAccount, { loading: submitting, error: submitError }] = useMutation(CREATE_ACCOUNT_MUTATION, {
+    onCompleted: () => navigate("/accounts"),
+  });
 
-      try {
-        const codes = await fetchCurrencies();
+  const currencies = currenciesData?.currencies ?? [];
 
-        if (!cancelled) {
-          setCurrenciesState({ status: "ready", codes });
-          setBaseCurrency((current) =>
-            codes.length > 0 && !codes.includes(current) ? codes[0] : current,
-          );
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setCurrenciesState({
-            status: "error",
-            message: extractGqlErrorMessage(error, "Could not load currencies."),
-          });
-        }
-      }
-    }
-
-    void loadCurrencies();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    setRequestState({ status: "submitting" });
-
-    try {
-      await createAccount(name.trim(), accountType, baseCurrency);
-      navigate("/accounts");
-    } catch (error) {
-      setRequestState({
-        status: "error",
-        message: extractGqlErrorMessage(error, "Could not create account."),
-      });
-    }
+    void createAccount({
+      variables: { input: { name: name.trim(), accountType, baseCurrency } },
+    });
   }
 
   return (
@@ -139,24 +97,24 @@ export function AccountNewPage() {
                 required
                 value={baseCurrency}
               >
-                {currenciesState.status === "ready"
-                  ? currenciesState.codes.map((code) => (
-                      <option key={code} value={code}>
-                        {code}
-                      </option>
-                    ))
-                  : null}
+                {currencies.map((code) => (
+                  <option key={code} value={code}>
+                    {code}
+                  </option>
+                ))}
               </select>
             </div>
 
-            {currenciesState.status === "error" ? (
+            {currenciesError ? (
               <p className="text-sm text-destructive">
-                {currenciesState.message}
+                {extractGqlErrorMessage(currenciesError, "Could not load currencies.")}
               </p>
             ) : null}
 
-            {requestState.status === "error" ? (
-              <p className="text-sm text-destructive">{requestState.message}</p>
+            {submitError ? (
+              <p className="text-sm text-destructive">
+                {extractGqlErrorMessage(submitError, "Could not create account.")}
+              </p>
             ) : null}
 
             <div className="flex justify-end gap-3">
@@ -167,15 +125,10 @@ export function AccountNewPage() {
                 Cancel
               </Link>
               <Button
-                disabled={
-                  requestState.status === "submitting" ||
-                  currenciesState.status !== "ready"
-                }
+                disabled={submitting || currenciesLoading || currencies.length === 0}
                 type="submit"
               >
-                {requestState.status === "submitting"
-                  ? "Creating..."
-                  : "Create account"}
+                {submitting ? "Creating..." : "Create account"}
               </Button>
             </div>
           </form>

@@ -9,13 +9,22 @@ import {
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApolloClient, HttpLink, InMemoryCache } from "@apollo/client";
+import { ApolloProvider } from "@apollo/client/react";
+
 import { AssetsPage } from ".";
+
+function createTestClient() {
+  return new ApolloClient({ link: new HttpLink({ uri: "http://localhost/graphql" }), cache: new InMemoryCache() });
+}
 
 function renderAssetsPage() {
   return render(
-    <MemoryRouter>
-      <AssetsPage />
-    </MemoryRouter>,
+    <ApolloProvider client={createTestClient()}>
+      <MemoryRouter>
+        <AssetsPage />
+      </MemoryRouter>
+    </ApolloProvider>,
   );
 }
 

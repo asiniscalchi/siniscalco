@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { useMutation } from "@apollo/client/react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,9 +13,9 @@ import {
 } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
-  upsertBalance,
-  deleteBalance,
-  deleteAccount,
+  DELETE_ACCOUNT_MUTATION,
+  DELETE_BALANCE_MUTATION,
+  UPSERT_BALANCE_MUTATION,
   extractGqlErrorMessage,
 } from "@/lib/api";
 import { MoneyText } from "@/lib/money";
@@ -43,70 +44,55 @@ export function AccountDetailReadyState({
   const { hideValues } = useUiState();
   const [currency, setCurrency] = useState(account.baseCurrency);
   const [amount, setAmount] = useState("");
-  const [requestState, setRequestState] = useState<
-    | { status: "idle" }
-    | { status: "submitting" }
-    | { status: "error"; message: string }
-  >({ status: "idle" });
+  const [balanceError, setBalanceError] = useState<string | null>(null);
   const [deletingCurrency, setDeletingCurrency] = useState<string | null>(null);
-  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
+  const [upsertBalance, { loading: savingBalance }] = useMutation(UPSERT_BALANCE_MUTATION);
+  const [deleteBalance] = useMutation(DELETE_BALANCE_MUTATION);
+  const [deleteAccount, { loading: isDeletingAccount }] = useMutation(DELETE_ACCOUNT_MUTATION);
 
   useEffect(() => {
     setCurrency(account.baseCurrency);
     setAmount("");
-    setRequestState({ status: "idle" });
+    setBalanceError(null);
     setDeletingCurrency(null);
-    setIsDeletingAccount(false);
   }, [account.baseCurrency, account.id]);
 
   async function handleBalanceSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    setRequestState({ status: "submitting" });
+    setBalanceError(null);
 
     try {
-      await upsertBalance(account.id, currency, amount.trim());
+      await upsertBalance({
+        variables: { accountId: account.id, input: { currency, amount: amount.trim() } },
+      });
       setAmount("");
-      setRequestState({ status: "idle" });
       onRefresh();
     } catch (error) {
-      setRequestState({
-        status: "error",
-        message: extractGqlErrorMessage(error, "Could not save balance."),
-      });
+      setBalanceError(extractGqlErrorMessage(error, "Could not save balance."));
     }
   }
 
   async function handleDeleteBalance(balanceCurrency: string) {
     setDeletingCurrency(balanceCurrency);
-    setRequestState({ status: "idle" });
+    setBalanceError(null);
 
     try {
-      await deleteBalance(account.id, balanceCurrency);
+      await deleteBalance({ variables: { accountId: account.id, currency: balanceCurrency } });
       onRefresh();
     } catch (error) {
-      setRequestState({
-        status: "error",
-        message: extractGqlErrorMessage(error, "Could not delete balance."),
-      });
+      setBalanceError(extractGqlErrorMessage(error, "Could not delete balance."));
     } finally {
       setDeletingCurrency(null);
     }
   }
 
   async function handleDeleteAccount() {
-    setIsDeletingAccount(true);
-    setRequestState({ status: "idle" });
-
     try {
-      await deleteAccount(account.id);
+      await deleteAccount({ variables: { id: account.id } });
       onDeleteSuccess();
     } catch (error) {
-      setRequestState({
-        status: "error",
-        message: extractGqlErrorMessage(error, "Could not delete account."),
-      });
-      setIsDeletingAccount(false);
+      setBalanceError(extractGqlErrorMessage(error, "Could not delete account."));
     }
   }
 
@@ -346,20 +332,13 @@ export function AccountDetailReadyState({
                 </div>
               </div>
 
-              {requestState.status === "error" ? (
-                <p className="text-sm text-destructive">
-                  {requestState.message}
-                </p>
+              {balanceError ? (
+                <p className="text-sm text-destructive">{balanceError}</p>
               ) : null}
 
               <div className="flex justify-end">
-                <Button
-                  disabled={requestState.status === "submitting"}
-                  type="submit"
-                >
-                  {requestState.status === "submitting"
-                    ? "Saving..."
-                    : "Save balance"}
+                <Button disabled={savingBalance} type="submit">
+                  {savingBalance ? "Saving..." : "Save balance"}
                 </Button>
               </div>
             </form>

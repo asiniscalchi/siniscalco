@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApolloClient, HttpLink, InMemoryCache } from "@apollo/client";
+import { ApolloProvider } from "@apollo/client/react";
 
 import { UiStateProvider } from "@/lib/ui-state-provider";
 import { AccountDetailPage } from ".";
@@ -54,17 +56,23 @@ function mockAccountDetailFetch(
   });
 }
 
+function createTestClient() {
+  return new ApolloClient({ link: new HttpLink({ uri: "http://localhost/graphql" }), cache: new InMemoryCache() });
+}
+
 function renderAccountDetailPage(initialEntry: string, routes?: ReactNode) {
   return render(
-    <UiStateProvider>
-      <MemoryRouter initialEntries={[initialEntry]}>
-        <Routes>
-          {routes ?? (
-            <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
-          )}
-        </Routes>
-      </MemoryRouter>
-    </UiStateProvider>,
+    <ApolloProvider client={createTestClient()}>
+      <UiStateProvider>
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <Routes>
+            {routes ?? (
+              <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
+            )}
+          </Routes>
+        </MemoryRouter>
+      </UiStateProvider>
+    </ApolloProvider>,
   );
 }
 

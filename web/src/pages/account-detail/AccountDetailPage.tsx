@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@apollo/client/react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import {
-  fetchAccount,
-  fetchAccountPositions,
-  fetchAssets,
-  fetchCurrencies,
-  fetchFxRates,
+  ACCOUNT_POSITIONS_QUERY,
+  ACCOUNT_QUERY,
+  ASSETS_QUERY,
+  CURRENCIES_QUERY,
+  FX_RATES_QUERY,
   extractGqlErrorMessage,
   type FxRateSummary,
 } from "@/lib/api";
@@ -49,112 +49,101 @@ function computeAssetValue(
 export function AccountDetailPage() {
   const { accountId } = useParams<{ accountId: string }>();
   const navigate = useNavigate();
-  const [requestState, setRequestState] = useState<
-    | { status: "loading" }
-    | { status: "error"; message: string }
-    | { status: "ready"; data: ReadyState }
-  >(accountId ? { status: "loading" } : { status: "error", message: "Account not found." });
-  const [retryToken, setRetryToken] = useState(0);
+  const numericId = accountId ? parseInt(accountId) : 0;
 
-  useEffect(() => {
-    if (!accountId) return;
+  const { data: accountData, loading: accountLoading, error: accountError, refetch } = useQuery<{ account: ReadyState["account"] }>(
+    ACCOUNT_QUERY,
+    { variables: { id: numericId }, skip: !accountId },
+  );
 
-    const resolvedAccountId = parseInt(accountId);
-    let cancelled = false;
+  const { data: currenciesData, loading: currenciesLoading } = useQuery<{ currencies: string[] }>(
+    CURRENCIES_QUERY,
+    { skip: !accountId },
+  );
 
-    async function loadAccount() {
-      setRequestState({ status: "loading" });
+  const skipSecondary = !accountId || accountLoading || !!accountError;
 
-      try {
-        const [account, currencies] = await Promise.all([
-          fetchAccount(resolvedAccountId),
-          fetchCurrencies(),
-        ]);
+  const { data: positionsData } = useQuery<{ accountPositions: Array<{ accountId: number; assetId: number; quantity: string }> }>(
+    ACCOUNT_POSITIONS_QUERY,
+    { variables: { accountId: numericId }, skip: skipSecondary },
+  );
 
-        const [positionsResult, assetsResult, fxRatesResult] = await Promise.allSettled([
-          fetchAccountPositions(resolvedAccountId),
-          fetchAssets(),
-          fetchFxRates(),
-        ]);
+  const { data: assetsData } = useQuery<{ assets: Array<{ id: number; symbol: string; name: string; assetType: string; currentPrice: string | null; currentPriceCurrency: string | null }> }>(
+    ASSETS_QUERY,
+    { skip: skipSecondary },
+  );
 
-        const positions =
-          positionsResult.status === "fulfilled" ? positionsResult.value : [];
+  const { data: fxData } = useQuery<{ fxRates: FxRateSummary }>(
+    FX_RATES_QUERY,
+    { skip: skipSecondary },
+  );
 
-        const assets =
-          assetsResult.status === "fulfilled" ? assetsResult.value : [];
-
-        const fxRates =
-          fxRatesResult.status === "fulfilled" ? fxRatesResult.value : null;
-
-        const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
-        const accountAssets = positions.flatMap((position) => {
-          const asset = assetsById.get(position.assetId);
-
-          if (!asset) {
-            return [];
-          }
-
-          return [
-            {
-              assetId: position.assetId,
-              symbol: asset.symbol,
-              name: asset.name,
-              assetType: asset.assetType,
-              quantity: position.quantity,
-              value: computeAssetValue(
-                position.quantity,
-                asset.currentPrice,
-                asset.currentPriceCurrency,
-                account.baseCurrency,
-                fxRates,
-              ),
-            },
-          ];
-        });
-
-        if (!cancelled) {
-          setRequestState({
-            status: "ready",
-            data: { account, currencies, assets: accountAssets },
-          });
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setRequestState({
-            status: "error",
-            message: extractGqlErrorMessage(error, "Could not load account."),
-          });
-        }
-      }
-    }
-
-    void loadAccount();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [accountId, retryToken]);
-
-  if (requestState.status === "loading") {
-    return <AccountDetailLoadingState />;
-  }
-
-  if (requestState.status === "error") {
+  if (!accountId) {
     return (
       <AccountDetailErrorState
-        message={requestState.message}
-        onRetry={() => setRetryToken((value) => value + 1)}
+        message="Account not found."
+        onRetry={() => void refetch()}
       />
     );
   }
 
+  if (accountLoading || currenciesLoading) {
+    return <AccountDetailLoadingState />;
+  }
+
+  if (accountError) {
+    return (
+      <AccountDetailErrorState
+        message={extractGqlErrorMessage(accountError, "Could not load account.")}
+        onRetry={() => void refetch()}
+      />
+    );
+  }
+
+  const account = accountData?.account;
+  if (!account) {
+    return (
+      <AccountDetailErrorState
+        message="Could not load account."
+        onRetry={() => void refetch()}
+      />
+    );
+  }
+
+  const currencies = currenciesData?.currencies ?? [];
+  const positions = positionsData?.accountPositions ?? [];
+  const assets = assetsData?.assets ?? [];
+  const fxRates = fxData?.fxRates ?? null;
+
+  const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
+  const accountAssets = positions.flatMap((position) => {
+    const asset = assetsById.get(position.assetId);
+    if (!asset) return [];
+    return [
+      {
+        assetId: position.assetId,
+        symbol: asset.symbol,
+        name: asset.name,
+        assetType: asset.assetType,
+        quantity: position.quantity,
+        value: computeAssetValue(
+          position.quantity,
+          asset.currentPrice,
+          asset.currentPriceCurrency,
+          account.baseCurrency,
+          fxRates,
+        ),
+      },
+    ];
+  });
+
   return (
     <AccountDetailReadyState
-      account={requestState.data.account}
-      assets={requestState.data.assets}
-      currencies={requestState.data.currencies}
+      account={account}
+      assets={accountAssets}
+      currencies={currencies}
       onDeleteSuccess={() => navigate("/accounts")}
-      onRefresh={() => setRetryToken((value) => value + 1)}
+      onRefresh={() => void refetch()}
     />
   );
 }

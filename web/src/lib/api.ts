@@ -1,4 +1,5 @@
-import { ClientError, GraphQLClient, gql } from "graphql-request";
+import { gql } from "@apollo/client/core";
+import { CombinedGraphQLErrors } from "@apollo/client/errors";
 
 export function getApiBaseUrl() {
   return import.meta.env.VITE_API_BASE_URL?.trim() || "http://127.0.0.1:3000";
@@ -8,13 +9,9 @@ export function getHealthApiUrl() {
   return new URL("/health", getApiBaseUrl()).toString();
 }
 
-function client() {
-  return new GraphQLClient(new URL("/graphql", getApiBaseUrl()).toString());
-}
-
 export function extractGqlErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof ClientError) {
-    return error.response.errors?.[0]?.message ?? fallback;
+  if (CombinedGraphQLErrors.is(error)) {
+    return error.errors[0]?.message ?? fallback;
   }
   return fallback;
 }
@@ -22,8 +19,8 @@ export function extractGqlErrorMessage(error: unknown, fallback: string): string
 export function extractGqlFieldErrors(
   error: unknown,
 ): Record<string, string[]> | null {
-  if (error instanceof ClientError) {
-    const extensions = error.response.errors?.[0]?.extensions as
+  if (CombinedGraphQLErrors.is(error)) {
+    const extensions = error.errors[0]?.extensions as
       | Record<string, unknown>
       | undefined;
     if (extensions?.field_errors) {
@@ -167,355 +164,161 @@ export type Transaction = {
 
 // ── Queries ────────────────────────────────────────────────────────────────────
 
-export async function fetchPortfolio(): Promise<PortfolioSummary> {
-  const query = gql`
-    {
-      portfolio {
-        displayCurrency totalValueStatus totalValueAmount
-        fxLastUpdated fxRefreshStatus fxRefreshError
-        allocationIsPartial holdingsIsPartial
-        accountTotals {
-          id name accountType summaryStatus
-          cashTotalAmount assetTotalAmount totalAmount totalCurrency
-        }
-        cashByCurrency { currency amount convertedAmount }
-        allocationTotals { label amount }
-        holdings { assetId symbol name value }
-      }
-    }
-  `;
-  const data = await client().request<{ portfolio: PortfolioSummary }>(query);
-  return data.portfolio;
-}
-
-export async function fetchFxRates(): Promise<FxRateSummary> {
-  const query = gql`
-    {
-      fxRates {
-        targetCurrency lastUpdated refreshStatus refreshError
-        rates { currency rate }
-      }
-    }
-  `;
-  const data = await client().request<{ fxRates: FxRateSummary }>(query);
-  return data.fxRates;
-}
-
-export async function fetchAccounts(): Promise<AccountSummary[]> {
-  const query = gql`
-    {
-      accounts {
-        id name accountType baseCurrency summaryStatus
+export const PORTFOLIO_QUERY = gql`
+  {
+    portfolio {
+      displayCurrency totalValueStatus totalValueAmount
+      fxLastUpdated fxRefreshStatus fxRefreshError
+      allocationIsPartial holdingsIsPartial
+      accountTotals {
+        id name accountType summaryStatus
         cashTotalAmount assetTotalAmount totalAmount totalCurrency
       }
+      cashByCurrency { currency amount convertedAmount }
+      allocationTotals { label amount }
+      holdings { assetId symbol name value }
     }
-  `;
-  const data = await client().request<{ accounts: AccountSummary[] }>(query);
-  return data.accounts;
-}
+  }
+`;
 
-export async function fetchAccount(id: number): Promise<AccountDetail> {
-  const query = gql`
-    query Account($id: Int!) {
-      account(id: $id) {
-        id name accountType baseCurrency summaryStatus createdAt
-        cashTotalAmount assetTotalAmount totalAmount totalCurrency
-        balances { currency amount updatedAt }
-      }
+export const FX_RATES_QUERY = gql`
+  {
+    fxRates {
+      targetCurrency lastUpdated refreshStatus refreshError
+      rates { currency rate }
     }
-  `;
-  const data = await client().request<{ account: AccountDetail }>(query, {
-    id,
-  });
-  return data.account;
-}
+  }
+`;
 
-export async function fetchAccountPositions(
-  accountId: number,
-): Promise<AssetPosition[]> {
-  const query = gql`
-    query AccountPositions($accountId: Int!) {
-      accountPositions(accountId: $accountId) {
-        accountId assetId quantity
-      }
+export const ACCOUNTS_QUERY = gql`
+  {
+    accounts {
+      id name accountType baseCurrency summaryStatus
+      cashTotalAmount assetTotalAmount totalAmount totalCurrency
     }
-  `;
-  const data = await client().request<{ accountPositions: AssetPosition[] }>(
-    query,
-    { accountId },
-  );
-  return data.accountPositions;
-}
+  }
+`;
 
-export async function fetchAssets(): Promise<Asset[]> {
-  const query = gql`
-    {
-      assets {
-        id symbol name assetType quoteSymbol isin
-        currentPrice currentPriceCurrency currentPriceAsOf totalQuantity
-      }
+export const ACCOUNT_QUERY = gql`
+  query Account($id: Int!) {
+    account(id: $id) {
+      id name accountType baseCurrency summaryStatus createdAt
+      cashTotalAmount assetTotalAmount totalAmount totalCurrency
+      balances { currency amount updatedAt }
     }
-  `;
-  const data = await client().request<{ assets: Asset[] }>(query);
-  return data.assets;
-}
+  }
+`;
 
-export async function fetchTransactions(accountId?: number): Promise<Transaction[]> {
-  const query = gql`
-    query Transactions($accountId: Int) {
-      transactions(accountId: $accountId) {
-        id accountId assetId transactionType tradeDate
-        quantity unitPrice currencyCode notes createdAt updatedAt
-      }
+export const ACCOUNT_POSITIONS_QUERY = gql`
+  query AccountPositions($accountId: Int!) {
+    accountPositions(accountId: $accountId) {
+      accountId assetId quantity
     }
-  `;
-  const data = await client().request<{ transactions: Transaction[] }>(query, {
-    accountId: accountId ?? null,
-  });
-  return data.transactions;
-}
+  }
+`;
 
-export async function fetchCurrencies(): Promise<string[]> {
-  const query = gql`
-    {
-      currencies
+export const ASSETS_QUERY = gql`
+  {
+    assets {
+      id symbol name assetType quoteSymbol isin
+      currentPrice currentPriceCurrency currentPriceAsOf totalQuantity
     }
-  `;
-  const data = await client().request<{ currencies: string[] }>(query);
-  return data.currencies;
-}
+  }
+`;
+
+export const TRANSACTIONS_QUERY = gql`
+  query Transactions($accountId: Int) {
+    transactions(accountId: $accountId) {
+      id accountId assetId transactionType tradeDate
+      quantity unitPrice currencyCode notes createdAt updatedAt
+    }
+  }
+`;
+
+export const CURRENCIES_QUERY = gql`
+  {
+    currencies
+  }
+`;
 
 // ── Mutations ──────────────────────────────────────────────────────────────────
 
-export async function createAccount(
-  name: string,
-  accountType: AccountType,
-  baseCurrency: string,
-): Promise<AccountDetail> {
-  const mutation = gql`
-    mutation CreateAccount($input: CreateAccountInput!) {
-      createAccount(input: $input) {
-        id name accountType baseCurrency summaryStatus createdAt
-        cashTotalAmount assetTotalAmount totalAmount totalCurrency
-        balances { currency amount updatedAt }
-      }
+export const CREATE_ACCOUNT_MUTATION = gql`
+  mutation CreateAccount($input: CreateAccountInput!) {
+    createAccount(input: $input) {
+      id name accountType baseCurrency summaryStatus createdAt
+      cashTotalAmount assetTotalAmount totalAmount totalCurrency
+      balances { currency amount updatedAt }
     }
-  `;
-  const data = await client().request<{ createAccount: AccountDetail }>(
-    mutation,
-    { input: { name, accountType, baseCurrency } },
-  );
-  return data.createAccount;
-}
+  }
+`;
 
-export async function updateAccount(
-  id: number,
-  name: string,
-  accountType: AccountType,
-  baseCurrency: string,
-): Promise<AccountDetail> {
-  const mutation = gql`
-    mutation UpdateAccount($id: Int!, $input: UpdateAccountInput!) {
-      updateAccount(id: $id, input: $input) {
-        id name accountType baseCurrency summaryStatus createdAt
-        cashTotalAmount assetTotalAmount totalAmount totalCurrency
-        balances { currency amount updatedAt }
-      }
-    }
-  `;
-  const data = await client().request<{ updateAccount: AccountDetail }>(
-    mutation,
-    { id, input: { name, accountType, baseCurrency } },
-  );
-  return data.updateAccount;
-}
+export const DELETE_ACCOUNT_MUTATION = gql`
+  mutation DeleteAccount($id: Int!) {
+    deleteAccount(id: $id)
+  }
+`;
 
-export async function deleteAccount(id: number): Promise<void> {
-  const mutation = gql`
-    mutation DeleteAccount($id: Int!) {
-      deleteAccount(id: $id)
+export const UPSERT_BALANCE_MUTATION = gql`
+  mutation UpsertBalance($accountId: Int!, $input: UpsertBalanceInput!) {
+    upsertBalance(accountId: $accountId, input: $input) {
+      currency amount updatedAt
     }
-  `;
-  await client().request(mutation, { id });
-}
+  }
+`;
 
-export async function upsertBalance(
-  accountId: number,
-  currency: string,
-  amount: string,
-): Promise<Balance> {
-  const mutation = gql`
-    mutation UpsertBalance($accountId: Int!, $input: UpsertBalanceInput!) {
-      upsertBalance(accountId: $accountId, input: $input) {
-        currency amount updatedAt
-      }
-    }
-  `;
-  const data = await client().request<{ upsertBalance: Balance }>(mutation, {
-    accountId,
-    input: { currency, amount },
-  });
-  return data.upsertBalance;
-}
+export const DELETE_BALANCE_MUTATION = gql`
+  mutation DeleteBalance($accountId: Int!, $currency: String!) {
+    deleteBalance(accountId: $accountId, currency: $currency)
+  }
+`;
 
-export async function deleteBalance(
-  accountId: number,
-  currency: string,
-): Promise<void> {
-  const mutation = gql`
-    mutation DeleteBalance($accountId: Int!, $currency: String!) {
-      deleteBalance(accountId: $accountId, currency: $currency)
+export const CREATE_ASSET_MUTATION = gql`
+  mutation CreateAsset($input: CreateAssetInput!) {
+    createAsset(input: $input) {
+      id symbol name assetType quoteSymbol isin
+      currentPrice currentPriceCurrency currentPriceAsOf totalQuantity
+      createdAt updatedAt
     }
-  `;
-  await client().request(mutation, { accountId, currency });
-}
+  }
+`;
 
-export async function createAsset(
-  symbol: string,
-  name: string,
-  assetType: AssetType,
-  quoteSymbol?: string | null,
-  isin?: string | null,
-): Promise<Asset> {
-  const mutation = gql`
-    mutation CreateAsset($input: CreateAssetInput!) {
-      createAsset(input: $input) {
-        id symbol name assetType quoteSymbol isin
-        currentPrice currentPriceCurrency currentPriceAsOf totalQuantity
-        createdAt updatedAt
-      }
+export const UPDATE_ASSET_MUTATION = gql`
+  mutation UpdateAsset($id: Int!, $input: UpdateAssetInput!) {
+    updateAsset(id: $id, input: $input) {
+      id symbol name assetType quoteSymbol isin
+      currentPrice currentPriceCurrency currentPriceAsOf totalQuantity
+      createdAt updatedAt
     }
-  `;
-  const data = await client().request<{ createAsset: Asset }>(mutation, {
-    input: {
-      symbol,
-      name,
-      assetType,
-      quoteSymbol: quoteSymbol ?? null,
-      isin: isin ?? null,
-    },
-  });
-  return data.createAsset;
-}
+  }
+`;
 
-export async function updateAsset(
-  id: number,
-  symbol: string,
-  name: string,
-  assetType: AssetType,
-  quoteSymbol?: string | null,
-  isin?: string | null,
-): Promise<Asset> {
-  const mutation = gql`
-    mutation UpdateAsset($id: Int!, $input: UpdateAssetInput!) {
-      updateAsset(id: $id, input: $input) {
-        id symbol name assetType quoteSymbol isin
-        currentPrice currentPriceCurrency currentPriceAsOf totalQuantity
-        createdAt updatedAt
-      }
-    }
-  `;
-  const data = await client().request<{ updateAsset: Asset }>(mutation, {
-    id,
-    input: {
-      symbol,
-      name,
-      assetType,
-      quoteSymbol: quoteSymbol ?? null,
-      isin: isin ?? null,
-    },
-  });
-  return data.updateAsset;
-}
+export const DELETE_ASSET_MUTATION = gql`
+  mutation DeleteAsset($id: Int!) {
+    deleteAsset(id: $id)
+  }
+`;
 
-export async function deleteAsset(id: number): Promise<void> {
-  const mutation = gql`
-    mutation DeleteAsset($id: Int!) {
-      deleteAsset(id: $id)
+export const CREATE_TRANSACTION_MUTATION = gql`
+  mutation CreateTransaction($input: CreateTransactionInput!) {
+    createTransaction(input: $input) {
+      id accountId assetId transactionType tradeDate
+      quantity unitPrice currencyCode notes createdAt updatedAt
     }
-  `;
-  await client().request(mutation, { id });
-}
+  }
+`;
 
-export async function createTransaction(
-  accountId: number,
-  assetId: number,
-  transactionType: TransactionType,
-  tradeDate: string,
-  quantity: string,
-  unitPrice: string,
-  currencyCode: string,
-  notes: string | null,
-): Promise<Transaction> {
-  const mutation = gql`
-    mutation CreateTransaction($input: CreateTransactionInput!) {
-      createTransaction(input: $input) {
-        id accountId assetId transactionType tradeDate
-        quantity unitPrice currencyCode notes createdAt updatedAt
-      }
+export const UPDATE_TRANSACTION_MUTATION = gql`
+  mutation UpdateTransaction($id: Int!, $input: UpdateTransactionInput!) {
+    updateTransaction(id: $id, input: $input) {
+      id accountId assetId transactionType tradeDate
+      quantity unitPrice currencyCode notes createdAt updatedAt
     }
-  `;
-  const data = await client().request<{ createTransaction: Transaction }>(
-    mutation,
-    {
-      input: {
-        accountId,
-        assetId,
-        transactionType,
-        tradeDate,
-        quantity,
-        unitPrice,
-        currencyCode,
-        notes,
-      },
-    },
-  );
-  return data.createTransaction;
-}
+  }
+`;
 
-export async function updateTransaction(
-  id: number,
-  accountId: number,
-  assetId: number,
-  transactionType: TransactionType,
-  tradeDate: string,
-  quantity: string,
-  unitPrice: string,
-  currencyCode: string,
-  notes: string | null,
-): Promise<Transaction> {
-  const mutation = gql`
-    mutation UpdateTransaction($id: Int!, $input: UpdateTransactionInput!) {
-      updateTransaction(id: $id, input: $input) {
-        id accountId assetId transactionType tradeDate
-        quantity unitPrice currencyCode notes createdAt updatedAt
-      }
-    }
-  `;
-  const data = await client().request<{ updateTransaction: Transaction }>(
-    mutation,
-    {
-      id,
-      input: {
-        accountId,
-        assetId,
-        transactionType,
-        tradeDate,
-        quantity,
-        unitPrice,
-        currencyCode,
-        notes,
-      },
-    },
-  );
-  return data.updateTransaction;
-}
-
-export async function deleteTransaction(id: number): Promise<void> {
-  const mutation = gql`
-    mutation DeleteTransaction($id: Int!) {
-      deleteTransaction(id: $id)
-    }
-  `;
-  await client().request(mutation, { id });
-}
+export const DELETE_TRANSACTION_MUTATION = gql`
+  mutation DeleteTransaction($id: Int!) {
+    deleteTransaction(id: $id)
+  }
+`;

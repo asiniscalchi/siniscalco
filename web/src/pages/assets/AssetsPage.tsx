@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery } from "@apollo/client/react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -8,8 +9,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  fetchAssets,
-  deleteAsset,
+  ASSETS_QUERY,
+  DELETE_ASSET_MUTATION,
   extractGqlErrorMessage,
   type Asset,
 } from "@/lib/api";
@@ -19,45 +20,14 @@ import { AssetsTableCard } from "./AssetsTableCard";
 
 export function AssetsPage() {
   const [isLocked, setIsLocked] = useState(true);
-  const [assets, setAssets] = useState<Asset[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [retryToken, setRetryToken] = useState(0);
-
   const [showModal, setShowModal] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const { data, loading, error, refetch } = useQuery<{ assets: Asset[] }>(ASSETS_QUERY);
+  const assets = data?.assets ?? [];
 
-    async function loadAssets() {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const data = await fetchAssets();
-
-        if (!cancelled) {
-          setAssets(data);
-        }
-      } catch {
-        if (!cancelled) {
-          setError("Failed to load assets");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    void loadAssets();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [retryToken]);
+  const [deleteAssetMutation] = useMutation(DELETE_ASSET_MUTATION);
 
   const handleCreateClick = () => {
     setEditingAsset(null);
@@ -76,10 +46,10 @@ export function AssetsPage() {
 
     setIsDeleting(asset.id);
     try {
-      await deleteAsset(asset.id);
-      setRetryToken((t) => t + 1);
-    } catch (error) {
-      alert(extractGqlErrorMessage(error, "Failed to delete asset"));
+      await deleteAssetMutation({ variables: { id: asset.id } });
+      await refetch();
+    } catch (err) {
+      alert(extractGqlErrorMessage(err, "Failed to delete asset"));
     } finally {
       setIsDeleting(null);
     }
@@ -99,10 +69,10 @@ export function AssetsPage() {
         <Card className="border-destructive/30 bg-background">
           <CardHeader>
             <CardTitle>Error</CardTitle>
-            <CardDescription>{error}</CardDescription>
+            <CardDescription>Failed to load assets</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => setRetryToken((t) => t + 1)}>Retry</Button>
+            <Button onClick={() => void refetch()}>Retry</Button>
           </CardContent>
         </Card>
       </div>
@@ -122,6 +92,7 @@ export function AssetsPage() {
       />
 
       <AssetFormModal
+        key={showModal ? (editingAsset?.id ?? "new") : "closed"}
         editingAsset={editingAsset}
         open={showModal}
         onClose={() => {
@@ -131,7 +102,7 @@ export function AssetsPage() {
         onSaved={() => {
           setShowModal(false);
           setEditingAsset(null);
-          setRetryToken((t) => t + 1);
+          void refetch();
         }}
       />
     </div>

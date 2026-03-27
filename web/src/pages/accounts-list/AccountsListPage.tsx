@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@apollo/client/react";
 import { Link } from "react-router-dom";
 
 import { ItemLabel } from "@/components/ItemLabel";
@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
-  fetchAccounts,
-  fetchPortfolio,
+  ACCOUNTS_QUERY,
+  PORTFOLIO_QUERY,
   type AccountSummary,
   type PortfolioSummary,
 } from "@/lib/api";
@@ -21,47 +21,16 @@ import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
 
 export function AccountsListPage() {
-  const [requestState, setRequestState] = useState<
-    | { status: "loading" }
-    | { status: "error" }
-    | {
-        status: "ready";
-        accounts: AccountSummary[];
-        portfolio: PortfolioSummary;
-      }
-  >({ status: "loading" });
-  const [retryToken, setRetryToken] = useState(0);
+  const { data: accountsData, loading: accountsLoading, error: accountsError, refetch: refetchAccounts } = useQuery<{ accounts: AccountSummary[] }>(ACCOUNTS_QUERY);
+  const { data: portfolioData, loading: portfolioLoading, error: portfolioError, refetch: refetchPortfolio } = useQuery<{ portfolio: PortfolioSummary }>(PORTFOLIO_QUERY);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loading = accountsLoading || portfolioLoading;
+  const error = accountsError ?? portfolioError;
 
-    async function loadData() {
-      setRequestState({ status: "loading" });
-
-      try {
-        const [accounts, portfolio] = await Promise.all([
-          fetchAccounts(),
-          fetchPortfolio(),
-        ]);
-
-        if (cancelled) {
-          return;
-        }
-
-        setRequestState({ status: "ready", accounts, portfolio });
-      } catch {
-        if (!cancelled) {
-          setRequestState({ status: "error" });
-        }
-      }
-    }
-
-    void loadData();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [retryToken]);
+  function handleRetry() {
+    void refetchAccounts();
+    void refetchPortfolio();
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
@@ -80,16 +49,14 @@ export function AccountsListPage() {
           </div>
         </CardHeader>
         <CardContent className="pt-4">
-          {requestState.status === "loading" ? <AccountsLoadingState /> : null}
-          {requestState.status === "error" ? (
-            <AccountsErrorState
-              onRetry={() => setRetryToken((value) => value + 1)}
-            />
+          {loading ? <AccountsLoadingState /> : null}
+          {!loading && error ? (
+            <AccountsErrorState onRetry={handleRetry} />
           ) : null}
-          {requestState.status === "ready" ? (
+          {!loading && !error && accountsData && portfolioData ? (
             <AccountsReadyState
-              accounts={requestState.accounts}
-              portfolio={requestState.portfolio}
+              accounts={accountsData.accounts}
+              portfolio={portfolioData.portfolio}
             />
           ) : null}
         </CardContent>

@@ -1,10 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
+import { useMutation } from "@apollo/client/react";
 
 import { Button } from "@/components/ui/button";
 import {
-  createTransaction,
-  updateTransaction,
+  CREATE_TRANSACTION_MUTATION,
+  UPDATE_TRANSACTION_MUTATION,
   extractGqlErrorMessage,
 } from "@/lib/api";
 
@@ -86,21 +87,11 @@ export function TransactionFormModal({
       ? buildEditState(editingTransaction)
       : buildCreateState(accounts, selectedAccountId),
   );
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    setFormState(
-      editingTransaction
-        ? buildEditState(editingTransaction)
-        : buildCreateState(accounts, selectedAccountId),
-    );
-    setSubmitError(null);
-  }, [accounts, editingTransaction, open, selectedAccountId]);
+  const [createTransaction, { loading: creating }] = useMutation(CREATE_TRANSACTION_MUTATION);
+  const [updateTransaction, { loading: updating }] = useMutation(UPDATE_TRANSACTION_MUTATION);
+  const isSubmitting = creating || updating;
 
   useEffect(() => {
     if (!open) {
@@ -131,32 +122,39 @@ export function TransactionFormModal({
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSubmitError(null);
-    setIsSubmitting(true);
 
     try {
       if (transactionId) {
-        await updateTransaction(
-          transactionId,
-          parseInt(selectedAccountId),
-          parseInt(formState.assetId),
-          formState.type,
-          formState.tradeDate,
-          formState.quantity,
-          formState.unitPrice,
-          formState.currency,
-          formState.notes || null,
-        );
+        await updateTransaction({
+          variables: {
+            id: transactionId,
+            input: {
+              accountId: parseInt(selectedAccountId),
+              assetId: parseInt(formState.assetId),
+              transactionType: formState.type,
+              tradeDate: formState.tradeDate,
+              quantity: formState.quantity,
+              unitPrice: formState.unitPrice,
+              currencyCode: formState.currency,
+              notes: formState.notes || null,
+            },
+          },
+        });
       } else {
-        await createTransaction(
-          parseInt(selectedAccountId),
-          parseInt(formState.assetId),
-          formState.type,
-          formState.tradeDate,
-          formState.quantity,
-          formState.unitPrice,
-          formState.currency,
-          formState.notes || null,
-        );
+        await createTransaction({
+          variables: {
+            input: {
+              accountId: parseInt(selectedAccountId),
+              assetId: parseInt(formState.assetId),
+              transactionType: formState.type,
+              tradeDate: formState.tradeDate,
+              quantity: formState.quantity,
+              unitPrice: formState.unitPrice,
+              currencyCode: formState.currency,
+              notes: formState.notes || null,
+            },
+          },
+        });
       }
       onSaved();
     } catch (error) {
@@ -164,8 +162,6 @@ export function TransactionFormModal({
         error,
         transactionId ? "Failed to update transaction" : "Failed to create transaction",
       ));
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
