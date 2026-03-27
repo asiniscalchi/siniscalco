@@ -103,6 +103,7 @@ fn build_app_with_fx_status(
             last_error: last_error.map(str::to_string),
         })),
         asset_price_refresh_config: no_price_config(),
+        http_client: reqwest::Client::new(),
     })
 }
 
@@ -111,6 +112,7 @@ fn build_app_with_price_config(pool: sqlx::SqlitePool, config: AssetPriceRefresh
         pool,
         fx_refresh_status: std::sync::Arc::new(RwLock::new(FxRefreshStatus::available())),
         asset_price_refresh_config: config,
+        http_client: reqwest::Client::new(),
     })
 }
 
@@ -504,7 +506,7 @@ async fn deletes_asset() {
     )
     .await;
 
-    assert_eq!(json["data"]["deleteAsset"], true);
+    assert_eq!(json["data"]["deleteAsset"], asset_id.as_i64());
 }
 
 #[tokio::test]
@@ -1021,7 +1023,7 @@ async fn deletes_asset_transaction() {
     )
     .await;
 
-    assert_eq!(json["data"]["deleteTransaction"], true);
+    assert_eq!(json["data"]["deleteTransaction"], tx.id);
 }
 
 #[tokio::test]
@@ -1277,7 +1279,7 @@ async fn deletes_account() {
     )
     .await;
 
-    assert_eq!(json["data"]["deleteAccount"], true);
+    assert_eq!(json["data"]["deleteAccount"], account_id.as_i64());
 }
 
 #[tokio::test]

@@ -496,7 +496,7 @@ describe("AccountDetailPage", () => {
       }
 
       if (query.includes("deleteAccount")) {
-        return gqlResponse({ deleteAccount: true });
+        return gqlResponse({ deleteAccount: 1 });
       }
 
       throw new Error(`Unhandled GQL query: ${query}`);

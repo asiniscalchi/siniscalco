@@ -395,7 +395,7 @@ describe("AssetsPage", () => {
         });
       }
       if (query.includes("deleteAsset") && callCount === 2) {
-        return gqlResponse({ deleteAsset: true });
+        return gqlResponse({ deleteAsset: 1 });
       }
       if (query.includes("assets") && callCount === 3) {
         return gqlResponse({ assets: [] });

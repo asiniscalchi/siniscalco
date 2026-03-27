@@ -137,14 +137,7 @@ impl From<crate::FxRefreshAvailability> for RefreshAvailability {
 // ── Input types ───────────────────────────────────────────────────────────────
 
 #[derive(InputObject)]
-pub struct CreateAccountInput {
-    pub name: String,
-    pub account_type: AccountType,
-    pub base_currency: String,
-}
-
-#[derive(InputObject)]
-pub struct UpdateAccountInput {
+pub struct AccountInput {
     pub name: String,
     pub account_type: AccountType,
     pub base_currency: String,
@@ -157,7 +150,7 @@ pub struct UpsertBalanceInput {
 }
 
 #[derive(InputObject)]
-pub struct CreateAssetInput {
+pub struct AssetInput {
     pub symbol: String,
     pub name: String,
     pub asset_type: AssetType,
@@ -166,28 +159,7 @@ pub struct CreateAssetInput {
 }
 
 #[derive(InputObject)]
-pub struct UpdateAssetInput {
-    pub symbol: String,
-    pub name: String,
-    pub asset_type: AssetType,
-    pub quote_symbol: Option<String>,
-    pub isin: Option<String>,
-}
-
-#[derive(InputObject)]
-pub struct CreateTransactionInput {
-    pub account_id: i64,
-    pub asset_id: i64,
-    pub transaction_type: TransactionType,
-    pub trade_date: String,
-    pub quantity: String,
-    pub unit_price: String,
-    pub currency_code: String,
-    pub notes: Option<String>,
-}
-
-#[derive(InputObject)]
-pub struct UpdateTransactionInput {
+pub struct TransactionInput {
     pub account_id: i64,
     pub asset_id: i64,
     pub transaction_type: TransactionType,

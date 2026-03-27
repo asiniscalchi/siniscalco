@@ -510,7 +510,7 @@ describe("TransactionsPage", () => {
       if (query.includes("accounts")) return gqlResponse({ accounts: [] });
       if (query.includes("assets")) return gqlResponse({ assets: [] });
       if (query.includes("deleteTransaction")) {
-        return gqlResponse({ deleteTransaction: true });
+        return gqlResponse({ deleteTransaction: 1 });
       }
       if (query.includes("transactions")) {
         return gqlResponse({ transactions });

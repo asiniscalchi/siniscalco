@@ -8,7 +8,7 @@ import { extractGqlErrorMessage, extractGqlFieldErrors } from "@/lib/gql";
 import { type AssetType, type AssetsQuery } from "@/gql/types";
 
 const CREATE_ASSET_MUTATION = gql`
-  mutation CreateAsset($input: CreateAssetInput!) {
+  mutation CreateAsset($input: AssetInput!) {
     createAsset(input: $input) {
       id symbol name assetType quoteSymbol isin
       currentPrice currentPriceCurrency currentPriceAsOf totalQuantity
@@ -17,7 +17,7 @@ const CREATE_ASSET_MUTATION = gql`
 `;
 
 const UPDATE_ASSET_MUTATION = gql`
-  mutation UpdateAsset($id: Int!, $input: UpdateAssetInput!) {
+  mutation UpdateAsset($id: Int!, $input: AssetInput!) {
     updateAsset(id: $id, input: $input) {
       id symbol name assetType quoteSymbol isin
       currentPrice currentPriceCurrency currentPriceAsOf totalQuantity

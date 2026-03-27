@@ -31,10 +31,12 @@ async fn main() {
             let fx_refresh_status = new_shared_fx_refresh_status();
             let fx_refresh_config = config.fx_refresh_config();
             let asset_price_refresh_config = config.asset_price_refresh_config();
+            let http_client = reqwest::Client::new();
             let app = build_router_with_state(AppState {
                 pool: pool.clone(),
                 fx_refresh_status: fx_refresh_status.clone(),
                 asset_price_refresh_config: asset_price_refresh_config.clone(),
+                http_client,
             });
             let address = SocketAddr::from(([0, 0, 0, 0], config.port));
 

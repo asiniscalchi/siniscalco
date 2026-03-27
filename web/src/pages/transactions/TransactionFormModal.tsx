@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { extractGqlErrorMessage } from "@/lib/gql";
 
 const CREATE_TRANSACTION_MUTATION = gql`
-  mutation CreateTransaction($input: CreateTransactionInput!) {
+  mutation CreateTransaction($input: TransactionInput!) {
     createTransaction(input: $input) {
       id accountId assetId transactionType tradeDate
       quantity unitPrice currencyCode notes
@@ -16,7 +16,7 @@ const CREATE_TRANSACTION_MUTATION = gql`
 `;
 
 const UPDATE_TRANSACTION_MUTATION = gql`
-  mutation UpdateTransaction($id: Int!, $input: UpdateTransactionInput!) {
+  mutation UpdateTransaction($id: Int!, $input: TransactionInput!) {
     updateTransaction(id: $id, input: $input) {
       id accountId assetId transactionType tradeDate
       quantity unitPrice currencyCode notes
