@@ -29,6 +29,12 @@ export type AccountDetail = {
   totalCurrency: Maybe<Scalars['String']['output']>;
 };
 
+export type AccountInput = {
+  accountType: AccountType;
+  baseCurrency: Scalars['String']['input'];
+  name: Scalars['String']['input'];
+};
+
 export type AccountSummary = {
   __typename?: 'AccountSummary';
   accountType: AccountType;
@@ -63,6 +69,14 @@ export type Asset = {
   updatedAt: Scalars['String']['output'];
 };
 
+export type AssetInput = {
+  assetType: AssetType;
+  isin?: InputMaybe<Scalars['String']['input']>;
+  name: Scalars['String']['input'];
+  quoteSymbol?: InputMaybe<Scalars['String']['input']>;
+  symbol: Scalars['String']['input'];
+};
+
 export type AssetPosition = {
   __typename?: 'AssetPosition';
   accountId: Scalars['Int']['output'];
@@ -85,31 +99,6 @@ export type Balance = {
   updatedAt: Scalars['String']['output'];
 };
 
-export type CreateAccountInput = {
-  accountType: AccountType;
-  baseCurrency: Scalars['String']['input'];
-  name: Scalars['String']['input'];
-};
-
-export type CreateAssetInput = {
-  assetType: AssetType;
-  isin?: InputMaybe<Scalars['String']['input']>;
-  name: Scalars['String']['input'];
-  quoteSymbol?: InputMaybe<Scalars['String']['input']>;
-  symbol: Scalars['String']['input'];
-};
-
-export type CreateTransactionInput = {
-  accountId: Scalars['Int']['input'];
-  assetId: Scalars['Int']['input'];
-  currencyCode: Scalars['String']['input'];
-  notes?: InputMaybe<Scalars['String']['input']>;
-  quantity: Scalars['String']['input'];
-  tradeDate: Scalars['String']['input'];
-  transactionType: TransactionType;
-  unitPrice: Scalars['String']['input'];
-};
-
 export type FxRateSummary = {
   __typename?: 'FxRateSummary';
   lastUpdated: Maybe<Scalars['String']['output']>;
@@ -130,10 +119,10 @@ export type MutationRoot = {
   createAccount: AccountDetail;
   createAsset: Asset;
   createTransaction: Transaction;
-  deleteAccount: Scalars['Boolean']['output'];
-  deleteAsset: Scalars['Boolean']['output'];
+  deleteAccount: Scalars['Int']['output'];
+  deleteAsset: Scalars['Int']['output'];
   deleteBalance: Scalars['Boolean']['output'];
-  deleteTransaction: Scalars['Boolean']['output'];
+  deleteTransaction: Scalars['Int']['output'];
   updateAccount: AccountDetail;
   updateAsset: Asset;
   updateTransaction: Transaction;
@@ -142,17 +131,17 @@ export type MutationRoot = {
 
 
 export type MutationRootCreateAccountArgs = {
-  input: CreateAccountInput;
+  input: AccountInput;
 };
 
 
 export type MutationRootCreateAssetArgs = {
-  input: CreateAssetInput;
+  input: AssetInput;
 };
 
 
 export type MutationRootCreateTransactionArgs = {
-  input: CreateTransactionInput;
+  input: TransactionInput;
 };
 
 
@@ -179,19 +168,19 @@ export type MutationRootDeleteTransactionArgs = {
 
 export type MutationRootUpdateAccountArgs = {
   id: Scalars['Int']['input'];
-  input: UpdateAccountInput;
+  input: AccountInput;
 };
 
 
 export type MutationRootUpdateAssetArgs = {
   id: Scalars['Int']['input'];
-  input: UpdateAssetInput;
+  input: AssetInput;
 };
 
 
 export type MutationRootUpdateTransactionArgs = {
   id: Scalars['Int']['input'];
-  input: UpdateTransactionInput;
+  input: TransactionInput;
 };
 
 
@@ -311,25 +300,7 @@ export type Transaction = {
   updatedAt: Scalars['String']['output'];
 };
 
-export type TransactionType =
-  | 'BUY'
-  | 'SELL';
-
-export type UpdateAccountInput = {
-  accountType: AccountType;
-  baseCurrency: Scalars['String']['input'];
-  name: Scalars['String']['input'];
-};
-
-export type UpdateAssetInput = {
-  assetType: AssetType;
-  isin?: InputMaybe<Scalars['String']['input']>;
-  name: Scalars['String']['input'];
-  quoteSymbol?: InputMaybe<Scalars['String']['input']>;
-  symbol: Scalars['String']['input'];
-};
-
-export type UpdateTransactionInput = {
+export type TransactionInput = {
   accountId: Scalars['Int']['input'];
   assetId: Scalars['Int']['input'];
   currencyCode: Scalars['String']['input'];
@@ -339,6 +310,10 @@ export type UpdateTransactionInput = {
   transactionType: TransactionType;
   unitPrice: Scalars['String']['input'];
 };
+
+export type TransactionType =
+  | 'BUY'
+  | 'SELL';
 
 export type UpsertBalanceInput = {
   amount: Scalars['String']['input'];
@@ -402,7 +377,7 @@ export type DeleteAccountMutationVariables = Exact<{
 }>;
 
 
-export type DeleteAccountMutation = { __typename?: 'MutationRoot', deleteAccount: boolean };
+export type DeleteAccountMutation = { __typename?: 'MutationRoot', deleteAccount: number };
 
 export type NewAccountCurrenciesQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -410,7 +385,7 @@ export type NewAccountCurrenciesQueryVariables = Exact<{ [key: string]: never; }
 export type NewAccountCurrenciesQuery = { __typename?: 'QueryRoot', currencies: Array<string> };
 
 export type CreateAccountMutationVariables = Exact<{
-  input: CreateAccountInput;
+  input: AccountInput;
 }>;
 
 
@@ -427,7 +402,7 @@ export type AccountsListPortfolioQueryVariables = Exact<{ [key: string]: never; 
 export type AccountsListPortfolioQuery = { __typename?: 'QueryRoot', portfolio: { __typename?: 'PortfolioSummary', displayCurrency: string, totalValueAmount: string | null, accountTotals: Array<{ __typename?: 'PortfolioAccountTotal', id: number, summaryStatus: SummaryStatus, cashTotalAmount: string | null, assetTotalAmount: string | null, totalAmount: string | null }> } };
 
 export type CreateAssetMutationVariables = Exact<{
-  input: CreateAssetInput;
+  input: AssetInput;
 }>;
 
 
@@ -435,7 +410,7 @@ export type CreateAssetMutation = { __typename?: 'MutationRoot', createAsset: { 
 
 export type UpdateAssetMutationVariables = Exact<{
   id: Scalars['Int']['input'];
-  input: UpdateAssetInput;
+  input: AssetInput;
 }>;
 
 
@@ -451,7 +426,7 @@ export type DeleteAssetMutationVariables = Exact<{
 }>;
 
 
-export type DeleteAssetMutation = { __typename?: 'MutationRoot', deleteAsset: boolean };
+export type DeleteAssetMutation = { __typename?: 'MutationRoot', deleteAsset: number };
 
 export type FxRatesQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -464,7 +439,7 @@ export type PortfolioQueryVariables = Exact<{ [key: string]: never; }>;
 export type PortfolioQuery = { __typename?: 'QueryRoot', portfolio: { __typename?: 'PortfolioSummary', displayCurrency: string, totalValueStatus: SummaryStatus, totalValueAmount: string | null, fxLastUpdated: string | null, fxRefreshStatus: RefreshAvailability, fxRefreshError: string | null, allocationIsPartial: boolean, holdingsIsPartial: boolean, accountTotals: Array<{ __typename?: 'PortfolioAccountTotal', id: number, name: string, accountType: AccountType, summaryStatus: SummaryStatus, cashTotalAmount: string | null, assetTotalAmount: string | null, totalAmount: string | null, totalCurrency: string }>, cashByCurrency: Array<{ __typename?: 'PortfolioCashByCurrency', currency: string, amount: string, convertedAmount: string | null }>, allocationTotals: Array<{ __typename?: 'PortfolioAllocationSlice', label: string, amount: string }>, holdings: Array<{ __typename?: 'PortfolioHolding', assetId: number, symbol: string, name: string, value: string }> } };
 
 export type CreateTransactionMutationVariables = Exact<{
-  input: CreateTransactionInput;
+  input: TransactionInput;
 }>;
 
 
@@ -472,7 +447,7 @@ export type CreateTransactionMutation = { __typename?: 'MutationRoot', createTra
 
 export type UpdateTransactionMutationVariables = Exact<{
   id: Scalars['Int']['input'];
-  input: UpdateTransactionInput;
+  input: TransactionInput;
 }>;
 
 
@@ -500,4 +475,4 @@ export type DeleteTransactionMutationVariables = Exact<{
 }>;
 
 
-export type DeleteTransactionMutation = { __typename?: 'MutationRoot', deleteTransaction: boolean };
+export type DeleteTransactionMutation = { __typename?: 'MutationRoot', deleteTransaction: number };

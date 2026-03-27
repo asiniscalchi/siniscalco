@@ -33,17 +33,20 @@ pub struct AppState {
     pub pool: SqlitePool,
     pub fx_refresh_status: SharedFxRefreshStatus,
     pub asset_price_refresh_config: AssetPriceRefreshConfig,
+    pub http_client: reqwest::Client,
 }
 
 pub fn build_schema(
     pool: SqlitePool,
     fx_refresh_status: SharedFxRefreshStatus,
     asset_price_refresh_config: AssetPriceRefreshConfig,
+    http_client: reqwest::Client,
 ) -> AppSchema {
     Schema::build(QueryRoot, MutationRoot, EmptySubscription)
         .data(pool)
         .data(fx_refresh_status)
         .data(asset_price_refresh_config)
+        .data(http_client)
         .finish()
 }
 
@@ -54,6 +57,7 @@ pub fn build_router(pool: SqlitePool) -> Router {
         pool,
         fx_refresh_status: crate::new_shared_fx_refresh_status(),
         asset_price_refresh_config: config.asset_price_refresh_config(),
+        http_client: reqwest::Client::new(),
     })
 }
 
@@ -62,6 +66,7 @@ pub fn build_router_with_state(state: AppState) -> Router {
         state.pool,
         state.fx_refresh_status,
         state.asset_price_refresh_config,
+        state.http_client,
     );
 
     let cors = CorsLayer::new()
