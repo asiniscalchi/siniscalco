@@ -3,6 +3,7 @@ import { useQuery } from "@apollo/client/react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { extractGqlErrorMessage } from "@/lib/gql";
+import { type AccountQuery } from "@/gql/types";
 
 const ACCOUNT_QUERY = gql`
   query Account($id: Int!) {
@@ -17,14 +18,13 @@ const ACCOUNT_QUERY = gql`
 import { AccountDetailErrorState } from "./AccountDetailErrorState";
 import { AccountDetailLoadingState } from "./AccountDetailLoadingState";
 import { AccountDetailReadyState } from "./AccountDetailReadyState";
-import type { AccountDetail } from "./types";
 
 export function AccountDetailPage() {
   const { accountId } = useParams<{ accountId: string }>();
   const navigate = useNavigate();
   const numericId = accountId ? parseInt(accountId) : 0;
 
-  const { data, loading, error, refetch } = useQuery<{ account: AccountDetail }>(
+  const { data, loading, error, refetch } = useQuery<AccountQuery>(
     ACCOUNT_QUERY,
     { variables: { id: numericId }, skip: !accountId },
   );

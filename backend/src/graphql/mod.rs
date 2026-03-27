@@ -22,6 +22,12 @@ use crate::{AssetPriceRefreshConfig, SharedFxRefreshStatus};
 
 pub type AppSchema = Schema<QueryRoot, MutationRoot, EmptySubscription>;
 
+pub fn schema_sdl() -> String {
+    Schema::build(QueryRoot, MutationRoot, EmptySubscription)
+        .finish()
+        .sdl()
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub pool: SqlitePool,

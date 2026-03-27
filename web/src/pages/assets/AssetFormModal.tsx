@@ -5,7 +5,7 @@ import { useMutation } from "@apollo/client/react";
 
 import { Button } from "@/components/ui/button";
 import { extractGqlErrorMessage, extractGqlFieldErrors } from "@/lib/gql";
-import { type Asset, type AssetType } from "@/lib/types";
+import { type AssetType, type AssetsQuery } from "@/gql/types";
 
 const CREATE_ASSET_MUTATION = gql`
   mutation CreateAsset($input: CreateAssetInput!) {
@@ -27,7 +27,7 @@ const UPDATE_ASSET_MUTATION = gql`
 
 type AssetFormModalProps = {
   open: boolean;
-  editingAsset: Asset | null;
+  editingAsset: AssetsQuery["assets"][number] | null;
   onClose: () => void;
   onSaved: () => void;
 };

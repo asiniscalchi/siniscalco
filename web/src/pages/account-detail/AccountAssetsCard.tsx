@@ -3,7 +3,7 @@ import { useQuery } from "@apollo/client/react";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ItemLabel } from "@/components/ItemLabel";
-import { type FxRateSummary } from "@/lib/types";
+import { type AccountPositionsQuery, type AccountAssetsQuery, type AccountFxRatesQuery } from "@/gql/types";
 
 const ACCOUNT_POSITIONS_QUERY = gql`
   query AccountPositions($accountId: Int!) {
@@ -14,7 +14,7 @@ const ACCOUNT_POSITIONS_QUERY = gql`
 `;
 
 const ASSETS_QUERY = gql`
-  {
+  query AccountAssets {
     assets {
       id symbol name assetType
       currentPrice currentPriceCurrency
@@ -23,7 +23,7 @@ const ASSETS_QUERY = gql`
 `;
 
 const FX_RATES_QUERY = gql`
-  {
+  query AccountFxRates {
     fxRates {
       targetCurrency
       rates { currency rate }
@@ -47,7 +47,7 @@ function computeAssetValue(
   price: string | null,
   priceCurrency: string | null,
   baseCurrency: string,
-  fxRates: FxRateSummary | null,
+  fxRates: AccountFxRatesQuery["fxRates"] | null,
 ): string | null {
   if (!price || !priceCurrency) return null;
 
@@ -80,22 +80,9 @@ type AccountAssetsCardProps = {
 export function AccountAssetsCard({ accountId, baseCurrency }: AccountAssetsCardProps) {
   const { hideValues } = useUiState();
 
-  const { data: positionsData } = useQuery<{
-    accountPositions: Array<{ accountId: number; assetId: number; quantity: string }>;
-  }>(ACCOUNT_POSITIONS_QUERY, { variables: { accountId } });
-
-  const { data: assetsData } = useQuery<{
-    assets: Array<{
-      id: number;
-      symbol: string;
-      name: string;
-      assetType: string;
-      currentPrice: string | null;
-      currentPriceCurrency: string | null;
-    }>;
-  }>(ASSETS_QUERY);
-
-  const { data: fxData } = useQuery<{ fxRates: FxRateSummary }>(FX_RATES_QUERY);
+  const { data: positionsData } = useQuery<AccountPositionsQuery>(ACCOUNT_POSITIONS_QUERY, { variables: { accountId } });
+  const { data: assetsData } = useQuery<AccountAssetsQuery>(ASSETS_QUERY);
+  const { data: fxData } = useQuery<AccountFxRatesQuery>(FX_RATES_QUERY);
 
   const positions = positionsData?.accountPositions ?? [];
   const assets = assetsData?.assets ?? [];
