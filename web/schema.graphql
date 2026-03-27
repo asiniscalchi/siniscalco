@@ -12,6 +12,12 @@ type AccountDetail {
 	balances: [Balance!]!
 }
 
+input AccountInput {
+	name: String!
+	accountType: AccountType!
+	baseCurrency: String!
+}
+
 type AccountSummary {
 	id: Int!
 	name: String!
@@ -45,6 +51,14 @@ type Asset {
 	updatedAt: String!
 }
 
+input AssetInput {
+	symbol: String!
+	name: String!
+	assetType: AssetType!
+	quoteSymbol: String
+	isin: String
+}
+
 type AssetPosition {
 	accountId: Int!
 	assetId: Int!
@@ -66,31 +80,6 @@ type Balance {
 	updatedAt: String!
 }
 
-input CreateAccountInput {
-	name: String!
-	accountType: AccountType!
-	baseCurrency: String!
-}
-
-input CreateAssetInput {
-	symbol: String!
-	name: String!
-	assetType: AssetType!
-	quoteSymbol: String
-	isin: String
-}
-
-input CreateTransactionInput {
-	accountId: Int!
-	assetId: Int!
-	transactionType: TransactionType!
-	tradeDate: String!
-	quantity: String!
-	unitPrice: String!
-	currencyCode: String!
-	notes: String
-}
-
 type FxRateSummary {
 	targetCurrency: String!
 	rates: [FxRateSummaryItem!]!
@@ -105,17 +94,17 @@ type FxRateSummaryItem {
 }
 
 type MutationRoot {
-	createAccount(input: CreateAccountInput!): AccountDetail!
-	updateAccount(id: Int!, input: UpdateAccountInput!): AccountDetail!
-	deleteAccount(id: Int!): Boolean!
+	createAccount(input: AccountInput!): AccountDetail!
+	updateAccount(id: Int!, input: AccountInput!): AccountDetail!
+	deleteAccount(id: Int!): Int!
 	upsertBalance(accountId: Int!, input: UpsertBalanceInput!): Balance!
 	deleteBalance(accountId: Int!, currency: String!): Boolean!
-	createAsset(input: CreateAssetInput!): Asset!
-	updateAsset(id: Int!, input: UpdateAssetInput!): Asset!
-	deleteAsset(id: Int!): Boolean!
-	createTransaction(input: CreateTransactionInput!): Transaction!
-	updateTransaction(id: Int!, input: UpdateTransactionInput!): Transaction!
-	deleteTransaction(id: Int!): Boolean!
+	createAsset(input: AssetInput!): Asset!
+	updateAsset(id: Int!, input: AssetInput!): Asset!
+	deleteAsset(id: Int!): Int!
+	createTransaction(input: TransactionInput!): Transaction!
+	updateTransaction(id: Int!, input: TransactionInput!): Transaction!
+	deleteTransaction(id: Int!): Int!
 }
 
 type PortfolioAccountTotal {
@@ -199,26 +188,7 @@ type Transaction {
 	updatedAt: String!
 }
 
-enum TransactionType {
-	BUY
-	SELL
-}
-
-input UpdateAccountInput {
-	name: String!
-	accountType: AccountType!
-	baseCurrency: String!
-}
-
-input UpdateAssetInput {
-	symbol: String!
-	name: String!
-	assetType: AssetType!
-	quoteSymbol: String
-	isin: String
-}
-
-input UpdateTransactionInput {
+input TransactionInput {
 	accountId: Int!
 	assetId: Int!
 	transactionType: TransactionType!
@@ -227,6 +197,11 @@ input UpdateTransactionInput {
 	unitPrice: String!
 	currencyCode: String!
 	notes: String
+}
+
+enum TransactionType {
+	BUY
+	SELL
 }
 
 input UpsertBalanceInput {

@@ -17,7 +17,7 @@ const CURRENCIES_QUERY = gql`
 `;
 
 const CREATE_ACCOUNT_MUTATION = gql`
-  mutation CreateAccount($input: CreateAccountInput!) {
+  mutation CreateAccount($input: AccountInput!) {
     createAccount(input: $input) {
       id name accountType baseCurrency
     }
