@@ -8,6 +8,7 @@ import {
   extractGqlErrorMessage,
   extractGqlFieldErrors,
   type Asset,
+  type AssetType,
 } from "@/lib/api";
 
 type AssetFormModalProps = {
@@ -20,7 +21,7 @@ type AssetFormModalProps = {
 type FormState = {
   symbol: string;
   name: string;
-  type: string;
+  type: AssetType;
   quoteSymbol: string;
   isin: string;
 };
@@ -203,7 +204,7 @@ export function AssetFormModal({
                   onChange={(event) =>
                     setFormState((current) => ({
                       ...current,
-                      type: event.target.value,
+                      type: event.target.value as AssetType,
                     }))
                   }
                   value={formState.type}

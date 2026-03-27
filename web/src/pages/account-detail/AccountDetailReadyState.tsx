@@ -151,7 +151,7 @@ export function AccountDetailReadyState({
         <CardContent className="grid gap-3 text-sm sm:grid-cols-3">
           <div className="rounded-xl border p-4">
             <p className="text-muted-foreground">Cash</p>
-            {account.summaryStatus === "ok" && account.cashTotalAmount && account.totalCurrency ? (
+            {account.summaryStatus === "OK" && account.cashTotalAmount && account.totalCurrency ? (
               <MoneyText
                 className="mt-2 block font-semibold"
                 currency={account.totalCurrency}
@@ -164,7 +164,7 @@ export function AccountDetailReadyState({
           </div>
           <div className="rounded-xl border p-4">
             <p className="text-muted-foreground">Assets</p>
-            {account.summaryStatus === "ok" && account.assetTotalAmount && account.totalCurrency ? (
+            {account.summaryStatus === "OK" && account.assetTotalAmount && account.totalCurrency ? (
               <MoneyText
                 className="mt-2 block font-semibold"
                 currency={account.totalCurrency}
@@ -177,7 +177,7 @@ export function AccountDetailReadyState({
           </div>
           <div className="rounded-xl border p-4">
             <p className="text-muted-foreground">Total</p>
-            {account.summaryStatus === "ok" && account.totalAmount && account.totalCurrency ? (
+            {account.summaryStatus === "OK" && account.totalAmount && account.totalCurrency ? (
               <MoneyText
                 className="mt-2 block font-semibold"
                 currency={account.totalCurrency}

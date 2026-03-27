@@ -26,7 +26,7 @@ export function FxRatesFooter({ summary }: { summary: FxRateSummary }) {
           <span>{formatFxRate(rate.rate)}</span>
         </div>
       ))}
-      {summary.refreshStatus === "unavailable" && (
+      {summary.refreshStatus === "UNAVAILABLE" && (
         <div
           className="text-destructive/80 font-bold uppercase tracking-wider"
           title={summary.refreshError || "FX refresh unavailable"}

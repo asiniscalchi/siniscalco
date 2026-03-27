@@ -95,10 +95,10 @@ describe("AccountDetailPage", () => {
           account: {
             id: variables.id,
             name: "IBKR",
-            accountType: "broker",
+            accountType: "BROKER",
             baseCurrency: "EUR",
             createdAt: "2026-03-22 00:00:00",
-            summaryStatus: "ok",
+            summaryStatus: "OK",
             cashTotalAmount: null,
             assetTotalAmount: null,
             totalAmount: null,
@@ -123,7 +123,7 @@ describe("AccountDetailPage", () => {
       }
 
       if (query.includes("fxRates")) {
-        return gqlResponse({ fxRates: { targetCurrency: "EUR", rates: [], lastUpdated: null, refreshStatus: "available", refreshError: null } });
+        return gqlResponse({ fxRates: { targetCurrency: "EUR", rates: [], lastUpdated: null, refreshStatus: "AVAILABLE", refreshError: null } });
       }
 
       throw new Error(`Unhandled GQL query: ${query}`);
@@ -132,7 +132,7 @@ describe("AccountDetailPage", () => {
     renderAccountDetailPage("/accounts/7");
 
     expect(await screen.findByText("IBKR")).toBeTruthy();
-    expect(screen.getByText("broker · base currency EUR")).toBeTruthy();
+    expect(screen.getByText("BROKER · base currency EUR")).toBeTruthy();
     expect(screen.getByText("12.30000000")).toBeTruthy();
   });
 
@@ -150,10 +150,10 @@ describe("AccountDetailPage", () => {
           account: {
             id: 7,
             name: "IBKR",
-            accountType: "broker",
+            accountType: "BROKER",
             baseCurrency: "EUR",
             createdAt: "2026-03-22 00:00:00",
-            summaryStatus: "ok",
+            summaryStatus: "OK",
             cashTotalAmount: null,
             assetTotalAmount: null,
             totalAmount: null,
@@ -182,7 +182,7 @@ describe("AccountDetailPage", () => {
               id: 3,
               symbol: "BTC",
               name: "Bitcoin",
-              assetType: "crypto",
+              assetType: "CRYPTO",
               quoteSymbol: "BTC-USD",
               isin: null,
               currentPrice: "90000.00",
@@ -200,7 +200,7 @@ describe("AccountDetailPage", () => {
             targetCurrency: "EUR",
             rates: [{ currency: "USD", rate: "0.92" }],
             lastUpdated: null,
-            refreshStatus: "available",
+            refreshStatus: "AVAILABLE",
             refreshError: null,
           },
         });
@@ -233,10 +233,10 @@ describe("AccountDetailPage", () => {
           account: {
             id: 3,
             name: "Main Bank",
-            accountType: "bank",
+            accountType: "BANK",
             baseCurrency: "USD",
             createdAt: "2026-03-22 00:00:00",
-            summaryStatus: "ok",
+            summaryStatus: "OK",
             cashTotalAmount: null,
             assetTotalAmount: null,
             totalAmount: null,
@@ -255,7 +255,7 @@ describe("AccountDetailPage", () => {
       }
 
       if (query.includes("fxRates")) {
-        return gqlResponse({ fxRates: { targetCurrency: "USD", rates: [], lastUpdated: null, refreshStatus: "available", refreshError: null } });
+        return gqlResponse({ fxRates: { targetCurrency: "USD", rates: [], lastUpdated: null, refreshStatus: "AVAILABLE", refreshError: null } });
       }
 
       throw new Error(`Unhandled GQL query: ${query}`);
@@ -283,10 +283,10 @@ describe("AccountDetailPage", () => {
           account: {
             id: variables.id,
             name: "Broker",
-            accountType: "broker",
+            accountType: "BROKER",
             baseCurrency: "EUR",
             createdAt: "2026-03-22 00:00:00",
-            summaryStatus: "ok",
+            summaryStatus: "OK",
             cashTotalAmount: null,
             assetTotalAmount: null,
             totalAmount: null,
@@ -333,10 +333,10 @@ describe("AccountDetailPage", () => {
           account: {
             id: 9,
             name: "IBKR",
-            accountType: "broker",
+            accountType: "BROKER",
             baseCurrency: "EUR",
             createdAt: "2026-03-22 00:00:00",
-            summaryStatus: "ok",
+            summaryStatus: "OK",
             cashTotalAmount: null,
             assetTotalAmount: null,
             totalAmount: null,
@@ -363,15 +363,14 @@ describe("AccountDetailPage", () => {
       }
 
       if (query.includes("fxRates")) {
-        return gqlResponse({ fxRates: { targetCurrency: "EUR", rates: [], lastUpdated: null, refreshStatus: "available", refreshError: null } });
+        return gqlResponse({ fxRates: { targetCurrency: "EUR", rates: [], lastUpdated: null, refreshStatus: "AVAILABLE", refreshError: null } });
       }
 
       if (query.includes("upsertBalance")) {
         expect(variables).toEqual(
           expect.objectContaining({
             accountId: 9,
-            currency: "USD",
-            amount: "42.5",
+            input: { currency: "USD", amount: "42.5" },
           }),
         );
         saved = true;
@@ -418,10 +417,10 @@ describe("AccountDetailPage", () => {
           account: {
             id: 10,
             name: "Main Bank",
-            accountType: "bank",
+            accountType: "BANK",
             baseCurrency: "USD",
             createdAt: "2026-03-22 00:00:00",
-            summaryStatus: "ok",
+            summaryStatus: "OK",
             cashTotalAmount: null,
             assetTotalAmount: null,
             totalAmount: null,
@@ -448,7 +447,7 @@ describe("AccountDetailPage", () => {
       }
 
       if (query.includes("fxRates")) {
-        return gqlResponse({ fxRates: { targetCurrency: "USD", rates: [], lastUpdated: null, refreshStatus: "available", refreshError: null } });
+        return gqlResponse({ fxRates: { targetCurrency: "USD", rates: [], lastUpdated: null, refreshStatus: "AVAILABLE", refreshError: null } });
       }
 
       if (query.includes("deleteBalance")) {
@@ -475,10 +474,10 @@ describe("AccountDetailPage", () => {
           account: {
             id: variables.id,
             name: "Broker Account",
-            accountType: "broker",
+            accountType: "BROKER",
             baseCurrency: "EUR",
             createdAt: "2026-03-22 00:00:00",
-            summaryStatus: "ok",
+            summaryStatus: "OK",
             cashTotalAmount: null,
             assetTotalAmount: null,
             totalAmount: null,
@@ -517,10 +516,10 @@ describe("AccountDetailPage", () => {
           account: {
             id: variables.id,
             name: "Checking",
-            accountType: "bank",
+            accountType: "BANK",
             baseCurrency: "USD",
             createdAt: "2026-03-22 00:00:00",
-            summaryStatus: "ok",
+            summaryStatus: "OK",
             cashTotalAmount: null,
             assetTotalAmount: null,
             totalAmount: null,
@@ -555,10 +554,10 @@ describe("AccountDetailPage", () => {
             account: {
               id: 11,
               name: "First Account",
-              accountType: "broker",
+              accountType: "BROKER",
               baseCurrency: "EUR",
               createdAt: "2026-03-22 00:00:00",
-              summaryStatus: "ok",
+              summaryStatus: "OK",
               cashTotalAmount: null,
               assetTotalAmount: null,
               totalAmount: null,
@@ -573,10 +572,10 @@ describe("AccountDetailPage", () => {
             account: {
               id: 12,
               name: "Second Account",
-              accountType: "bank",
+              accountType: "BANK",
               baseCurrency: "USD",
               createdAt: "2026-03-22 00:00:00",
-              summaryStatus: "ok",
+              summaryStatus: "OK",
               cashTotalAmount: null,
               assetTotalAmount: null,
               totalAmount: null,
@@ -630,10 +629,10 @@ describe("AccountDetailPage", () => {
           account: {
             id: 7,
             name: "IBKR",
-            accountType: "broker",
+            accountType: "BROKER",
             baseCurrency: "EUR",
             createdAt: "2026-03-22 00:00:00",
-            summaryStatus: "ok",
+            summaryStatus: "OK",
             cashTotalAmount: null,
             assetTotalAmount: null,
             totalAmount: null,
@@ -658,7 +657,7 @@ describe("AccountDetailPage", () => {
       }
 
       if (query.includes("fxRates")) {
-        return gqlResponse({ fxRates: { targetCurrency: "EUR", rates: [], lastUpdated: null, refreshStatus: "available", refreshError: null } });
+        return gqlResponse({ fxRates: { targetCurrency: "EUR", rates: [], lastUpdated: null, refreshStatus: "AVAILABLE", refreshError: null } });
       }
 
       throw new Error(`Unhandled GQL query: ${query}`);

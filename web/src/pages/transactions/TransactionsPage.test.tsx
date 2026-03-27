@@ -155,7 +155,7 @@ describe("TransactionsPage", () => {
       if (query.includes("accounts")) {
         return gqlResponse({
           accounts: [
-            { id: 1, name: "Main Account", accountType: "bank", baseCurrency: "USD", summaryStatus: "ok", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
+            { id: 1, name: "Main Account", accountType: "BANK", baseCurrency: "USD", summaryStatus: "OK", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
           ],
         });
       }
@@ -195,7 +195,7 @@ describe("TransactionsPage", () => {
         }
         return gqlResponse({
           accounts: [
-            { id: 1, name: "Main Account", accountType: "bank", baseCurrency: "USD", summaryStatus: "ok", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
+            { id: 1, name: "Main Account", accountType: "BANK", baseCurrency: "USD", summaryStatus: "OK", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
           ],
         });
       }
@@ -224,7 +224,7 @@ describe("TransactionsPage", () => {
 
   it("loads transactions when an account is selected", async () => {
     const accounts = [
-      { id: 1, name: "Main Account", accountType: "bank", baseCurrency: "USD", summaryStatus: "ok", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
+      { id: 1, name: "Main Account", accountType: "BANK", baseCurrency: "USD", summaryStatus: "OK", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
     ];
     const assets = [
       { id: 1, symbol: "AAPL", name: "Apple Inc", assetType: "stock", quoteSymbol: null, isin: null, currentPrice: null, currentPriceCurrency: null, currentPriceAsOf: null, totalQuantity: null },
@@ -280,7 +280,7 @@ describe("TransactionsPage", () => {
       if (query.includes("accounts")) {
         return gqlResponse({
           accounts: [
-            { id: 1, name: "Main Account", accountType: "bank", baseCurrency: "USD", summaryStatus: "ok", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
+            { id: 1, name: "Main Account", accountType: "BANK", baseCurrency: "USD", summaryStatus: "OK", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
           ],
         });
       }
@@ -307,7 +307,7 @@ describe("TransactionsPage", () => {
 
   it("keeps non-empty transaction history constrained on mobile when edit mode is unlocked", async () => {
     const accounts = [
-      { id: 1, name: "Main Account", accountType: "bank", baseCurrency: "USD", summaryStatus: "ok", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
+      { id: 1, name: "Main Account", accountType: "BANK", baseCurrency: "USD", summaryStatus: "OK", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
     ];
     const assets = [
       { id: 1, symbol: "AAPL", name: "Apple Inc", assetType: "stock", quoteSymbol: null, isin: null, currentPrice: null, currentPriceCurrency: null, currentPriceAsOf: null, totalQuantity: null },
@@ -367,7 +367,7 @@ describe("TransactionsPage", () => {
 
   it("handles create transaction via modal", async () => {
     const accounts = [
-      { id: 1, name: "Main Account", accountType: "bank", baseCurrency: "USD", summaryStatus: "ok", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
+      { id: 1, name: "Main Account", accountType: "BANK", baseCurrency: "USD", summaryStatus: "OK", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
     ];
     const assets = [
       { id: 1, symbol: "AAPL", name: "Apple Inc", assetType: "stock", quoteSymbol: null, isin: null, currentPrice: null, currentPriceCurrency: null, currentPriceAsOf: null, totalQuantity: null },
@@ -423,7 +423,7 @@ describe("TransactionsPage", () => {
 
   it("handles edit transaction", async () => {
     const accounts = [
-      { id: 1, name: "Main Account", accountType: "bank", baseCurrency: "USD", summaryStatus: "ok", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
+      { id: 1, name: "Main Account", accountType: "BANK", baseCurrency: "USD", summaryStatus: "OK", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
     ];
     const assets = [
       { id: 1, symbol: "AAPL", name: "Apple Inc", assetType: "stock", quoteSymbol: null, isin: null, currentPrice: null, currentPriceCurrency: null, currentPriceAsOf: null, totalQuantity: null },

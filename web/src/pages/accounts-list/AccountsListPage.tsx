@@ -165,7 +165,7 @@ function AccountsReadyState({
               ? Number(portfolioAccount.totalAmount)
               : 0;
             const percentage =
-              totalValue > 0 && portfolioAccount?.summaryStatus === "ok"
+              totalValue > 0 && portfolioAccount?.summaryStatus === "OK"
                 ? (accountValue / totalValue) * 100
                 : 0;
 
@@ -229,7 +229,7 @@ function AccountListItem({
                   secondary={`${accountType} · ${baseCurrency}`}
                 />
               </div>
-              {summaryStatus === "ok" && totalAmount && totalCurrency ? (
+              {summaryStatus === "OK" && totalAmount && totalCurrency ? (
                 <MoneyText
                   className="shrink-0 font-semibold tabular-nums"
                   currency={totalCurrency}
@@ -243,7 +243,7 @@ function AccountListItem({
               )}
             </div>
             <div className="mt-0.5 flex items-center justify-end gap-4 text-xs text-muted-foreground">
-              {summaryStatus === "ok" && totalCurrency && (
+              {summaryStatus === "OK" && totalCurrency && (
                 <span className="flex shrink-0 gap-3">
                   <span>
                     Cash{" "}
@@ -274,7 +274,7 @@ function AccountListItem({
                 </span>
               )}
             </div>
-            {summaryStatus === "ok" && (
+            {summaryStatus === "OK" && (
               <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-muted">
                 <div
                   className="h-full bg-primary transition-all duration-500"

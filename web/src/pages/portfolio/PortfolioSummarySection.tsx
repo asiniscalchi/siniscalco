@@ -12,7 +12,7 @@ export function PortfolioSummarySection({
     <section className="space-y-4">
       <div className="flex flex-col items-end gap-1.5 px-1">
         <div className="flex flex-col items-baseline gap-1 sm:flex-row sm:gap-4">
-          {summary.totalValueStatus === "ok" && summary.totalValueAmount ? (
+          {summary.totalValueStatus === "OK" && summary.totalValueAmount ? (
             <MoneyText
               className="text-3xl font-bold tracking-tight sm:text-4xl"
               currency={summary.displayCurrency}
@@ -26,12 +26,12 @@ export function PortfolioSummarySection({
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          {summary.totalValueStatus === "conversion_unavailable" && (
+          {summary.totalValueStatus === "CONVERSION_UNAVAILABLE" && (
             <span className="font-medium text-destructive">
               Conversion data unavailable
             </span>
           )}
-          {summary.totalValueStatus === "ok" && (
+          {summary.totalValueStatus === "OK" && (
             <span>Converted to {summary.displayCurrency}</span>
           )}
           <span>•</span>
@@ -39,7 +39,7 @@ export function PortfolioSummarySection({
             Last FX update:{" "}
             {summary.fxLastUpdated ? formatTimestamp(summary.fxLastUpdated) : "unavailable"}
           </span>
-          {summary.fxRefreshStatus === "unavailable" && (
+          {summary.fxRefreshStatus === "UNAVAILABLE" && (
             <>
               <span>•</span>
               <span className="font-medium text-destructive">
@@ -48,7 +48,7 @@ export function PortfolioSummarySection({
             </>
           )}
         </div>
-        {summary.fxRefreshStatus === "unavailable" && summary.fxRefreshError ? (
+        {summary.fxRefreshStatus === "UNAVAILABLE" && summary.fxRefreshError ? (
           <div className="text-xs text-destructive/90">
             {summary.fxRefreshError}
           </div>

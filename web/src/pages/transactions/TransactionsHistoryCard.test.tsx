@@ -13,7 +13,7 @@ function renderHistoryCard({
   selectedAccountId?: string;
   transactions: Transaction[];
 }) {
-  const accounts: Account[] = [{ id: 1, name: "Main Account", accountType: "bank", baseCurrency: "USD" }];
+  const accounts: Account[] = [{ id: 1, name: "Main Account", accountType: "BANK", baseCurrency: "USD" }];
   const assets: Asset[] = [{ id: 1, symbol: "AAPL", name: "Apple Inc.", assetType: "stock" }];
 
   return render(
