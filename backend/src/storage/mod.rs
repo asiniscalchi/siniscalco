@@ -17,6 +17,7 @@ mod asset_unit_price;
 mod assets;
 mod balances;
 mod currency;
+mod portfolio_snapshots;
 mod fx;
 mod fx_rate;
 #[cfg(test)]
@@ -44,6 +45,7 @@ pub use asset_unit_price::*;
 pub use assets::*;
 pub use balances::*;
 pub use currency::*;
+pub use portfolio_snapshots::*;
 pub use fx::*;
 pub use fx_rate::*;
 pub use records::*;

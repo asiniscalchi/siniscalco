@@ -270,3 +270,10 @@ pub struct PortfolioHoldingRecord {
     pub name: String,
     pub value: Amount,
 }
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct PortfolioSnapshotRecord {
+    pub total_value: Amount,
+    pub currency: Currency,
+    pub recorded_at: String,
+}
