@@ -6,9 +6,8 @@ use tokio::time::sleep;
 use tracing::{info, warn};
 
 use crate::{
-    AccountSummaryStatus, AssetId, AssetRecord, AssetType, AssetUnitPrice, Currency,
-    PRODUCT_BASE_CURRENCY, UpsertAssetPriceInput, current_utc_timestamp_iso8601, get_asset,
-    get_portfolio_summary, insert_portfolio_snapshot_if_missing, list_assets, upsert_asset_price,
+    AssetId, AssetRecord, AssetType, AssetUnitPrice, Currency, UpsertAssetPriceInput, get_asset,
+    list_assets, upsert_asset_price,
 };
 
 mod providers;
@@ -97,8 +96,6 @@ pub async fn spawn_asset_price_refresh_task(pool: SqlitePool, config: AssetPrice
                 Ok(updated_count) => info!(updated_count, "asset price refresh succeeded"),
                 Err(error) => warn!(error = %error, "asset price refresh failed"),
             }
-
-            record_portfolio_snapshot(&pool).await;
         }
     });
 }
@@ -127,41 +124,6 @@ async fn fill_missing_asset_prices(
     }
 
     Ok(updated_count)
-}
-
-async fn record_portfolio_snapshot(pool: &SqlitePool) {
-    let summary = match get_portfolio_summary(pool, PRODUCT_BASE_CURRENCY).await {
-        Ok(s) => s,
-        Err(error) => {
-            warn!(error = %error, "portfolio snapshot: failed to compute summary");
-            return;
-        }
-    };
-
-    if summary.total_value_status != AccountSummaryStatus::Ok {
-        return;
-    }
-
-    let Some(total_value) = summary.total_value_amount else {
-        return;
-    };
-
-    let recorded_at = match current_utc_timestamp_iso8601() {
-        Ok(ts) => ts,
-        Err(error) => {
-            warn!(error = %error, "portfolio snapshot: failed to get timestamp");
-            return;
-        }
-    };
-
-    if let Err(error) =
-        insert_portfolio_snapshot_if_missing(pool, total_value, PRODUCT_BASE_CURRENCY, &recorded_at)
-            .await
-    {
-        warn!(error = %error, "portfolio snapshot: failed to insert");
-    } else {
-        info!("portfolio snapshot recorded");
-    }
 }
 
 pub async fn refresh_asset_prices(

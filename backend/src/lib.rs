@@ -5,6 +5,7 @@ mod format;
 mod fx_refresh;
 mod graphql;
 mod logging;
+mod portfolio_snapshot_job;
 mod storage;
 
 pub use asset_price_refresh::{
@@ -23,6 +24,7 @@ pub use fx_refresh::{
 };
 pub use graphql::{AppState, build_router, build_router_with_state, schema_sdl};
 pub use logging::{default_log_filter, init_tracing};
+pub use portfolio_snapshot_job::spawn_portfolio_snapshot_task;
 pub use storage::{
     AccountBalanceRecord, AccountId, AccountName, AccountRecord, AccountSummaryRecord,
     AccountSummaryStatus, AccountType, AccountValueSummaryRecord, Amount, AssetId, AssetName,

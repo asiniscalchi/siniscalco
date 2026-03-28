@@ -7,7 +7,7 @@ use tracing::{error, info};
 use backend::{
     AppState, AssetPriceRefreshConfig, Config, FxRefreshConfig, build_router_with_state,
     connect_db_file, init_tracing, new_shared_fx_refresh_status, spawn_asset_price_refresh_task,
-    spawn_fx_refresh_task,
+    spawn_fx_refresh_task, spawn_portfolio_snapshot_task,
 };
 
 #[tokio::main]
@@ -45,6 +45,7 @@ async fn main() {
 
             spawn_fx_refresh_task(pool.clone(), fx_refresh_status, fx_refresh_config).await;
             spawn_asset_price_refresh_task(pool.clone(), asset_price_refresh_config).await;
+            spawn_portfolio_snapshot_task(pool.clone()).await;
 
             log_listening_addresses(address);
 
