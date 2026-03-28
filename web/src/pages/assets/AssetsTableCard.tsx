@@ -17,6 +17,7 @@ const ASSETS_QUERY = gql`
       id symbol name assetType quoteSymbol isin
       currentPrice currentPriceCurrency currentPriceAsOf totalQuantity
       avgCostBasis avgCostBasisCurrency
+      previousClose previousCloseCurrency
     }
   }
 `;
@@ -90,6 +91,27 @@ export function AssetsTableCard() {
     const gainPct = ((price - cost) / cost) * 100;
     const sameCurrency = currentPriceCurrency && avgCostBasisCurrency === currentPriceCurrency;
     const gainAbs = sameCurrency ? (price - cost) * qty : null;
+
+    const sign = gainPct >= 0 ? "+" : "";
+    const pct = `${sign}${gainPct.toFixed(2)}%`;
+    const abs = gainAbs !== null
+      ? `${sign}${formatMoney(gainAbs, currentPriceCurrency ?? undefined, false).text}`
+      : null;
+
+    return { pct, abs, positive: gainPct >= 0 };
+  };
+
+  const formatDailyGain = (asset: AssetItem) => {
+    const { currentPrice, currentPriceCurrency, previousClose, previousCloseCurrency } = asset;
+    if (!currentPrice || !previousClose) return null;
+
+    const price = Number(currentPrice);
+    const close = Number(previousClose);
+    if (Number.isNaN(price) || Number.isNaN(close) || close === 0) return null;
+
+    const gainPct = ((price - close) / close) * 100;
+    const sameCurrency = currentPriceCurrency && previousCloseCurrency === currentPriceCurrency;
+    const gainAbs = sameCurrency ? price - close : null;
 
     const sign = gainPct >= 0 ? "+" : "";
     const pct = `${sign}${gainPct.toFixed(2)}%`;
@@ -210,6 +232,15 @@ export function AssetsTableCard() {
                         )}
                       </div>
                       {(() => {
+                        const daily = formatDailyGain(asset);
+                        if (!daily) return null;
+                        return (
+                          <div className={`mt-0.5 font-mono tabular-nums text-[11px] ${daily.positive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                            Today: {daily.abs ? `${daily.abs} (${daily.pct})` : daily.pct}
+                          </div>
+                        );
+                      })()}
+                      {(() => {
                         const gain = formatGain(asset);
                         if (!gain) return null;
                         return (
@@ -264,6 +295,7 @@ export function AssetsTableCard() {
                       <th className="pb-3 pr-4">Price</th>
                       <th className="pb-3 pr-4">ISIN</th>
                       <th className="pb-3 pr-4">Holdings</th>
+                      <th className="pb-3 pr-4">Daily</th>
                       <th className="pb-3 pr-4">Gain</th>
                       {!isLocked && <th className="pb-3 text-right">Actions</th>}
                     </tr>
@@ -308,6 +340,20 @@ export function AssetsTableCard() {
                               {asset.totalQuantity ?? "—"}
                             </div>
                           )}
+                        </td>
+                        <td className="py-3 pr-4">
+                          {(() => {
+                            const daily = formatDailyGain(asset);
+                            if (!daily) return <span className="text-muted-foreground">—</span>;
+                            return (
+                              <div className={daily.positive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
+                                {daily.abs && (
+                                  <div className="font-mono text-[13px] tabular-nums">{daily.abs}</div>
+                                )}
+                                <div className="font-mono text-[11px] tabular-nums">{daily.pct}</div>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="py-3 pr-4">
                           {(() => {

@@ -65,6 +65,8 @@ export type Asset = {
   id: Scalars['Int']['output'];
   isin: Maybe<Scalars['String']['output']>;
   name: Scalars['String']['output'];
+  previousClose: Maybe<Scalars['String']['output']>;
+  previousCloseCurrency: Maybe<Scalars['String']['output']>;
   quoteSymbol: Maybe<Scalars['String']['output']>;
   symbol: Scalars['String']['output'];
   totalQuantity: Maybe<Scalars['String']['output']>;
@@ -421,7 +423,7 @@ export type UpdateAssetMutation = { __typename?: 'MutationRoot', updateAsset: { 
 export type AssetsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type AssetsQuery = { __typename?: 'QueryRoot', assets: Array<{ __typename?: 'Asset', id: number, symbol: string, name: string, assetType: AssetType, quoteSymbol: string | null, isin: string | null, currentPrice: string | null, currentPriceCurrency: string | null, currentPriceAsOf: string | null, totalQuantity: string | null, avgCostBasis: string | null, avgCostBasisCurrency: string | null }> };
+export type AssetsQuery = { __typename?: 'QueryRoot', assets: Array<{ __typename?: 'Asset', id: number, symbol: string, name: string, assetType: AssetType, quoteSymbol: string | null, isin: string | null, currentPrice: string | null, currentPriceCurrency: string | null, currentPriceAsOf: string | null, totalQuantity: string | null, avgCostBasis: string | null, avgCostBasisCurrency: string | null, previousClose: string | null, previousCloseCurrency: string | null }> };
 
 export type DeleteAssetMutationVariables = Exact<{
   id: Scalars['Int']['input'];
