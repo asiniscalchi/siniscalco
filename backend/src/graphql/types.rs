@@ -228,6 +228,8 @@ pub struct Asset {
     pub total_quantity: Option<String>,
     pub avg_cost_basis: Option<String>,
     pub avg_cost_basis_currency: Option<String>,
+    pub previous_close: Option<String>,
+    pub previous_close_currency: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
