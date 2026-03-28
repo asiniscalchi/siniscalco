@@ -312,3 +312,10 @@ pub struct PortfolioHolding {
     pub name: String,
     pub value: String,
 }
+
+#[derive(SimpleObject)]
+pub struct PortfolioSnapshot {
+    pub total_value: String,
+    pub currency: String,
+    pub recorded_at: String,
+}

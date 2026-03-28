@@ -140,6 +140,12 @@ type PortfolioHolding {
 	value: String!
 }
 
+type PortfolioSnapshot {
+	totalValue: String!
+	currency: String!
+	recordedAt: String!
+}
+
 type PortfolioSummary {
 	displayCurrency: String!
 	totalValueStatus: SummaryStatus!
@@ -156,6 +162,7 @@ type PortfolioSummary {
 }
 
 type QueryRoot {
+	portfolioHistory: [PortfolioSnapshot!]!
 	portfolio: PortfolioSummary!
 	accounts: [AccountSummary!]!
 	account(id: Int!): AccountDetail!

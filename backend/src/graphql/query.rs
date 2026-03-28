@@ -5,8 +5,8 @@ use crate::{
     AccountId, AssetId, PRODUCT_BASE_CURRENCY, SharedFxRefreshStatus, compact_decimal_output,
     get_account, get_account_value_summary, get_asset, get_portfolio_summary, get_transaction,
     list_account_balances, list_account_positions, list_account_summaries, list_asset_transactions,
-    list_assets, list_currencies, list_fx_rate_summary, list_transactions, normalize_amount_output,
-    storage::StorageError,
+    list_assets, list_currencies, list_fx_rate_summary, list_portfolio_snapshots,
+    list_transactions, normalize_amount_output, storage::StorageError,
 };
 
 use super::types::*;
@@ -113,6 +113,24 @@ pub(crate) fn to_transaction(tx: crate::AssetTransactionRecord) -> Transaction {
 
 #[Object]
 impl QueryRoot {
+    async fn portfolio_history(
+        &self,
+        ctx: &Context<'_>,
+    ) -> async_graphql::Result<Vec<PortfolioSnapshot>> {
+        let pool = ctx.data::<SqlitePool>()?;
+        let snapshots = list_portfolio_snapshots(pool, PRODUCT_BASE_CURRENCY)
+            .await
+            .map_err(storage_to_gql)?;
+        Ok(snapshots
+            .into_iter()
+            .map(|s| PortfolioSnapshot {
+                total_value: normalize_amount_output(&s.total_value.to_string()),
+                currency: s.currency.as_str().to_string(),
+                recorded_at: s.recorded_at,
+            })
+            .collect())
+    }
+
     async fn portfolio(&self, ctx: &Context<'_>) -> async_graphql::Result<PortfolioSummary> {
         let pool = ctx.data::<SqlitePool>()?;
         let fx_status = ctx.data::<SharedFxRefreshStatus>()?;

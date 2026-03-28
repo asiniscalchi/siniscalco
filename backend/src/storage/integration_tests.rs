@@ -11,12 +11,13 @@ use super::{
     AssetQuantity, AssetRecord, AssetSymbol, AssetTransactionType, AssetType, AssetUnitPrice,
     CreateAccountInput, CreateAssetInput, CreateAssetTransactionInput, Currency, CurrencyRecord,
     FxRate, FxRateDetailRecord, FxRateRecord, FxRateSummaryItemRecord, FxRateSummaryRecord,
-    StorageError, TradeDate, UpsertAccountBalanceInput, UpsertAssetPriceInput, UpsertFxRateInput,
-    UpsertOutcome, create_account, create_asset, create_asset_transaction, delete_account,
-    delete_account_balance, get_account, get_latest_fx_rate, list_account_balances,
+    PortfolioSnapshotRecord, StorageError, TradeDate, UpsertAccountBalanceInput,
+    UpsertAssetPriceInput, UpsertFxRateInput, UpsertOutcome, create_account, create_asset,
+    create_asset_transaction, delete_account, delete_account_balance, get_account,
+    get_latest_fx_rate, insert_portfolio_snapshot_if_missing, list_account_balances,
     list_account_positions, list_account_summaries, list_accounts, list_asset_transactions,
-    list_assets, list_currencies, list_fx_rate_summary, list_fx_rates, upsert_account_balance,
-    upsert_asset_price, upsert_fx_rate,
+    list_assets, list_currencies, list_fx_rate_summary, list_fx_rates, list_portfolio_snapshots,
+    upsert_account_balance, upsert_asset_price, upsert_fx_rate,
 };
 use crate::db::init_db;
 
@@ -2372,4 +2373,118 @@ async fn allocation_totals_is_empty_when_nothing_is_chartable() {
 
     assert!(summary.allocation_totals.is_empty());
     assert!(summary.allocation_is_partial);
+}
+
+#[tokio::test]
+async fn insert_portfolio_snapshot_stores_one_entry_per_day() {
+    let pool = test_pool().await;
+
+    insert_portfolio_snapshot_if_missing(
+        &pool,
+        amt("1000.000000"),
+        Currency::Eur,
+        "2025-01-01T10:00:00Z",
+    )
+    .await
+    .expect("first insert should succeed");
+
+    // Second call on the same day is silently ignored (INSERT OR IGNORE)
+    insert_portfolio_snapshot_if_missing(
+        &pool,
+        amt("2000.000000"),
+        Currency::Eur,
+        "2025-01-01T18:00:00Z",
+    )
+    .await
+    .expect("duplicate insert should be ignored");
+
+    let snapshots = list_portfolio_snapshots(&pool, Currency::Eur)
+        .await
+        .expect("list should succeed");
+
+    assert_eq!(snapshots.len(), 1);
+    assert_eq!(
+        snapshots[0],
+        PortfolioSnapshotRecord {
+            total_value: amt("1000.000000"),
+            currency: Currency::Eur,
+            recorded_at: "2025-01-01T10:00:00Z".to_string(),
+        }
+    );
+}
+
+#[tokio::test]
+async fn list_portfolio_snapshots_returns_snapshots_in_chronological_order() {
+    let pool = test_pool().await;
+
+    insert_portfolio_snapshot_if_missing(
+        &pool,
+        amt("1000.000000"),
+        Currency::Eur,
+        "2025-01-01T10:00:00Z",
+    )
+    .await
+    .unwrap();
+
+    insert_portfolio_snapshot_if_missing(
+        &pool,
+        amt("1100.000000"),
+        Currency::Eur,
+        "2025-01-02T10:00:00Z",
+    )
+    .await
+    .unwrap();
+
+    insert_portfolio_snapshot_if_missing(
+        &pool,
+        amt("900.000000"),
+        Currency::Eur,
+        "2025-01-03T10:00:00Z",
+    )
+    .await
+    .unwrap();
+
+    let snapshots = list_portfolio_snapshots(&pool, Currency::Eur)
+        .await
+        .expect("list should succeed");
+
+    assert_eq!(snapshots.len(), 3);
+    assert_eq!(snapshots[0].total_value, amt("1000.000000"));
+    assert_eq!(snapshots[1].total_value, amt("1100.000000"));
+    assert_eq!(snapshots[2].total_value, amt("900.000000"));
+}
+
+#[tokio::test]
+async fn list_portfolio_snapshots_filters_by_currency() {
+    let pool = test_pool().await;
+
+    insert_portfolio_snapshot_if_missing(
+        &pool,
+        amt("1000.000000"),
+        Currency::Eur,
+        "2025-01-01T10:00:00Z",
+    )
+    .await
+    .unwrap();
+
+    insert_portfolio_snapshot_if_missing(
+        &pool,
+        amt("1100.000000"),
+        Currency::Usd,
+        "2025-01-01T10:00:00Z",
+    )
+    .await
+    .unwrap();
+
+    let eur = list_portfolio_snapshots(&pool, Currency::Eur)
+        .await
+        .expect("EUR list should succeed");
+    let usd = list_portfolio_snapshots(&pool, Currency::Usd)
+        .await
+        .expect("USD list should succeed");
+
+    assert_eq!(eur.len(), 1);
+    assert_eq!(eur[0].total_value, amt("1000.000000"));
+    assert_eq!(usd.len(), 1);
+    assert_eq!(usd[0].total_value, amt("1100.000000"));
 }

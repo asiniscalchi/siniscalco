@@ -5,6 +5,7 @@ mod format;
 mod fx_refresh;
 mod graphql;
 mod logging;
+mod portfolio_snapshot_job;
 mod storage;
 
 pub use asset_price_refresh::{
@@ -23,6 +24,7 @@ pub use fx_refresh::{
 };
 pub use graphql::{AppState, build_router, build_router_with_state, schema_sdl};
 pub use logging::{default_log_filter, init_tracing};
+pub use portfolio_snapshot_job::spawn_portfolio_snapshot_task;
 pub use storage::{
     AccountBalanceRecord, AccountId, AccountName, AccountRecord, AccountSummaryRecord,
     AccountSummaryStatus, AccountType, AccountValueSummaryRecord, Amount, AssetId, AssetName,
@@ -31,14 +33,15 @@ pub use storage::{
     CreateAssetInput, CreateAssetTransactionInput, Currency, CurrencyRecord, FxRate,
     FxRateDetailRecord, FxRateRecord, FxRateSummaryItemRecord, FxRateSummaryRecord,
     PortfolioAccountTotalRecord, PortfolioAllocationSliceRecord, PortfolioCashByCurrencyRecord,
-    PortfolioHoldingRecord, PortfolioSummaryRecord, TradeDate, UpdateAccountInput,
-    UpdateAssetInput, UpdateAssetTransactionInput, UpsertAccountBalanceInput,
+    PortfolioHoldingRecord, PortfolioSnapshotRecord, PortfolioSummaryRecord, TradeDate,
+    UpdateAccountInput, UpdateAssetInput, UpdateAssetTransactionInput, UpsertAccountBalanceInput,
     UpsertAssetPriceInput, UpsertFxRateInput, UpsertOutcome, create_account, create_asset,
     create_asset_transaction, current_utc_timestamp, current_utc_timestamp_iso8601, delete_account,
     delete_account_balance, delete_asset, delete_asset_transaction, get_account,
     get_account_value_summary, get_asset, get_latest_fx_rate, get_portfolio_summary,
-    get_transaction, list_account_balances, list_account_positions, list_account_summaries,
-    list_accounts, list_asset_transactions, list_assets, list_currencies, list_fx_rate_summary,
-    list_fx_rates, list_transactions, replace_fx_rates, update_account, update_asset,
-    update_asset_transaction, upsert_account_balance, upsert_asset_price, upsert_fx_rate,
+    get_transaction, insert_portfolio_snapshot_if_missing, list_account_balances,
+    list_account_positions, list_account_summaries, list_accounts, list_asset_transactions,
+    list_assets, list_currencies, list_fx_rate_summary, list_fx_rates, list_portfolio_snapshots,
+    list_transactions, replace_fx_rates, update_account, update_asset, update_asset_transaction,
+    upsert_account_balance, upsert_asset_price, upsert_fx_rate,
 };

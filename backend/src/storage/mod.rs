@@ -21,6 +21,7 @@ mod fx;
 mod fx_rate;
 #[cfg(test)]
 mod integration_tests;
+mod portfolio_snapshots;
 mod records;
 mod storage_error;
 mod trade_date;
@@ -46,6 +47,7 @@ pub use balances::*;
 pub use currency::*;
 pub use fx::*;
 pub use fx_rate::*;
+pub use portfolio_snapshots::*;
 pub use records::*;
 pub use records::{current_utc_timestamp, current_utc_timestamp_iso8601};
 pub use storage_error::*;
