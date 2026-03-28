@@ -140,6 +140,12 @@ type PortfolioHolding {
 	value: String!
 }
 
+type PortfolioSnapshot {
+	totalValue: String!
+	currency: String!
+	recordedAt: String!
+}
+
 type PortfolioSummary {
 	displayCurrency: String!
 	totalValueStatus: SummaryStatus!
@@ -153,12 +159,6 @@ type PortfolioSummary {
 	allocationIsPartial: Boolean!
 	holdings: [PortfolioHolding!]!
 	holdingsIsPartial: Boolean!
-}
-
-type PortfolioSnapshot {
-	totalValue: String!
-	currency: String!
-	recordedAt: String!
 }
 
 type QueryRoot {
