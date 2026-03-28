@@ -28,10 +28,3 @@ Frontend: React + Vite + Tailwind + shadcn
 - components: use shadcn components for reusable UI when available
 - state: keep it minimal, avoid complex state libraries
 
-## CI Checks
-Run all of the following before pushing and fix any errors:
-- `cargo fmt --check`
-- `cargo test`
-- `npm run lint`
-- `npm run typecheck`
-- `npm test -- --run`

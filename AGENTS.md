@@ -2,6 +2,7 @@
 
 ## Foundational Rule
 - this file defines mandatory agent behavior and takes precedence over default agent workflows unless overridden by higher-priority instructions
+- see `CONTRIBUTING.md` for project-specific conventions and setup.
 
 ## Clarification
 - if the requested feature, expected behavior, or acceptance criteria are unclear, ask for clarification before planning or implementation
