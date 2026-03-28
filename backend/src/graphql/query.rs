@@ -84,6 +84,12 @@ pub(crate) fn to_asset(asset: crate::AssetRecord) -> Asset {
         avg_cost_basis_currency: asset
             .avg_cost_basis_currency
             .map(|c| c.as_str().to_string()),
+        previous_close: asset
+            .previous_close
+            .map(|p| normalize_amount_output(&p.to_string())),
+        previous_close_currency: asset
+            .previous_close_currency
+            .map(|c| c.as_str().to_string()),
         created_at: asset.created_at,
         updated_at: asset.updated_at,
     }

@@ -61,6 +61,16 @@ pub async fn list_assets(pool: &SqlitePool) -> Result<Vec<AssetRecord>, StorageE
                 FROM asset_transactions
                 WHERE asset_id = assets.id AND transaction_type = 'BUY'
             ) as avg_cost_basis_currency,
+            (
+                SELECT price FROM asset_price_history
+                WHERE asset_id = assets.id AND date(recorded_at) < date('now')
+                ORDER BY recorded_at DESC LIMIT 1
+            ) as previous_close,
+            (
+                SELECT currency_code FROM asset_price_history
+                WHERE asset_id = assets.id AND date(recorded_at) < date('now')
+                ORDER BY recorded_at DESC LIMIT 1
+            ) as previous_close_currency,
             assets.created_at,
             assets.updated_at
         FROM assets
@@ -105,6 +115,16 @@ pub async fn get_asset(pool: &SqlitePool, asset_id: AssetId) -> Result<AssetReco
                 FROM asset_transactions
                 WHERE asset_id = assets.id AND transaction_type = 'BUY'
             ) as avg_cost_basis_currency,
+            (
+                SELECT price FROM asset_price_history
+                WHERE asset_id = assets.id AND date(recorded_at) < date('now')
+                ORDER BY recorded_at DESC LIMIT 1
+            ) as previous_close,
+            (
+                SELECT currency_code FROM asset_price_history
+                WHERE asset_id = assets.id AND date(recorded_at) < date('now')
+                ORDER BY recorded_at DESC LIMIT 1
+            ) as previous_close_currency,
             assets.created_at,
             assets.updated_at
         FROM assets
@@ -198,6 +218,14 @@ fn map_asset_row(row: sqlx::sqlite::SqliteRow) -> Result<AssetRecord, StorageErr
         total_quantity,
         avg_cost_basis,
         avg_cost_basis_currency,
+        previous_close: row
+            .get::<Option<i64>, _>("previous_close")
+            .map(AssetUnitPrice::from_scaled_i64)
+            .transpose()?,
+        previous_close_currency: row
+            .get::<Option<String>, _>("previous_close_currency")
+            .map(|c| Currency::try_from(c.as_str()))
+            .transpose()?,
         created_at: row.get("created_at"),
         updated_at: row.get("updated_at"),
     })

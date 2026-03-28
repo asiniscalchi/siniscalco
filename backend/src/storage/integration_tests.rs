@@ -117,6 +117,75 @@ async fn creates_account_without_balance() {
 }
 
 #[tokio::test]
+async fn upsert_asset_price_records_history_and_exposes_previous_close() {
+    let pool = test_pool().await;
+
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("VTI"),
+            name: asset_name("Vanguard Total Stock Market ETF"),
+            asset_type: AssetType::Etf,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    // No history yet — previous_close should be None
+    let assets = list_assets(&pool).await.expect("list should succeed");
+    assert_eq!(assets[0].previous_close, None);
+
+    // First price upsert: recorded_at is a past date, so it qualifies as previous_close
+    upsert_asset_price(
+        &pool,
+        UpsertAssetPriceInput {
+            asset_id,
+            price: asset_unit_price("90.000000"),
+            currency: Currency::Usd,
+            as_of: "2020-01-01T10:00:00Z".to_string(),
+        },
+    )
+    .await
+    .expect("first price upsert should succeed");
+
+    let assets = list_assets(&pool).await.expect("list should succeed");
+    assert_eq!(
+        assets[0].previous_close,
+        Some(asset_unit_price("90.000000"))
+    );
+    assert_eq!(assets[0].previous_close_currency, Some(Currency::Usd));
+
+    // Second price upsert: more recent past date — previous_close should update to this one
+    upsert_asset_price(
+        &pool,
+        UpsertAssetPriceInput {
+            asset_id,
+            price: asset_unit_price("100.000000"),
+            currency: Currency::Usd,
+            as_of: "2020-01-02T10:00:00Z".to_string(),
+        },
+    )
+    .await
+    .expect("second price upsert should succeed");
+
+    let history_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM asset_price_history WHERE asset_id = ?")
+            .bind(asset_id.as_i64())
+            .fetch_one(&pool)
+            .await
+            .expect("history count should succeed");
+    assert_eq!(history_count, 2);
+
+    let assets = list_assets(&pool).await.expect("list should succeed");
+    assert_eq!(
+        assets[0].previous_close,
+        Some(asset_unit_price("100.000000"))
+    );
+}
+
+#[tokio::test]
 async fn lists_assets_in_symbol_order() {
     let pool = test_pool().await;
 
@@ -164,6 +233,8 @@ async fn lists_assets_in_symbol_order() {
                 total_quantity: None,
                 avg_cost_basis: None,
                 avg_cost_basis_currency: None,
+                previous_close: None,
+                previous_close_currency: None,
                 created_at: assets[0].created_at.clone(),
                 updated_at: assets[0].updated_at.clone(),
             },
@@ -180,6 +251,8 @@ async fn lists_assets_in_symbol_order() {
                 total_quantity: None,
                 avg_cost_basis: None,
                 avg_cost_basis_currency: None,
+                previous_close: None,
+                previous_close_currency: None,
                 created_at: assets[1].created_at.clone(),
                 updated_at: assets[1].updated_at.clone(),
             },

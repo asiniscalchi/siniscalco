@@ -32,8 +32,18 @@ pub async fn upsert_asset_price(
     .bind(input.asset_id.as_i64())
     .bind(input.price.as_scaled_i64())
     .bind(input.currency.as_str())
-    .bind(input.as_of)
-    .bind(updated_at)
+    .bind(&input.as_of)
+    .bind(&updated_at)
+    .execute(&mut *transaction)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO asset_price_history (asset_id, price, currency_code, recorded_at) VALUES (?, ?, ?, ?)",
+    )
+    .bind(input.asset_id.as_i64())
+    .bind(input.price.as_scaled_i64())
+    .bind(input.currency.as_str())
+    .bind(&input.as_of)
     .execute(&mut *transaction)
     .await?;
 
