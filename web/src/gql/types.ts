@@ -226,6 +226,13 @@ export type PortfolioHolding = {
   value: Scalars['String']['output'];
 };
 
+export type PortfolioSnapshot = {
+  __typename?: 'PortfolioSnapshot';
+  currency: Scalars['String']['output'];
+  recordedAt: Scalars['String']['output'];
+  totalValue: Scalars['String']['output'];
+};
+
 export type PortfolioSummary = {
   __typename?: 'PortfolioSummary';
   accountTotals: Array<PortfolioAccountTotal>;
@@ -252,6 +259,7 @@ export type QueryRoot = {
   currencies: Array<Scalars['String']['output']>;
   fxRates: FxRateSummary;
   portfolio: PortfolioSummary;
+  portfolioHistory: Array<PortfolioSnapshot>;
   transaction: Transaction;
   transactions: Array<Transaction>;
 };

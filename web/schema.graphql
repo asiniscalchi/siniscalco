@@ -155,7 +155,14 @@ type PortfolioSummary {
 	holdingsIsPartial: Boolean!
 }
 
+type PortfolioSnapshot {
+	totalValue: String!
+	currency: String!
+	recordedAt: String!
+}
+
 type QueryRoot {
+	portfolioHistory: [PortfolioSnapshot!]!
 	portfolio: PortfolioSummary!
 	accounts: [AccountSummary!]!
 	account(id: Int!): AccountDetail!
