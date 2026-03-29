@@ -10,6 +10,7 @@ import {
   type ThreadMessageLike,
 } from "@assistant-ui/react";
 
+import { getAssistantChatApiUrl } from "@/lib/env";
 import { cn } from "@/lib/utils";
 
 function extractLatestUserText(messages: readonly ThreadMessageLike[]) {
@@ -37,44 +38,68 @@ function extractLatestUserText(messages: readonly ThreadMessageLike[]) {
   return "";
 }
 
-function buildAssistantReply(prompt: string) {
-  const normalizedPrompt = prompt.toLowerCase();
+type AssistantChatApiMessage = {
+  role: string;
+  content: string;
+};
 
-  if (!prompt) {
-    return "This assistant popup is wired with a local assistant-ui runtime. Connect the runtime adapter to a backend when you want real model responses.";
+type AssistantChatApiResponse = {
+  message: string;
+};
+
+type AssistantChatApiErrorResponse = {
+  error?: string;
+};
+
+function serializeMessages(
+  messages: readonly ThreadMessageLike[],
+): AssistantChatApiMessage[] {
+  return messages
+    .map((message) => ({
+      role: message.role,
+      content: extractLatestUserText([message]),
+    }))
+    .filter((message) => message.content.length > 0);
+}
+
+async function requestAssistantReply(
+  messages: readonly ThreadMessageLike[],
+  abortSignal: AbortSignal,
+) {
+  const response = await fetch(getAssistantChatApiUrl(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messages: serializeMessages(messages),
+    }),
+    signal: abortSignal,
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as
+      | AssistantChatApiErrorResponse
+      | null;
+
+    throw new Error(
+      payload?.error || `assistant backend request failed with ${response.status}`,
+    );
   }
 
-  if (normalizedPrompt.includes("portfolio")) {
-    return "The portfolio area is where the app aggregates account totals, allocations, holdings, and FX context. This scaffold is local-only for now, so it can explain the app shape without calling a model backend.";
-  }
-
-  if (normalizedPrompt.includes("account")) {
-    return "Accounts are the core containers in the app. A production assistant could use this popup scaffold to answer questions about balances, positions, or account setup once it is connected to the backend.";
-  }
-
-  if (normalizedPrompt.includes("asset")) {
-    return "Assets represent the instruments behind positions and transactions. The assistant-ui popup is ready to be upgraded from canned responses to live asset-aware answers through a real adapter.";
-  }
-
-  if (
-    normalizedPrompt.includes("transaction") ||
-    normalizedPrompt.includes("transfer")
-  ) {
-    return "Transactions and transfers already have dedicated pages in the app. This assistant popup is a frontend scaffold that can later orchestrate those workflows through backend actions.";
-  }
-
-  return `This is a basic assistant-ui scaffold running entirely in the frontend. You asked: "${prompt}". Replace the local adapter in the assistant chat component when you are ready to connect a real chat backend.`;
+  const payload = (await response.json()) as AssistantChatApiResponse;
+  return payload.message;
 }
 
 const assistantModelAdapter: ChatModelAdapter = {
-  async run({ messages }) {
-    const prompt = extractLatestUserText(messages);
+  async run({ messages, abortSignal }) {
+    const reply = await requestAssistantReply(messages, abortSignal);
 
     return {
       content: [
         {
           type: "text",
-          text: buildAssistantReply(prompt),
+          text: reply,
         },
       ],
     };

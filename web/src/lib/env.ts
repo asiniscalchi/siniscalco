@@ -5,3 +5,7 @@ export function getApiBaseUrl() {
 export function getHealthApiUrl() {
   return new URL("/health", getApiBaseUrl()).toString();
 }
+
+export function getAssistantChatApiUrl() {
+  return new URL("/assistant/chat", getApiBaseUrl()).toString();
+}
