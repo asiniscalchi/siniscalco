@@ -82,7 +82,7 @@ pub fn build_router_with_state(state: AppState) -> Router {
     );
 
     let cors = CorsLayer::new()
-        .allow_methods([Method::GET, Method::POST])
+        .allow_methods([Method::GET, Method::POST, Method::PUT])
         .allow_origin(Any)
         .allow_headers([CONTENT_TYPE]);
 
