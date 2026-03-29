@@ -5,11 +5,11 @@ use std::{
     time::Duration,
 };
 
-use axum::{Json, extract::State, http::StatusCode};
+use axum::{Json, extract::State, http::{StatusCode, header}, response::IntoResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use tokio::{sync::RwLock, time::sleep};
+use tokio::{sync::{RwLock, Semaphore}, time::sleep};
 use tracing::{debug, error, info, warn};
 
 use crate::current_utc_timestamp;
@@ -100,6 +100,7 @@ impl AssistantModelRegistry {
 }
 
 pub type SharedAssistantModelRegistry = Arc<RwLock<AssistantModelRegistry>>;
+pub type SharedAssistantChatSemaphore = Arc<Semaphore>;
 
 // ── Error type ────────────────────────────────────────────────────────────────
 
@@ -157,8 +158,12 @@ struct OpenAiModelRecord {
     id: String,
 }
 
-pub async fn models(State(state): State<AppState>) -> Json<AssistantModelsResponse> {
-    Json(state.assistant_models.read().await.to_response())
+pub async fn models(State(state): State<AppState>) -> impl IntoResponse {
+    let response = state.assistant_models.read().await.to_response();
+    (
+        [(header::CACHE_CONTROL, "public, max-age=300")],
+        Json(response),
+    )
 }
 
 pub async fn select_model(
@@ -325,6 +330,18 @@ pub async fn chat(
     State(state): State<AppState>,
     Json(request): Json<AssistantChatRequest>,
 ) -> Result<Json<AssistantChatResponse>, (StatusCode, Json<AssistantChatErrorResponse>)> {
+    let _permit = state
+        .assistant_chat_semaphore
+        .try_acquire()
+        .map_err(|_| {
+            (
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(AssistantChatErrorResponse {
+                    error: "too many concurrent assistant requests".to_string(),
+                }),
+            )
+        })?;
+
     let selected_model = state.assistant_models.read().await.selected_model.clone();
     let openai_api_key = state
         .openai_api_key
@@ -385,6 +402,8 @@ const OPENAI_MODELS_URL: &str = "https://api.openai.com/v1/models";
 const DEFAULT_OPENAI_MODEL: &str = "gpt-4o-mini";
 const MOCK_BACKEND_MODEL: &str = "mock-backend";
 const MAX_TOOL_ROUNDS: usize = 5;
+const MAX_CONCURRENT_CHAT_REQUESTS: usize = 5;
+const MAX_MESSAGES_SIZE_BYTES: usize = 256 * 1024;
 const MODEL_REFRESH_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
 
 const SYSTEM_PROMPT: &str = "\
@@ -399,6 +418,10 @@ pub const fn openai_chat_url() -> &'static str {
 
 pub const fn openai_models_url() -> &'static str {
     OPENAI_MODELS_URL
+}
+
+pub fn new_assistant_chat_semaphore() -> SharedAssistantChatSemaphore {
+    Arc::new(Semaphore::new(MAX_CONCURRENT_CHAT_REQUESTS))
 }
 
 pub fn new_shared_assistant_model_registry(
@@ -634,6 +657,18 @@ async fn openai_chat(
     }
 
     for _ in 0..MAX_TOOL_ROUNDS {
+        let messages_size: usize = messages.iter().map(|m| m.to_string().len()).sum();
+        if messages_size > MAX_MESSAGES_SIZE_BYTES {
+            warn!(
+                messages_size,
+                max = MAX_MESSAGES_SIZE_BYTES,
+                "assistant message context exceeded maximum size"
+            );
+            return Err(AssistantError::Api(
+                "message context exceeded maximum size".to_string(),
+            ));
+        }
+
         let body = json!({
             "model": model,
             "messages": messages,

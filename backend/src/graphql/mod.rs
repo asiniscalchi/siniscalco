@@ -19,7 +19,8 @@ use mutation::MutationRoot;
 use query::QueryRoot;
 
 use crate::{
-    AssetPriceRefreshConfig, SharedFxRefreshStatus, assistant::SharedAssistantModelRegistry,
+    AssetPriceRefreshConfig, SharedFxRefreshStatus,
+    assistant::{SharedAssistantChatSemaphore, SharedAssistantModelRegistry},
 };
 
 pub type AppSchema = Schema<QueryRoot, MutationRoot, EmptySubscription>;
@@ -38,6 +39,7 @@ pub struct AppState {
     pub http_client: reqwest::Client,
     pub openai_api_key: Option<String>,
     pub assistant_models: SharedAssistantModelRegistry,
+    pub assistant_chat_semaphore: SharedAssistantChatSemaphore,
     pub openai_chat_url: String,
     pub openai_models_url: String,
 }
@@ -68,6 +70,7 @@ pub fn build_router(pool: SqlitePool) -> Router {
         assistant_models: crate::assistant::new_shared_assistant_model_registry(
             config.openai_api_key.as_deref(),
         ),
+        assistant_chat_semaphore: crate::assistant::new_assistant_chat_semaphore(),
         openai_chat_url: crate::assistant::openai_chat_url().to_string(),
         openai_models_url: crate::assistant::openai_models_url().to_string(),
     })

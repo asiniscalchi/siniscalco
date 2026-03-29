@@ -30,6 +30,15 @@ const primaryNavItems = [
 const FOCUSABLE_SELECTORS =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
 
+function parseResponseError(
+  payload: { error?: string } | null,
+  fallback: string,
+): string {
+  return payload && "error" in payload && payload.error
+    ? payload.error
+    : fallback;
+}
+
 type AssistantModelsResponse = {
   models: string[];
   selected_model: string;
@@ -134,14 +143,16 @@ export function AppShell() {
   useEffect(() => {
     if (!assistantOpen) return;
 
-    let cancelled = false;
+    const controller = new AbortController();
 
     async function loadAssistantModels() {
       setAssistantModelsStatus("loading");
       setAssistantModelsError(null);
 
       try {
-        const response = await fetch(getAssistantModelsApiUrl());
+        const response = await fetch(getAssistantModelsApiUrl(), {
+          signal: controller.signal,
+        });
         const payload = (await response.json().catch(() => null)) as
           | AssistantModelsResponse
           | { error?: string }
@@ -149,32 +160,30 @@ export function AppShell() {
 
         if (!response.ok) {
           throw new Error(
-            payload && "error" in payload && payload.error
-              ? payload.error
-              : `assistant model request failed with ${response.status}`,
+            parseResponseError(
+              payload as { error?: string } | null,
+              `assistant model request failed with ${response.status}`,
+            ),
           );
         }
 
-        if (!cancelled) {
-          setAssistantModels(payload as AssistantModelsResponse);
-          setAssistantModelsStatus("ready");
-        }
+        setAssistantModels(payload as AssistantModelsResponse);
+        setAssistantModelsStatus("ready");
       } catch (error) {
-        if (!cancelled) {
-          setAssistantModelsStatus("error");
-          setAssistantModelsError(
-            error instanceof Error
-              ? error.message
-              : "Failed to load assistant models",
-          );
-        }
+        if (controller.signal.aborted) return;
+        setAssistantModelsStatus("error");
+        setAssistantModelsError(
+          error instanceof Error
+            ? error.message
+            : "Failed to load assistant models",
+        );
       }
     }
 
     void loadAssistantModels();
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [assistantOpen]);
 
@@ -201,9 +210,10 @@ export function AppShell() {
 
       if (!response.ok) {
         throw new Error(
-          payload && "error" in payload && payload.error
-            ? payload.error
-            : `assistant model update failed with ${response.status}`,
+          parseResponseError(
+            payload as { error?: string } | null,
+            `assistant model update failed with ${response.status}`,
+          ),
         );
       }
 

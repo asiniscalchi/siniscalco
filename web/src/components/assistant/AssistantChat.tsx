@@ -87,16 +87,15 @@ async function requestAssistantReply(
 
 const assistantModelAdapter: ChatModelAdapter = {
   async run({ messages, abortSignal }) {
-    const reply = await requestAssistantReply(messages, abortSignal);
+    if (abortSignal.aborted) return { content: [] };
 
-    return {
-      content: [
-        {
-          type: "text",
-          text: reply,
-        },
-      ],
-    };
+    try {
+      const reply = await requestAssistantReply(messages, abortSignal);
+      return { content: [{ type: "text", text: reply }] };
+    } catch (error) {
+      if (abortSignal.aborted) return { content: [] };
+      throw error;
+    }
   },
 };
 

@@ -25,9 +25,10 @@ use crate::{
     AssetSymbol, AssetTransactionType, AssetType, AssetUnitPrice, CreateAccountInput,
     CreateAssetInput, CreateAssetTransactionInput, Currency, FxRate, FxRefreshAvailability,
     FxRefreshStatus, TradeDate, UpsertAccountBalanceInput, UpsertAssetPriceInput,
-    UpsertFxRateInput, assistant::new_shared_assistant_model_registry,
-    assistant::refresh_assistant_model_registry, create_account, create_asset,
-    create_asset_transaction, init_db, upsert_account_balance, upsert_asset_price, upsert_fx_rate,
+    UpsertFxRateInput, assistant::new_assistant_chat_semaphore,
+    assistant::new_shared_assistant_model_registry, assistant::refresh_assistant_model_registry,
+    create_account, create_asset, create_asset_transaction, init_db, upsert_account_balance,
+    upsert_asset_price, upsert_fx_rate,
 };
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -113,6 +114,7 @@ fn build_app_with_fx_status(
         http_client: reqwest::Client::new(),
         openai_api_key: None,
         assistant_models: new_shared_assistant_model_registry(None),
+        assistant_chat_semaphore: new_assistant_chat_semaphore(),
         openai_chat_url: crate::assistant::openai_chat_url().to_string(),
         openai_models_url: crate::assistant::openai_models_url().to_string(),
     })
@@ -126,6 +128,7 @@ fn build_app_with_price_config(pool: sqlx::SqlitePool, config: AssetPriceRefresh
         http_client: reqwest::Client::new(),
         openai_api_key: None,
         assistant_models: new_shared_assistant_model_registry(None),
+        assistant_chat_semaphore: new_assistant_chat_semaphore(),
         openai_chat_url: crate::assistant::openai_chat_url().to_string(),
         openai_models_url: crate::assistant::openai_models_url().to_string(),
     })
@@ -160,6 +163,7 @@ fn build_app_with_openai_registry(
         http_client: reqwest::Client::new(),
         openai_api_key: api_key.map(str::to_string),
         assistant_models,
+        assistant_chat_semaphore: new_assistant_chat_semaphore(),
         openai_chat_url,
         openai_models_url,
     })
@@ -640,6 +644,37 @@ async fn assistant_chat_completes_tool_call_round_trip_against_openai() {
                 .expect("tool message should be serialized as JSON text")
                 .contains("\"count\":1")
     }));
+}
+
+#[tokio::test]
+async fn assistant_chat_returns_too_many_requests_when_semaphore_is_exhausted() {
+    use tokio::sync::Semaphore;
+
+    let pool = test_pool().await;
+    let exhausted_semaphore = std::sync::Arc::new(Semaphore::new(0));
+    let app = build_router_with_state(AppState {
+        pool,
+        fx_refresh_status: std::sync::Arc::new(RwLock::new(FxRefreshStatus::available())),
+        asset_price_refresh_config: no_price_config(),
+        http_client: reqwest::Client::new(),
+        openai_api_key: None,
+        assistant_models: new_shared_assistant_model_registry(None),
+        assistant_chat_semaphore: exhausted_semaphore,
+        openai_chat_url: crate::assistant::openai_chat_url().to_string(),
+        openai_models_url: crate::assistant::openai_models_url().to_string(),
+    });
+    let (status, json) = post_json(
+        app,
+        "/assistant/chat",
+        json!({ "messages": [{ "role": "user", "content": "hello" }] }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+    assert!(json["error"]
+        .as_str()
+        .unwrap_or("")
+        .contains("too many concurrent"));
 }
 
 // ── currencies ────────────────────────────────────────────────────────────────

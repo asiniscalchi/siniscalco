@@ -42,6 +42,7 @@ async fn main() {
                 http_client: http_client.clone(),
                 openai_api_key: config.openai_api_key.clone(),
                 assistant_models: assistant_models.clone(),
+                assistant_chat_semaphore: backend::assistant::new_assistant_chat_semaphore(),
                 openai_chat_url: backend::assistant::openai_chat_url().to_string(),
                 openai_models_url: backend::assistant::openai_models_url().to_string(),
             });
