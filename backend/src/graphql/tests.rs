@@ -446,6 +446,7 @@ async fn assistant_models_exposes_refreshed_openai_model_list() {
     let pool = test_pool().await;
     let models_url = start_test_openai_models_server(json!({
         "data": [
+            { "id": "another-model" },
             { "id": "gpt-4.1-mini" },
             { "id": "gpt-4o-mini" },
             { "id": "gpt-4.1" },
@@ -475,7 +476,13 @@ async fn assistant_models_exposes_refreshed_openai_model_list() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(
         json["models"],
-        json!(["gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1"])
+        json!([
+            "another-model",
+            "gpt-4.1",
+            "gpt-4.1-mini",
+            "gpt-4o-mini",
+            "not-allowed-model"
+        ])
     );
     assert_eq!(json["selected_model"], "gpt-4o-mini");
     assert_eq!(json["openai_enabled"], true);

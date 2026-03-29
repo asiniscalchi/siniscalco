@@ -79,14 +79,9 @@ impl AssistantModelRegistry {
     }
 
     fn openai_defaults() -> Self {
-        let models = ALLOWED_OPENAI_MODELS
-            .iter()
-            .map(|model| (*model).to_string())
-            .collect::<Vec<_>>();
-
         Self {
             selected_model: DEFAULT_OPENAI_MODEL.to_string(),
-            models,
+            models: vec![DEFAULT_OPENAI_MODEL.to_string()],
             openai_enabled: true,
             last_refreshed_at: None,
             refresh_error: None,
@@ -254,16 +249,15 @@ pub async fn refresh_assistant_model_registry(
 
     let fetched_model_ids =
         fetch_openai_model_ids(http_client, openai_api_key, openai_models_url).await?;
-    let fetched_model_ids = fetched_model_ids.into_iter().collect::<BTreeSet<_>>();
-    let available_models = ALLOWED_OPENAI_MODELS
-        .iter()
-        .filter(|model| fetched_model_ids.contains(**model))
-        .map(|model| (*model).to_string())
+    let available_models = fetched_model_ids
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
         .collect::<Vec<_>>();
 
     if available_models.is_empty() {
         return Err(AssistantModelRefreshError::Provider(
-            "OpenAI model refresh failed: no allowed models are currently available".to_string(),
+            "OpenAI model refresh failed: no models are currently available".to_string(),
         ));
     }
 
@@ -389,7 +383,6 @@ pub async fn chat(
 const OPENAI_CHAT_URL: &str = "https://api.openai.com/v1/chat/completions";
 const OPENAI_MODELS_URL: &str = "https://api.openai.com/v1/models";
 const DEFAULT_OPENAI_MODEL: &str = "gpt-4o-mini";
-const ALLOWED_OPENAI_MODELS: &[&str] = &["gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1"];
 const MOCK_BACKEND_MODEL: &str = "mock-backend";
 const MAX_TOOL_ROUNDS: usize = 5;
 const MODEL_REFRESH_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
