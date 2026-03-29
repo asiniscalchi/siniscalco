@@ -68,7 +68,7 @@ export function PortfolioHistoryCard() {
     <Card className="bg-background">
       <CardHeader className="border-b">
         <div className="flex items-center justify-between">
-          <CardTitle>Portfolio value over time</CardTitle>
+          <CardTitle>Portfolio Value</CardTitle>
           <div className="flex gap-1">
             {RANGES.map((r) => (
               <button
