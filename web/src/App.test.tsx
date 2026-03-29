@@ -5,16 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApolloClient, HttpLink, InMemoryCache } from "@apollo/client";
 import { ApolloProvider } from "@apollo/client/react";
 
+import {
+  getAssistantModelsApiUrl,
+  getAssistantSelectedModelApiUrl,
+} from "@/lib/env";
 import { UiStateProvider } from "@/lib/ui-state-provider";
+import { ResizeObserverMock } from "@/test/browser-mocks";
 import App from "./App";
-
-class ResizeObserverMock {
-  observe() {}
-
-  unobserve() {}
-
-  disconnect() {}
-}
 
 function createTestClient() {
   return new ApolloClient({ link: new HttpLink({ uri: "http://localhost/graphql" }), cache: new InMemoryCache() });
@@ -73,6 +70,45 @@ function mockGqlAndHealth(
 
     if (url.endsWith("/health")) {
       return Promise.resolve(new Response(null, { status: healthStatus }));
+    }
+
+    if (url === getAssistantModelsApiUrl()) {
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            models: ["gpt-4o-mini", "gpt-4.1-mini"],
+            selected_model: "gpt-4o-mini",
+            openai_enabled: true,
+            last_refreshed_at: "2026-03-29T12:00:00Z",
+            refresh_error: null,
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+    }
+
+    if (url === getAssistantSelectedModelApiUrl()) {
+      const body = init?.body
+        ? (JSON.parse(String(init.body)) as { model: string })
+        : { model: "gpt-4o-mini" };
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            models: ["gpt-4o-mini", "gpt-4.1-mini"],
+            selected_model: body.model,
+            openai_enabled: true,
+            last_refreshed_at: "2026-03-29T12:00:00Z",
+            refresh_error: null,
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
     }
 
     const body = init?.body
@@ -161,7 +197,29 @@ describe("App shell", () => {
 
     expect(await screen.findByRole("dialog")).toBeTruthy();
     expect(screen.getByText("Popup chat entrypoint for quick questions inside the app.")).toBeTruthy();
+    expect(await screen.findByRole("combobox", { name: "Assistant model" })).toBeTruthy();
     expect(screen.getByRole("textbox", { name: "Assistant message" })).toBeTruthy();
+  });
+
+  it("updates the assistant model from the popup selector", async () => {
+    mockGqlAndHealth(200);
+
+    renderApp(["/accounts"]);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Open assistant chat" }));
+
+    const modelSelect = await screen.findByRole("combobox", {
+      name: "Assistant model",
+    });
+    fireEvent.change(modelSelect, { target: { value: "gpt-4.1-mini" } });
+
+    expect(fetch).toHaveBeenCalledWith(
+      getAssistantSelectedModelApiUrl(),
+      expect.objectContaining({
+        method: "PUT",
+      }),
+    );
+    expect(await screen.findByText("Active model: gpt-4.1-mini")).toBeTruthy();
   });
 
   it("keeps the shell rendered while navigating between wrapped routes", async () => {

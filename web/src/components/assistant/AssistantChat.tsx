@@ -13,29 +13,22 @@ import {
 import { getAssistantChatApiUrl } from "@/lib/env";
 import { cn } from "@/lib/utils";
 
-function extractLatestUserText(messages: readonly ThreadMessageLike[]) {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message.role !== "user") continue;
-
-    if (typeof message.content === "string") {
-      return message.content.trim();
-    }
-
-    if (!Array.isArray(message.content)) {
-      return "";
-    }
-
-    return message.content
-      .flatMap((part) => {
-        if (part.type !== "text") return [];
-        return typeof part.text === "string" ? [part.text] : [];
-      })
-      .join(" ")
-      .trim();
+function extractMessageText(message: ThreadMessageLike): string {
+  if (typeof message.content === "string") {
+    return message.content.trim();
   }
 
-  return "";
+  if (!Array.isArray(message.content)) {
+    return "";
+  }
+
+  return message.content
+    .flatMap((part) => {
+      if (part.type !== "text") return [];
+      return typeof part.text === "string" ? [part.text] : [];
+    })
+    .join(" ")
+    .trim();
 }
 
 type AssistantChatApiMessage = {
@@ -45,6 +38,7 @@ type AssistantChatApiMessage = {
 
 type AssistantChatApiResponse = {
   message: string;
+  model: string;
 };
 
 type AssistantChatApiErrorResponse = {
@@ -57,7 +51,7 @@ function serializeMessages(
   return messages
     .map((message) => ({
       role: message.role,
-      content: extractLatestUserText([message]),
+      content: extractMessageText(message),
     }))
     .filter((message) => message.content.length > 0);
 }
@@ -175,9 +169,10 @@ export function AssistantChat({ className }: AssistantChatProps) {
                   </h3>
                 </div>
                 <p className="max-w-xl text-sm leading-6 text-muted-foreground">
-                  This starter chat is intentionally local-only. Try prompts
-                  about the portfolio, accounts, assets, transactions, or how to
-                  wire a real chat backend next.
+                  Ask about the portfolio, accounts, assets, transactions, or
+                  transfers. The backend answers from the current portfolio data
+                  snapshot and uses the active assistant model selected in the
+                  popup header.
                 </p>
               </div>
             </ThreadPrimitive.Empty>

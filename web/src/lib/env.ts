@@ -9,3 +9,11 @@ export function getHealthApiUrl() {
 export function getAssistantChatApiUrl() {
   return new URL("/assistant/chat", getApiBaseUrl()).toString();
 }
+
+export function getAssistantModelsApiUrl() {
+  return new URL("/assistant/models", getApiBaseUrl()).toString();
+}
+
+export function getAssistantSelectedModelApiUrl() {
+  return new URL("/assistant/models/selected", getApiBaseUrl()).toString();
+}
