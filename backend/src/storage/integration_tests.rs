@@ -9,8 +9,8 @@ use super::{
     AccountBalanceRecord, AccountId, AccountName, AccountRecord, AccountSummaryRecord,
     AccountSummaryStatus, AccountType, Amount, AssetId, AssetName, AssetPositionRecord,
     AssetQuantity, AssetRecord, AssetSymbol, AssetTransactionType, AssetType, AssetUnitPrice,
-    CreateAccountInput, CreateAssetInput, CreateAssetTransactionInput, Currency, CurrencyRecord,
-    UpdateAssetTransactionInput,
+    CreateAccountInput, CreateAssetInput, CreateAssetTransactionInput, CreateTransferInput,
+    Currency, CurrencyRecord, TransferId, UpdateAssetTransactionInput,
     FxRate, FxRateDetailRecord, FxRateRecord, FxRateSummaryItemRecord, FxRateSummaryRecord,
     PortfolioSnapshotRecord, StorageError, TradeDate, UpsertAccountBalanceInput,
     UpsertAssetPriceInput, UpsertFxRateInput, UpsertOutcome, create_account, create_asset,
@@ -20,6 +20,7 @@ use super::{
     list_assets, list_currencies, list_fx_rate_summary, list_fx_rates, list_portfolio_snapshots,
     upsert_account_balance, upsert_asset_price, upsert_fx_rate,
 };
+use super::{create_transfer, delete_transfer, list_transfers};
 use crate::db::init_db;
 
 fn amt(value: &str) -> Amount {
@@ -1338,6 +1339,340 @@ async fn buy_transaction_blocked_without_fx_rate() {
         error.to_string(),
         "fx rate not available for transaction currency conversion"
     );
+}
+
+#[tokio::test]
+async fn transfer_debits_source_and_credits_destination() {
+    let pool = test_pool().await;
+
+    let account_a = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Account A"),
+            account_type: AccountType::Bank,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .unwrap();
+
+    let account_b = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Account B"),
+            account_type: AccountType::Bank,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .unwrap();
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id: account_a,
+            currency: Currency::Eur,
+            amount: amt("1000.000000"),
+        },
+    )
+    .await
+    .unwrap();
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id: account_b,
+            currency: Currency::Eur,
+            amount: amt("200.000000"),
+        },
+    )
+    .await
+    .unwrap();
+
+    create_transfer(
+        &pool,
+        CreateTransferInput {
+            from_account_id: account_a,
+            to_account_id: account_b,
+            from_currency: Currency::Eur,
+            from_amount: amt("300.000000"),
+            to_currency: Currency::Eur,
+            to_amount: amt("300.000000"),
+            transfer_date: trade_date("2026-03-29"),
+            notes: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let balances_a = list_account_balances(&pool, account_a).await.unwrap();
+    assert_eq!(balances_a[0].amount, amt("700.000000"));
+
+    let balances_b = list_account_balances(&pool, account_b).await.unwrap();
+    assert_eq!(balances_b[0].amount, amt("500.000000"));
+}
+
+#[tokio::test]
+async fn transfer_cross_currency_uses_specified_amounts() {
+    let pool = test_pool().await;
+
+    let account_eur = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("EUR Account"),
+            account_type: AccountType::Bank,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .unwrap();
+
+    let account_usd = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("USD Account"),
+            account_type: AccountType::Bank,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .unwrap();
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id: account_eur,
+            currency: Currency::Eur,
+            amount: amt("500.000000"),
+        },
+    )
+    .await
+    .unwrap();
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id: account_usd,
+            currency: Currency::Usd,
+            amount: amt("0.000000"),
+        },
+    )
+    .await
+    .unwrap();
+
+    // Send 200 EUR, receive 220 USD (user-specified rate)
+    create_transfer(
+        &pool,
+        CreateTransferInput {
+            from_account_id: account_eur,
+            to_account_id: account_usd,
+            from_currency: Currency::Eur,
+            from_amount: amt("200.000000"),
+            to_currency: Currency::Usd,
+            to_amount: amt("220.000000"),
+            transfer_date: trade_date("2026-03-29"),
+            notes: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let balances_eur = list_account_balances(&pool, account_eur).await.unwrap();
+    assert_eq!(balances_eur[0].amount, amt("300.000000"));
+
+    let balances_usd = list_account_balances(&pool, account_usd).await.unwrap();
+    assert_eq!(balances_usd[0].amount, amt("220.000000"));
+}
+
+#[tokio::test]
+async fn transfer_blocked_when_source_has_insufficient_balance() {
+    let pool = test_pool().await;
+
+    let account_a = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Account A"),
+            account_type: AccountType::Bank,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .unwrap();
+
+    let account_b = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Account B"),
+            account_type: AccountType::Bank,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .unwrap();
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id: account_a,
+            currency: Currency::Eur,
+            amount: amt("100.000000"),
+        },
+    )
+    .await
+    .unwrap();
+
+    let error = create_transfer(
+        &pool,
+        CreateTransferInput {
+            from_account_id: account_a,
+            to_account_id: account_b,
+            from_currency: Currency::Eur,
+            from_amount: amt("200.000000"),
+            to_currency: Currency::Eur,
+            to_amount: amt("200.000000"),
+            transfer_date: trade_date("2026-03-29"),
+            notes: None,
+        },
+    )
+    .await
+    .expect_err("transfer with insufficient balance should fail");
+
+    assert_eq!(
+        error.to_string(),
+        "insufficient balance in source account for this transfer"
+    );
+
+    // Source balance unchanged
+    let balances_a = list_account_balances(&pool, account_a).await.unwrap();
+    assert_eq!(balances_a[0].amount, amt("100.000000"));
+}
+
+#[tokio::test]
+async fn deleting_transfer_reverses_balances() {
+    let pool = test_pool().await;
+
+    let account_a = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Account A"),
+            account_type: AccountType::Bank,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .unwrap();
+
+    let account_b = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Account B"),
+            account_type: AccountType::Bank,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .unwrap();
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id: account_a,
+            currency: Currency::Eur,
+            amount: amt("1000.000000"),
+        },
+    )
+    .await
+    .unwrap();
+
+    let transfer = create_transfer(
+        &pool,
+        CreateTransferInput {
+            from_account_id: account_a,
+            to_account_id: account_b,
+            from_currency: Currency::Eur,
+            from_amount: amt("400.000000"),
+            to_currency: Currency::Eur,
+            to_amount: amt("400.000000"),
+            transfer_date: trade_date("2026-03-29"),
+            notes: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    delete_transfer(&pool, transfer.id).await.unwrap();
+
+    let balances_a = list_account_balances(&pool, account_a).await.unwrap();
+    assert_eq!(balances_a[0].amount, amt("1000.000000"));
+
+    let balances_b = list_account_balances(&pool, account_b).await.unwrap();
+    assert_eq!(balances_b[0].amount, amt("0.000000"));
+}
+
+#[tokio::test]
+async fn list_transfers_returns_in_date_descending_order() {
+    let pool = test_pool().await;
+
+    let account_a = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Account A"),
+            account_type: AccountType::Bank,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .unwrap();
+
+    let account_b = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Account B"),
+            account_type: AccountType::Bank,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .unwrap();
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id: account_a,
+            currency: Currency::Eur,
+            amount: amt("2000.000000"),
+        },
+    )
+    .await
+    .unwrap();
+
+    for (date, amount) in [
+        ("2026-01-10", "100.000000"),
+        ("2026-03-20", "200.000000"),
+        ("2026-02-15", "50.000000"),
+    ] {
+        create_transfer(
+            &pool,
+            CreateTransferInput {
+                from_account_id: account_a,
+                to_account_id: account_b,
+                from_currency: Currency::Eur,
+                from_amount: amt(amount),
+                to_currency: Currency::Eur,
+                to_amount: amt(amount),
+                transfer_date: trade_date(date),
+                notes: None,
+            },
+        )
+        .await
+        .unwrap();
+    }
+
+    let transfers = list_transfers(&pool).await.unwrap();
+    assert_eq!(transfers.len(), 3);
+    assert_eq!(transfers[0].transfer_date.as_str(), "2026-03-20");
+    assert_eq!(transfers[1].transfer_date.as_str(), "2026-02-15");
+    assert_eq!(transfers[2].transfer_date.as_str(), "2026-01-10");
 }
 
 #[tokio::test]

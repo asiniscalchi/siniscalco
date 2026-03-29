@@ -170,6 +170,18 @@ pub struct TransactionInput {
     pub notes: Option<String>,
 }
 
+#[derive(InputObject)]
+pub struct TransferInput {
+    pub from_account_id: i64,
+    pub to_account_id: i64,
+    pub from_currency: String,
+    pub from_amount: String,
+    pub to_currency: String,
+    pub to_amount: String,
+    pub transfer_date: String,
+    pub notes: Option<String>,
+}
+
 // ── Output types ──────────────────────────────────────────────────────────────
 
 #[derive(SimpleObject)]
@@ -311,6 +323,20 @@ pub struct PortfolioHolding {
     pub symbol: String,
     pub name: String,
     pub value: String,
+}
+
+#[derive(SimpleObject)]
+pub struct Transfer {
+    pub id: i64,
+    pub from_account_id: i64,
+    pub to_account_id: i64,
+    pub from_currency: String,
+    pub from_amount: String,
+    pub to_currency: String,
+    pub to_amount: String,
+    pub transfer_date: String,
+    pub notes: Option<String>,
+    pub created_at: String,
 }
 
 #[derive(SimpleObject)]

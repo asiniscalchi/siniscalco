@@ -109,6 +109,8 @@ type MutationRoot {
 	createTransaction(input: TransactionInput!): Transaction!
 	updateTransaction(id: Int!, input: TransactionInput!): Transaction!
 	deleteTransaction(id: Int!): Int!
+	createTransfer(input: TransferInput!): Transfer!
+	deleteTransfer(id: Int!): Int!
 }
 
 type PortfolioAccountTotal {
@@ -171,6 +173,7 @@ type QueryRoot {
 	asset(id: Int!): Asset!
 	transactions(accountId: Int): [Transaction!]!
 	transaction(id: Int!): Transaction!
+	transfers: [Transfer!]!
 	currencies: [String!]!
 	fxRates: FxRateSummary!
 }
@@ -213,6 +216,30 @@ input TransactionInput {
 enum TransactionType {
 	BUY
 	SELL
+}
+
+type Transfer {
+	id: Int!
+	fromAccountId: Int!
+	toAccountId: Int!
+	fromCurrency: String!
+	fromAmount: String!
+	toCurrency: String!
+	toAmount: String!
+	transferDate: String!
+	notes: String
+	createdAt: String!
+}
+
+input TransferInput {
+	fromAccountId: Int!
+	toAccountId: Int!
+	fromCurrency: String!
+	fromAmount: String!
+	toCurrency: String!
+	toAmount: String!
+	transferDate: String!
+	notes: String
 }
 
 input UpsertBalanceInput {
