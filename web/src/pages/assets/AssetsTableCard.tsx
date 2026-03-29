@@ -3,13 +3,16 @@ import { gql } from "@apollo/client/core";
 import { useMutation, useQuery } from "@apollo/client/react";
 
 import { ItemLabel } from "@/components/ItemLabel";
-import { LockIcon, PencilIcon, PlusIcon, TrashIcon, UnlockIcon } from "@/components/Icons";
+import { ExternalLinkIcon, LockIcon, PencilIcon, PlusIcon, TrashIcon, UnlockIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/lib/format-money";
 import { extractGqlErrorMessage } from "@/lib/gql";
 import { type AssetsQuery } from "@/gql/types";
+
+const ftMarketsUrl = (isin: string) =>
+  `https://markets.ft.com/data/equities/tearsheet/summary?s=${isin}`;
 
 const ASSETS_QUERY = gql`
   query Assets {
@@ -231,6 +234,19 @@ export function AssetsTableCard() {
                           <span className="font-mono tabular-nums">{formatTotalValue(asset)}</span>
                         )}
                       </div>
+                      {asset.isin && (
+                        <div className="mt-0.5 text-[11px] text-muted-foreground font-mono">
+                          <a
+                            className="inline-flex items-center gap-1 hover:text-foreground hover:underline"
+                            href={ftMarketsUrl(asset.isin!)}
+                            rel="noopener noreferrer"
+                            target="_blank"
+                          >
+                            {asset.isin}
+                            <ExternalLinkIcon className="size-3 shrink-0" />
+                          </a>
+                        </div>
+                      )}
                       {(() => {
                         const daily = formatDailyGain(asset);
                         if (!daily) return null;
@@ -323,7 +339,17 @@ export function AssetsTableCard() {
                           </div>
                         </td>
                         <td className="py-3 pr-4 font-mono text-[11px] text-muted-foreground">
-                          {asset.isin || "—"}
+                          {asset.isin ? (
+                            <a
+                              className="inline-flex items-center gap-1 hover:text-foreground hover:underline"
+                              href={ftMarketsUrl(asset.isin!)}
+                              rel="noopener noreferrer"
+                              target="_blank"
+                            >
+                              {asset.isin}
+                              <ExternalLinkIcon className="size-3 shrink-0" />
+                            </a>
+                          ) : "—"}
                         </td>
                         <td className="py-3 pr-4">
                           {formatTotalValue(asset) ? (
