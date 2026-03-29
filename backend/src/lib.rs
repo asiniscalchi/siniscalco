@@ -1,3 +1,4 @@
+mod assistant;
 mod asset_price_refresh;
 mod config;
 mod db;

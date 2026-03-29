@@ -136,6 +136,26 @@ async fn gql(app: Router, query: &str) -> Value {
     serde_json::from_slice(&bytes).unwrap()
 }
 
+async fn post_json(app: Router, path: &str, body: Value) -> (StatusCode, Value) {
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(path)
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let status = response.status();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let json = serde_json::from_slice(&bytes).unwrap();
+
+    (status, json)
+}
+
 async fn start_test_quote_server(payload: Value) -> String {
     let app = Router::new().route(
         "/quote",
@@ -172,6 +192,73 @@ async fn serves_health_route() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn assistant_chat_returns_db_backed_portfolio_summary() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Main Broker"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Eur,
+            amount: amt("125.50"),
+        },
+    )
+    .await
+    .expect("balance upsert should succeed");
+
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let (status, json) = post_json(
+        app,
+        "/assistant/chat",
+        json!({
+            "messages": [
+                { "role": "user", "content": "What does my portfolio look like?" }
+            ]
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    let message = json["message"]
+        .as_str()
+        .expect("assistant response should include a message");
+    assert!(message.contains("125.5 EUR"));
+    assert!(message.contains("1 account"));
+}
+
+#[tokio::test]
+async fn assistant_chat_handles_empty_prompt_with_backend_status_summary() {
+    let pool = test_pool().await;
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let (status, json) = post_json(
+        app,
+        "/assistant/chat",
+        json!({
+            "messages": []
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    let message = json["message"]
+        .as_str()
+        .expect("assistant response should include a message");
+    assert!(message.contains("backend assistant is connected"));
+    assert!(message.contains("0 account"));
 }
 
 // ── currencies ────────────────────────────────────────────────────────────────

@@ -7,7 +7,7 @@ use async_graphql_axum::GraphQL;
 use axum::{
     Router,
     http::{Method, header::CONTENT_TYPE},
-    routing::get,
+    routing::{get, post},
 };
 use sqlx::SqlitePool;
 use tower_http::{
@@ -63,10 +63,10 @@ pub fn build_router(pool: SqlitePool) -> Router {
 
 pub fn build_router_with_state(state: AppState) -> Router {
     let schema = build_schema(
-        state.pool,
-        state.fx_refresh_status,
-        state.asset_price_refresh_config,
-        state.http_client,
+        state.pool.clone(),
+        state.fx_refresh_status.clone(),
+        state.asset_price_refresh_config.clone(),
+        state.http_client.clone(),
     );
 
     let cors = CorsLayer::new()
@@ -76,9 +76,11 @@ pub fn build_router_with_state(state: AppState) -> Router {
 
     Router::new()
         .route("/health", get(health))
+        .route("/assistant/chat", post(crate::assistant::chat))
         .route_service("/graphql", GraphQL::new(schema))
         .layer(TraceLayer::new_for_http())
         .layer(cors)
+        .with_state(state)
 }
 
 async fn health() -> &'static str {
