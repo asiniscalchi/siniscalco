@@ -4,3 +4,4 @@ export { AccountsListPage } from "./accounts-list";
 export { AssetsPage } from "./assets";
 export { PortfolioPage } from "./portfolio";
 export { TransactionsPage } from "./transactions";
+export { TransfersPage } from "./transfers";

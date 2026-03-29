@@ -1,0 +1,311 @@
+import { useEffect, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
+import { gql } from "@apollo/client/core";
+import { useMutation } from "@apollo/client/react";
+
+import { Button } from "@/components/ui/button";
+import { extractGqlErrorMessage } from "@/lib/gql";
+
+import type { Account } from "./types";
+
+const CREATE_TRANSFER_MUTATION = gql`
+  mutation CreateTransfer($input: TransferInput!) {
+    createTransfer(input: $input) {
+      id fromAccountId toAccountId
+      fromCurrency fromAmount toCurrency toAmount
+      transferDate notes
+    }
+  }
+`;
+
+type TransferFormModalProps = {
+  open: boolean;
+  accounts: Account[];
+  onClose: () => void;
+  onSaved: () => void;
+};
+
+type FormState = {
+  fromAccountId: string;
+  toAccountId: string;
+  fromCurrency: string;
+  fromAmount: string;
+  toCurrency: string;
+  toAmount: string;
+  transferDate: string;
+  notes: string;
+};
+
+function getTodayDate() {
+  return new Date().toISOString().split("T")[0];
+}
+
+function getAccountCurrency(accounts: Account[], accountId: string) {
+  return accounts.find((a) => String(a.id) === accountId)?.baseCurrency ?? "";
+}
+
+export function TransferFormModal({
+  open,
+  accounts,
+  onClose,
+  onSaved,
+}: TransferFormModalProps) {
+  const [formState, setFormState] = useState<FormState>({
+    fromAccountId: "",
+    toAccountId: "",
+    fromCurrency: "",
+    fromAmount: "",
+    toCurrency: "",
+    toAmount: "",
+    transferDate: getTodayDate(),
+    notes: "",
+  });
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const [createTransfer, { loading: creating }] = useMutation(CREATE_TRANSFER_MUTATION);
+
+  useEffect(() => {
+    if (!open) return;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [open]);
+
+  if (!open) return null;
+
+  const updateField = <K extends keyof FormState>(field: K, value: FormState[K]) => {
+    setFormState((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleFromAccountChange = (accountId: string) => {
+    const currency = getAccountCurrency(accounts, accountId);
+    setFormState((current) => ({
+      ...current,
+      fromAccountId: accountId,
+      fromCurrency: currency,
+    }));
+  };
+
+  const handleToAccountChange = (accountId: string) => {
+    const currency = getAccountCurrency(accounts, accountId);
+    setFormState((current) => ({
+      ...current,
+      toAccountId: accountId,
+      toCurrency: currency,
+    }));
+  };
+
+  const isSameCurrency = formState.fromCurrency === formState.toCurrency && formState.fromCurrency !== "";
+  const submitDisabled =
+    creating ||
+    !formState.fromAccountId ||
+    !formState.toAccountId ||
+    !formState.fromAmount ||
+    !formState.toAmount ||
+    !formState.fromCurrency ||
+    !formState.toCurrency;
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSubmitError(null);
+
+    try {
+      await createTransfer({
+        variables: {
+          input: {
+            fromAccountId: parseInt(formState.fromAccountId),
+            toAccountId: parseInt(formState.toAccountId),
+            fromCurrency: formState.fromCurrency.toUpperCase(),
+            fromAmount: formState.fromAmount,
+            toCurrency: formState.toCurrency.toUpperCase(),
+            toAmount: formState.toAmount,
+            transferDate: formState.transferDate,
+            notes: formState.notes || null,
+          },
+        },
+      });
+      onSaved();
+    } catch (error) {
+      setSubmitError(extractGqlErrorMessage(error, "Failed to create transfer"));
+    }
+  };
+
+  return createPortal(
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+      role="dialog"
+    >
+      <div className="my-auto flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-xl border bg-background shadow-2xl animate-in zoom-in-95 duration-200">
+        <header className="flex-none border-b px-6 py-4">
+          <h2 className="text-lg font-semibold">New Transfer</h2>
+          <p className="text-sm text-muted-foreground">
+            Move funds between accounts.
+          </p>
+        </header>
+        <form className="flex flex-1 flex-col overflow-hidden" onSubmit={handleSubmit}>
+          <div className="grid flex-1 min-h-0 gap-5 overflow-y-auto px-6 py-6 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <label
+                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                htmlFor="from-account-select"
+              >
+                From Account *
+              </label>
+              <select
+                required
+                className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
+                id="from-account-select"
+                onChange={(e) => handleFromAccountChange(e.target.value)}
+                value={formState.fromAccountId}
+              >
+                <option value="">Select account...</option>
+                {accounts.map((account) => (
+                  <option key={account.id} value={String(account.id)}>
+                    {account.name} ({account.baseCurrency})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label
+                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                htmlFor="to-account-select"
+              >
+                To Account *
+              </label>
+              <select
+                required
+                className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
+                id="to-account-select"
+                onChange={(e) => handleToAccountChange(e.target.value)}
+                value={formState.toAccountId}
+              >
+                <option value="">Select account...</option>
+                {accounts
+                  .filter((a) => String(a.id) !== formState.fromAccountId)
+                  .map((account) => (
+                    <option key={account.id} value={String(account.id)}>
+                      {account.name} ({account.baseCurrency})
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label
+                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                htmlFor="from-amount-input"
+              >
+                Amount Sent *
+              </label>
+              <div className="flex gap-2">
+                <input
+                  required
+                  className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm font-mono shadow-sm"
+                  id="from-amount-input"
+                  min="0.000001"
+                  onChange={(e) => {
+                    updateField("fromAmount", e.target.value);
+                    if (isSameCurrency) {
+                      updateField("toAmount", e.target.value);
+                    }
+                  }}
+                  placeholder="0.00"
+                  step="any"
+                  type="number"
+                  value={formState.fromAmount}
+                />
+                <input
+                  required
+                  className="w-20 rounded-md border bg-background px-3 py-2 text-sm font-mono uppercase shadow-sm"
+                  maxLength={3}
+                  onChange={(e) => updateField("fromCurrency", e.target.value)}
+                  placeholder="EUR"
+                  type="text"
+                  value={formState.fromCurrency}
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label
+                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                htmlFor="to-amount-input"
+              >
+                Amount Received *
+              </label>
+              <div className="flex gap-2">
+                <input
+                  required
+                  className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm font-mono shadow-sm"
+                  id="to-amount-input"
+                  min="0.000001"
+                  onChange={(e) => updateField("toAmount", e.target.value)}
+                  placeholder="0.00"
+                  step="any"
+                  type="number"
+                  value={formState.toAmount}
+                />
+                <input
+                  required
+                  className="w-20 rounded-md border bg-background px-3 py-2 text-sm font-mono uppercase shadow-sm"
+                  maxLength={3}
+                  onChange={(e) => updateField("toCurrency", e.target.value)}
+                  placeholder="USD"
+                  type="text"
+                  value={formState.toCurrency}
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label
+                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                htmlFor="transfer-date-input"
+              >
+                Date *
+              </label>
+              <input
+                required
+                className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
+                id="transfer-date-input"
+                onChange={(e) => updateField("transferDate", e.target.value)}
+                type="date"
+                value={formState.transferDate}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label
+                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                htmlFor="notes-input"
+              >
+                Notes
+              </label>
+              <input
+                className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
+                id="notes-input"
+                onChange={(e) => updateField("notes", e.target.value)}
+                placeholder="Optional notes"
+                type="text"
+                value={formState.notes}
+              />
+            </div>
+            {submitError && (
+              <div className="col-span-full rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {submitError}
+              </div>
+            )}
+          </div>
+          <footer className="flex flex-none justify-end gap-3 rounded-b-xl border-t bg-muted/30 px-6 py-4">
+            <Button onClick={onClose} type="button" variant="outline">
+              Cancel
+            </Button>
+            <Button disabled={submitDisabled} type="submit">
+              {creating ? "Transferring..." : "Transfer"}
+            </Button>
+          </footer>
+        </form>
+      </div>
+    </div>,
+    document.body,
+  );
+}
