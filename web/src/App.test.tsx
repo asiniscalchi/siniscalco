@@ -8,6 +8,14 @@ import { ApolloProvider } from "@apollo/client/react";
 import { UiStateProvider } from "@/lib/ui-state-provider";
 import App from "./App";
 
+class ResizeObserverMock {
+  observe() {}
+
+  unobserve() {}
+
+  disconnect() {}
+}
+
 function createTestClient() {
   return new ApolloClient({ link: new HttpLink({ uri: "http://localhost/graphql" }), cache: new InMemoryCache() });
 }
@@ -93,6 +101,8 @@ function mockGqlAndHealth(
 describe("App shell", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
+    vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+    window.HTMLElement.prototype.scrollTo = vi.fn();
   });
 
   afterEach(() => {
@@ -135,8 +145,23 @@ describe("App shell", () => {
     expect(screen.getByLabelText("Siniscalco")).toBeTruthy();
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeTruthy();
     expect(screen.getByTitle("Backend: checking")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open assistant chat" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Portfolio" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Accounts" })).toBeTruthy();
+  });
+
+  it("opens the assistant popup from the shell header", async () => {
+    mockGqlAndHealth(200);
+
+    renderApp(["/accounts"]);
+
+    expect(await screen.findByTitle("Backend: connected")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open assistant chat" }));
+
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(screen.getByText("Popup chat entrypoint for quick questions inside the app.")).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Assistant message" })).toBeTruthy();
   });
 
   it("keeps the shell rendered while navigating between wrapped routes", async () => {
