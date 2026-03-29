@@ -1,0 +1,23 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - ./backend/.env.example
+    ports:
+      - "3000:3000"
+    volumes:
+      - backend_data:/app/data
+
+  web:
+    build:
+      context: ./web
+      args:
+        VITE_API_BASE_URL: http://127.0.0.1:3000
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  backend_data:
