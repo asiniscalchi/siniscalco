@@ -26,11 +26,12 @@ const PORTFOLIO_HISTORY_QUERY = gql`
   }
 `;
 
-type Range = "1M" | "3M" | "6M" | "1Y" | "All";
+type Range = "1W" | "1M" | "3M" | "6M" | "1Y" | "All";
 
-const RANGES: Range[] = ["1M", "3M", "6M", "1Y", "All"];
+const RANGES: Range[] = ["1W", "1M", "3M", "6M", "1Y", "All"];
 
 const RANGE_DAYS: Record<Range, number | null> = {
+  "1W": 7,
   "1M": 30,
   "3M": 90,
   "6M": 180,
