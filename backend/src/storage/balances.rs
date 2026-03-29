@@ -294,6 +294,7 @@ async fn compute_allocation_totals(
 
     let slices = class_totals
         .into_iter()
+        .filter(|(_, amount)| *amount > Decimal::ZERO)
         .map(|(label, amount)| PortfolioAllocationSliceRecord {
             label: label.to_string(),
             amount: parse_decimal_amount(amount),
