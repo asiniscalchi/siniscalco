@@ -126,7 +126,7 @@ describe("PortfolioPage", () => {
     renderPortfolioPage();
 
     expect((await screen.findAllByText("153.70 EUR")).length).toBeGreaterThan(0);
-    expect(screen.getByText("Cash By Account")).toBeTruthy();
+    expect(screen.getByText("Cash")).toBeTruthy();
     expect(screen.getByText("103.70 EUR")).toBeTruthy();
     expect(screen.getByText("50.00 EUR")).toBeTruthy();
     expect(screen.getByText("Last FX update: 2026-03-22 11:30")).toBeTruthy();
@@ -340,7 +340,7 @@ describe("PortfolioPage", () => {
 
     renderPortfolioPage();
 
-    expect(await screen.findByText("Allocation by asset class")).toBeTruthy();
+    expect(await screen.findByText("Allocation")).toBeTruthy();
     expect(screen.getByText("Stock")).toBeTruthy();
     expect(screen.getByText("Cash")).toBeTruthy();
     expect(screen.getByText("200.00 EUR")).toBeTruthy();

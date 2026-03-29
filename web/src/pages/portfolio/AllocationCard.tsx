@@ -21,7 +21,7 @@ export function AllocationCard({
     return (
       <Card className="bg-background">
         <CardHeader className="border-b">
-          <CardTitle>Allocation by asset class</CardTitle>
+          <CardTitle>Allocation</CardTitle>
         </CardHeader>
         <CardContent className="pb-6 pt-6">
           <p className="text-sm text-muted-foreground">
@@ -41,7 +41,7 @@ export function AllocationCard({
   return (
     <Card className="bg-background">
       <CardHeader className="border-b">
-        <CardTitle>Allocation by asset class</CardTitle>
+        <CardTitle>Allocation</CardTitle>
       </CardHeader>
       <CardContent className="pb-6 pt-6">
         {isPartial && (

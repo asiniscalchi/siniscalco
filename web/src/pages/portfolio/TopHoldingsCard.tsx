@@ -23,7 +23,7 @@ export function TopHoldingsCard({
     return (
       <Card className="bg-background">
         <CardHeader className="border-b">
-          <CardTitle>Top holdings</CardTitle>
+          <CardTitle>Top Holdings</CardTitle>
         </CardHeader>
         <CardContent className="pb-6 pt-6">
           <p className="text-sm text-muted-foreground">
@@ -49,7 +49,7 @@ const chartableHoldings: ChartableHolding[] = holdingsList
     return (
       <Card className="bg-background">
         <CardHeader className="border-b">
-          <CardTitle>Top holdings</CardTitle>
+          <CardTitle>Top Holdings</CardTitle>
         </CardHeader>
         <CardContent className="pb-6 pt-6">
           <p className="text-sm text-muted-foreground">
@@ -89,7 +89,7 @@ const chartableHoldings: ChartableHolding[] = holdingsList
   return (
     <Card className="self-start bg-background">
       <CardHeader className="border-b">
-        <CardTitle>Top holdings</CardTitle>
+        <CardTitle>Top Holdings</CardTitle>
       </CardHeader>
       <CardContent className="pt-6">
         {isPartial && (

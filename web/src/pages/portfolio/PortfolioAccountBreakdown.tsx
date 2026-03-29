@@ -29,7 +29,7 @@ export function PortfolioAccountBreakdown({
     return (
       <Card className="self-start bg-background">
         <CardHeader className="border-b">
-          <CardTitle>Cash By Account</CardTitle>
+          <CardTitle>Cash</CardTitle>
         </CardHeader>
         <CardContent className="pb-6 pt-6">
           <p className="text-sm text-muted-foreground">
@@ -52,7 +52,7 @@ export function PortfolioAccountBreakdown({
   return (
     <Card className="self-start bg-background">
       <CardHeader className="border-b">
-        <CardTitle>Cash By Account</CardTitle>
+        <CardTitle>Cash</CardTitle>
       </CardHeader>
       <CardContent className="pb-6 pt-6">
         {validAccounts.length > 0 ? (
