@@ -671,10 +671,12 @@ async fn assistant_chat_returns_too_many_requests_when_semaphore_is_exhausted() 
     .await;
 
     assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
-    assert!(json["error"]
-        .as_str()
-        .unwrap_or("")
-        .contains("too many concurrent"));
+    assert!(
+        json["error"]
+            .as_str()
+            .unwrap_or("")
+            .contains("too many concurrent")
+    );
 }
 
 // ── currencies ────────────────────────────────────────────────────────────────

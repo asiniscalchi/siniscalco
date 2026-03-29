@@ -5,11 +5,19 @@ use std::{
     time::Duration,
 };
 
-use axum::{Json, extract::State, http::{StatusCode, header}, response::IntoResponse};
+use axum::{
+    Json,
+    extract::State,
+    http::{StatusCode, header},
+    response::IntoResponse,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use tokio::{sync::{RwLock, Semaphore}, time::sleep};
+use tokio::{
+    sync::{RwLock, Semaphore},
+    time::sleep,
+};
 use tracing::{debug, error, info, warn};
 
 use crate::current_utc_timestamp;
@@ -330,17 +338,14 @@ pub async fn chat(
     State(state): State<AppState>,
     Json(request): Json<AssistantChatRequest>,
 ) -> Result<Json<AssistantChatResponse>, (StatusCode, Json<AssistantChatErrorResponse>)> {
-    let _permit = state
-        .assistant_chat_semaphore
-        .try_acquire()
-        .map_err(|_| {
-            (
-                StatusCode::TOO_MANY_REQUESTS,
-                Json(AssistantChatErrorResponse {
-                    error: "too many concurrent assistant requests".to_string(),
-                }),
-            )
-        })?;
+    let _permit = state.assistant_chat_semaphore.try_acquire().map_err(|_| {
+        (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(AssistantChatErrorResponse {
+                error: "too many concurrent assistant requests".to_string(),
+            }),
+        )
+    })?;
 
     let selected_model = state.assistant_models.read().await.selected_model.clone();
     let openai_api_key = state
