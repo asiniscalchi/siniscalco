@@ -238,3 +238,42 @@ export function ExternalLinkIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function ChatBubbleIcon({ className }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className || "size-4"}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M7 18.5H4a1 1 0 0 1-1-1V5.5a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H11l-4 3z" />
+      <path d="M8 9h8" />
+      <path d="M8 13h5" />
+    </svg>
+  );
+}
+
+export function CloseIcon({ className }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className || "size-4"}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M6 6l12 12" />
+      <path d="M18 6 6 18" />
+    </svg>
+  );
+}

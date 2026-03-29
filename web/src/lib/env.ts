@@ -5,3 +5,15 @@ export function getApiBaseUrl() {
 export function getHealthApiUrl() {
   return new URL("/health", getApiBaseUrl()).toString();
 }
+
+export function getAssistantChatApiUrl() {
+  return new URL("/assistant/chat", getApiBaseUrl()).toString();
+}
+
+export function getAssistantModelsApiUrl() {
+  return new URL("/assistant/models", getApiBaseUrl()).toString();
+}
+
+export function getAssistantSelectedModelApiUrl() {
+  return new URL("/assistant/models/selected", getApiBaseUrl()).toString();
+}

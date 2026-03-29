@@ -1,16 +1,22 @@
-use std::str::FromStr;
+use std::{
+    str::FromStr,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+};
 
 use axum::{
     Json, Router,
     body::Body,
     http::{Request, StatusCode},
-    routing::get,
+    routing::{get, post},
 };
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use tokio::net::TcpListener;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use tower::ServiceExt;
 
 use super::{AppState, build_router, build_router_with_state};
@@ -19,8 +25,10 @@ use crate::{
     AssetSymbol, AssetTransactionType, AssetType, AssetUnitPrice, CreateAccountInput,
     CreateAssetInput, CreateAssetTransactionInput, Currency, FxRate, FxRefreshAvailability,
     FxRefreshStatus, TradeDate, UpsertAccountBalanceInput, UpsertAssetPriceInput,
-    UpsertFxRateInput, create_account, create_asset, create_asset_transaction, init_db,
-    upsert_account_balance, upsert_asset_price, upsert_fx_rate,
+    UpsertFxRateInput, assistant::new_assistant_chat_semaphore,
+    assistant::new_shared_assistant_model_registry, assistant::refresh_assistant_model_registry,
+    create_account, create_asset, create_asset_transaction, init_db, upsert_account_balance,
+    upsert_asset_price, upsert_fx_rate,
 };
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -104,6 +112,11 @@ fn build_app_with_fx_status(
         })),
         asset_price_refresh_config: no_price_config(),
         http_client: reqwest::Client::new(),
+        openai_api_key: None,
+        assistant_models: new_shared_assistant_model_registry(None),
+        assistant_chat_semaphore: new_assistant_chat_semaphore(),
+        openai_chat_url: crate::assistant::openai_chat_url().to_string(),
+        openai_models_url: crate::assistant::openai_models_url().to_string(),
     })
 }
 
@@ -113,6 +126,46 @@ fn build_app_with_price_config(pool: sqlx::SqlitePool, config: AssetPriceRefresh
         fx_refresh_status: std::sync::Arc::new(RwLock::new(FxRefreshStatus::available())),
         asset_price_refresh_config: config,
         http_client: reqwest::Client::new(),
+        openai_api_key: None,
+        assistant_models: new_shared_assistant_model_registry(None),
+        assistant_chat_semaphore: new_assistant_chat_semaphore(),
+        openai_chat_url: crate::assistant::openai_chat_url().to_string(),
+        openai_models_url: crate::assistant::openai_models_url().to_string(),
+    })
+}
+
+fn build_app_with_openai(
+    pool: sqlx::SqlitePool,
+    api_key: Option<&str>,
+    openai_chat_url: String,
+    openai_models_url: String,
+) -> Router {
+    build_app_with_openai_registry(
+        pool,
+        api_key,
+        openai_chat_url,
+        openai_models_url,
+        new_shared_assistant_model_registry(api_key),
+    )
+}
+
+fn build_app_with_openai_registry(
+    pool: sqlx::SqlitePool,
+    api_key: Option<&str>,
+    openai_chat_url: String,
+    openai_models_url: String,
+    assistant_models: crate::assistant::SharedAssistantModelRegistry,
+) -> Router {
+    build_router_with_state(AppState {
+        pool,
+        fx_refresh_status: std::sync::Arc::new(RwLock::new(FxRefreshStatus::available())),
+        asset_price_refresh_config: no_price_config(),
+        http_client: reqwest::Client::new(),
+        openai_api_key: api_key.map(str::to_string),
+        assistant_models,
+        assistant_chat_semaphore: new_assistant_chat_semaphore(),
+        openai_chat_url,
+        openai_models_url,
     })
 }
 
@@ -136,6 +189,47 @@ async fn gql(app: Router, query: &str) -> Value {
     serde_json::from_slice(&bytes).unwrap()
 }
 
+async fn post_json(app: Router, path: &str, body: Value) -> (StatusCode, Value) {
+    send_json(app, "POST", path, body).await
+}
+
+async fn put_json(app: Router, path: &str, body: Value) -> (StatusCode, Value) {
+    send_json(app, "PUT", path, body).await
+}
+
+async fn send_json(app: Router, method: &str, path: &str, body: Value) -> (StatusCode, Value) {
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(method)
+                .uri(path)
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let status = response.status();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let json = serde_json::from_slice(&bytes).unwrap();
+
+    (status, json)
+}
+
+async fn get_json(app: Router, path: &str) -> (StatusCode, Value) {
+    let response = app
+        .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    let status = response.status();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let json = serde_json::from_slice(&bytes).unwrap();
+
+    (status, json)
+}
+
 async fn start_test_quote_server(payload: Value) -> String {
     let app = Router::new().route(
         "/quote",
@@ -152,6 +246,104 @@ async fn start_test_quote_server(payload: Value) -> String {
         axum::serve(listener, app).await.expect("server should run");
     });
     format!("http://{address}")
+}
+
+async fn start_test_openai_error_server(status: StatusCode, payload: Value) -> String {
+    let app = Router::new().route(
+        "/v1/chat/completions",
+        post(move || {
+            let payload = payload.clone();
+            async move { (status, Json(payload)) }
+        }),
+    );
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("listener should bind");
+    let address = listener.local_addr().expect("listener should expose addr");
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("server should run");
+    });
+    format!("http://{address}/v1/chat/completions")
+}
+
+async fn start_test_openai_models_server(payload: Value) -> String {
+    let app = Router::new().route(
+        "/v1/models",
+        get(move || {
+            let payload = payload.clone();
+            async move { Json(payload) }
+        }),
+    );
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("listener should bind");
+    let address = listener.local_addr().expect("listener should expose addr");
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("server should run");
+    });
+    format!("http://{address}/v1/models")
+}
+
+async fn start_test_openai_tool_server(recorded_requests: Arc<Mutex<Vec<Value>>>) -> String {
+    let request_count = Arc::new(AtomicUsize::new(0));
+    let app = Router::new().route(
+        "/v1/chat/completions",
+        post(move |Json(body): Json<Value>| {
+            let recorded_requests = Arc::clone(&recorded_requests);
+            let request_count = Arc::clone(&request_count);
+
+            async move {
+                recorded_requests.lock().await.push(body);
+
+                let response = match request_count.fetch_add(1, Ordering::SeqCst) {
+                    0 => json!({
+                        "choices": [
+                            {
+                                "finish_reason": "tool_calls",
+                                "message": {
+                                    "role": "assistant",
+                                    "content": null,
+                                    "tool_calls": [
+                                        {
+                                            "id": "call_1",
+                                            "type": "function",
+                                            "function": {
+                                                "name": "list_accounts",
+                                                "arguments": "{}"
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }),
+                    _ => json!({
+                        "choices": [
+                            {
+                                "finish_reason": "stop",
+                                "message": {
+                                    "role": "assistant",
+                                    "content": [
+                                        { "type": "text", "text": "You have 1 account." }
+                                    ]
+                                }
+                            }
+                        ]
+                    }),
+                };
+
+                Json(response)
+            }
+        }),
+    );
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("listener should bind");
+    let address = listener.local_addr().expect("listener should expose addr");
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("server should run");
+    });
+    format!("http://{address}/v1/chat/completions")
 }
 
 // ── health ────────────────────────────────────────────────────────────────────
@@ -172,6 +364,319 @@ async fn serves_health_route() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn assistant_chat_returns_db_backed_portfolio_summary() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Main Broker"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Eur,
+            amount: amt("125.50"),
+        },
+    )
+    .await
+    .expect("balance upsert should succeed");
+
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let (status, json) = post_json(
+        app,
+        "/assistant/chat",
+        json!({
+            "messages": [
+                { "role": "user", "content": "What does my portfolio look like?" }
+            ]
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    let message = json["message"]
+        .as_str()
+        .expect("assistant response should include a message");
+    assert!(message.contains("125.5 EUR"));
+    assert!(message.contains("1 account"));
+}
+
+#[tokio::test]
+async fn assistant_chat_handles_empty_prompt_with_backend_status_summary() {
+    let pool = test_pool().await;
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let (status, json) = post_json(
+        app,
+        "/assistant/chat",
+        json!({
+            "messages": []
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    let message = json["message"]
+        .as_str()
+        .expect("assistant response should include a message");
+    assert!(message.contains("backend assistant is connected"));
+    assert!(message.contains("0 account"));
+}
+
+#[tokio::test]
+async fn assistant_models_returns_mock_backend_when_openai_is_disabled() {
+    let pool = test_pool().await;
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let (status, json) = get_json(app, "/assistant/models").await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["models"], json!(["mock-backend"]));
+    assert_eq!(json["selected_model"], "mock-backend");
+    assert_eq!(json["openai_enabled"], false);
+}
+
+#[tokio::test]
+async fn assistant_models_exposes_refreshed_openai_model_list() {
+    let pool = test_pool().await;
+    let models_url = start_test_openai_models_server(json!({
+        "data": [
+            { "id": "another-model" },
+            { "id": "gpt-4.1-mini" },
+            { "id": "gpt-4o-mini" },
+            { "id": "gpt-4.1" },
+            { "id": "not-allowed-model" }
+        ]
+    }))
+    .await;
+    let assistant_models = new_shared_assistant_model_registry(Some("test-key"));
+    refresh_assistant_model_registry(
+        &assistant_models,
+        &reqwest::Client::new(),
+        Some("test-key"),
+        &models_url,
+    )
+    .await
+    .expect("assistant models should refresh");
+
+    let app = build_app_with_openai_registry(
+        pool,
+        Some("test-key"),
+        crate::assistant::openai_chat_url().to_string(),
+        models_url,
+        assistant_models,
+    );
+    let (status, json) = get_json(app, "/assistant/models").await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        json["models"],
+        json!([
+            "another-model",
+            "gpt-4.1",
+            "gpt-4.1-mini",
+            "gpt-4o-mini",
+            "not-allowed-model"
+        ])
+    );
+    assert_eq!(json["selected_model"], "gpt-4o-mini");
+    assert_eq!(json["openai_enabled"], true);
+    assert!(json["last_refreshed_at"].is_string());
+}
+
+#[tokio::test]
+async fn assistant_models_selection_updates_in_memory_model_used_by_chat() {
+    let pool = test_pool().await;
+    let recorded_requests = Arc::new(Mutex::new(Vec::new()));
+    let openai_chat_url = start_test_openai_tool_server(Arc::clone(&recorded_requests)).await;
+    let models_url = start_test_openai_models_server(json!({
+        "data": [
+            { "id": "gpt-4.1-mini" },
+            { "id": "gpt-4o-mini" }
+        ]
+    }))
+    .await;
+    let assistant_models = new_shared_assistant_model_registry(Some("test-key"));
+    refresh_assistant_model_registry(
+        &assistant_models,
+        &reqwest::Client::new(),
+        Some("test-key"),
+        &models_url,
+    )
+    .await
+    .expect("assistant models should refresh");
+
+    let app = build_app_with_openai_registry(
+        pool,
+        Some("test-key"),
+        openai_chat_url,
+        models_url,
+        assistant_models,
+    );
+    let (status, json) = put_json(
+        app.clone(),
+        "/assistant/models/selected",
+        json!({ "model": "gpt-4.1-mini" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["selected_model"], "gpt-4.1-mini");
+
+    let (status, json) = post_json(
+        app,
+        "/assistant/chat",
+        json!({
+            "messages": [
+                { "role": "user", "content": "How many accounts do I have?" }
+            ]
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["model"], "gpt-4.1-mini");
+
+    let recorded_requests = recorded_requests.lock().await;
+    assert_eq!(recorded_requests[0]["model"], "gpt-4.1-mini");
+}
+
+#[tokio::test]
+async fn assistant_chat_surfaces_openai_failures_as_bad_gateway() {
+    let pool = test_pool().await;
+    let openai_chat_url = start_test_openai_error_server(
+        StatusCode::UNAUTHORIZED,
+        json!({
+            "error": {
+                "message": "Incorrect API key provided"
+            }
+        }),
+    )
+    .await;
+    let app = build_app_with_openai(
+        pool,
+        Some("test-key"),
+        openai_chat_url,
+        crate::assistant::openai_models_url().to_string(),
+    );
+    let (status, json) = post_json(
+        app,
+        "/assistant/chat",
+        json!({
+            "messages": [
+                { "role": "user", "content": "What does my portfolio look like?" }
+            ]
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    let error = json["error"]
+        .as_str()
+        .expect("assistant error response should include a message");
+    assert!(error.contains("OpenAI 401 Unauthorized"));
+    assert!(error.contains("Incorrect API key provided"));
+}
+
+#[tokio::test]
+async fn assistant_chat_completes_tool_call_round_trip_against_openai() {
+    let pool = test_pool().await;
+
+    create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Main Broker"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let recorded_requests = Arc::new(Mutex::new(Vec::new()));
+    let openai_chat_url = start_test_openai_tool_server(Arc::clone(&recorded_requests)).await;
+    let app = build_app_with_openai(
+        pool,
+        Some("test-key"),
+        openai_chat_url,
+        crate::assistant::openai_models_url().to_string(),
+    );
+    let (status, json) = post_json(
+        app,
+        "/assistant/chat",
+        json!({
+            "messages": [
+                { "role": "user", "content": "How many accounts do I have?" }
+            ]
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["message"], "You have 1 account.");
+    assert_eq!(json["model"], "gpt-4o-mini");
+
+    let recorded_requests = recorded_requests.lock().await;
+    assert_eq!(recorded_requests.len(), 2);
+
+    let second_request_messages = recorded_requests[1]["messages"]
+        .as_array()
+        .expect("second OpenAI request should include messages");
+    assert!(second_request_messages.iter().any(|message| {
+        message["role"] == "assistant"
+            && message["tool_calls"][0]["id"] == "call_1"
+            && message["tool_calls"][0]["function"]["name"] == "list_accounts"
+    }));
+    assert!(second_request_messages.iter().any(|message| {
+        message["role"] == "tool"
+            && message["tool_call_id"] == "call_1"
+            && message["content"]
+                .as_str()
+                .expect("tool message should be serialized as JSON text")
+                .contains("\"count\":1")
+    }));
+}
+
+#[tokio::test]
+async fn assistant_chat_returns_too_many_requests_when_semaphore_is_exhausted() {
+    use tokio::sync::Semaphore;
+
+    let pool = test_pool().await;
+    let exhausted_semaphore = std::sync::Arc::new(Semaphore::new(0));
+    let app = build_router_with_state(AppState {
+        pool,
+        fx_refresh_status: std::sync::Arc::new(RwLock::new(FxRefreshStatus::available())),
+        asset_price_refresh_config: no_price_config(),
+        http_client: reqwest::Client::new(),
+        openai_api_key: None,
+        assistant_models: new_shared_assistant_model_registry(None),
+        assistant_chat_semaphore: exhausted_semaphore,
+        openai_chat_url: crate::assistant::openai_chat_url().to_string(),
+        openai_models_url: crate::assistant::openai_models_url().to_string(),
+    });
+    let (status, json) = post_json(
+        app,
+        "/assistant/chat",
+        json!({ "messages": [{ "role": "user", "content": "hello" }] }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+    assert!(
+        json["error"]
+            .as_str()
+            .unwrap_or("")
+            .contains("too many concurrent")
+    );
 }
 
 // ── currencies ────────────────────────────────────────────────────────────────

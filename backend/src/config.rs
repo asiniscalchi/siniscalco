@@ -144,6 +144,10 @@ pub struct Config {
     /// Marketstack API key (enables Marketstack as the stock price provider)
     #[arg(long, env = "MARKETSTACK_API_KEY")]
     pub marketstack_api_key: Option<String>,
+
+    /// OpenAI API key (enables the AI assistant chat endpoint)
+    #[arg(long, env = "OPENAI_API_KEY")]
+    pub openai_api_key: Option<String>,
 }
 
 impl Config {

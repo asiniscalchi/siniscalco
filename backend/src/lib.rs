@@ -1,4 +1,5 @@
 mod asset_price_refresh;
+pub mod assistant;
 mod config;
 mod db;
 mod format;

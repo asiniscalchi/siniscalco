@@ -7,7 +7,7 @@ use async_graphql_axum::GraphQL;
 use axum::{
     Router,
     http::{Method, header::CONTENT_TYPE},
-    routing::get,
+    routing::{get, post, put},
 };
 use sqlx::SqlitePool;
 use tower_http::{
@@ -18,7 +18,10 @@ use tower_http::{
 use mutation::MutationRoot;
 use query::QueryRoot;
 
-use crate::{AssetPriceRefreshConfig, SharedFxRefreshStatus};
+use crate::{
+    AssetPriceRefreshConfig, SharedFxRefreshStatus,
+    assistant::{SharedAssistantChatSemaphore, SharedAssistantModelRegistry},
+};
 
 pub type AppSchema = Schema<QueryRoot, MutationRoot, EmptySubscription>;
 
@@ -34,6 +37,11 @@ pub struct AppState {
     pub fx_refresh_status: SharedFxRefreshStatus,
     pub asset_price_refresh_config: AssetPriceRefreshConfig,
     pub http_client: reqwest::Client,
+    pub openai_api_key: Option<String>,
+    pub assistant_models: SharedAssistantModelRegistry,
+    pub assistant_chat_semaphore: SharedAssistantChatSemaphore,
+    pub openai_chat_url: String,
+    pub openai_models_url: String,
 }
 
 pub fn build_schema(
@@ -58,27 +66,41 @@ pub fn build_router(pool: SqlitePool) -> Router {
         fx_refresh_status: crate::new_shared_fx_refresh_status(),
         asset_price_refresh_config: config.asset_price_refresh_config(),
         http_client: reqwest::Client::new(),
+        openai_api_key: config.openai_api_key.clone(),
+        assistant_models: crate::assistant::new_shared_assistant_model_registry(
+            config.openai_api_key.as_deref(),
+        ),
+        assistant_chat_semaphore: crate::assistant::new_assistant_chat_semaphore(),
+        openai_chat_url: crate::assistant::openai_chat_url().to_string(),
+        openai_models_url: crate::assistant::openai_models_url().to_string(),
     })
 }
 
 pub fn build_router_with_state(state: AppState) -> Router {
     let schema = build_schema(
-        state.pool,
-        state.fx_refresh_status,
-        state.asset_price_refresh_config,
-        state.http_client,
+        state.pool.clone(),
+        state.fx_refresh_status.clone(),
+        state.asset_price_refresh_config.clone(),
+        state.http_client.clone(),
     );
 
     let cors = CorsLayer::new()
-        .allow_methods([Method::GET, Method::POST])
+        .allow_methods([Method::GET, Method::POST, Method::PUT])
         .allow_origin(Any)
         .allow_headers([CONTENT_TYPE]);
 
     Router::new()
         .route("/health", get(health))
+        .route("/assistant/chat", post(crate::assistant::chat))
+        .route("/assistant/models", get(crate::assistant::models))
+        .route(
+            "/assistant/models/selected",
+            put(crate::assistant::select_model),
+        )
         .route_service("/graphql", GraphQL::new(schema))
         .layer(TraceLayer::new_for_http())
         .layer(cors)
+        .with_state(state)
 }
 
 async fn health() -> &'static str {
