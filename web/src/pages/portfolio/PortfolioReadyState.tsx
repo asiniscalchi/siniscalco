@@ -4,6 +4,7 @@ import { useUiState } from "@/lib/ui-state";
 import { AllocationCard } from "./AllocationCard";
 import { PortfolioAccountBreakdown } from "./PortfolioAccountBreakdown";
 import { PortfolioEmptyState } from "./PortfolioEmptyState";
+import { PortfolioHistoryCard } from "./PortfolioHistoryCard";
 import { PortfolioSummarySection } from "./PortfolioSummarySection";
 import { TopHoldingsCard } from "./TopHoldingsCard";
 
@@ -25,6 +26,7 @@ export function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) 
   return (
     <div className="flex flex-col gap-8">
       <PortfolioSummarySection summary={summary} hideValues={hideValues} />
+      <PortfolioHistoryCard />
       <div className="grid gap-8 lg:grid-cols-2">
         <PortfolioAccountBreakdown
           accountTotals={summary.accountTotals}

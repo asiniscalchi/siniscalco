@@ -483,6 +483,11 @@ export type FxRatesQueryVariables = Exact<{ [key: string]: never; }>;
 
 export type FxRatesQuery = { __typename?: 'QueryRoot', fxRates: { __typename?: 'FxRateSummary', targetCurrency: string, lastUpdated: string | null, refreshStatus: RefreshAvailability, refreshError: string | null, rates: Array<{ __typename?: 'FxRateSummaryItem', currency: string, rate: string }> } };
 
+export type PortfolioHistoryQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type PortfolioHistoryQuery = { __typename?: 'QueryRoot', portfolioHistory: Array<{ __typename?: 'PortfolioSnapshot', totalValue: string, currency: string, recordedAt: string }> };
+
 export type PortfolioQueryVariables = Exact<{ [key: string]: never; }>;
 
 
