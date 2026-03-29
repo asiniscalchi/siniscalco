@@ -16,7 +16,7 @@ use crate::{
 use super::{
     query::{storage_to_gql, to_account_detail, to_asset, to_transaction},
     types::{
-        AccountDetail, AccountInput, Asset, AssetInput, Balance, Transfer, TransactionInput,
+        AccountDetail, AccountInput, Asset, AssetInput, Balance, TransactionInput, Transfer,
         TransferInput, UpsertBalanceInput,
     },
 };
@@ -441,9 +441,7 @@ fn parse_transaction_input(
     })
 }
 
-fn parse_transfer_input(
-    input: TransferInput,
-) -> async_graphql::Result<crate::CreateTransferInput> {
+fn parse_transfer_input(input: TransferInput) -> async_graphql::Result<crate::CreateTransferInput> {
     let from_account_id = AccountId::try_from(input.from_account_id).map_err(storage_to_gql)?;
     let to_account_id = AccountId::try_from(input.to_account_id).map_err(storage_to_gql)?;
     let from_currency = Currency::try_from(input.from_currency.as_str()).map_err(storage_to_gql)?;

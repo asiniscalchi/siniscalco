@@ -5,8 +5,8 @@ use crate::{
     AccountId, AssetId, PRODUCT_BASE_CURRENCY, SharedFxRefreshStatus, compact_decimal_output,
     get_account, get_account_value_summary, get_asset, get_portfolio_summary, get_transaction,
     list_account_balances, list_account_positions, list_account_summaries, list_asset_transactions,
-    list_assets, list_currencies, list_fx_rate_summary, list_portfolio_snapshots, list_transactions,
-    list_transfers, normalize_amount_output, storage::StorageError,
+    list_assets, list_currencies, list_fx_rate_summary, list_portfolio_snapshots,
+    list_transactions, list_transfers, normalize_amount_output, storage::StorageError,
 };
 
 use super::types::*;

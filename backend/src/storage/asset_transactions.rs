@@ -479,8 +479,14 @@ async fn apply_cash_impact(
         AssetTransactionType::Sell => current_balance + base_amount,
     };
 
-    upsert_balance_on_connection(connection, account_id, base_currency, new_balance, updated_at)
-        .await
+    upsert_balance_on_connection(
+        connection,
+        account_id,
+        base_currency,
+        new_balance,
+        updated_at,
+    )
+    .await
 }
 
 async fn reverse_cash_impact(
@@ -497,13 +503,7 @@ async fn reverse_cash_impact(
         AssetTransactionType::Sell => AssetTransactionType::Buy,
     };
     apply_cash_impact(
-        connection,
-        account_id,
-        reversed,
-        quantity,
-        unit_price,
-        currency,
-        updated_at,
+        connection, account_id, reversed, quantity, unit_price, currency, updated_at,
     )
     .await
 }
@@ -512,12 +512,11 @@ async fn load_account_base_currency(
     connection: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
     account_id: AccountId,
 ) -> Result<Currency, StorageError> {
-    let currency_str = sqlx::query_scalar::<_, String>(
-        "SELECT base_currency FROM accounts WHERE id = ?",
-    )
-    .bind(account_id.as_i64())
-    .fetch_one(&mut **connection)
-    .await?;
+    let currency_str =
+        sqlx::query_scalar::<_, String>("SELECT base_currency FROM accounts WHERE id = ?")
+            .bind(account_id.as_i64())
+            .fetch_one(&mut **connection)
+            .await?;
     Currency::try_from(currency_str.as_str())
 }
 

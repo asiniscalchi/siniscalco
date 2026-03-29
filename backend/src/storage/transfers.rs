@@ -3,8 +3,7 @@ use sqlx::{Row, SqlitePool};
 use crate::format_decimal_amount;
 use crate::storage::records::*;
 use crate::storage::{
-    AccountId, Amount, Currency, StorageError, TradeDate, TransferId,
-    current_utc_timestamp_iso8601,
+    AccountId, Amount, Currency, StorageError, TradeDate, TransferId, current_utc_timestamp_iso8601,
 };
 
 pub async fn create_transfer(
