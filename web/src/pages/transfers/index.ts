@@ -1,0 +1,1 @@
+export { TransfersPage } from "./TransfersPage";

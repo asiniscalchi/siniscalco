@@ -16,6 +16,7 @@ const primaryNavItems = [
   { label: "Accounts", to: "/accounts" },
   { label: "Assets", to: "/assets" },
   { label: "Transactions", to: "/transactions" },
+  { label: "Transfers", to: "/transfers" },
 ];
 
 export function AppShell() {

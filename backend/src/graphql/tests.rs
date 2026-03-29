@@ -254,6 +254,17 @@ async fn asset_avg_cost_basis_computed_from_buy_transactions() {
     .await
     .expect("asset insert should succeed");
 
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::try_from("USD").unwrap(),
+            amount: amt("3000.000000"),
+        },
+    )
+    .await
+    .expect("balance insert should succeed");
+
     // Buy 10 @ 100 and 10 @ 200 → avg = 150
     for (qty, price) in [("10", "100"), ("10", "200")] {
         create_asset_transaction(
@@ -537,6 +548,17 @@ async fn rejects_deleting_asset_with_transactions() {
     .await
     .expect("asset insert should succeed");
 
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Usd,
+            amount: amt("100.000000"),
+        },
+    )
+    .await
+    .expect("balance insert should succeed");
+
     create_asset_transaction(
         &pool,
         CreateAssetTransactionInput {
@@ -752,6 +774,17 @@ async fn creates_asset_transaction() {
     .await
     .expect("asset insert should succeed");
 
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Usd,
+            amount: amt("2000.000000"),
+        },
+    )
+    .await
+    .expect("balance insert should succeed");
+
     let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
     let json = gql(
         app,
@@ -809,6 +842,17 @@ async fn lists_asset_transactions_in_trade_date_order() {
     .await
     .expect("asset insert should succeed");
 
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Usd,
+            amount: amt("2000.000000"),
+        },
+    )
+    .await
+    .expect("balance insert should succeed");
+
     for (date, qty) in [
         ("2026-03-01", "5"),
         ("2026-01-15", "10"),
@@ -864,6 +908,17 @@ async fn lists_all_transactions_without_filter() {
         )
         .await
         .expect("account insert should succeed");
+
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency,
+                amount: amt("100.000000"),
+            },
+        )
+        .await
+        .expect("balance insert should succeed");
 
         let asset_id = create_asset(
             &pool,
@@ -928,6 +983,17 @@ async fn updates_asset_transaction() {
     )
     .await
     .expect("asset insert should succeed");
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Usd,
+            amount: amt("4000.000000"),
+        },
+    )
+    .await
+    .expect("balance insert should succeed");
 
     let tx = create_asset_transaction(
         &pool,
@@ -1000,6 +1066,17 @@ async fn deletes_asset_transaction() {
     .await
     .expect("asset insert should succeed");
 
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Usd,
+            amount: amt("100.000000"),
+        },
+    )
+    .await
+    .expect("balance insert should succeed");
+
     let tx = create_asset_transaction(
         &pool,
         CreateAssetTransactionInput {
@@ -1064,6 +1141,17 @@ async fn gets_transaction_detail() {
     .await
     .expect("asset insert should succeed");
 
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Usd,
+            amount: amt("1000.000000"),
+        },
+    )
+    .await
+    .expect("balance insert should succeed");
+
     let tx = create_asset_transaction(
         &pool,
         CreateAssetTransactionInput {
@@ -1124,6 +1212,17 @@ async fn lists_active_positions() {
     )
     .await
     .expect("asset insert should succeed");
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Usd,
+            amount: amt("1000.000000"),
+        },
+    )
+    .await
+    .expect("balance insert should succeed");
 
     create_asset_transaction(
         &pool,
@@ -1307,6 +1406,7 @@ async fn lists_account_summaries_with_totals() {
     .await
     .expect("account insert should succeed");
 
+    // USD balance: kept as manual cash (not affected by the BUY below)
     upsert_account_balance(
         &pool,
         UpsertAccountBalanceInput {
@@ -1317,6 +1417,30 @@ async fn lists_account_summaries_with_totals() {
     )
     .await
     .expect("balance insert should succeed");
+
+    // FX rate must be set up before the transaction so the cash impact can be computed
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate("0.500000"),
+        },
+    )
+    .await
+    .expect("fx rate insert should succeed");
+
+    // EUR balance: covers the cost of the BUY (2 × 80 USD × 0.5 = 80 EUR); after BUY it becomes 0
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Eur,
+            amount: amt("80.000000"),
+        },
+    )
+    .await
+    .expect("eur balance insert should succeed");
 
     let asset_id = create_asset(
         &pool,
@@ -1359,17 +1483,6 @@ async fn lists_account_summaries_with_totals() {
     .await
     .expect("asset price insert should succeed");
 
-    upsert_fx_rate(
-        &pool,
-        UpsertFxRateInput {
-            from_currency: Currency::Usd,
-            to_currency: Currency::Eur,
-            rate: fx_rate("0.500000"),
-        },
-    )
-    .await
-    .expect("fx rate insert should succeed");
-
     let app = build_router(pool);
     let json = gql(
         app,
@@ -1377,6 +1490,7 @@ async fn lists_account_summaries_with_totals() {
     )
     .await;
 
+    // EUR balance is 0 after BUY deduction; only USD (20 × 0.5 = 10 EUR) remains in cash
     let accounts = json["data"]["accounts"].as_array().unwrap();
     assert_eq!(accounts[0]["summaryStatus"], "OK");
     assert_eq!(accounts[0]["cashTotalAmount"], "10.000000");

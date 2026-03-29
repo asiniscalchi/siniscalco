@@ -6,18 +6,18 @@ use tracing::warn;
 
 use crate::{
     AccountId, AccountName, Amount, AssetId, AssetName, AssetPriceRefreshConfig, AssetQuantity,
-    AssetSymbol, AssetUnitPrice, Currency, TradeDate, delete_account, delete_account_balance,
-    delete_asset, delete_asset_transaction, get_account, get_account_value_summary, get_asset,
-    list_account_balances, normalize_amount_output, refresh_single_asset_price,
-    storage::StorageError, update_account, update_asset, update_asset_transaction,
-    upsert_account_balance,
+    AssetSymbol, AssetUnitPrice, Currency, TradeDate, TransferId, create_transfer, delete_account,
+    delete_account_balance, delete_asset, delete_asset_transaction, delete_transfer, get_account,
+    get_account_value_summary, get_asset, list_account_balances, normalize_amount_output,
+    refresh_single_asset_price, storage::StorageError, update_account, update_asset,
+    update_asset_transaction, upsert_account_balance,
 };
 
 use super::{
     query::{storage_to_gql, to_account_detail, to_asset, to_transaction},
     types::{
-        AccountDetail, AccountInput, Asset, AssetInput, Balance, TransactionInput,
-        UpsertBalanceInput,
+        AccountDetail, AccountInput, Asset, AssetInput, Balance, TransactionInput, Transfer,
+        TransferInput, UpsertBalanceInput,
     },
 };
 
@@ -305,6 +305,33 @@ impl MutationRoot {
             })?;
         Ok(id)
     }
+
+    async fn create_transfer(
+        &self,
+        ctx: &Context<'_>,
+        input: TransferInput,
+    ) -> async_graphql::Result<Transfer> {
+        let pool = ctx.data::<SqlitePool>()?;
+        let storage_input = parse_transfer_input(input)?;
+        let transfer = create_transfer(pool, storage_input)
+            .await
+            .map_err(storage_to_gql)?;
+        Ok(to_transfer(transfer))
+    }
+
+    async fn delete_transfer(&self, ctx: &Context<'_>, id: i64) -> async_graphql::Result<i64> {
+        let pool = ctx.data::<SqlitePool>()?;
+        let transfer_id = TransferId::try_from(id).map_err(storage_to_gql)?;
+        delete_transfer(pool, transfer_id)
+            .await
+            .map_err(|err| match err {
+                StorageError::Database(sqlx::Error::RowNotFound) => {
+                    async_graphql::Error::new("Transfer not found")
+                }
+                other => storage_to_gql(other),
+            })?;
+        Ok(id)
+    }
 }
 
 fn validate_asset_input(input: AssetInput) -> async_graphql::Result<crate::CreateAssetInput> {
@@ -412,6 +439,43 @@ fn parse_transaction_input(
         currency_code,
         notes: input.notes,
     })
+}
+
+fn parse_transfer_input(input: TransferInput) -> async_graphql::Result<crate::CreateTransferInput> {
+    let from_account_id = AccountId::try_from(input.from_account_id).map_err(storage_to_gql)?;
+    let to_account_id = AccountId::try_from(input.to_account_id).map_err(storage_to_gql)?;
+    let from_currency = Currency::try_from(input.from_currency.as_str()).map_err(storage_to_gql)?;
+    let to_currency = Currency::try_from(input.to_currency.as_str()).map_err(storage_to_gql)?;
+    let from_amount = Amount::try_from(input.from_amount.as_str()).map_err(storage_to_gql)?;
+    let to_amount = Amount::try_from(input.to_amount.as_str()).map_err(storage_to_gql)?;
+    let transfer_date =
+        TradeDate::try_from(input.transfer_date.as_str()).map_err(storage_to_gql)?;
+
+    Ok(crate::CreateTransferInput {
+        from_account_id,
+        to_account_id,
+        from_currency,
+        to_currency,
+        from_amount,
+        to_amount,
+        transfer_date,
+        notes: input.notes,
+    })
+}
+
+pub fn to_transfer(t: crate::TransferRecord) -> Transfer {
+    Transfer {
+        id: t.id.as_i64(),
+        from_account_id: t.from_account_id.as_i64(),
+        to_account_id: t.to_account_id.as_i64(),
+        from_currency: t.from_currency.as_str().to_string(),
+        from_amount: normalize_amount_output(&t.from_amount.to_string()),
+        to_currency: t.to_currency.as_str().to_string(),
+        to_amount: normalize_amount_output(&t.to_amount.to_string()),
+        transfer_date: t.transfer_date.as_str().to_string(),
+        notes: t.notes,
+        created_at: t.created_at,
+    }
 }
 
 async fn ensure_account_exists(

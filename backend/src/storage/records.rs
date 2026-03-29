@@ -19,6 +19,7 @@ use super::currency::Currency;
 use super::fx_rate::FxRate;
 use super::storage_error::StorageError;
 use super::trade_date::TradeDate;
+use super::transfer_id::TransferId;
 
 pub const UTC_ISO8601_TIMESTAMP_FORMAT: &[FormatItem<'static>] =
     format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]Z");
@@ -269,6 +270,31 @@ pub struct PortfolioHoldingRecord {
     pub symbol: String,
     pub name: String,
     pub value: Amount,
+}
+
+pub struct CreateTransferInput {
+    pub from_account_id: AccountId,
+    pub to_account_id: AccountId,
+    pub from_currency: Currency,
+    pub from_amount: Amount,
+    pub to_currency: Currency,
+    pub to_amount: Amount,
+    pub transfer_date: TradeDate,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct TransferRecord {
+    pub id: TransferId,
+    pub from_account_id: AccountId,
+    pub to_account_id: AccountId,
+    pub from_currency: Currency,
+    pub from_amount: Amount,
+    pub to_currency: Currency,
+    pub to_amount: Amount,
+    pub transfer_date: TradeDate,
+    pub notes: Option<String>,
+    pub created_at: String,
 }
 
 #[derive(Debug, Eq, PartialEq)]

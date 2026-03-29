@@ -102,7 +102,7 @@ mod tests {
             .await
             .expect("migration metadata query should succeed");
 
-        assert_eq!(versions, vec![1, 2, 3, 4]);
+        assert_eq!(versions, vec![1, 2, 3, 4, 5]);
     }
 
     #[tokio::test]

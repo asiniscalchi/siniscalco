@@ -6,7 +6,7 @@ use crate::{
     get_account, get_account_value_summary, get_asset, get_portfolio_summary, get_transaction,
     list_account_balances, list_account_positions, list_account_summaries, list_asset_transactions,
     list_assets, list_currencies, list_fx_rate_summary, list_portfolio_snapshots,
-    list_transactions, normalize_amount_output, storage::StorageError,
+    list_transactions, list_transfers, normalize_amount_output, storage::StorageError,
 };
 
 use super::types::*;
@@ -231,6 +231,15 @@ impl QueryRoot {
             other => storage_to_gql(other),
         })?;
         Ok(to_transaction(transaction))
+    }
+
+    async fn transfers(&self, ctx: &Context<'_>) -> async_graphql::Result<Vec<Transfer>> {
+        let pool = ctx.data::<SqlitePool>()?;
+        let transfers = list_transfers(pool).await.map_err(storage_to_gql)?;
+        Ok(transfers
+            .into_iter()
+            .map(super::mutation::to_transfer)
+            .collect())
     }
 
     async fn currencies(&self, ctx: &Context<'_>) -> async_graphql::Result<Vec<String>> {
