@@ -49,7 +49,7 @@ export function AllocationCard({
             Allocation incomplete: some assets could not be valued.
           </p>
         )}
-        <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
+        <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-center">
           <div className="shrink-0">
             <DonutChart
               slices={slices.map((s, i) => ({
@@ -58,7 +58,7 @@ export function AllocationCard({
               }))}
             />
           </div>
-          <div className="w-full space-y-3">
+          <div className="w-full max-w-xs space-y-3">
             {slices.map((slice, index) => {
               const percentage =
                 total > 0 ? (slice.value / total) * 100 : 0;
