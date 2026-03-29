@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { NavLink, Outlet } from "react-router-dom";
 
+import { AssistantChat } from "@/components/assistant";
 import { Button } from "@/components/ui/button";
 import { getHealthApiUrl } from "@/lib/env";
 import {
+  ChatBubbleIcon,
+  CloseIcon,
   EyeClosedIcon,
   EyeIcon,
   LogoIcon,
@@ -21,6 +25,7 @@ const primaryNavItems = [
 
 export function AppShell() {
   const { hideValues, toggleHideValues } = useUiState();
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const [backendStatus, setBackendStatus] = useState<
     "connected" | "checking" | "unavailable"
   >("checking");
@@ -51,9 +56,32 @@ export function AppShell() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!assistantOpen) {
+      document.body.style.overflow = "";
+      return;
+    }
+
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setAssistantOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [assistantOpen]);
+
   return (
-    <div className="min-h-svh bg-muted/30">
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <>
+      <div className="min-h-svh bg-muted/30">
+        <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:gap-6 sm:px-6 sm:py-4">
           <div className="flex shrink-0 items-center gap-2">
             <div
@@ -96,6 +124,18 @@ export function AppShell() {
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <Button
+              aria-expanded={assistantOpen}
+              aria-haspopup="dialog"
+              aria-label="Open assistant chat"
+              className="size-9 rounded-full"
+              onClick={() => setAssistantOpen(true)}
+              size="icon"
+              type="button"
+              variant="ghost"
+            >
+              <ChatBubbleIcon />
+            </Button>
+            <Button
               aria-label={hideValues ? "Show financial values" : "Hide financial values"}
               className="size-9 rounded-full"
               onClick={toggleHideValues}
@@ -107,10 +147,44 @@ export function AppShell() {
             </Button>
           </div>
         </div>
-      </header>
-      <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
-        <Outlet />
+        </header>
+        <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+          <Outlet />
+        </div>
       </div>
-    </div>
+      {assistantOpen
+        ? createPortal(
+            <div
+              aria-modal="true"
+              className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-3 backdrop-blur-sm sm:items-center sm:p-6"
+              role="dialog"
+            >
+              <div className="flex h-[min(46rem,100%)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl">
+                <div className="flex items-center justify-between border-b px-5 py-4">
+                  <div className="space-y-1">
+                    <h2 className="text-base font-semibold">Assistant</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Popup chat entrypoint for quick questions inside the app.
+                    </p>
+                  </div>
+                  <Button
+                    aria-label="Close assistant chat"
+                    className="size-9 rounded-full"
+                    onClick={() => setAssistantOpen(false)}
+                    size="icon"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <CloseIcon />
+                  </Button>
+                </div>
+
+                <AssistantChat className="min-h-0 flex-1" />
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }
