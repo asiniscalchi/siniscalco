@@ -34,6 +34,8 @@ pub struct AppState {
     pub fx_refresh_status: SharedFxRefreshStatus,
     pub asset_price_refresh_config: AssetPriceRefreshConfig,
     pub http_client: reqwest::Client,
+    pub openai_api_key: Option<String>,
+    pub openai_chat_url: String,
 }
 
 pub fn build_schema(
@@ -58,6 +60,8 @@ pub fn build_router(pool: SqlitePool) -> Router {
         fx_refresh_status: crate::new_shared_fx_refresh_status(),
         asset_price_refresh_config: config.asset_price_refresh_config(),
         http_client: reqwest::Client::new(),
+        openai_api_key: config.openai_api_key.clone(),
+        openai_chat_url: crate::assistant::openai_chat_url().to_string(),
     })
 }
 

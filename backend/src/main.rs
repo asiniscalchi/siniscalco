@@ -37,6 +37,8 @@ async fn main() {
                 fx_refresh_status: fx_refresh_status.clone(),
                 asset_price_refresh_config: asset_price_refresh_config.clone(),
                 http_client,
+                openai_api_key: config.openai_api_key.clone(),
+                openai_chat_url: backend::assistant::openai_chat_url().to_string(),
             });
             let address = SocketAddr::from(([0, 0, 0, 0], config.port));
 
