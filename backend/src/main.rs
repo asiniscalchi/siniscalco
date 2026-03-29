@@ -32,13 +32,18 @@ async fn main() {
             let fx_refresh_config = config.fx_refresh_config();
             let asset_price_refresh_config = config.asset_price_refresh_config();
             let http_client = reqwest::Client::new();
+            let assistant_models = backend::assistant::new_shared_assistant_model_registry(
+                config.openai_api_key.as_deref(),
+            );
             let app = build_router_with_state(AppState {
                 pool: pool.clone(),
                 fx_refresh_status: fx_refresh_status.clone(),
                 asset_price_refresh_config: asset_price_refresh_config.clone(),
-                http_client,
+                http_client: http_client.clone(),
                 openai_api_key: config.openai_api_key.clone(),
+                assistant_models: assistant_models.clone(),
                 openai_chat_url: backend::assistant::openai_chat_url().to_string(),
+                openai_models_url: backend::assistant::openai_models_url().to_string(),
             });
             let address = SocketAddr::from(([0, 0, 0, 0], config.port));
 
@@ -48,6 +53,13 @@ async fn main() {
             spawn_fx_refresh_task(pool.clone(), fx_refresh_status, fx_refresh_config).await;
             spawn_asset_price_refresh_task(pool.clone(), asset_price_refresh_config).await;
             spawn_portfolio_snapshot_task(pool.clone()).await;
+            backend::assistant::spawn_assistant_model_refresh_task(
+                assistant_models,
+                http_client,
+                config.openai_api_key.clone(),
+                backend::assistant::openai_models_url().to_string(),
+            )
+            .await;
 
             log_listening_addresses(address);
 

@@ -7,7 +7,7 @@ use async_graphql_axum::GraphQL;
 use axum::{
     Router,
     http::{Method, header::CONTENT_TYPE},
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use sqlx::SqlitePool;
 use tower_http::{
@@ -18,7 +18,9 @@ use tower_http::{
 use mutation::MutationRoot;
 use query::QueryRoot;
 
-use crate::{AssetPriceRefreshConfig, SharedFxRefreshStatus};
+use crate::{
+    AssetPriceRefreshConfig, SharedFxRefreshStatus, assistant::SharedAssistantModelRegistry,
+};
 
 pub type AppSchema = Schema<QueryRoot, MutationRoot, EmptySubscription>;
 
@@ -35,7 +37,9 @@ pub struct AppState {
     pub asset_price_refresh_config: AssetPriceRefreshConfig,
     pub http_client: reqwest::Client,
     pub openai_api_key: Option<String>,
+    pub assistant_models: SharedAssistantModelRegistry,
     pub openai_chat_url: String,
+    pub openai_models_url: String,
 }
 
 pub fn build_schema(
@@ -61,7 +65,11 @@ pub fn build_router(pool: SqlitePool) -> Router {
         asset_price_refresh_config: config.asset_price_refresh_config(),
         http_client: reqwest::Client::new(),
         openai_api_key: config.openai_api_key.clone(),
+        assistant_models: crate::assistant::new_shared_assistant_model_registry(
+            config.openai_api_key.as_deref(),
+        ),
         openai_chat_url: crate::assistant::openai_chat_url().to_string(),
+        openai_models_url: crate::assistant::openai_models_url().to_string(),
     })
 }
 
@@ -81,6 +89,11 @@ pub fn build_router_with_state(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/assistant/chat", post(crate::assistant::chat))
+        .route("/assistant/models", get(crate::assistant::models))
+        .route(
+            "/assistant/models/selected",
+            put(crate::assistant::select_model),
+        )
         .route_service("/graphql", GraphQL::new(schema))
         .layer(TraceLayer::new_for_http())
         .layer(cors)

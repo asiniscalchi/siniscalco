@@ -1,10 +1,18 @@
-use std::collections::BTreeMap;
 use std::fmt;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+    time::Duration,
+};
 
 use axum::{Json, extract::State, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+use tokio::{sync::RwLock, time::sleep};
+use tracing::{debug, error, info, warn};
+
+use crate::current_utc_timestamp;
 use crate::storage::StorageError;
 use crate::{
     AppState, PRODUCT_BASE_CURRENCY, compact_decimal_output, format_decimal_amount,
@@ -28,12 +36,75 @@ pub struct AssistantChatMessageRequest {
 #[derive(Debug, Serialize)]
 pub struct AssistantChatResponse {
     pub message: String,
+    pub model: String,
 }
 
 #[derive(Debug, Serialize)]
 pub struct AssistantChatErrorResponse {
     error: String,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct AssistantModelSelectionRequest {
+    pub model: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct AssistantModelsResponse {
+    pub models: Vec<String>,
+    pub selected_model: String,
+    pub openai_enabled: bool,
+    pub last_refreshed_at: Option<String>,
+    pub refresh_error: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AssistantModelRegistry {
+    pub models: Vec<String>,
+    pub selected_model: String,
+    pub openai_enabled: bool,
+    pub last_refreshed_at: Option<String>,
+    pub refresh_error: Option<String>,
+}
+
+impl AssistantModelRegistry {
+    fn mock_backend() -> Self {
+        Self {
+            models: vec![MOCK_BACKEND_MODEL.to_string()],
+            selected_model: MOCK_BACKEND_MODEL.to_string(),
+            openai_enabled: false,
+            last_refreshed_at: None,
+            refresh_error: None,
+        }
+    }
+
+    fn openai_defaults() -> Self {
+        let models = ALLOWED_OPENAI_MODELS
+            .iter()
+            .map(|model| (*model).to_string())
+            .collect::<Vec<_>>();
+
+        Self {
+            selected_model: DEFAULT_OPENAI_MODEL.to_string(),
+            models,
+            openai_enabled: true,
+            last_refreshed_at: None,
+            refresh_error: None,
+        }
+    }
+
+    fn to_response(&self) -> AssistantModelsResponse {
+        AssistantModelsResponse {
+            models: self.models.clone(),
+            selected_model: self.selected_model.clone(),
+            openai_enabled: self.openai_enabled,
+            last_refreshed_at: self.last_refreshed_at.clone(),
+            refresh_error: self.refresh_error.clone(),
+        }
+    }
+}
+
+pub type SharedAssistantModelRegistry = Arc<RwLock<AssistantModelRegistry>>;
 
 // ── Error type ────────────────────────────────────────────────────────────────
 
@@ -66,21 +137,228 @@ impl From<StorageError> for AssistantError {
     }
 }
 
+#[derive(Debug)]
+pub enum AssistantModelRefreshError {
+    Config(&'static str),
+    Provider(String),
+}
+
+impl fmt::Display for AssistantModelRefreshError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AssistantModelRefreshError::Config(message) => f.write_str(message),
+            AssistantModelRefreshError::Provider(message) => f.write_str(message),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenAiModelsListResponse {
+    data: Vec<OpenAiModelRecord>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenAiModelRecord {
+    id: String,
+}
+
+pub async fn models(State(state): State<AppState>) -> Json<AssistantModelsResponse> {
+    Json(state.assistant_models.read().await.to_response())
+}
+
+pub async fn select_model(
+    State(state): State<AppState>,
+    Json(request): Json<AssistantModelSelectionRequest>,
+) -> Result<Json<AssistantModelsResponse>, (StatusCode, Json<AssistantChatErrorResponse>)> {
+    let requested_model = request.model.trim();
+    if requested_model.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(AssistantChatErrorResponse {
+                error: "assistant model cannot be empty".to_string(),
+            }),
+        ));
+    }
+
+    let mut registry = state.assistant_models.write().await;
+    if !registry.models.iter().any(|model| model == requested_model) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(AssistantChatErrorResponse {
+                error: format!("assistant model is not available: {requested_model}"),
+            }),
+        ));
+    }
+
+    registry.selected_model = requested_model.to_string();
+    Ok(Json(registry.to_response()))
+}
+
+pub async fn spawn_assistant_model_refresh_task(
+    assistant_models: SharedAssistantModelRegistry,
+    http_client: reqwest::Client,
+    openai_api_key: Option<String>,
+    openai_models_url: String,
+) {
+    if openai_api_key
+        .as_deref()
+        .map(str::trim)
+        .is_none_or(str::is_empty)
+    {
+        *assistant_models.write().await = AssistantModelRegistry::mock_backend();
+        return;
+    }
+
+    tokio::spawn(async move {
+        loop {
+            match refresh_assistant_model_registry(
+                &assistant_models,
+                &http_client,
+                openai_api_key.as_deref(),
+                &openai_models_url,
+            )
+            .await
+            {
+                Ok(()) => {
+                    let registry = assistant_models.read().await;
+                    info!(
+                        model_count = registry.models.len(),
+                        selected_model = %registry.selected_model,
+                        "assistant model refresh succeeded"
+                    );
+                }
+                Err(error) => {
+                    warn!(error = %error, "assistant model refresh failed");
+                    assistant_models.write().await.refresh_error = Some(error.to_string());
+                }
+            }
+
+            sleep(MODEL_REFRESH_INTERVAL).await;
+        }
+    });
+}
+
+pub async fn refresh_assistant_model_registry(
+    assistant_models: &SharedAssistantModelRegistry,
+    http_client: &reqwest::Client,
+    openai_api_key: Option<&str>,
+    openai_models_url: &str,
+) -> Result<(), AssistantModelRefreshError> {
+    let Some(openai_api_key) = openai_api_key
+        .map(str::trim)
+        .filter(|api_key| !api_key.is_empty())
+    else {
+        *assistant_models.write().await = AssistantModelRegistry::mock_backend();
+        return Ok(());
+    };
+
+    let fetched_model_ids =
+        fetch_openai_model_ids(http_client, openai_api_key, openai_models_url).await?;
+    let fetched_model_ids = fetched_model_ids.into_iter().collect::<BTreeSet<_>>();
+    let available_models = ALLOWED_OPENAI_MODELS
+        .iter()
+        .filter(|model| fetched_model_ids.contains(**model))
+        .map(|model| (*model).to_string())
+        .collect::<Vec<_>>();
+
+    if available_models.is_empty() {
+        return Err(AssistantModelRefreshError::Provider(
+            "OpenAI model refresh failed: no allowed models are currently available".to_string(),
+        ));
+    }
+
+    let current_registry = assistant_models.read().await.clone();
+    let selected_model = if available_models.contains(&current_registry.selected_model) {
+        current_registry.selected_model
+    } else {
+        available_models
+            .iter()
+            .find(|model| model.as_str() == DEFAULT_OPENAI_MODEL)
+            .cloned()
+            .unwrap_or_else(|| available_models[0].clone())
+    };
+
+    let refreshed_at = current_utc_timestamp().map_err(|_| {
+        AssistantModelRefreshError::Config("assistant model refresh failed: invalid timestamp")
+    })?;
+
+    *assistant_models.write().await = AssistantModelRegistry {
+        models: available_models,
+        selected_model,
+        openai_enabled: true,
+        last_refreshed_at: Some(refreshed_at),
+        refresh_error: None,
+    };
+
+    Ok(())
+}
+
+async fn fetch_openai_model_ids(
+    http_client: &reqwest::Client,
+    openai_api_key: &str,
+    openai_models_url: &str,
+) -> Result<Vec<String>, AssistantModelRefreshError> {
+    let response = http_client
+        .get(openai_models_url)
+        .bearer_auth(openai_api_key)
+        .send()
+        .await
+        .map_err(|error| {
+            AssistantModelRefreshError::Provider(format!("OpenAI model refresh failed: {error}"))
+        })?;
+
+    let http_status = response.status();
+    if !http_status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        return Err(AssistantModelRefreshError::Provider(format!(
+            "OpenAI model refresh failed with {http_status}: {body}"
+        )));
+    }
+
+    let payload = response
+        .json::<OpenAiModelsListResponse>()
+        .await
+        .map_err(|error| {
+            AssistantModelRefreshError::Provider(format!("OpenAI model refresh failed: {error}"))
+        })?;
+
+    Ok(payload.data.into_iter().map(|model| model.id).collect())
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 pub async fn chat(
     State(state): State<AppState>,
     Json(request): Json<AssistantChatRequest>,
 ) -> Result<Json<AssistantChatResponse>, (StatusCode, Json<AssistantChatErrorResponse>)> {
+    let selected_model = state.assistant_models.read().await.selected_model.clone();
     let openai_api_key = state
         .openai_api_key
         .as_deref()
         .map(str::trim)
         .filter(|api_key| !api_key.is_empty());
 
-    let result = match openai_api_key {
-        Some(api_key) => openai_chat(&state, &request.messages, api_key).await,
-        None => {
+    let result = match (openai_api_key, selected_model.as_str()) {
+        (Some(api_key), model) if model != MOCK_BACKEND_MODEL => {
+            info!(
+                message_count = request.messages.len(),
+                model, "dispatching to OpenAI"
+            );
+            openai_chat(&state, &request.messages, api_key, model).await
+        }
+        (Some(_), _) => {
+            info!(
+                message_count = request.messages.len(),
+                model = %selected_model,
+                "OPENAI_API_KEY is configured but the assistant is using the in-memory mock model"
+            );
+            let prompt = latest_user_prompt(&request).unwrap_or_default();
+            build_mock_reply(&state, prompt)
+                .await
+                .map_err(AssistantError::from)
+        }
+        (None, _) => {
+            info!("OPENAI_API_KEY not set — using mock reply");
             let prompt = latest_user_prompt(&request).unwrap_or_default();
             build_mock_reply(&state, prompt)
                 .await
@@ -89,8 +367,14 @@ pub async fn chat(
     };
 
     result
-        .map(|message| Json(AssistantChatResponse { message }))
+        .map(|message| {
+            Json(AssistantChatResponse {
+                message,
+                model: selected_model,
+            })
+        })
         .map_err(|error| {
+            error!(error = %error, "assistant chat failed");
             (
                 error.status_code(),
                 Json(AssistantChatErrorResponse {
@@ -103,8 +387,12 @@ pub async fn chat(
 // ── OpenAI tool-calling ───────────────────────────────────────────────────────
 
 const OPENAI_CHAT_URL: &str = "https://api.openai.com/v1/chat/completions";
-const OPENAI_MODEL: &str = "gpt-4o-mini";
+const OPENAI_MODELS_URL: &str = "https://api.openai.com/v1/models";
+const DEFAULT_OPENAI_MODEL: &str = "gpt-4o-mini";
+const ALLOWED_OPENAI_MODELS: &[&str] = &["gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1"];
+const MOCK_BACKEND_MODEL: &str = "mock-backend";
 const MAX_TOOL_ROUNDS: usize = 5;
+const MODEL_REFRESH_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
 
 const SYSTEM_PROMPT: &str = "\
 You are a helpful portfolio assistant for the Siniscalco app. \
@@ -114,6 +402,25 @@ Be concise and precise. Format monetary amounts with their currency code.";
 
 pub const fn openai_chat_url() -> &'static str {
     OPENAI_CHAT_URL
+}
+
+pub const fn openai_models_url() -> &'static str {
+    OPENAI_MODELS_URL
+}
+
+pub fn new_shared_assistant_model_registry(
+    openai_api_key: Option<&str>,
+) -> SharedAssistantModelRegistry {
+    Arc::new(RwLock::new(
+        if openai_api_key
+            .map(str::trim)
+            .is_some_and(|api_key| !api_key.is_empty())
+        {
+            AssistantModelRegistry::openai_defaults()
+        } else {
+            AssistantModelRegistry::mock_backend()
+        },
+    ))
 }
 
 fn tool_definitions() -> Value {
@@ -325,6 +632,7 @@ async fn openai_chat(
     state: &AppState,
     incoming: &[AssistantChatMessageRequest],
     api_key: &str,
+    model: &str,
 ) -> Result<String, AssistantError> {
     let mut messages: Vec<Value> = vec![json!({ "role": "system", "content": SYSTEM_PROMPT })];
 
@@ -334,7 +642,7 @@ async fn openai_chat(
 
     for _ in 0..MAX_TOOL_ROUNDS {
         let body = json!({
-            "model": OPENAI_MODEL,
+            "model": model,
             "messages": messages,
             "tools": tool_definitions(),
             "tool_choice": "auto",
@@ -349,19 +657,29 @@ async fn openai_chat(
             .await
             .map_err(|e| AssistantError::Api(e.to_string()))?;
 
-        if !response.status().is_success() {
-            let text = response.text().await.unwrap_or_default();
-            return Err(AssistantError::Api(format!("OpenAI error: {text}")));
+        let http_status = response.status();
+        if !http_status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            warn!(
+                http_status = %http_status,
+                openai_response_body = %body,
+                "OpenAI returned a non-2xx response"
+            );
+            return Err(AssistantError::Api(format!("OpenAI {http_status}: {body}")));
         }
 
-        let data: Value = response
-            .json()
-            .await
-            .map_err(|e| AssistantError::Api(e.to_string()))?;
+        let data: Value = response.json().await.map_err(|e| {
+            error!(error = %e, "failed to parse OpenAI response JSON");
+            AssistantError::Api(e.to_string())
+        })?;
+
+        debug!(openai_response = %data, "received OpenAI response");
 
         let choice = &data["choices"][0];
         let finish_reason = choice["finish_reason"].as_str().unwrap_or("");
         let message = &choice["message"];
+
+        info!(finish_reason, "OpenAI finish_reason");
 
         if finish_reason == "stop" {
             return Ok(extract_message_text(&message["content"]));
@@ -378,9 +696,14 @@ async fn openai_chat(
                 let id = call["id"].as_str().unwrap_or("").to_string();
                 let name = call["function"]["name"].as_str().unwrap_or("");
 
-                let result = execute_tool(&state.pool, name)
-                    .await
-                    .map_err(AssistantError::from)?;
+                info!(tool = %name, "executing tool call");
+
+                let result = execute_tool(&state.pool, name).await.map_err(|e| {
+                    error!(tool = %name, error = %e, "tool execution failed");
+                    AssistantError::from(e)
+                })?;
+
+                debug!(tool = %name, result = %result, "tool result");
 
                 messages.push(json!({
                     "role": "tool",
@@ -392,11 +715,16 @@ async fn openai_chat(
             continue;
         }
 
+        warn!(finish_reason, "unexpected OpenAI finish_reason");
         return Err(AssistantError::Api(format!(
             "unexpected finish_reason: {finish_reason}"
         )));
     }
 
+    warn!(
+        max_rounds = MAX_TOOL_ROUNDS,
+        "tool call loop exceeded max iterations"
+    );
     Err(AssistantError::Api(
         "tool call loop exceeded max iterations".to_string(),
     ))
