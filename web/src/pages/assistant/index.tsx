@@ -13,13 +13,12 @@ export function AssistantPage() {
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Assistant</h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
-          Basic assistant-ui scaffold for the portfolio app. It currently uses an
-          in-memory runtime with canned responses, so the route is ready before a
-          real backend chat adapter exists.
+          Assistant chat backed by the portfolio backend. Ask about your
+          portfolio, accounts, assets, transactions, or transfers.
         </p>
       </div>
 
-      <Card className="min-h-[42rem]">
+      <Card className="flex min-h-[42rem] flex-col">
         <CardHeader>
           <CardTitle>Assistant Workspace</CardTitle>
           <CardDescription>
@@ -27,7 +26,7 @@ export function AssistantPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-          <AssistantChat className="min-h-[34rem]" />
+          <AssistantChat className="flex-1" />
         </CardContent>
       </Card>
     </div>

@@ -2,15 +2,8 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getAssistantChatApiUrl } from "@/lib/env";
+import { ResizeObserverMock } from "@/test/browser-mocks";
 import { AssistantPage } from ".";
-
-class ResizeObserverMock {
-  observe() {}
-
-  unobserve() {}
-
-  disconnect() {}
-}
 
 describe("AssistantPage", () => {
   beforeEach(() => {
