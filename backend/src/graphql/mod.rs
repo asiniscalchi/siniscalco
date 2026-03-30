@@ -85,7 +85,7 @@ pub fn build_router_with_state(state: AppState) -> Router {
     );
 
     let cors = CorsLayer::new()
-        .allow_methods([Method::GET, Method::POST, Method::PUT])
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
         .allow_origin(Any)
         .allow_headers([CONTENT_TYPE]);
 
@@ -96,6 +96,26 @@ pub fn build_router_with_state(state: AppState) -> Router {
         .route(
             "/assistant/models/selected",
             put(crate::assistant::select_model),
+        )
+        .route(
+            "/assistant/threads",
+            get(crate::chat_threads::list_threads).post(crate::chat_threads::create_thread),
+        )
+        .route(
+            "/assistant/threads/{thread_id}",
+            get(crate::chat_threads::get_thread).delete(crate::chat_threads::delete_thread),
+        )
+        .route(
+            "/assistant/threads/{thread_id}/title",
+            put(crate::chat_threads::rename_thread),
+        )
+        .route(
+            "/assistant/threads/{thread_id}/status",
+            put(crate::chat_threads::update_thread_status),
+        )
+        .route(
+            "/assistant/threads/{thread_id}/messages",
+            get(crate::chat_threads::get_thread_messages).post(crate::chat_threads::append_message),
         )
         .route_service("/graphql", GraphQL::new(schema))
         .layer(TraceLayer::new_for_http())

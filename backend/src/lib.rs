@@ -1,5 +1,6 @@
 mod asset_price_refresh;
 pub mod assistant;
+pub mod chat_threads;
 mod config;
 mod db;
 mod format;

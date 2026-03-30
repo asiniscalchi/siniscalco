@@ -16,6 +16,7 @@ mod asset_type;
 mod asset_unit_price;
 mod assets;
 mod balances;
+pub mod chat_threads;
 mod currency;
 mod fx;
 mod fx_rate;
