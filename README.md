@@ -31,7 +31,8 @@ This repository now includes separate container images for the backend and front
 
 - [`backend/Dockerfile`](/home/asini/workspace/siniscalco/backend/Dockerfile) builds the Rust API service
 - [`web/Dockerfile`](/home/asini/workspace/siniscalco/web/Dockerfile) builds and serves the static Vite app with nginx
-- [`docker-compose.yml`](/home/asini/workspace/siniscalco/docker-compose.yml) wires them together for local or simple server deployment
+- [`docker-compose.yml`](/home/asini/workspace/siniscalco/docker-compose.yml) deploys prebuilt tagged images
+- [`docker-compose.build.yml`](/home/asini/workspace/siniscalco/docker-compose.build.yml) adds local build support on top of the base compose file
 
 ### Backend runtime
 
@@ -56,20 +57,52 @@ docker build \
   web
 ```
 
-### Compose
+### Tagged image deploy with Compose
 
-Run the stack locally with:
+The CI workflow publishes tagged images to GHCR on every git tag push:
+
+- `ghcr.io/asiniscalchi/siniscalco-backend:<tag>`
+- `ghcr.io/asiniscalchi/siniscalco-web:<tag>`
+
+Deploy a release tag by setting a shared `APP_TAG`:
 
 ```bash
-docker compose up --build
+export APP_TAG=v0.1.0
+docker compose pull
+docker compose up -d
 ```
 
-This exposes:
+If you need to override one image explicitly, set `BACKEND_IMAGE` or `WEB_IMAGE`.
+
+### Local build with Compose
+
+To build from the checked-out source instead of pulling tagged images, use the build override file:
+
+```bash
+export APP_TAG=dev
+export VITE_API_BASE_URL=http://127.0.0.1:3000
+docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
+```
+
+The base compose file keeps the final image names and tags stable. The build override adds `build:` and `pull_policy: never` so `--build` does not try to pull first.
+
+### Runtime endpoints
+
+The default compose ports expose:
 
 - backend on `http://127.0.0.1:3000`
 - frontend on `http://127.0.0.1:8080`
 
 The compose file uses a named volume for backend SQLite data.
+
+### Important frontend caveat
+
+The published `siniscalco-web` image is only correct for the `VITE_API_BASE_URL` used when that image was built.
+
+The current CI workflow builds and pushes the web image with `VITE_API_BASE_URL=http://127.0.0.1:3000`, which is suitable for local or same-host usage but not for a public deployment behind a real API URL. For production, either:
+
+- rebuild the web image from the desired tag with the correct public `VITE_API_BASE_URL`
+- or update the CI workflow to build the tagged web image with the correct deployment URL
 
 ### CI
 
