@@ -61,13 +61,12 @@ docker build \
 
 The CI workflow publishes tagged images to GHCR on every git tag push:
 
-- `ghcr.io/<owner>/siniscalco-backend:<tag>`
-- `ghcr.io/<owner>/siniscalco-web:<tag>`
+- `ghcr.io/asiniscalchi/siniscalco-backend:<tag>`
+- `ghcr.io/asiniscalchi/siniscalco-web:<tag>`
 
-Deploy a release tag by setting a shared `APP_TAG` and the image owner:
+Deploy a release tag by setting a shared `APP_TAG`:
 
 ```bash
-export IMAGE_OWNER=<owner>
 export APP_TAG=v0.1.0
 docker compose pull
 docker compose up -d
@@ -80,7 +79,6 @@ If you need to override one image explicitly, set `BACKEND_IMAGE` or `WEB_IMAGE`
 To build from the checked-out source instead of pulling tagged images, use the build override file:
 
 ```bash
-export IMAGE_OWNER=<owner>
 export APP_TAG=dev
 export VITE_API_BASE_URL=http://127.0.0.1:3000
 docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
