@@ -81,12 +81,25 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/setup-buildx-action@v3
+      - name: Compute backend image tags
+        id: backend-tags
+        run: |
+          image="ghcr.io/${{ github.repository_owner }}/siniscalco-backend"
+          tags="${image}:${GITHUB_SHA}"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            tags="${tags}"$'\n'"${image}:${GITHUB_REF_NAME}"
+          fi
+          {
+            echo 'tags<<EOF'
+            printf '%s\n' "$tags"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
       - name: Build and push backend image
         uses: docker/build-push-action@v6
         with:
           context: ./backend
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/siniscalco-backend:${{ github.sha }}
+          tags: ${{ steps.backend-tags.outputs.tags }}
 
   docker-web:
     runs-on: ubuntu-latest
@@ -102,6 +115,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/setup-buildx-action@v3
+      - name: Compute web image tags
+        id: web-tags
+        run: |
+          image="ghcr.io/${{ github.repository_owner }}/siniscalco-web"
+          tags="${image}:${GITHUB_SHA}"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            tags="${tags}"$'\n'"${image}:${GITHUB_REF_NAME}"
+          fi
+          {
+            echo 'tags<<EOF'
+            printf '%s\n' "$tags"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
       - name: Build and push web image
         uses: docker/build-push-action@v6
         with:
@@ -109,4 +135,4 @@ jobs:
           push: true
           build-args: |
             VITE_API_BASE_URL=http://127.0.0.1:3000
-          tags: ghcr.io/${{ github.repository_owner }}/siniscalco-web:${{ github.sha }}
+          tags: ${{ steps.web-tags.outputs.tags }}
