@@ -90,6 +90,7 @@ jobs:
             latest=false
           tags: |
             type=raw,value=${{ github.sha }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=ref,event=tag
       - name: Build and push backend image
         uses: docker/build-push-action@v6
@@ -122,6 +123,7 @@ jobs:
             latest=false
           tags: |
             type=raw,value=${{ github.sha }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=ref,event=tag
       - name: Build and push web image
         uses: docker/build-push-action@v6
