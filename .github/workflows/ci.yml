@@ -49,9 +49,6 @@ jobs:
 
   codegen:
     runs-on: ubuntu-latest
-    needs:
-      - backend
-      - web
 
     steps:
       - uses: actions/checkout@v4
@@ -74,15 +71,24 @@ jobs:
       - name: Check for uncommitted changes
         run: git diff --exit-code web/schema.graphql web/src/gql/types.ts
 
-  docker:
+  docker-backend:
     runs-on: ubuntu-latest
     needs:
       - backend
       - web
-
+      - codegen
     steps:
       - uses: actions/checkout@v4
       - name: Build backend image
         run: docker build -t siniscalco-backend ./backend
+
+  docker-web:
+    runs-on: ubuntu-latest
+    needs:
+      - backend
+      - web
+      - codegen
+    steps:
+      - uses: actions/checkout@v4
       - name: Build web image
         run: docker build --build-arg VITE_API_BASE_URL=http://127.0.0.1:3000 -t siniscalco-web ./web
