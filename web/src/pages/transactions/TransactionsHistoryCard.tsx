@@ -218,6 +218,7 @@ export function TransactionsHistoryCard() {
                       <th className="w-[80px] pb-3 pr-4">Type</th>
                       <th className="w-[100px] pb-3 pr-4 text-right">Quantity</th>
                       <th className="w-[100px] pb-3 pr-4 text-right">Price</th>
+                      <th className="w-[130px] pb-3 pr-4 text-right">Total</th>
                       <th className="w-[60px] pb-3 pr-4">Curr</th>
                       <th className="pb-3 pr-4">Notes</th>
                       {!isLocked ? <th className="w-[90px] pb-3 text-right">Actions</th> : null}

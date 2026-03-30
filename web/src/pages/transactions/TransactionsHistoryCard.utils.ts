@@ -4,6 +4,10 @@ export function trimTrailingZeros(value: string) {
   return value.replace(/\.?0+$/, "");
 }
 
+export function getTransactionTotal(transaction: Transaction) {
+  return Number(transaction.quantity) * Number(transaction.unitPrice);
+}
+
 export function getTransactionTypeClassName(
   transactionType: Transaction["transactionType"],
 ) {
