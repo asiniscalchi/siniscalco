@@ -314,6 +314,7 @@ async fn compute_top_holdings(
     let mut holdings: Vec<PortfolioHoldingRecord> = Vec::new();
     let mut is_partial = false;
     let mut holding_keys: BTreeSet<String> = BTreeSet::new();
+    let mut asset_holding_indexes: BTreeMap<AssetId, usize> = BTreeMap::new();
 
     // Add cash by currency as holdings
     for cash in cash_by_currency {
@@ -385,12 +386,19 @@ async fn compute_top_holdings(
                 }
             };
 
+            if let Some(index) = asset_holding_indexes.get(&position.asset_id).copied() {
+                let existing_value = holdings[index].value.as_decimal() + converted_value;
+                holdings[index].value = parse_decimal_amount(existing_value);
+                continue;
+            }
+
             holdings.push(PortfolioHoldingRecord {
                 asset_id: position.asset_id,
                 symbol: asset.symbol.to_string(),
                 name: asset.name.to_string(),
                 value: parse_decimal_amount(converted_value),
             });
+            asset_holding_indexes.insert(position.asset_id, holdings.len() - 1);
         }
     }
 

@@ -3294,6 +3294,108 @@ async fn allocation_totals_is_empty_when_nothing_is_chartable() {
 }
 
 #[tokio::test]
+async fn portfolio_holdings_aggregate_same_asset_across_accounts() {
+    let pool = test_pool().await;
+
+    let first_account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Broker One"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .unwrap();
+    let second_account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Broker Two"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .unwrap();
+
+    for (account_id, amount) in [
+        (first_account_id, "150.000000"),
+        (second_account_id, "200.000000"),
+    ] {
+        upsert_account_balance(
+            &pool,
+            UpsertAccountBalanceInput {
+                account_id,
+                currency: Currency::Eur,
+                amount: amt(amount),
+            },
+        )
+        .await
+        .unwrap();
+    }
+
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("VWCE"),
+            name: asset_name("Vanguard FTSE All-World UCITS ETF"),
+            asset_type: AssetType::Etf,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    upsert_asset_price(
+        &pool,
+        UpsertAssetPriceInput {
+            asset_id,
+            price: asset_unit_price("100.000000"),
+            currency: Currency::Eur,
+            as_of: "2026-01-01T00:00:00Z".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+
+    for (account_id, quantity) in [
+        (first_account_id, "1.500000"),
+        (second_account_id, "2.000000"),
+    ] {
+        create_asset_transaction(
+            &pool,
+            CreateAssetTransactionInput {
+                account_id,
+                asset_id,
+                transaction_type: AssetTransactionType::Buy,
+                trade_date: trade_date("2026-01-01"),
+                quantity: asset_quantity(quantity),
+                unit_price: asset_unit_price("100.000000"),
+                currency_code: Currency::Eur,
+                notes: None,
+            },
+        )
+        .await
+        .unwrap();
+    }
+
+    let summary = super::get_portfolio_summary(&pool, Currency::Eur)
+        .await
+        .unwrap();
+
+    assert_eq!(summary.holdings.len(), 1);
+    assert_eq!(summary.holdings[0].asset_id, asset_id);
+    assert_eq!(summary.holdings[0].symbol, "VWCE");
+    assert_eq!(
+        summary.holdings[0].name,
+        "Vanguard FTSE All-World UCITS ETF"
+    );
+    assert_eq!(summary.holdings[0].value, amt("350.000000"));
+    assert!(!summary.holdings_is_partial);
+}
+
+#[tokio::test]
 async fn insert_portfolio_snapshot_stores_one_entry_per_day() {
     let pool = test_pool().await;
 

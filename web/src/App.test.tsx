@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -223,12 +223,14 @@ describe("App shell", () => {
     });
     fireEvent.change(modelSelect, { target: { value: "gpt-4.1-mini" } });
 
-    expect(fetch).toHaveBeenCalledWith(
-      getAssistantSelectedModelApiUrl(),
-      expect.objectContaining({
-        method: "PUT",
-      }),
-    );
+    await waitFor(() => {
+      expect(vi.mocked(fetch).mock.calls).toContainEqual([
+        getAssistantSelectedModelApiUrl(),
+        expect.objectContaining({
+          method: "PUT",
+        }),
+      ]);
+    });
     expect(await screen.findByText("Active model: gpt-4.1-mini")).toBeTruthy();
   });
 
