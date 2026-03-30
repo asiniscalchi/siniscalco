@@ -443,3 +443,143 @@ describe("AssetsPage", () => {
     expect(screen.getByText("Validation failed")).toBeTruthy();
   });
 });
+
+function makeAsset(overrides: Partial<{
+  id: number;
+  symbol: string;
+  name: string;
+  currentPrice: string | null;
+  currentPriceCurrency: string | null;
+  previousClose: string | null;
+  previousCloseCurrency: string | null;
+}> = {}) {
+  return {
+    id: overrides.id ?? 1,
+    symbol: overrides.symbol ?? "AAPL",
+    name: overrides.name ?? "Apple Inc.",
+    assetType: "STOCK",
+    quoteSymbol: null,
+    isin: null,
+    currentPrice: overrides.currentPrice ?? null,
+    currentPriceCurrency: overrides.currentPriceCurrency ?? null,
+    currentPriceAsOf: null,
+    totalQuantity: null,
+    avgCostBasis: null,
+    avgCostBasisCurrency: null,
+    previousClose: overrides.previousClose ?? null,
+    previousCloseCurrency: overrides.previousCloseCurrency ?? null,
+  };
+}
+
+describe("TopMoversCard", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("is hidden when no assets have previousClose data", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            assets: [
+              makeAsset({ id: 1, symbol: "AAPL", currentPrice: "150.00", currentPriceCurrency: "USD" }),
+            ],
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    renderAssetsPage();
+
+    await screen.findAllByText("AAPL");
+    expect(screen.queryByText("Top Movers")).toBeNull();
+  });
+
+  it("shows winners and losers when daily gain data is present", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            assets: [
+              makeAsset({ id: 1, symbol: "WIN", name: "Winner Co", currentPrice: "105.00", currentPriceCurrency: "USD", previousClose: "100.00", previousCloseCurrency: "USD" }),
+              makeAsset({ id: 2, symbol: "LOS", name: "Loser Co", currentPrice: "95.00", currentPriceCurrency: "USD", previousClose: "100.00", previousCloseCurrency: "USD" }),
+            ],
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    renderAssetsPage();
+
+    expect(await screen.findByText("Top Movers")).toBeTruthy();
+    expect(screen.getByText("Winners")).toBeTruthy();
+    expect(screen.getByText("Losers")).toBeTruthy();
+
+    const winnersCol = screen.getByTestId("top-movers-winners");
+    expect(winnersCol.textContent).toContain("WIN");
+    expect(winnersCol.textContent).toContain("+5.00%");
+
+    const losersCol = screen.getByTestId("top-movers-losers");
+    expect(losersCol.textContent).toContain("LOS");
+    expect(losersCol.textContent).toContain("-5.00%");
+  });
+
+  it("is hidden when all assets are perfectly flat", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            assets: [
+              makeAsset({ id: 1, symbol: "FLAT", currentPrice: "100.00", currentPriceCurrency: "USD", previousClose: "100.00", previousCloseCurrency: "USD" }),
+            ],
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    renderAssetsPage();
+
+    await screen.findAllByText("FLAT");
+    expect(screen.queryByText("Top Movers")).toBeNull();
+  });
+
+  it("shows at most 3 winners and 3 losers", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            assets: [
+              makeAsset({ id: 1, symbol: "A1", currentPrice: "110.00", currentPriceCurrency: "USD", previousClose: "100.00", previousCloseCurrency: "USD" }),
+              makeAsset({ id: 2, symbol: "A2", currentPrice: "108.00", currentPriceCurrency: "USD", previousClose: "100.00", previousCloseCurrency: "USD" }),
+              makeAsset({ id: 3, symbol: "A3", currentPrice: "106.00", currentPriceCurrency: "USD", previousClose: "100.00", previousCloseCurrency: "USD" }),
+              makeAsset({ id: 4, symbol: "A4", currentPrice: "104.00", currentPriceCurrency: "USD", previousClose: "100.00", previousCloseCurrency: "USD" }),
+              makeAsset({ id: 5, symbol: "A5", currentPrice: "102.00", currentPriceCurrency: "USD", previousClose: "100.00", previousCloseCurrency: "USD" }),
+            ],
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    renderAssetsPage();
+
+    await screen.findByText("Top Movers");
+
+    const winnersCol = screen.getByTestId("top-movers-winners");
+    // Only A1, A2, A3 should appear (top 3); A4 and A5 should not
+    expect(winnersCol.textContent).toContain("A1");
+    expect(winnersCol.textContent).toContain("A2");
+    expect(winnersCol.textContent).toContain("A3");
+    expect(winnersCol.textContent).not.toContain("A4");
+    expect(winnersCol.textContent).not.toContain("A5");
+  });
+});

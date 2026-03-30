@@ -11,19 +11,10 @@ import { formatMoney } from "@/lib/format-money";
 import { extractGqlErrorMessage } from "@/lib/gql";
 import { type AssetsQuery } from "@/gql/types";
 
+import { ASSETS_QUERY } from "./assets-query";
+
 const ftMarketsUrl = (isin: string) =>
   `https://markets.ft.com/data/equities/tearsheet/summary?s=${isin}`;
-
-const ASSETS_QUERY = gql`
-  query Assets {
-    assets {
-      id symbol name assetType quoteSymbol isin
-      currentPrice currentPriceCurrency currentPriceAsOf totalQuantity
-      avgCostBasis avgCostBasisCurrency
-      previousClose previousCloseCurrency
-    }
-  }
-`;
 
 const DELETE_ASSET_MUTATION = gql`
   mutation DeleteAsset($id: Int!) {
