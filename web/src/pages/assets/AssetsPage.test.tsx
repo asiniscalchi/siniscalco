@@ -201,6 +201,55 @@ describe("AssetsPage", () => {
     expect(screen.getByText("Actions")).toBeTruthy();
   });
 
+  it("keeps the mobile asset label and total gain stack on the right side of the card", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            assets: [
+              {
+                id: 1,
+                symbol: "AAPL",
+                name: "Apple Inc.",
+                assetType: "STOCK",
+                quoteSymbol: null,
+                isin: null,
+                currentPrice: "150.00",
+                currentPriceCurrency: "USD",
+                currentPriceAsOf: null,
+                totalQuantity: "2",
+                avgCostBasis: "100.00",
+                avgCostBasisCurrency: "USD",
+                previousClose: null,
+                previousCloseCurrency: null,
+                convertedTotalValue: null,
+                convertedTotalValueCurrency: null,
+              },
+            ],
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    renderAssetsPage();
+
+    await screen.findAllByText("AAPL");
+
+    const mobileCard = screen.getByTestId("mobile-asset-card-1");
+    const sideColumn = screen.getByTestId("mobile-asset-side-1");
+    const gainStack = screen.getByTestId("mobile-asset-gain-1");
+    const gainPct = screen.getByTestId("mobile-asset-gain-pct-1");
+
+    expect(mobileCard.className).toContain("items-start");
+    expect(sideColumn.className).toContain("items-end");
+    expect(sideColumn.className).toContain("text-right");
+    expect(sideColumn.textContent).toContain("STOCK");
+    expect(gainStack.className).toContain("mt-auto");
+    expect(gainStack.textContent).toContain("Gain: +100.00 USD");
+    expect(gainPct.textContent).toBe("+50.00%");
+  });
+
   it("handles create asset", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(JSON.stringify({ data: { assets: [] } }), {
