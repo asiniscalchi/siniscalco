@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { NavLink, Outlet } from "react-router-dom";
 
-import { AssistantChat } from "@/components/assistant";
+import { AssistantChatPanel, AssistantRuntimeBoundary, ThreadList } from "@/components/assistant";
 import { Button } from "@/components/ui/button";
 import {
   getAssistantModelsApiUrl,
@@ -14,6 +14,7 @@ import {
   CloseIcon,
   EyeClosedIcon,
   EyeIcon,
+  HistoryIcon,
   LogoIcon,
 } from "@/components/Icons";
 import { useUiState } from "@/lib/ui-state";
@@ -50,6 +51,7 @@ type AssistantModelsResponse = {
 export function AppShell() {
   const { hideValues, toggleHideValues } = useUiState();
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const [assistantModels, setAssistantModels] =
     useState<AssistantModelsResponse | null>(null);
@@ -317,79 +319,106 @@ export function AppShell() {
               ref={dialogRef}
               role="dialog"
             >
-              <div className="flex h-[min(46rem,100%)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl">
-                <div className="flex items-start justify-between gap-4 border-b px-5 py-4">
-                  <div className="min-w-0 flex-1 space-y-3">
-                    <div className="space-y-1">
-                      <h2 className="text-base font-semibold">Assistant</h2>
-                      <p className="text-sm text-muted-foreground">
-                        Popup chat entrypoint for quick questions inside the app.
-                      </p>
-                    </div>
-
-                    <div className="max-w-xs space-y-1.5">
-                      <label
-                        className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground"
-                        htmlFor="assistant-model"
-                      >
-                        Model
-                      </label>
-                      <select
-                        aria-label="Assistant model"
-                        className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={
-                          assistantModelsStatus === "loading" ||
-                          assistantModelsStatus === "saving" ||
-                          assistantModels === null
-                        }
-                        id="assistant-model"
-                        onChange={(event) =>
-                          void handleAssistantModelChange(event.target.value)
-                        }
-                        value={assistantModels?.selected_model ?? ""}
-                      >
-                        {assistantModels?.models.map((model) => (
-                          <option key={model} value={model}>
-                            {model}
-                          </option>
-                        )) ?? (
-                          <option value="">
-                            {assistantModelsStatus === "loading"
-                              ? "Loading models..."
-                              : "Models unavailable"}
-                          </option>
-                        )}
-                      </select>
-                      <p className="text-xs text-muted-foreground">
-                        {assistantModels === null
-                          ? "Loading available models..."
-                          : assistantModels.openai_enabled
-                          ? `Active model: ${assistantModels.selected_model}`
-                          : "Backend mock assistant active"}
-                      </p>
-                      {assistantModelsError || assistantModels?.refresh_error ? (
-                        <p className="text-xs text-destructive">
-                          {assistantModelsError || assistantModels?.refresh_error}
+              <AssistantRuntimeBoundary>
+                <div className="flex h-[min(46rem,100%)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl">
+                  <div className="flex items-start justify-between gap-4 border-b px-5 py-4">
+                    <div className="min-w-0 flex-1 space-y-3">
+                      <div className="space-y-1">
+                        <h2 className="text-base font-semibold">Assistant</h2>
+                        <p className="text-sm text-muted-foreground">
+                          Popup chat entrypoint for quick questions inside the app.
                         </p>
-                      ) : null}
+                      </div>
+
+                      <div className="max-w-xs space-y-1.5">
+                        <label
+                          className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground"
+                          htmlFor="assistant-model"
+                        >
+                          Model
+                        </label>
+                        <select
+                          aria-label="Assistant model"
+                          className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={
+                            assistantModelsStatus === "loading" ||
+                            assistantModelsStatus === "saving" ||
+                            assistantModels === null
+                          }
+                          id="assistant-model"
+                          onChange={(event) =>
+                            void handleAssistantModelChange(event.target.value)
+                          }
+                          value={assistantModels?.selected_model ?? ""}
+                        >
+                          {assistantModels?.models.map((model) => (
+                            <option key={model} value={model}>
+                              {model}
+                            </option>
+                          )) ?? (
+                            <option value="">
+                              {assistantModelsStatus === "loading"
+                                ? "Loading models..."
+                                : "Models unavailable"}
+                            </option>
+                          )}
+                        </select>
+                        <p className="text-xs text-muted-foreground">
+                          {assistantModels === null
+                            ? "Loading available models..."
+                            : assistantModels.openai_enabled
+                            ? `Active model: ${assistantModels.selected_model}`
+                            : "Backend mock assistant active"}
+                        </p>
+                        {assistantModelsError || assistantModels?.refresh_error ? (
+                          <p className="text-xs text-destructive">
+                            {assistantModelsError || assistantModels?.refresh_error}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Button
+                        aria-label={historyOpen ? "Hide chat history" : "Show chat history"}
+                        aria-pressed={historyOpen}
+                        className={cn(
+                          "size-9 rounded-full",
+                          historyOpen && "bg-muted text-foreground",
+                        )}
+                        onClick={() => setHistoryOpen((v) => !v)}
+                        size="icon"
+                        title={historyOpen ? "Hide chat history" : "Show chat history"}
+                        type="button"
+                        variant="ghost"
+                      >
+                        <HistoryIcon />
+                      </Button>
+                      <Button
+                        aria-label="Close assistant chat"
+                        className="size-9 rounded-full"
+                        onClick={() => setAssistantOpen(false)}
+                        size="icon"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <CloseIcon />
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <Button
-                      aria-label="Close assistant chat"
-                      className="size-9 rounded-full"
-                      onClick={() => setAssistantOpen(false)}
-                      size="icon"
-                      type="button"
-                      variant="ghost"
-                    >
-                      <CloseIcon />
-                    </Button>
+
+                  <div className="flex min-h-0 flex-1">
+                    {historyOpen && (
+                      <div className="w-52 shrink-0 border-r bg-muted/20 p-3">
+                        <ThreadList
+                          className="h-full"
+                          onSelect={() => setHistoryOpen(false)}
+                        />
+                      </div>
+                    )}
+                    <AssistantChatPanel className="min-h-0 flex-1" />
                   </div>
                 </div>
-
-                <AssistantChat className="min-h-0 flex-1" />
-              </div>
+              </AssistantRuntimeBoundary>
             </div>,
             document.body,
           )

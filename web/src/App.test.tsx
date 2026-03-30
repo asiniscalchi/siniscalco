@@ -8,6 +8,7 @@ import { ApolloProvider } from "@apollo/client/react";
 import {
   getAssistantModelsApiUrl,
   getAssistantSelectedModelApiUrl,
+  getAssistantThreadsApiUrl,
 } from "@/lib/env";
 import { UiStateProvider } from "@/lib/ui-state-provider";
 import { ResizeObserverMock } from "@/test/browser-mocks";
@@ -70,6 +71,15 @@ function mockGqlAndHealth(
 
     if (url.endsWith("/health")) {
       return Promise.resolve(new Response(null, { status: healthStatus }));
+    }
+
+    if (url === getAssistantThreadsApiUrl()) {
+      return Promise.resolve(
+        new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
     }
 
     if (url === getAssistantModelsApiUrl()) {
