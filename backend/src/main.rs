@@ -32,8 +32,17 @@ async fn main() {
             let fx_refresh_config = config.fx_refresh_config();
             let asset_price_refresh_config = config.asset_price_refresh_config();
             let http_client = reqwest::Client::new();
+            let persisted_model = match backend::assistant::load_selected_model_setting(&pool).await
+            {
+                Ok(value) => value,
+                Err(error) => {
+                    tracing::warn!(error = %error, "failed to load persisted assistant model");
+                    None
+                }
+            };
             let assistant_models = backend::assistant::new_shared_assistant_model_registry(
                 config.openai_api_key.as_deref(),
+                persisted_model.as_deref(),
             );
             let app = build_router_with_state(AppState {
                 pool: pool.clone(),

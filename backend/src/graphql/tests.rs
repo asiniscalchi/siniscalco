@@ -113,7 +113,7 @@ fn build_app_with_fx_status(
         asset_price_refresh_config: no_price_config(),
         http_client: reqwest::Client::new(),
         openai_api_key: None,
-        assistant_models: new_shared_assistant_model_registry(None),
+        assistant_models: new_shared_assistant_model_registry(None, None),
         assistant_chat_semaphore: new_assistant_chat_semaphore(),
         openai_chat_url: crate::assistant::openai_chat_url().to_string(),
         openai_models_url: crate::assistant::openai_models_url().to_string(),
@@ -127,7 +127,7 @@ fn build_app_with_price_config(pool: sqlx::SqlitePool, config: AssetPriceRefresh
         asset_price_refresh_config: config,
         http_client: reqwest::Client::new(),
         openai_api_key: None,
-        assistant_models: new_shared_assistant_model_registry(None),
+        assistant_models: new_shared_assistant_model_registry(None, None),
         assistant_chat_semaphore: new_assistant_chat_semaphore(),
         openai_chat_url: crate::assistant::openai_chat_url().to_string(),
         openai_models_url: crate::assistant::openai_models_url().to_string(),
@@ -145,7 +145,7 @@ fn build_app_with_openai(
         api_key,
         openai_chat_url,
         openai_models_url,
-        new_shared_assistant_model_registry(api_key),
+        new_shared_assistant_model_registry(api_key, None),
     )
 }
 
@@ -458,7 +458,7 @@ async fn assistant_models_exposes_refreshed_openai_model_list() {
         ]
     }))
     .await;
-    let assistant_models = new_shared_assistant_model_registry(Some("test-key"));
+    let assistant_models = new_shared_assistant_model_registry(Some("test-key"), None);
     refresh_assistant_model_registry(
         &assistant_models,
         &reqwest::Client::new(),
@@ -505,7 +505,7 @@ async fn assistant_models_selection_updates_in_memory_model_used_by_chat() {
         ]
     }))
     .await;
-    let assistant_models = new_shared_assistant_model_registry(Some("test-key"));
+    let assistant_models = new_shared_assistant_model_registry(Some("test-key"), None);
     refresh_assistant_model_registry(
         &assistant_models,
         &reqwest::Client::new(),
@@ -548,6 +548,73 @@ async fn assistant_models_selection_updates_in_memory_model_used_by_chat() {
 
     let recorded_requests = recorded_requests.lock().await;
     assert_eq!(recorded_requests[0]["model"], "gpt-4.1-mini");
+}
+
+#[tokio::test]
+async fn assistant_models_selection_is_persisted_and_restored() {
+    let pool = test_pool().await;
+    let models_url = start_test_openai_models_server(json!({
+        "data": [
+            { "id": "gpt-4.1-mini" },
+            { "id": "gpt-4o-mini" }
+        ]
+    }))
+    .await;
+    let assistant_models = new_shared_assistant_model_registry(Some("test-key"), None);
+    refresh_assistant_model_registry(
+        &assistant_models,
+        &reqwest::Client::new(),
+        Some("test-key"),
+        &models_url,
+    )
+    .await
+    .expect("assistant models should refresh");
+
+    let app = build_app_with_openai_registry(
+        pool.clone(),
+        Some("test-key"),
+        crate::assistant::openai_chat_url().to_string(),
+        models_url.clone(),
+        assistant_models,
+    );
+    let (status, json) = put_json(
+        app,
+        "/assistant/models/selected",
+        json!({ "model": "gpt-4.1-mini" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["selected_model"], "gpt-4.1-mini");
+
+    let persisted_model =
+        crate::storage::settings::get_app_setting(&pool, crate::assistant::SETTING_SELECTED_MODEL)
+            .await
+            .expect("selected model setting should load");
+    assert_eq!(persisted_model.as_deref(), Some("gpt-4.1-mini"));
+
+    let restored_models =
+        new_shared_assistant_model_registry(Some("test-key"), persisted_model.as_deref());
+    refresh_assistant_model_registry(
+        &restored_models,
+        &reqwest::Client::new(),
+        Some("test-key"),
+        &models_url,
+    )
+    .await
+    .expect("assistant models should refresh");
+
+    let app = build_app_with_openai_registry(
+        pool,
+        Some("test-key"),
+        crate::assistant::openai_chat_url().to_string(),
+        models_url,
+        restored_models,
+    );
+    let (status, json) = get_json(app, "/assistant/models").await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["selected_model"], "gpt-4.1-mini");
 }
 
 #[tokio::test]
@@ -658,7 +725,7 @@ async fn assistant_chat_returns_too_many_requests_when_semaphore_is_exhausted() 
         asset_price_refresh_config: no_price_config(),
         http_client: reqwest::Client::new(),
         openai_api_key: None,
-        assistant_models: new_shared_assistant_model_registry(None),
+        assistant_models: new_shared_assistant_model_registry(None, None),
         assistant_chat_semaphore: exhausted_semaphore,
         openai_chat_url: crate::assistant::openai_chat_url().to_string(),
         openai_models_url: crate::assistant::openai_models_url().to_string(),

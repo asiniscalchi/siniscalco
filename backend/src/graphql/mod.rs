@@ -69,6 +69,7 @@ pub fn build_router(pool: SqlitePool) -> Router {
         openai_api_key: config.openai_api_key.clone(),
         assistant_models: crate::assistant::new_shared_assistant_model_registry(
             config.openai_api_key.as_deref(),
+            None,
         ),
         assistant_chat_semaphore: crate::assistant::new_assistant_chat_semaphore(),
         openai_chat_url: crate::assistant::openai_chat_url().to_string(),
