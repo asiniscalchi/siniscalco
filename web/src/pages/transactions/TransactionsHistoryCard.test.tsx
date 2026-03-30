@@ -69,6 +69,7 @@ describe("TransactionsHistoryCard", () => {
 
     expect(within(mobileList as HTMLElement).getByText("10")).toBeTruthy();
     expect(within(mobileList as HTMLElement).getByText("150")).toBeTruthy();
+    expect(within(mobileList as HTMLElement).getByText("1,500.00")).toBeTruthy();
     expect(within(mobileList as HTMLElement).queryByText("Notes")).toBeNull();
     expect(within(mobileList as HTMLElement).queryByText("—")).toBeNull();
   });
