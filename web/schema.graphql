@@ -51,6 +51,8 @@ type Asset {
 	avgCostBasisCurrency: String
 	previousClose: String
 	previousCloseCurrency: String
+	convertedTotalValue: String
+	convertedTotalValueCurrency: String
 	createdAt: String!
 	updatedAt: String!
 }

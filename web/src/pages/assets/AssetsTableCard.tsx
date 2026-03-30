@@ -65,11 +65,15 @@ export function AssetsTableCard() {
   };
 
   const formatTotalValue = (asset: AssetItem) => {
-    if (!asset.totalQuantity || !asset.currentPrice || !asset.currentPriceCurrency) {
+    if (!asset.convertedTotalValue || !asset.convertedTotalValueCurrency) {
       return null;
     }
-    const value = Number(asset.totalQuantity) * Number(asset.currentPrice);
-    return formatMoney(value, asset.currentPriceCurrency, false).text;
+
+    return formatMoney(
+      asset.convertedTotalValue,
+      asset.convertedTotalValueCurrency,
+      false,
+    ).text;
   };
 
   const formatGain = (asset: AssetItem) => {

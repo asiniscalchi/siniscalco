@@ -7,6 +7,7 @@ export const ASSETS_QUERY = gql`
       currentPrice currentPriceCurrency currentPriceAsOf totalQuantity
       avgCostBasis avgCostBasisCurrency
       previousClose previousCloseCurrency
+      convertedTotalValue convertedTotalValueCurrency
     }
   }
 `;
