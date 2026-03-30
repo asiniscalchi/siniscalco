@@ -428,6 +428,33 @@ async fn get_account_value_summary_with_assets(
     summarize_account_in_currency(pool, account, assets_by_id, account.base_currency).await
 }
 
+pub async fn convert_asset_total_value_in_currency(
+    pool: &SqlitePool,
+    asset: &AssetRecord,
+    target_currency: Currency,
+) -> Result<Option<Amount>, StorageError> {
+    let Some(quantity) = asset.total_quantity else {
+        return Ok(None);
+    };
+    let Some(price) = asset.current_price else {
+        return Ok(None);
+    };
+    let Some(price_currency) = asset.current_price_currency else {
+        return Ok(None);
+    };
+
+    let total_value = quantity.as_decimal() * price.as_decimal();
+    if price_currency == target_currency {
+        return Ok(Some(parse_decimal_amount(total_value)));
+    }
+
+    let Some(rate) = get_direct_fx_rate(pool, price_currency, target_currency).await? else {
+        return Ok(None);
+    };
+
+    Ok(Some(parse_decimal_amount(total_value * rate)))
+}
+
 async fn summarize_account_in_currency(
     pool: &SqlitePool,
     account: &AccountRecord,

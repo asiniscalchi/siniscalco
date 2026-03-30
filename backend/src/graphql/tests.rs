@@ -796,6 +796,8 @@ async fn lists_assets() {
     assert!(assets[0]["totalQuantity"].is_null());
     assert!(assets[0]["avgCostBasis"].is_null());
     assert!(assets[0]["avgCostBasisCurrency"].is_null());
+    assert!(assets[0]["convertedTotalValue"].is_null());
+    assert!(assets[0]["convertedTotalValueCurrency"].is_null());
 }
 
 #[tokio::test]
@@ -862,6 +864,97 @@ async fn asset_avg_cost_basis_computed_from_buy_transactions() {
     let asset = &json["data"]["assets"][0];
     assert_eq!(asset["avgCostBasis"], "150.000000");
     assert_eq!(asset["avgCostBasisCurrency"], "USD");
+}
+
+#[tokio::test]
+async fn asset_query_returns_converted_total_value_in_eur() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Broker"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Eur,
+            amount: amt("1000.000000"),
+        },
+    )
+    .await
+    .expect("balance insert should succeed");
+
+    upsert_asset_price(
+        &pool,
+        UpsertAssetPriceInput {
+            asset_id,
+            price: AssetUnitPrice::try_from("120").unwrap(),
+            currency: Currency::Usd,
+            as_of: "2024-01-02T00:00:00Z".to_string(),
+        },
+    )
+    .await
+    .expect("price insert should succeed");
+
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate("0.900000"),
+        },
+    )
+    .await
+    .expect("fx rate insert should succeed");
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2024-01-01"),
+            quantity: AssetQuantity::try_from("10").unwrap(),
+            unit_price: AssetUnitPrice::try_from("100").unwrap(),
+            currency_code: Currency::Usd,
+            notes: None,
+        },
+    )
+    .await
+    .expect("transaction insert should succeed");
+
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let json = gql(
+        app,
+        "{ assets { symbol convertedTotalValue convertedTotalValueCurrency } }",
+    )
+    .await;
+
+    let asset = &json["data"]["assets"][0];
+    assert_eq!(asset["symbol"], "AAPL");
+    assert_eq!(asset["convertedTotalValue"], "1080.000000");
+    assert_eq!(asset["convertedTotalValueCurrency"], "EUR");
 }
 
 #[tokio::test]
