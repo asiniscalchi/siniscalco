@@ -24,6 +24,7 @@ mod fx_rate;
 mod integration_tests;
 mod portfolio_snapshots;
 mod records;
+pub mod settings;
 mod storage_error;
 mod trade_date;
 mod transfer_id;

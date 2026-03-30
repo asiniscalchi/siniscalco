@@ -13,6 +13,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use sqlx::SqlitePool;
 
 use tokio::{
     sync::{RwLock, Semaphore},
@@ -199,7 +200,20 @@ pub async fn select_model(
     }
 
     registry.selected_model = requested_model.to_string();
-    Ok(Json(registry.to_response()))
+    let response = registry.to_response();
+    drop(registry);
+
+    if let Err(error) = crate::storage::settings::set_app_setting(
+        &state.pool,
+        SETTING_SELECTED_MODEL,
+        requested_model,
+    )
+    .await
+    {
+        warn!(error = %error, "failed to persist selected assistant model");
+    }
+
+    Ok(Json(response))
 }
 
 pub async fn spawn_assistant_model_refresh_task(
@@ -402,6 +416,7 @@ pub async fn chat(
 
 // ── OpenAI tool-calling ───────────────────────────────────────────────────────
 
+pub const SETTING_SELECTED_MODEL: &str = "assistant.selected_model";
 const OPENAI_CHAT_URL: &str = "https://api.openai.com/v1/chat/completions";
 const OPENAI_MODELS_URL: &str = "https://api.openai.com/v1/models";
 const DEFAULT_OPENAI_MODEL: &str = "gpt-4o-mini";
@@ -431,17 +446,28 @@ pub fn new_assistant_chat_semaphore() -> SharedAssistantChatSemaphore {
 
 pub fn new_shared_assistant_model_registry(
     openai_api_key: Option<&str>,
+    persisted_model: Option<&str>,
 ) -> SharedAssistantModelRegistry {
     Arc::new(RwLock::new(
         if openai_api_key
             .map(str::trim)
             .is_some_and(|api_key| !api_key.is_empty())
         {
-            AssistantModelRegistry::openai_defaults()
+            let mut registry = AssistantModelRegistry::openai_defaults();
+            if let Some(model) = persisted_model.map(str::trim).filter(|m| !m.is_empty()) {
+                registry.selected_model = model.to_string();
+            }
+            registry
         } else {
             AssistantModelRegistry::mock_backend()
         },
     ))
+}
+
+pub async fn load_selected_model_setting(
+    pool: &SqlitePool,
+) -> Result<Option<String>, StorageError> {
+    crate::storage::settings::get_app_setting(pool, SETTING_SELECTED_MODEL).await
 }
 
 fn tool_definitions() -> Value {
