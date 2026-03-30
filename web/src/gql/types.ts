@@ -466,17 +466,17 @@ export type UpdateAssetMutationVariables = Exact<{
 
 export type UpdateAssetMutation = { __typename?: 'MutationRoot', updateAsset: { __typename?: 'Asset', id: number, symbol: string, name: string, assetType: AssetType, quoteSymbol: string | null, isin: string | null, currentPrice: string | null, currentPriceCurrency: string | null, currentPriceAsOf: string | null, totalQuantity: string | null } };
 
-export type AssetsQueryVariables = Exact<{ [key: string]: never; }>;
-
-
-export type AssetsQuery = { __typename?: 'QueryRoot', assets: Array<{ __typename?: 'Asset', id: number, symbol: string, name: string, assetType: AssetType, quoteSymbol: string | null, isin: string | null, currentPrice: string | null, currentPriceCurrency: string | null, currentPriceAsOf: string | null, totalQuantity: string | null, avgCostBasis: string | null, avgCostBasisCurrency: string | null, previousClose: string | null, previousCloseCurrency: string | null }> };
-
 export type DeleteAssetMutationVariables = Exact<{
   id: Scalars['Int']['input'];
 }>;
 
 
 export type DeleteAssetMutation = { __typename?: 'MutationRoot', deleteAsset: number };
+
+export type AssetsQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type AssetsQuery = { __typename?: 'QueryRoot', assets: Array<{ __typename?: 'Asset', id: number, symbol: string, name: string, assetType: AssetType, quoteSymbol: string | null, isin: string | null, currentPrice: string | null, currentPriceCurrency: string | null, currentPriceAsOf: string | null, totalQuantity: string | null, avgCostBasis: string | null, avgCostBasisCurrency: string | null, previousClose: string | null, previousCloseCurrency: string | null }> };
 
 export type FxRatesQueryVariables = Exact<{ [key: string]: never; }>;
 
