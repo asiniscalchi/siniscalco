@@ -214,6 +214,7 @@ export function AssetsTableCard() {
                 {assets.map((asset) => {
                   const daily = formatDailyGain(asset);
                   const gain = formatGain(asset);
+                  const totalValue = formatTotalValue(asset);
 
                   return (
                     <div
@@ -225,9 +226,6 @@ export function AssetsTableCard() {
                         <ItemLabel primary={asset.symbol} secondary={asset.name} />
                         <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                           <span className="font-mono tabular-nums">{formatPrice(asset)}</span>
-                          {formatTotalValue(asset) && (
-                            <span className="font-mono tabular-nums">{formatTotalValue(asset)}</span>
-                          )}
                         </div>
                         {asset.isin && (
                           <div className="mt-0.5 text-[11px] text-muted-foreground font-mono">
@@ -255,6 +253,14 @@ export function AssetsTableCard() {
                         <span className="inline-flex items-center rounded-full border bg-muted/50 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                           {asset.assetType.replace("_", " ")}
                         </span>
+                        {totalValue && (
+                          <div
+                            className="font-mono tabular-nums text-[11px] text-muted-foreground"
+                            data-testid={`mobile-asset-total-value-${asset.id}`}
+                          >
+                            {totalValue}
+                          </div>
+                        )}
                         {!isLocked && (
                           <div className="flex shrink-0 gap-0.5">
                             <Button

@@ -201,7 +201,7 @@ describe("AssetsPage", () => {
     expect(screen.getByText("Actions")).toBeTruthy();
   });
 
-  it("keeps the mobile asset label and total gain stack on the right side of the card", async () => {
+  it("keeps the mobile asset summary values on the right side of the card", async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -218,12 +218,12 @@ describe("AssetsPage", () => {
                 currentPriceCurrency: "USD",
                 currentPriceAsOf: null,
                 totalQuantity: "2",
+                convertedTotalValue: "1840.000000",
+                convertedTotalValueCurrency: "EUR",
                 avgCostBasis: "100.00",
                 avgCostBasisCurrency: "USD",
                 previousClose: null,
                 previousCloseCurrency: null,
-                convertedTotalValue: null,
-                convertedTotalValueCurrency: null,
               },
             ],
           },
@@ -238,6 +238,7 @@ describe("AssetsPage", () => {
 
     const mobileCard = screen.getByTestId("mobile-asset-card-1");
     const sideColumn = screen.getByTestId("mobile-asset-side-1");
+    const totalValue = screen.getByTestId("mobile-asset-total-value-1");
     const gainStack = screen.getByTestId("mobile-asset-gain-1");
     const gainPct = screen.getByTestId("mobile-asset-gain-pct-1");
 
@@ -245,6 +246,7 @@ describe("AssetsPage", () => {
     expect(sideColumn.className).toContain("items-end");
     expect(sideColumn.className).toContain("text-right");
     expect(sideColumn.textContent).toContain("STOCK");
+    expect(totalValue.textContent).toBe("1,840.00 EUR");
     expect(gainStack.className).toContain("mt-auto");
     expect(gainStack.textContent).toContain("Gain: +100.00 USD");
     expect(gainPct.textContent).toBe("+50.00%");
