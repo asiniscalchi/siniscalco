@@ -4,7 +4,11 @@ import { cn } from "@/lib/utils";
 
 import { ItemLabel } from "@/components/ItemLabel";
 import { TransactionsHistoryCardActions } from "./TransactionsHistoryCardActions";
-import { getTransactionTypeClassName, trimTrailingZeros } from "./TransactionsHistoryCard.utils";
+import {
+  getTransactionTotal,
+  getTransactionTypeClassName,
+  trimTrailingZeros,
+} from "./TransactionsHistoryCard.utils";
 import type { Asset, Transaction } from "./types";
 
 type TransactionsHistoryCardMobileItemProps = {
@@ -28,6 +32,8 @@ export function TransactionsHistoryCardMobileItem({
   onEditClick,
   onDeleteClick,
 }: TransactionsHistoryCardMobileItemProps) {
+  const total = getTransactionTotal(transaction);
+
   return (
     <Card className={cn("bg-background", isEditing && "bg-muted/50")}>
       <CardContent className="space-y-3 p-3">
@@ -78,6 +84,18 @@ export function TransactionsHistoryCardMobileItem({
             </dd>
           </div>
         </dl>
+
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[10px] text-muted-foreground">Total</p>
+          <MoneyText
+            className="text-sm"
+            hidden={hideValues}
+            includeCurrency={false}
+            maximumFractionDigits={2}
+            minimumFractionDigits={2}
+            value={total}
+          />
+        </div>
 
         {transaction.notes ? (
           <div>

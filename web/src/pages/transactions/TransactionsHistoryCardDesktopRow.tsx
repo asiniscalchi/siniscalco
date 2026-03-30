@@ -3,7 +3,11 @@ import { cn } from "@/lib/utils";
 
 import { ItemLabel } from "@/components/ItemLabel";
 import { TransactionsHistoryCardActions } from "./TransactionsHistoryCardActions";
-import { getTransactionTypeClassName, trimTrailingZeros } from "./TransactionsHistoryCard.utils";
+import {
+  getTransactionTotal,
+  getTransactionTypeClassName,
+  trimTrailingZeros,
+} from "./TransactionsHistoryCard.utils";
 import type { Asset, Transaction } from "./types";
 
 type TransactionsHistoryCardDesktopRowProps = {
@@ -27,6 +31,8 @@ export function TransactionsHistoryCardDesktopRow({
   onEditClick,
   onDeleteClick,
 }: TransactionsHistoryCardDesktopRowProps) {
+  const total = getTransactionTotal(transaction);
+
   return (
     <tr
       className={cn(
@@ -61,6 +67,16 @@ export function TransactionsHistoryCardDesktopRow({
           maximumFractionDigits={8}
           minimumFractionDigits={0}
           value={transaction.unitPrice}
+        />
+      </td>
+      <td className="py-3 pr-4 text-right">
+        <MoneyText
+          className="text-right"
+          hidden={hideValues}
+          includeCurrency={false}
+          maximumFractionDigits={2}
+          minimumFractionDigits={2}
+          value={total}
         />
       </td>
       <td className="py-3 pr-4 font-mono text-[11px] text-muted-foreground">

@@ -102,6 +102,7 @@ describe("TransactionsPage", () => {
 
     expect(within(mobileList as HTMLElement).getByText("10")).toBeTruthy();
     expect(within(mobileList as HTMLElement).getByText("150")).toBeTruthy();
+    expect(within(mobileList as HTMLElement).getByText("1,500.00")).toBeTruthy();
     expect(within(mobileList as HTMLElement).queryByText("10.00")).toBeNull();
     expect(within(mobileList as HTMLElement).queryByText("150.00")).toBeNull();
     expect((screen.getByRole("button", { name: "Add Transaction" }) as HTMLButtonElement).disabled).toBe(true);
