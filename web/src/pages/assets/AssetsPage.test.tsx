@@ -99,6 +99,8 @@ describe("AssetsPage", () => {
                 currentPriceCurrency: "USD",
                 currentPriceAsOf: "2026-03-24T14:30:00Z",
                 totalQuantity: "10.5",
+                convertedTotalValue: "1840.000000",
+                convertedTotalValueCurrency: "EUR",
               },
               {
                 id: 2,
@@ -111,6 +113,8 @@ describe("AssetsPage", () => {
                 currentPriceCurrency: null,
                 currentPriceAsOf: null,
                 totalQuantity: null,
+                convertedTotalValue: null,
+                convertedTotalValueCurrency: null,
               },
             ],
           },
@@ -132,7 +136,7 @@ describe("AssetsPage", () => {
     expect(screen.getAllByText("Bitcoin").length).toBeGreaterThan(0);
     expect(screen.getAllByText("CRYPTO").length).toBeGreaterThan(0);
     expect(screen.getAllByText("BTC/USD").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("1,987.86 USD").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("1,840.00 EUR").length).toBeGreaterThan(0);
 
     // Check that Actions column is NOT present when locked
     expect(screen.queryByText("Actions")).toBeNull();
@@ -195,6 +199,61 @@ describe("AssetsPage", () => {
     expect(assetsCard?.className).toContain("min-w-0");
     expect(assetsScroller?.className).toContain("overflow-x-auto");
     expect(screen.getByText("Actions")).toBeTruthy();
+  });
+
+  it("keeps the mobile asset summary values on the right side of the card", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            assets: [
+              {
+                id: 1,
+                symbol: "AAPL",
+                name: "Apple Inc.",
+                assetType: "STOCK",
+                quoteSymbol: null,
+                isin: "US0378331005",
+                currentPrice: "150.00",
+                currentPriceCurrency: "USD",
+                currentPriceAsOf: null,
+                totalQuantity: "2",
+                convertedTotalValue: "1840.000000",
+                convertedTotalValueCurrency: "EUR",
+                avgCostBasis: "100.00",
+                avgCostBasisCurrency: "USD",
+                previousClose: null,
+                previousCloseCurrency: null,
+              },
+            ],
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    renderAssetsPage();
+
+    await screen.findAllByText("AAPL");
+
+    const mobileCard = screen.getByTestId("mobile-asset-card-1");
+    const sideColumn = screen.getByTestId("mobile-asset-side-1");
+    const isin = screen.getByTestId("mobile-asset-isin-1");
+    const totalValue = screen.getByTestId("mobile-asset-total-value-1");
+    const gainStack = screen.getByTestId("mobile-asset-gain-1");
+    const gainPct = screen.getByTestId("mobile-asset-gain-pct-1");
+
+    expect(mobileCard.className).toContain("items-start");
+    expect(sideColumn.className).toContain("items-end");
+    expect(sideColumn.className).toContain("text-right");
+    expect(sideColumn.textContent).toContain("STOCK");
+    expect(isin.className).toContain("mt-0.5");
+    expect(isin.textContent).toContain("US0378331005");
+    expect(totalValue.className).toContain("mt-0.5");
+    expect(totalValue.textContent).toBe("1,840.00 EUR");
+    expect(gainStack.className).toContain("mt-auto");
+    expect(gainStack.textContent).toContain("Gain: +100.00 USD");
+    expect(gainPct.textContent).toBe("+50.00%");
   });
 
   it("handles create asset", async () => {

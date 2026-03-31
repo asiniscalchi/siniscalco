@@ -191,7 +191,7 @@ impl MutationRoot {
             .map_err(asset_storage_error)?;
         refresh_asset_price(pool, config, client, asset_id).await;
         let asset = get_asset(pool, asset_id).await.map_err(storage_to_gql)?;
-        Ok(to_asset(asset))
+        Ok(to_asset(asset, None, None))
     }
 
     async fn update_asset(
@@ -225,7 +225,7 @@ impl MutationRoot {
         })?;
         refresh_asset_price(pool, config, client, asset_id).await;
         let asset = get_asset(pool, asset_id).await.map_err(storage_to_gql)?;
-        Ok(to_asset(asset))
+        Ok(to_asset(asset, None, None))
     }
 
     async fn delete_asset(&self, ctx: &Context<'_>, id: i64) -> async_graphql::Result<i64> {

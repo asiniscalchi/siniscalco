@@ -3,10 +3,11 @@ use sqlx::SqlitePool;
 
 use crate::{
     AccountId, AssetId, PRODUCT_BASE_CURRENCY, SharedFxRefreshStatus, compact_decimal_output,
-    get_account, get_account_value_summary, get_asset, get_portfolio_summary, get_transaction,
-    list_account_balances, list_account_positions, list_account_summaries, list_asset_transactions,
-    list_assets, list_currencies, list_fx_rate_summary, list_portfolio_snapshots,
-    list_transactions, list_transfers, normalize_amount_output, storage::StorageError,
+    convert_asset_total_value_in_currency, get_account, get_account_value_summary, get_asset,
+    get_portfolio_summary, get_transaction, list_account_balances, list_account_positions,
+    list_account_summaries, list_asset_transactions, list_assets, list_currencies,
+    list_fx_rate_summary, list_portfolio_snapshots, list_transactions, list_transfers,
+    normalize_amount_output, storage::StorageError,
 };
 
 use super::types::*;
@@ -62,7 +63,11 @@ pub(crate) fn to_balance(balance: crate::AccountBalanceRecord) -> Balance {
     }
 }
 
-pub(crate) fn to_asset(asset: crate::AssetRecord) -> Asset {
+pub(crate) fn to_asset(
+    asset: crate::AssetRecord,
+    converted_total_value: Option<crate::Amount>,
+    converted_total_value_currency: Option<crate::Currency>,
+) -> Asset {
     Asset {
         id: asset.id.as_i64(),
         symbol: asset.symbol.to_string(),
@@ -90,9 +95,27 @@ pub(crate) fn to_asset(asset: crate::AssetRecord) -> Asset {
         previous_close_currency: asset
             .previous_close_currency
             .map(|c| c.as_str().to_string()),
+        converted_total_value: converted_total_value
+            .map(|amount| normalize_amount_output(&amount.to_string())),
+        converted_total_value_currency: converted_total_value_currency
+            .map(|currency| currency.as_str().to_string()),
         created_at: asset.created_at,
         updated_at: asset.updated_at,
     }
+}
+
+async fn to_asset_with_display_total(
+    pool: &SqlitePool,
+    asset: crate::AssetRecord,
+) -> Result<Asset, StorageError> {
+    let converted_total_value =
+        convert_asset_total_value_in_currency(pool, &asset, PRODUCT_BASE_CURRENCY).await?;
+
+    Ok(to_asset(
+        asset,
+        converted_total_value,
+        converted_total_value.map(|_| PRODUCT_BASE_CURRENCY),
+    ))
 }
 
 pub(crate) fn to_transaction(tx: crate::AssetTransactionRecord) -> Transaction {
@@ -190,7 +213,15 @@ impl QueryRoot {
     async fn assets(&self, ctx: &Context<'_>) -> async_graphql::Result<Vec<Asset>> {
         let pool = ctx.data::<SqlitePool>()?;
         let assets = list_assets(pool).await.map_err(storage_to_gql)?;
-        Ok(assets.into_iter().map(to_asset).collect())
+        let mut gql_assets = Vec::with_capacity(assets.len());
+        for asset in assets {
+            gql_assets.push(
+                to_asset_with_display_total(pool, asset)
+                    .await
+                    .map_err(storage_to_gql)?,
+            );
+        }
+        Ok(gql_assets)
     }
 
     async fn asset(&self, ctx: &Context<'_>, id: i64) -> async_graphql::Result<Asset> {
@@ -202,7 +233,9 @@ impl QueryRoot {
             }
             other => storage_to_gql(other),
         })?;
-        Ok(to_asset(asset))
+        to_asset_with_display_total(pool, asset)
+            .await
+            .map_err(storage_to_gql)
     }
 
     async fn transactions(
