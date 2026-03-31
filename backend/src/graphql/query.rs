@@ -215,7 +215,11 @@ impl QueryRoot {
         let assets = list_assets(pool).await.map_err(storage_to_gql)?;
         let mut gql_assets = Vec::with_capacity(assets.len());
         for asset in assets {
-            gql_assets.push(to_asset_with_display_total(pool, asset).await.map_err(storage_to_gql)?);
+            gql_assets.push(
+                to_asset_with_display_total(pool, asset)
+                    .await
+                    .map_err(storage_to_gql)?,
+            );
         }
         Ok(gql_assets)
     }
