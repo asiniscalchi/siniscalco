@@ -11,7 +11,7 @@ import { formatMoney } from "@/lib/format-money";
 import { extractGqlErrorMessage } from "@/lib/gql";
 import { type AssetsQuery } from "@/gql/types";
 
-import { AssetMobileCard } from "./AssetMobileCard";
+import { AssetMobileCard, type AssetMobileCardChange } from "./AssetMobileCard";
 import { ASSETS_QUERY } from "./assets-query";
 
 const ftMarketsUrl = (isin: string) =>
@@ -121,6 +121,18 @@ export function AssetsTableCard() {
     return { pct, abs, positive: gainPct >= 0 };
   };
 
+  const buildAssetMobileCardData = (asset: AssetItem): {
+    dailyGain: AssetMobileCardChange | null;
+    gain: AssetMobileCardChange | null;
+    price: string;
+    totalValue: string | null;
+  } => ({
+    dailyGain: formatDailyGain(asset),
+    gain: formatGain(asset),
+    price: formatPrice(asset),
+    totalValue: formatTotalValue(asset),
+  });
+
   const priceLabel = (asset: AssetItem) => {
     if (asset.currentPriceAsOf) {
       const parsed = new Date(asset.currentPriceAsOf);
@@ -213,9 +225,7 @@ export function AssetsTableCard() {
             <>
               <div className="space-y-1.5 sm:hidden">
                 {assets.map((asset) => {
-                  const daily = formatDailyGain(asset);
-                  const gain = formatGain(asset);
-                  const totalValue = formatTotalValue(asset);
+                  const mobileCardData = buildAssetMobileCardData(asset);
 
                   return (
                     <AssetMobileCard
@@ -223,20 +233,8 @@ export function AssetsTableCard() {
                       assetName={asset.name}
                       assetSymbol={asset.symbol}
                       assetType={asset.assetType}
-                      dailyGain={daily ? (
-                        <div className={`mt-0.5 font-mono tabular-nums text-[11px] ${daily.positive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                          Today: {daily.abs ? `${daily.abs} (${daily.pct})` : daily.pct}
-                        </div>
-                      ) : null}
-                      gain={gain ? (
-                        <div
-                          className={`mt-auto font-mono tabular-nums text-[11px] ${gain.positive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
-                          data-testid={`mobile-asset-gain-${asset.id}`}
-                        >
-                          {gain.abs && <div>Gain: {gain.abs}</div>}
-                          <div data-testid={`mobile-asset-gain-pct-${asset.id}`}>{gain.pct}</div>
-                        </div>
-                      ) : null}
+                      dailyGain={mobileCardData.dailyGain}
+                      gain={mobileCardData.gain}
                       isin={asset.isin}
                       isDeleting={isDeleting === asset.id}
                       isLocked={isLocked}
@@ -246,8 +244,8 @@ export function AssetsTableCard() {
                         setEditingAsset(asset);
                         setShowModal(true);
                       }}
-                      price={formatPrice(asset)}
-                      totalValue={totalValue}
+                      price={mobileCardData.price}
+                      totalValue={mobileCardData.totalValue}
                     />
                   );
                 })}

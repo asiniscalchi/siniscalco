@@ -1,16 +1,20 @@
-import { type ReactNode } from "react";
-
 import { ItemLabel } from "@/components/ItemLabel";
 import { ExternalLinkIcon, PencilIcon, TrashIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
+
+export type AssetMobileCardChange = {
+  abs: string | null;
+  pct: string;
+  positive: boolean;
+};
 
 type AssetMobileCardProps = {
   assetId: number;
   assetName: string;
   assetSymbol: string;
   assetType: string;
-  dailyGain: ReactNode;
-  gain: ReactNode;
+  dailyGain: AssetMobileCardChange | null;
+  gain: AssetMobileCardChange | null;
   isin: string | null;
   isDeleting: boolean;
   isLocked: boolean;
@@ -65,7 +69,11 @@ export function AssetMobileCard({
           <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
             <span className="font-mono tabular-nums">{price}</span>
           </div>
-          {dailyGain}
+          {dailyGain && (
+            <div className={`mt-0.5 font-mono tabular-nums text-[11px] ${dailyGain.positive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+              Today: {dailyGain.abs ? `${dailyGain.abs} (${dailyGain.pct})` : dailyGain.pct}
+            </div>
+          )}
         </div>
         <div
           className="flex shrink-0 self-stretch flex-col items-end text-right"
@@ -111,7 +119,15 @@ export function AssetMobileCard({
               </Button>
             </div>
           )}
-          {gain}
+          {gain && (
+            <div
+              className={`mt-auto font-mono tabular-nums text-[11px] ${gain.positive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
+              data-testid={`mobile-asset-gain-${assetId}`}
+            >
+              {gain.abs && <div>Gain: {gain.abs}</div>}
+              <div data-testid={`mobile-asset-gain-pct-${assetId}`}>{gain.pct}</div>
+            </div>
+          )}
         </div>
       </div>
     </div>
