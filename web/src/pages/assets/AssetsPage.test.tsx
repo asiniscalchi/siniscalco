@@ -213,7 +213,7 @@ describe("AssetsPage", () => {
                 name: "Apple Inc.",
                 assetType: "STOCK",
                 quoteSymbol: null,
-                isin: null,
+                isin: "US0378331005",
                 currentPrice: "150.00",
                 currentPriceCurrency: "USD",
                 currentPriceAsOf: null,
@@ -238,6 +238,7 @@ describe("AssetsPage", () => {
 
     const mobileCard = screen.getByTestId("mobile-asset-card-1");
     const sideColumn = screen.getByTestId("mobile-asset-side-1");
+    const isin = screen.getByTestId("mobile-asset-isin-1");
     const totalValue = screen.getByTestId("mobile-asset-total-value-1");
     const gainStack = screen.getByTestId("mobile-asset-gain-1");
     const gainPct = screen.getByTestId("mobile-asset-gain-pct-1");
@@ -246,6 +247,8 @@ describe("AssetsPage", () => {
     expect(sideColumn.className).toContain("items-end");
     expect(sideColumn.className).toContain("text-right");
     expect(sideColumn.textContent).toContain("STOCK");
+    expect(isin.className).toContain("mt-0.5");
+    expect(isin.textContent).toContain("US0378331005");
     expect(totalValue.className).toContain("mt-0.5");
     expect(totalValue.textContent).toBe("1,840.00 EUR");
     expect(gainStack.className).toContain("mt-auto");

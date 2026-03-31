@@ -227,19 +227,6 @@ export function AssetsTableCard() {
                         <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                           <span className="font-mono tabular-nums">{formatPrice(asset)}</span>
                         </div>
-                        {asset.isin && (
-                          <div className="mt-0.5 text-[11px] text-muted-foreground font-mono">
-                            <a
-                              className="inline-flex items-center gap-1 hover:text-foreground hover:underline"
-                              href={ftMarketsUrl(asset.isin!)}
-                              rel="noopener noreferrer"
-                              target="_blank"
-                            >
-                              {asset.isin}
-                              <ExternalLinkIcon className="size-3 shrink-0" />
-                            </a>
-                          </div>
-                        )}
                         {daily && (
                           <div className={`mt-0.5 font-mono tabular-nums text-[11px] ${daily.positive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                             Today: {daily.abs ? `${daily.abs} (${daily.pct})` : daily.pct}
@@ -253,6 +240,22 @@ export function AssetsTableCard() {
                         <span className="inline-flex items-center rounded-full border bg-muted/50 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                           {asset.assetType.replace("_", " ")}
                         </span>
+                        {asset.isin && (
+                          <div
+                            className="mt-0.5 text-[11px] text-muted-foreground font-mono"
+                            data-testid={`mobile-asset-isin-${asset.id}`}
+                          >
+                            <a
+                              className="inline-flex items-center gap-1 hover:text-foreground hover:underline"
+                              href={ftMarketsUrl(asset.isin)}
+                              rel="noopener noreferrer"
+                              target="_blank"
+                            >
+                              {asset.isin}
+                              <ExternalLinkIcon className="size-3 shrink-0" />
+                            </a>
+                          </div>
+                        )}
                         {totalValue && (
                           <div
                             className="mt-0.5 font-mono tabular-nums text-[11px] text-muted-foreground"
