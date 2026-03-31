@@ -247,7 +247,7 @@ export function AssetsTableCard() {
                         )}
                       </div>
                       <div
-                        className="flex shrink-0 self-stretch flex-col items-end gap-2 text-right"
+                        className="flex shrink-0 self-stretch flex-col items-end text-right"
                         data-testid={`mobile-asset-side-${asset.id}`}
                       >
                         <span className="inline-flex items-center rounded-full border bg-muted/50 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -255,14 +255,14 @@ export function AssetsTableCard() {
                         </span>
                         {totalValue && (
                           <div
-                            className="font-mono tabular-nums text-[11px] text-muted-foreground"
+                            className="mt-0.5 font-mono tabular-nums text-[11px] text-muted-foreground"
                             data-testid={`mobile-asset-total-value-${asset.id}`}
                           >
                             {totalValue}
                           </div>
                         )}
                         {!isLocked && (
-                          <div className="flex shrink-0 gap-0.5">
+                          <div className="mt-2 flex shrink-0 gap-0.5">
                             <Button
                               disabled={isDeleting !== null}
                               onClick={() => {

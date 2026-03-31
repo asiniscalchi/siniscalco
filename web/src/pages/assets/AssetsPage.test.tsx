@@ -246,6 +246,7 @@ describe("AssetsPage", () => {
     expect(sideColumn.className).toContain("items-end");
     expect(sideColumn.className).toContain("text-right");
     expect(sideColumn.textContent).toContain("STOCK");
+    expect(totalValue.className).toContain("mt-0.5");
     expect(totalValue.textContent).toBe("1,840.00 EUR");
     expect(gainStack.className).toContain("mt-auto");
     expect(gainStack.textContent).toContain("Gain: +100.00 USD");
