@@ -201,7 +201,7 @@ describe("AssetsPage", () => {
     expect(screen.getByText("Actions")).toBeTruthy();
   });
 
-  it("keeps the mobile asset summary values on the right side of the card", async () => {
+  it("renders the mobile asset ISIN in the same top row as the asset header", async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -243,12 +243,16 @@ describe("AssetsPage", () => {
     const gainStack = screen.getByTestId("mobile-asset-gain-1");
     const gainPct = screen.getByTestId("mobile-asset-gain-pct-1");
 
-    expect(mobileCard.className).toContain("items-start");
+    expect(mobileCard.className).not.toContain("flex-col");
+    expect(isin.className).toContain("col-start-2");
+    expect(isin.className).toContain("row-start-1");
+    expect(isin.className).toContain("self-start");
+    expect(isin.className).toContain("text-center");
     expect(sideColumn.className).toContain("items-end");
     expect(sideColumn.className).toContain("text-right");
     expect(sideColumn.textContent).toContain("STOCK");
-    expect(isin.className).toContain("mt-0.5");
     expect(isin.textContent).toContain("US0378331005");
+    expect(sideColumn.textContent).not.toContain("US0378331005");
     expect(totalValue.className).toContain("mt-0.5");
     expect(totalValue.textContent).toBe("1,840.00 EUR");
     expect(gainStack.className).toContain("mt-auto");
