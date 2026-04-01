@@ -1,0 +1,132 @@
+use std::fmt;
+
+use serde::{Deserialize, Serialize};
+
+use crate::mcp::McpError;
+use crate::storage::StorageError;
+
+// ── Request / response types ──────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct AssistantChatRequest {
+    #[serde(default)]
+    pub messages: Vec<AssistantChatMessageRequest>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AssistantChatMessageRequest {
+    pub role: String,
+    pub content: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AssistantChatResponse {
+    pub message: String,
+    pub model: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AssistantChatErrorResponse {
+    pub error: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AssistantModelSelectionRequest {
+    pub model: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct AssistantModelsResponse {
+    pub models: Vec<String>,
+    pub selected_model: String,
+    pub openai_enabled: bool,
+    pub last_refreshed_at: Option<String>,
+    pub refresh_error: Option<String>,
+}
+
+// ── Error types ───────────────────────────────────────────────────────────────
+
+#[derive(Debug)]
+pub enum AssistantError {
+    Storage(StorageError),
+    Api(String),
+    Mcp(McpError),
+}
+
+impl fmt::Display for AssistantError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AssistantError::Storage(e) => write!(f, "storage error: {e}"),
+            AssistantError::Api(msg) => write!(f, "api error: {msg}"),
+            AssistantError::Mcp(e) => write!(f, "mcp error: {e}"),
+        }
+    }
+}
+
+impl From<StorageError> for AssistantError {
+    fn from(e: StorageError) -> Self {
+        AssistantError::Storage(e)
+    }
+}
+
+impl From<McpError> for AssistantError {
+    fn from(e: McpError) -> Self {
+        AssistantError::Mcp(e)
+    }
+}
+
+#[derive(Debug)]
+pub enum AssistantModelRefreshError {
+    Config(&'static str),
+    Provider(String),
+}
+
+impl fmt::Display for AssistantModelRefreshError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AssistantModelRefreshError::Config(message) => f.write_str(message),
+            AssistantModelRefreshError::Provider(message) => f.write_str(message),
+        }
+    }
+}
+
+// ── OpenAI internal response shapes ──────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct OpenAiModelsListResponse {
+    pub data: Vec<OpenAiModelRecord>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OpenAiModelRecord {
+    pub id: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn assistant_error_display_storage() {
+        let e = AssistantError::Storage(StorageError::Internal("thing"));
+        assert!(e.to_string().starts_with("storage error:"));
+    }
+
+    #[test]
+    fn assistant_error_display_api() {
+        let e = AssistantError::Api("boom".to_string());
+        assert_eq!(e.to_string(), "api error: boom");
+    }
+
+    #[test]
+    fn model_refresh_error_display_config() {
+        let e = AssistantModelRefreshError::Config("bad config");
+        assert_eq!(e.to_string(), "bad config");
+    }
+
+    #[test]
+    fn model_refresh_error_display_provider() {
+        let e = AssistantModelRefreshError::Provider("provider down".to_string());
+        assert_eq!(e.to_string(), "provider down");
+    }
+}
