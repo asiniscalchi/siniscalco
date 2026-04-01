@@ -489,23 +489,24 @@ export function AppShell() {
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      {activeTab === "chat" && (
-                        <Button
-                          aria-label={historyOpen ? "Hide chat history" : "Show chat history"}
-                          aria-pressed={historyOpen}
-                          className={cn(
-                            "size-9 rounded-full",
-                            historyOpen && "bg-muted text-foreground",
-                          )}
-                          onClick={() => setHistoryOpen((v) => !v)}
-                          size="icon"
-                          title={historyOpen ? "Hide chat history" : "Show chat history"}
-                          type="button"
-                          variant="ghost"
-                        >
-                          <HistoryIcon />
-                        </Button>
-                      )}
+                      <Button
+                        aria-label={historyOpen ? "Hide chat history" : "Show chat history"}
+                        aria-pressed={historyOpen}
+                        className={cn(
+                          "size-9 rounded-full",
+                          historyOpen && activeTab === "chat" && "bg-muted text-foreground",
+                        )}
+                        onClick={() => {
+                          setActiveTab("chat");
+                          setHistoryOpen((v) => (activeTab === "chat" ? !v : true));
+                        }}
+                        size="icon"
+                        title={historyOpen ? "Hide chat history" : "Show chat history"}
+                        type="button"
+                        variant="ghost"
+                      >
+                        <HistoryIcon />
+                      </Button>
                       <Button
                         aria-label="Close assistant chat"
                         className="size-9 rounded-full"
