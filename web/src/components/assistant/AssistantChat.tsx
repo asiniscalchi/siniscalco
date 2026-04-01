@@ -12,7 +12,10 @@ import {
   useRemoteThreadListRuntime,
   type ChatModelAdapter,
   type ThreadMessageLike,
+  type ToolCallMessagePart,
+  type ToolCallMessagePartProps,
 } from "@assistant-ui/react";
+import { MarkdownTextPrimitive } from "@assistant-ui/react-markdown";
 import type { ThreadHistoryAdapter } from "@assistant-ui/core";
 import { createAssistantStream } from "assistant-stream";
 
@@ -29,11 +32,16 @@ import {
   apiUpdateThreadStatus,
 } from "@/lib/threads-api";
 
-// ── Chat model adapter (unchanged) ────────────────────────────────────────────
+// ── Chat model adapter ────────────────────────────────────────────────────────
 
 type AssistantChatApiMessage = { role: string; content: string };
-type AssistantChatApiResponse = { message: string; model: string };
 type AssistantChatApiErrorResponse = { error?: string };
+
+type ChatStreamEvent =
+  | { type: "tool_call"; id: string; name: string; args: Record<string, unknown> }
+  | { type: "tool_result"; id: string; result: unknown }
+  | { type: "text"; text: string; model: string }
+  | { type: "error"; error: string };
 
 function extractMessageText(message: ThreadMessageLike): string {
   if (typeof message.content === "string") return message.content.trim();
@@ -50,33 +58,61 @@ function serializeMessages(messages: readonly ThreadMessageLike[]): AssistantCha
     .filter((m) => m.content.length > 0);
 }
 
-async function requestAssistantReply(
-  messages: readonly ThreadMessageLike[],
-  abortSignal: AbortSignal,
-): Promise<string> {
-  const response = await fetch(getAssistantChatApiUrl(), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages: serializeMessages(messages) }),
-    signal: abortSignal,
-  });
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as AssistantChatApiErrorResponse | null;
-    throw new Error(payload?.error || `assistant backend request failed with ${response.status}`);
-  }
-  const payload = (await response.json()) as AssistantChatApiResponse;
-  return payload.message;
-}
-
 const assistantModelAdapter: ChatModelAdapter = {
-  async run({ messages, abortSignal }) {
-    if (abortSignal.aborted) return { content: [] };
-    try {
-      const reply = await requestAssistantReply(messages, abortSignal);
-      return { content: [{ type: "text", text: reply }] };
-    } catch (error) {
-      if (abortSignal.aborted) return { content: [] };
-      throw error;
+  async *run({ messages, abortSignal }) {
+    if (abortSignal.aborted) return;
+
+    const response = await fetch(getAssistantChatApiUrl(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: serializeMessages(messages) }),
+      signal: abortSignal,
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as AssistantChatApiErrorResponse | null;
+      throw new Error(payload?.error ?? `assistant backend request failed with ${response.status}`);
+    }
+
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    const toolCalls: ToolCallMessagePart[] = [];
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const event = JSON.parse(line.slice(6)) as ChatStreamEvent;
+
+        if (event.type === "tool_call") {
+          toolCalls.push({
+            type: "tool-call",
+            toolCallId: event.id,
+            toolName: event.name,
+            args: event.args as ToolCallMessagePart["args"],
+            argsText: JSON.stringify(event.args),
+          });
+          yield { content: [...toolCalls] };
+        } else if (event.type === "tool_result") {
+          const idx = toolCalls.findIndex((t) => t.toolCallId === event.id);
+          if (idx >= 0) {
+            toolCalls[idx] = { ...toolCalls[idx], result: event.result };
+            yield { content: [...toolCalls] };
+          }
+        } else if (event.type === "text") {
+          yield { content: [...toolCalls, { type: "text" as const, text: event.text }] };
+        } else if (event.type === "error") {
+          throw new Error(event.error);
+        }
+      }
     }
   },
 };
@@ -209,6 +245,39 @@ function UserMessage() {
   );
 }
 
+function AssistantMessageText() {
+  return (
+    <MarkdownTextPrimitive
+      className="prose prose-sm max-w-none dark:prose-invert leading-6"
+      smooth={false}
+    />
+  );
+}
+
+function AssistantThinking() {
+  return (
+    <div className="flex items-center gap-0.5 py-1">
+      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:-0.3s]" />
+      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:-0.15s]" />
+      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce" />
+    </div>
+  );
+}
+
+function ToolCallDisplay({ toolName, result }: ToolCallMessagePartProps) {
+  const isPending = result === undefined;
+  return (
+    <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">
+      <span className="font-medium text-foreground">{toolName}</span>
+      {isPending ? (
+        <span className="italic">running…</span>
+      ) : (
+        <span className="text-green-600 dark:text-green-400">done</span>
+      )}
+    </div>
+  );
+}
+
 function AssistantMessage() {
   return (
     <MessagePrimitive.Root className="flex flex-col items-start gap-2">
@@ -216,7 +285,13 @@ function AssistantMessage() {
         Assistant
       </span>
       <div className="max-w-[85%] rounded-2xl rounded-bl-md border bg-background px-4 py-3 text-sm shadow-sm">
-        <MessagePrimitive.Parts components={{ Text: MessageText }} />
+        <MessagePrimitive.Parts
+          components={{
+            Empty: AssistantThinking,
+            Text: AssistantMessageText,
+            tools: { Fallback: ToolCallDisplay },
+          }}
+        />
       </div>
     </MessagePrimitive.Root>
   );

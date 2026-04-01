@@ -44,15 +44,14 @@ describe("AssistantPage", () => {
       if (String(url).includes("/assistant/threads")) {
         return threadsResponse();
       }
-      // Chat endpoint
+      // Chat endpoint — SSE stream
+      const body =
+        'data: {"type":"text","text":"The portfolio area is where the app aggregates account totals, allocations, holdings, and FX context.","model":"gpt-4o-mini"}\n\n';
       return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            message:
-              "The portfolio area is where the app aggregates account totals, allocations, holdings, and FX context.",
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
+        new Response(body, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        }),
       );
     });
 

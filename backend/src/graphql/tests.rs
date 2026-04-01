@@ -220,6 +220,38 @@ async fn send_json(app: Router, method: &str, path: &str, body: Value) -> (Statu
     (status, json)
 }
 
+/// Post to an SSE-streaming chat endpoint and collect all events as parsed JSON objects.
+/// Returns (HTTP status, events). For the 429 case the status is non-200 and events is empty.
+async fn post_chat_sse(app: Router, body: Value) -> (StatusCode, Vec<Value>) {
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/assistant/chat")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let status = response.status();
+    if !status.is_success() {
+        return (status, vec![]);
+    }
+
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let text = std::str::from_utf8(&bytes).unwrap_or("");
+    let events = text
+        .split("\n\n")
+        .flat_map(|chunk| chunk.lines())
+        .filter_map(|line| line.strip_prefix("data: "))
+        .filter_map(|data| serde_json::from_str(data).ok())
+        .collect();
+
+    (status, events)
+}
+
 async fn get_json(app: Router, path: &str) -> (StatusCode, Value) {
     let response = app
         .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
@@ -396,9 +428,8 @@ async fn assistant_chat_returns_db_backed_portfolio_summary() {
     .expect("balance upsert should succeed");
 
     let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
-    let (status, json) = post_json(
+    let (status, events) = post_chat_sse(
         app,
-        "/assistant/chat",
         json!({
             "messages": [
                 { "role": "user", "content": "What does my portfolio look like?" }
@@ -408,9 +439,13 @@ async fn assistant_chat_returns_db_backed_portfolio_summary() {
     .await;
 
     assert_eq!(status, StatusCode::OK);
-    let message = json["message"]
+    let text_event = events
+        .iter()
+        .find(|e| e["type"] == "text")
+        .expect("should have a text event");
+    let message = text_event["text"]
         .as_str()
-        .expect("assistant response should include a message");
+        .expect("text event should have text");
     assert!(message.contains("125.5 EUR"));
     assert!(message.contains("1 account"));
 }
@@ -419,19 +454,16 @@ async fn assistant_chat_returns_db_backed_portfolio_summary() {
 async fn assistant_chat_handles_empty_prompt_with_backend_status_summary() {
     let pool = test_pool().await;
     let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
-    let (status, json) = post_json(
-        app,
-        "/assistant/chat",
-        json!({
-            "messages": []
-        }),
-    )
-    .await;
+    let (status, events) = post_chat_sse(app, json!({ "messages": [] })).await;
 
     assert_eq!(status, StatusCode::OK);
-    let message = json["message"]
+    let text_event = events
+        .iter()
+        .find(|e| e["type"] == "text")
+        .expect("should have a text event");
+    let message = text_event["text"]
         .as_str()
-        .expect("assistant response should include a message");
+        .expect("text event should have text");
     assert!(message.contains("backend assistant is connected"));
     assert!(message.contains("0 account"));
 }
@@ -535,9 +567,8 @@ async fn assistant_models_selection_updates_in_memory_model_used_by_chat() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["selected_model"], "gpt-4.1-mini");
 
-    let (status, json) = post_json(
+    let (status, events) = post_chat_sse(
         app,
-        "/assistant/chat",
         json!({
             "messages": [
                 { "role": "user", "content": "How many accounts do I have?" }
@@ -547,7 +578,11 @@ async fn assistant_models_selection_updates_in_memory_model_used_by_chat() {
     .await;
 
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(json["model"], "gpt-4.1-mini");
+    let text_event = events
+        .iter()
+        .find(|e| e["type"] == "text")
+        .expect("should have a text event");
+    assert_eq!(text_event["model"], "gpt-4.1-mini");
 
     let recorded_requests = recorded_requests.lock().await;
     assert_eq!(recorded_requests[0]["model"], "gpt-4.1-mini");
@@ -638,9 +673,8 @@ async fn assistant_chat_surfaces_openai_failures_as_bad_gateway() {
         openai_chat_url,
         crate::assistant::openai_models_url().to_string(),
     );
-    let (status, json) = post_json(
+    let (status, events) = post_chat_sse(
         app,
-        "/assistant/chat",
         json!({
             "messages": [
                 { "role": "user", "content": "What does my portfolio look like?" }
@@ -649,10 +683,14 @@ async fn assistant_chat_surfaces_openai_failures_as_bad_gateway() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::BAD_GATEWAY);
-    let error = json["error"]
+    assert_eq!(status, StatusCode::OK);
+    let error_event = events
+        .iter()
+        .find(|e| e["type"] == "error")
+        .expect("should have an error event");
+    let error = error_event["error"]
         .as_str()
-        .expect("assistant error response should include a message");
+        .expect("error event should have an error message");
     assert!(error.contains("OpenAI 401 Unauthorized"));
     assert!(error.contains("Incorrect API key provided"));
 }
@@ -680,9 +718,8 @@ async fn assistant_chat_completes_tool_call_round_trip_against_openai() {
         openai_chat_url,
         crate::assistant::openai_models_url().to_string(),
     );
-    let (status, json) = post_json(
+    let (status, events) = post_chat_sse(
         app,
-        "/assistant/chat",
         json!({
             "messages": [
                 { "role": "user", "content": "How many accounts do I have?" }
@@ -692,8 +729,26 @@ async fn assistant_chat_completes_tool_call_round_trip_against_openai() {
     .await;
 
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(json["message"], "You have 1 account.");
-    assert_eq!(json["model"], "gpt-4o-mini");
+    let tool_call_event = events
+        .iter()
+        .find(|e| e["type"] == "tool_call")
+        .expect("should have a tool_call event");
+    assert_eq!(tool_call_event["name"], "list_accounts");
+    let tool_result_event = events
+        .iter()
+        .find(|e| e["type"] == "tool_result")
+        .expect("should have a tool_result event");
+    assert!(
+        tool_result_event["result"]
+            .to_string()
+            .contains("\"count\":1")
+    );
+    let text_event = events
+        .iter()
+        .find(|e| e["type"] == "text")
+        .expect("should have a text event");
+    assert_eq!(text_event["text"], "You have 1 account.");
+    assert_eq!(text_event["model"], "gpt-4o-mini");
 
     let recorded_requests = recorded_requests.lock().await;
     assert_eq!(recorded_requests.len(), 2);

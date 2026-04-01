@@ -1,3 +1,4 @@
+use std::convert::Infallible;
 use std::fmt;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -9,11 +10,16 @@ use axum::{
     Json,
     extract::State,
     http::{StatusCode, header},
-    response::IntoResponse,
+    response::{
+        IntoResponse,
+        sse::{Event, Sse},
+    },
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::SqlitePool;
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 
 use tokio::{
     sync::{RwLock, Semaphore},
@@ -120,14 +126,7 @@ enum AssistantError {
     Mcp(McpError),
 }
 
-impl AssistantError {
-    fn status_code(&self) -> StatusCode {
-        match self {
-            AssistantError::Storage(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            AssistantError::Api(_) | AssistantError::Mcp(_) => StatusCode::BAD_GATEWAY,
-        }
-    }
-}
+impl AssistantError {}
 
 impl fmt::Display for AssistantError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -360,67 +359,77 @@ async fn fetch_openai_model_ids(
 pub async fn chat(
     State(state): State<AppState>,
     Json(request): Json<AssistantChatRequest>,
-) -> Result<Json<AssistantChatResponse>, (StatusCode, Json<AssistantChatErrorResponse>)> {
-    let _permit = state.assistant_chat_semaphore.try_acquire().map_err(|_| {
-        (
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(AssistantChatErrorResponse {
-                error: "too many concurrent assistant requests".to_string(),
-            }),
-        )
-    })?;
+) -> impl IntoResponse {
+    let permit = match state.assistant_chat_semaphore.clone().try_acquire_owned() {
+        Ok(p) => p,
+        Err(_) => {
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(AssistantChatErrorResponse {
+                    error: "too many concurrent assistant requests".to_string(),
+                }),
+            )
+                .into_response();
+        }
+    };
 
+    let (tx, rx) = mpsc::channel(32);
+
+    tokio::spawn(async move {
+        let _permit = permit;
+        run_chat_streaming(state, request.messages, tx).await;
+    });
+
+    Sse::new(ReceiverStream::new(rx)).into_response()
+}
+
+async fn run_chat_streaming(
+    state: AppState,
+    messages: Vec<AssistantChatMessageRequest>,
+    tx: mpsc::Sender<Result<Event, Infallible>>,
+) {
     let selected_model = state.assistant_models.read().await.selected_model.clone();
     let openai_api_key = state
         .openai_api_key
         .as_deref()
         .map(str::trim)
-        .filter(|api_key| !api_key.is_empty());
+        .filter(|k| !k.is_empty())
+        .map(str::to_string);
 
-    let result = match (openai_api_key, selected_model.as_str()) {
+    match (openai_api_key.as_deref(), selected_model.as_str()) {
         (Some(api_key), model) if model != MOCK_BACKEND_MODEL => {
             info!(
-                message_count = request.messages.len(),
+                message_count = messages.len(),
                 model, "dispatching to OpenAI"
             );
-            openai_chat(&state, &request.messages, api_key, model).await
+            openai_chat_streaming(&state, &messages, api_key, model, &selected_model, &tx).await;
         }
-        (Some(_), _) => {
-            info!(
-                message_count = request.messages.len(),
-                model = %selected_model,
-                "OPENAI_API_KEY is configured but the assistant is using the in-memory mock model"
-            );
-            let prompt = latest_user_prompt(&request).unwrap_or_default();
-            build_mock_reply(&state, prompt)
-                .await
-                .map_err(AssistantError::from)
+        _ => {
+            if openai_api_key.is_some() {
+                info!(
+                    message_count = messages.len(),
+                    model = %selected_model,
+                    "OPENAI_API_KEY is configured but the assistant is using the in-memory mock model"
+                );
+            } else {
+                info!("OPENAI_API_KEY not set — using mock reply");
+            }
+            let prompt = latest_user_prompt_from(&messages).unwrap_or_default();
+            match build_mock_reply(&state, prompt).await {
+                Ok(text) => {
+                    send_sse_event(
+                        &tx,
+                        json!({"type": "text", "text": text, "model": selected_model}),
+                    )
+                    .await;
+                }
+                Err(e) => {
+                    error!(error = %e, "mock reply failed");
+                    send_sse_event(&tx, json!({"type": "error", "error": e.to_string()})).await;
+                }
+            }
         }
-        (None, _) => {
-            info!("OPENAI_API_KEY not set — using mock reply");
-            let prompt = latest_user_prompt(&request).unwrap_or_default();
-            build_mock_reply(&state, prompt)
-                .await
-                .map_err(AssistantError::from)
-        }
-    };
-
-    result
-        .map(|message| {
-            Json(AssistantChatResponse {
-                message,
-                model: selected_model,
-            })
-        })
-        .map_err(|error| {
-            error!(error = %error, "assistant chat failed");
-            (
-                error.status_code(),
-                Json(AssistantChatErrorResponse {
-                    error: format!("failed to build assistant response: {error}"),
-                }),
-            )
-        })
+    }
 }
 
 // ── OpenAI tool-calling ───────────────────────────────────────────────────────
@@ -696,12 +705,19 @@ async fn execute_tool(
     }
 }
 
-async fn openai_chat(
+async fn send_sse_event(tx: &mpsc::Sender<Result<Event, Infallible>>, data: Value) {
+    let event = Event::default().data(data.to_string());
+    let _ = tx.send(Ok(event)).await;
+}
+
+async fn openai_chat_streaming(
     state: &AppState,
     incoming: &[AssistantChatMessageRequest],
     api_key: &str,
     model: &str,
-) -> Result<String, AssistantError> {
+    selected_model: &str,
+    tx: &mpsc::Sender<Result<Event, Infallible>>,
+) {
     let mut messages: Vec<Value> = vec![json!({ "role": "system", "content": SYSTEM_PROMPT })];
 
     for msg in incoming {
@@ -716,9 +732,12 @@ async fn openai_chat(
                 max = MAX_MESSAGES_SIZE_BYTES,
                 "assistant message context exceeded maximum size"
             );
-            return Err(AssistantError::Api(
-                "message context exceeded maximum size".to_string(),
-            ));
+            send_sse_event(
+                tx,
+                json!({"type": "error", "error": "message context exceeded maximum size"}),
+            )
+            .await;
+            return;
         }
 
         let all_tools: Vec<Value> = {
@@ -739,14 +758,21 @@ async fn openai_chat(
             "tool_choice": "auto",
         });
 
-        let response = state
+        let response = match state
             .http_client
             .post(&state.openai_chat_url)
             .bearer_auth(api_key)
             .json(&body)
             .send()
             .await
-            .map_err(|e| AssistantError::Api(e.to_string()))?;
+        {
+            Ok(r) => r,
+            Err(e) => {
+                error!(error = %e, "OpenAI request failed");
+                send_sse_event(tx, json!({"type": "error", "error": format!("failed to build assistant response: api error: {e}")})).await;
+                return;
+            }
+        };
 
         let http_status = response.status();
         if !http_status.is_success() {
@@ -756,13 +782,18 @@ async fn openai_chat(
                 openai_response_body = %body,
                 "OpenAI returned a non-2xx response"
             );
-            return Err(AssistantError::Api(format!("OpenAI {http_status}: {body}")));
+            send_sse_event(tx, json!({"type": "error", "error": format!("failed to build assistant response: api error: OpenAI {http_status}: {body}")})).await;
+            return;
         }
 
-        let data: Value = response.json().await.map_err(|e| {
-            error!(error = %e, "failed to parse OpenAI response JSON");
-            AssistantError::Api(e.to_string())
-        })?;
+        let data: Value = match response.json().await {
+            Ok(v) => v,
+            Err(e) => {
+                error!(error = %e, "failed to parse OpenAI response JSON");
+                send_sse_event(tx, json!({"type": "error", "error": format!("failed to build assistant response: api error: {e}")})).await;
+                return;
+            }
+        };
 
         debug!(openai_response = %data, "received OpenAI response");
 
@@ -773,17 +804,35 @@ async fn openai_chat(
         info!(finish_reason, "OpenAI finish_reason");
 
         if finish_reason == "stop" {
-            return Ok(extract_message_text(&message["content"]));
+            let text = extract_message_text(&message["content"]);
+            send_sse_event(
+                tx,
+                json!({"type": "text", "text": text, "model": selected_model}),
+            )
+            .await;
+            return;
         }
 
         if finish_reason == "tool_calls" {
-            messages.push(normalize_assistant_tool_call_message(message)?);
+            let normalized = match normalize_assistant_tool_call_message(message) {
+                Ok(v) => v,
+                Err(e) => {
+                    error!(error = %e, "failed to normalize tool call message");
+                    send_sse_event(tx, json!({"type": "error", "error": format!("failed to build assistant response: {e}")})).await;
+                    return;
+                }
+            };
+            messages.push(normalized);
 
-            let tool_calls = message["tool_calls"]
-                .as_array()
-                .ok_or_else(|| AssistantError::Api("missing tool_calls array".to_string()))?;
+            let tool_calls = match message["tool_calls"].as_array() {
+                Some(v) => v.to_vec(),
+                None => {
+                    send_sse_event(tx, json!({"type": "error", "error": "failed to build assistant response: api error: missing tool_calls array"})).await;
+                    return;
+                }
+            };
 
-            for call in tool_calls {
+            for call in &tool_calls {
                 let id = call["id"].as_str().unwrap_or("").to_string();
                 let name = call["function"]["name"].as_str().unwrap_or("");
                 let args: Value = call["function"]["arguments"]
@@ -792,15 +841,34 @@ async fn openai_chat(
                     .unwrap_or(json!({}));
 
                 info!(tool = %name, "executing tool call");
+                send_sse_event(
+                    tx,
+                    json!({"type": "tool_call", "id": id, "name": name, "args": args}),
+                )
+                .await;
 
-                let result = execute_tool(&state.pool, state.mcp_client.as_deref(), name, &args)
-                    .await
-                    .map_err(|e| {
+                let result = match execute_tool(
+                    &state.pool,
+                    state.mcp_client.as_deref(),
+                    name,
+                    &args,
+                )
+                .await
+                {
+                    Ok(v) => v,
+                    Err(e) => {
                         error!(tool = %name, error = %e, "tool execution failed");
-                        e
-                    })?;
+                        send_sse_event(tx, json!({"type": "error", "error": format!("failed to build assistant response: {e}")})).await;
+                        return;
+                    }
+                };
 
                 debug!(tool = %name, result = %result, "tool result");
+                send_sse_event(
+                    tx,
+                    json!({"type": "tool_result", "id": id, "result": result}),
+                )
+                .await;
 
                 messages.push(json!({
                     "role": "tool",
@@ -813,18 +881,23 @@ async fn openai_chat(
         }
 
         warn!(finish_reason, "unexpected OpenAI finish_reason");
-        return Err(AssistantError::Api(format!(
-            "unexpected finish_reason: {finish_reason}"
-        )));
+        send_sse_event(
+            tx,
+            json!({"type": "error", "error": format!("failed to build assistant response: api error: unexpected finish_reason: {finish_reason}")}),
+        )
+        .await;
+        return;
     }
 
     warn!(
         max_rounds = MAX_TOOL_ROUNDS,
         "tool call loop exceeded max iterations"
     );
-    Err(AssistantError::Api(
-        "tool call loop exceeded max iterations".to_string(),
-    ))
+    send_sse_event(
+        tx,
+        json!({"type": "error", "error": "failed to build assistant response: api error: tool call loop exceeded max iterations"}),
+    )
+    .await;
 }
 
 fn extract_message_text(content: &Value) -> String {
@@ -888,9 +961,8 @@ fn normalize_assistant_tool_call_message(message: &Value) -> Result<Value, Assis
 
 // ── Mock fallback (no API key) ────────────────────────────────────────────────
 
-fn latest_user_prompt(request: &AssistantChatRequest) -> Option<&str> {
-    request
-        .messages
+fn latest_user_prompt_from(messages: &[AssistantChatMessageRequest]) -> Option<&str> {
+    messages
         .iter()
         .rev()
         .find(|message| message.role.eq_ignore_ascii_case("user"))
