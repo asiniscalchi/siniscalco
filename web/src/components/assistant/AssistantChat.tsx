@@ -13,6 +13,7 @@ import {
   type ChatModelAdapter,
   type ThreadMessageLike,
 } from "@assistant-ui/react";
+import { MarkdownTextPrimitive } from "@assistant-ui/react-markdown";
 import type { ThreadHistoryAdapter } from "@assistant-ui/core";
 import { createAssistantStream } from "assistant-stream";
 
@@ -209,6 +210,15 @@ function UserMessage() {
   );
 }
 
+function AssistantMessageText() {
+  return (
+    <MarkdownTextPrimitive
+      className="prose prose-sm max-w-none dark:prose-invert leading-6"
+      smooth={false}
+    />
+  );
+}
+
 function AssistantMessage() {
   return (
     <MessagePrimitive.Root className="flex flex-col items-start gap-2">
@@ -216,7 +226,7 @@ function AssistantMessage() {
         Assistant
       </span>
       <div className="max-w-[85%] rounded-2xl rounded-bl-md border bg-background px-4 py-3 text-sm shadow-sm">
-        <MessagePrimitive.Parts components={{ Text: MessageText }} />
+        <MessagePrimitive.Parts components={{ Text: AssistantMessageText }} />
       </div>
     </MessagePrimitive.Root>
   );
