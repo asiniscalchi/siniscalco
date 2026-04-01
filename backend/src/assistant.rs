@@ -22,6 +22,7 @@ use tokio::{
 use tracing::{debug, error, info, warn};
 
 use crate::current_utc_timestamp;
+use crate::mcp::{McpClient, McpError};
 use crate::storage::StorageError;
 use crate::{
     AppState, PRODUCT_BASE_CURRENCY, compact_decimal_output, format_decimal_amount,
@@ -116,13 +117,14 @@ pub type SharedAssistantChatSemaphore = Arc<Semaphore>;
 enum AssistantError {
     Storage(StorageError),
     Api(String),
+    Mcp(McpError),
 }
 
 impl AssistantError {
     fn status_code(&self) -> StatusCode {
         match self {
             AssistantError::Storage(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            AssistantError::Api(_) => StatusCode::BAD_GATEWAY,
+            AssistantError::Api(_) | AssistantError::Mcp(_) => StatusCode::BAD_GATEWAY,
         }
     }
 }
@@ -132,6 +134,7 @@ impl fmt::Display for AssistantError {
         match self {
             AssistantError::Storage(e) => write!(f, "storage error: {e}"),
             AssistantError::Api(msg) => write!(f, "api error: {msg}"),
+            AssistantError::Mcp(e) => write!(f, "mcp error: {e}"),
         }
     }
 }
@@ -139,6 +142,12 @@ impl fmt::Display for AssistantError {
 impl From<StorageError> for AssistantError {
     fn from(e: StorageError) -> Self {
         AssistantError::Storage(e)
+    }
+}
+
+impl From<McpError> for AssistantError {
+    fn from(e: McpError) -> Self {
+        AssistantError::Mcp(e)
     }
 }
 
@@ -517,7 +526,12 @@ fn tool_definitions() -> Value {
     ])
 }
 
-async fn execute_tool(pool: &sqlx::SqlitePool, name: &str) -> Result<Value, StorageError> {
+async fn execute_tool(
+    pool: &sqlx::SqlitePool,
+    mcp: Option<&McpClient>,
+    name: &str,
+    args: &Value,
+) -> Result<Value, AssistantError> {
     match name {
         "get_portfolio_summary" => {
             let portfolio = get_portfolio_summary(pool, PRODUCT_BASE_CURRENCY).await?;
@@ -671,7 +685,14 @@ async fn execute_tool(pool: &sqlx::SqlitePool, name: &str) -> Result<Value, Stor
             Ok(json!({ "count": items.len(), "transfers": items }))
         }
 
-        _ => Ok(json!({ "error": format!("unknown tool: {name}") })),
+        _ => {
+            if let Some(client) = mcp {
+                let text = client.call_tool(name, args.clone()).await?;
+                Ok(json!({ "result": text }))
+            } else {
+                Ok(json!({ "error": format!("unknown tool: {name}") }))
+            }
+        }
     }
 }
 
@@ -700,10 +721,21 @@ async fn openai_chat(
             ));
         }
 
+        let all_tools: Vec<Value> = {
+            let mut tools = tool_definitions()
+                .as_array()
+                .expect("tool_definitions returns an array")
+                .clone();
+            if let Some(mcp) = &state.mcp_client {
+                tools.extend(mcp.tools.iter().cloned());
+            }
+            tools
+        };
+
         let body = json!({
             "model": model,
             "messages": messages,
-            "tools": tool_definitions(),
+            "tools": all_tools,
             "tool_choice": "auto",
         });
 
@@ -754,13 +786,19 @@ async fn openai_chat(
             for call in tool_calls {
                 let id = call["id"].as_str().unwrap_or("").to_string();
                 let name = call["function"]["name"].as_str().unwrap_or("");
+                let args: Value = call["function"]["arguments"]
+                    .as_str()
+                    .and_then(|s| serde_json::from_str(s).ok())
+                    .unwrap_or(json!({}));
 
                 info!(tool = %name, "executing tool call");
 
-                let result = execute_tool(&state.pool, name).await.map_err(|e| {
-                    error!(tool = %name, error = %e, "tool execution failed");
-                    AssistantError::from(e)
-                })?;
+                let result = execute_tool(&state.pool, state.mcp_client.as_deref(), name, &args)
+                    .await
+                    .map_err(|e| {
+                        error!(tool = %name, error = %e, "tool execution failed");
+                        e
+                    })?;
 
                 debug!(tool = %name, result = %result, "tool result");
 

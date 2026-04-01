@@ -5,9 +5,10 @@ use if_addrs::get_if_addrs;
 use tracing::{error, info};
 
 use backend::{
-    AppState, AssetPriceRefreshConfig, Config, FxRefreshConfig, build_router_with_state,
-    connect_db_file, init_tracing, new_shared_fx_refresh_status, spawn_asset_price_refresh_task,
-    spawn_fx_refresh_task, spawn_portfolio_snapshot_task,
+    AppState, AssetPriceRefreshConfig, Config, FxRefreshConfig, SharedMcpClient,
+    build_router_with_state, connect_db_file, init_tracing, mcp::McpClient,
+    new_shared_fx_refresh_status, spawn_asset_price_refresh_task, spawn_fx_refresh_task,
+    spawn_portfolio_snapshot_task,
 };
 
 #[tokio::main]
@@ -44,6 +45,8 @@ async fn main() {
                 config.openai_api_key.as_deref(),
                 persisted_model.as_deref(),
             );
+            let mcp_client = spawn_mcp_client(config.searxng_url.as_deref()).await;
+
             let app = build_router_with_state(AppState {
                 pool: pool.clone(),
                 fx_refresh_status: fx_refresh_status.clone(),
@@ -54,6 +57,7 @@ async fn main() {
                 assistant_chat_semaphore: backend::assistant::new_assistant_chat_semaphore(),
                 openai_chat_url: backend::assistant::openai_chat_url().to_string(),
                 openai_models_url: backend::assistant::openai_models_url().to_string(),
+                mcp_client,
             });
             let address = SocketAddr::from(([0, 0, 0, 0], config.port));
 
@@ -89,6 +93,20 @@ async fn main() {
         Err(error) => {
             error!(error = %error, "failed to initialize backend database");
             std::process::exit(1);
+        }
+    }
+}
+
+async fn spawn_mcp_client(searxng_url: Option<&str>) -> Option<SharedMcpClient> {
+    let url = searxng_url?;
+    match McpClient::spawn(url).await {
+        Ok(client) => {
+            info!(searxng_url = url, "MCP SearXNG client started");
+            Some(std::sync::Arc::new(client))
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "failed to start MCP SearXNG client; web search will be unavailable");
+            None
         }
     }
 }
