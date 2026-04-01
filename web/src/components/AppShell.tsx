@@ -570,13 +570,6 @@ export function AppShell() {
                             </option>
                           )}
                         </select>
-                        <p className="text-xs text-muted-foreground">
-                          {assistantModels === null
-                            ? "Loading available models..."
-                            : assistantModels.openai_enabled
-                            ? `Active model: ${assistantModels.selected_model}`
-                            : "Backend mock assistant active"}
-                        </p>
                         {assistantModelsError || assistantModels?.refresh_error ? (
                           <p className="text-xs text-destructive">
                             {assistantModelsError || assistantModels?.refresh_error}
