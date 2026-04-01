@@ -537,7 +537,7 @@ export function AppShell() {
                   {/* Settings tab */}
                   {activeTab === "settings" && (
                     <div className="flex-1 overflow-y-auto px-5 py-5">
-                      <div className="max-w-sm space-y-6">
+                      <div className="space-y-6">
                         <div className="space-y-1.5">
                           <label
                             className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground"
