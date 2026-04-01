@@ -254,6 +254,16 @@ function AssistantMessageText() {
   );
 }
 
+function AssistantThinking() {
+  return (
+    <div className="flex items-center gap-0.5 py-1">
+      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:-0.3s]" />
+      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:-0.15s]" />
+      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce" />
+    </div>
+  );
+}
+
 function ToolCallDisplay({ toolName, result }: ToolCallMessagePartProps) {
   const isPending = result === undefined;
   return (
@@ -276,7 +286,11 @@ function AssistantMessage() {
       </span>
       <div className="max-w-[85%] rounded-2xl rounded-bl-md border bg-background px-4 py-3 text-sm shadow-sm">
         <MessagePrimitive.Parts
-          components={{ Text: AssistantMessageText, tools: { Fallback: ToolCallDisplay } }}
+          components={{
+            Empty: AssistantThinking,
+            Text: AssistantMessageText,
+            tools: { Fallback: ToolCallDisplay },
+          }}
         />
       </div>
     </MessagePrimitive.Root>
