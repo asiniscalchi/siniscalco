@@ -536,105 +536,103 @@ export function AppShell() {
 
                   {/* Settings tab */}
                   {activeTab === "settings" && (
-                    <div className="flex-1 overflow-y-auto px-5 py-5">
-                      <div className="space-y-6">
-                        <div className="space-y-1.5">
-                          <label
-                            className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground"
-                            htmlFor="assistant-model"
-                          >
-                            Model
-                          </label>
-                          <select
-                            aria-label="Assistant model"
-                            className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
-                            disabled={
-                              assistantModelsStatus === "loading" ||
-                              assistantModelsStatus === "saving" ||
-                              assistantModels === null
-                            }
-                            id="assistant-model"
-                            onChange={(event) =>
-                              void handleAssistantModelChange(event.target.value)
-                            }
-                            value={assistantModels?.selected_model ?? ""}
-                          >
-                            {assistantModels?.models.map((model) => (
-                              <option key={model} value={model}>
-                                {model}
-                              </option>
-                            )) ?? (
-                              <option value="">
-                                {assistantModelsStatus === "loading"
-                                  ? "Loading models..."
-                                  : "Models unavailable"}
-                              </option>
-                            )}
-                          </select>
-                          <p className="text-xs text-muted-foreground">
-                            {assistantModels === null
-                              ? "Loading available models..."
-                              : assistantModels.openai_enabled
-                              ? `Active model: ${assistantModels.selected_model}`
-                              : "Backend mock assistant active"}
+                    <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-5 py-5">
+                      <div className="space-y-1.5">
+                        <label
+                          className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground"
+                          htmlFor="assistant-model"
+                        >
+                          Model
+                        </label>
+                        <select
+                          aria-label="Assistant model"
+                          className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={
+                            assistantModelsStatus === "loading" ||
+                            assistantModelsStatus === "saving" ||
+                            assistantModels === null
+                          }
+                          id="assistant-model"
+                          onChange={(event) =>
+                            void handleAssistantModelChange(event.target.value)
+                          }
+                          value={assistantModels?.selected_model ?? ""}
+                        >
+                          {assistantModels?.models.map((model) => (
+                            <option key={model} value={model}>
+                              {model}
+                            </option>
+                          )) ?? (
+                            <option value="">
+                              {assistantModelsStatus === "loading"
+                                ? "Loading models..."
+                                : "Models unavailable"}
+                            </option>
+                          )}
+                        </select>
+                        <p className="text-xs text-muted-foreground">
+                          {assistantModels === null
+                            ? "Loading available models..."
+                            : assistantModels.openai_enabled
+                            ? `Active model: ${assistantModels.selected_model}`
+                            : "Backend mock assistant active"}
+                        </p>
+                        {assistantModelsError || assistantModels?.refresh_error ? (
+                          <p className="text-xs text-destructive">
+                            {assistantModelsError || assistantModels?.refresh_error}
                           </p>
-                          {assistantModelsError || assistantModels?.refresh_error ? (
-                            <p className="text-xs text-destructive">
-                              {assistantModelsError || assistantModels?.refresh_error}
-                            </p>
-                          ) : null}
-                        </div>
+                        ) : null}
+                      </div>
 
-                        <div className="space-y-1.5">
-                          <label
-                            className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground"
-                            htmlFor="assistant-system-prompt"
-                          >
-                            System prompt
-                          </label>
-                          <textarea
-                            className="flex min-h-[8rem] w-full resize-y rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
+                      <div className="flex flex-1 flex-col gap-1.5">
+                        <label
+                          className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground"
+                          htmlFor="assistant-system-prompt"
+                        >
+                          System prompt
+                        </label>
+                        <textarea
+                          className="flex-1 w-full resize-none rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={
+                            systemPromptStatus === "loading" ||
+                            systemPromptStatus === "saving"
+                          }
+                          id="assistant-system-prompt"
+                          onChange={(e) => setSystemPromptDraft(e.target.value)}
+                          value={systemPromptStatus === "loading" ? "Loading..." : systemPromptDraft}
+                        />
+                        <div className="flex items-center gap-2">
+                          <Button
                             disabled={
                               systemPromptStatus === "loading" ||
-                              systemPromptStatus === "saving"
+                              systemPromptStatus === "saving" ||
+                              !systemPromptDraft.trim() ||
+                              systemPromptDraft === systemPrompt?.prompt
                             }
-                            id="assistant-system-prompt"
-                            onChange={(e) => setSystemPromptDraft(e.target.value)}
-                            value={systemPromptStatus === "loading" ? "Loading..." : systemPromptDraft}
-                          />
-                          <div className="flex items-center gap-2">
-                            <Button
-                              disabled={
-                                systemPromptStatus === "loading" ||
-                                systemPromptStatus === "saving" ||
-                                !systemPromptDraft.trim() ||
-                                systemPromptDraft === systemPrompt?.prompt
-                              }
-                              onClick={() => void handleSaveSystemPrompt()}
-                              size="sm"
-                              type="button"
-                              variant="default"
-                            >
-                              {systemPromptStatus === "saving" ? "Saving..." : "Save"}
-                            </Button>
-                            <Button
-                              disabled={
-                                systemPromptStatus === "loading" ||
-                                systemPromptStatus === "saving" ||
-                                systemPrompt?.is_default === true
-                              }
-                              onClick={() => void handleResetSystemPrompt()}
-                              size="sm"
-                              type="button"
-                              variant="outline"
-                            >
-                              Reset to default
-                            </Button>
-                          </div>
-                          {systemPromptError ? (
-                            <p className="text-xs text-destructive">{systemPromptError}</p>
-                          ) : null}
+                            onClick={() => void handleSaveSystemPrompt()}
+                            size="sm"
+                            type="button"
+                            variant="default"
+                          >
+                            {systemPromptStatus === "saving" ? "Saving..." : "Save"}
+                          </Button>
+                          <Button
+                            disabled={
+                              systemPromptStatus === "loading" ||
+                              systemPromptStatus === "saving" ||
+                              systemPrompt?.is_default === true
+                            }
+                            onClick={() => void handleResetSystemPrompt()}
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                          >
+                            Reset to default
+                          </Button>
                         </div>
+                        {systemPromptError ? (
+                          <p className="text-xs text-destructive">{systemPromptError}</p>
+                        ) : null}
                       </div>
                     </div>
                   )}
