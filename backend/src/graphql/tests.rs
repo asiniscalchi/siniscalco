@@ -117,6 +117,7 @@ fn build_app_with_fx_status(
         assistant_chat_semaphore: new_assistant_chat_semaphore(),
         openai_chat_url: crate::assistant::openai_chat_url().to_string(),
         openai_models_url: crate::assistant::openai_models_url().to_string(),
+        mcp_client: None,
     })
 }
 
@@ -131,6 +132,7 @@ fn build_app_with_price_config(pool: sqlx::SqlitePool, config: AssetPriceRefresh
         assistant_chat_semaphore: new_assistant_chat_semaphore(),
         openai_chat_url: crate::assistant::openai_chat_url().to_string(),
         openai_models_url: crate::assistant::openai_models_url().to_string(),
+        mcp_client: None,
     })
 }
 
@@ -166,6 +168,7 @@ fn build_app_with_openai_registry(
         assistant_chat_semaphore: new_assistant_chat_semaphore(),
         openai_chat_url,
         openai_models_url,
+        mcp_client: None,
     })
 }
 
@@ -729,6 +732,7 @@ async fn assistant_chat_returns_too_many_requests_when_semaphore_is_exhausted() 
         assistant_chat_semaphore: exhausted_semaphore,
         openai_chat_url: crate::assistant::openai_chat_url().to_string(),
         openai_models_url: crate::assistant::openai_models_url().to_string(),
+        mcp_client: None,
     });
     let (status, json) = post_json(
         app,

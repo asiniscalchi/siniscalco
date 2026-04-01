@@ -148,6 +148,10 @@ pub struct Config {
     /// OpenAI API key (enables the AI assistant chat endpoint)
     #[arg(long, env = "OPENAI_API_KEY")]
     pub openai_api_key: Option<String>,
+
+    /// SearXNG instance URL (enables web search via MCP for the AI assistant)
+    #[arg(long, env = "SEARXNG_URL")]
+    pub searxng_url: Option<String>,
 }
 
 impl Config {
