@@ -24,3 +24,11 @@ pub async fn set_app_setting(
     .await?;
     Ok(())
 }
+
+pub async fn delete_app_setting(pool: &SqlitePool, key: &str) -> Result<(), StorageError> {
+    sqlx::query("DELETE FROM app_settings WHERE key = ?")
+        .bind(key)
+        .execute(pool)
+        .await?;
+    Ok(())
+}

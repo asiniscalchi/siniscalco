@@ -13,6 +13,7 @@ use super::types::{AssistantModelRefreshError, AssistantModelsResponse, OpenAiMo
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 pub const SETTING_SELECTED_MODEL: &str = "assistant.selected_model";
+pub const SETTING_SYSTEM_PROMPT: &str = "assistant.system_prompt";
 pub const DEFAULT_OPENAI_MODEL: &str = "gpt-4o-mini";
 pub const MOCK_BACKEND_MODEL: &str = "mock-backend";
 pub const MAX_CONCURRENT_CHAT_REQUESTS: usize = 5;

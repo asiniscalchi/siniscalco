@@ -17,11 +17,14 @@ use tracing::{error, info};
 use crate::AppState;
 
 use super::mock::{build_mock_reply, latest_user_prompt_from};
+use super::model_registry::SETTING_SYSTEM_PROMPT;
 use super::model_registry::{MOCK_BACKEND_MODEL, SETTING_SELECTED_MODEL};
+use super::openai_client::DEFAULT_SYSTEM_PROMPT;
 use super::openai_client::{openai_chat_streaming, send_sse_event};
 use super::types::{
     AssistantChatErrorResponse, AssistantChatMessageRequest, AssistantChatRequest,
-    AssistantModelSelectionRequest, AssistantModelsResponse,
+    AssistantModelSelectionRequest, AssistantModelsResponse, SystemPromptResponse,
+    UpdateSystemPromptRequest,
 };
 
 pub async fn models(State(state): State<AppState>) -> impl IntoResponse {
@@ -98,6 +101,83 @@ pub async fn chat(
     });
 
     Sse::new(ReceiverStream::new(rx)).into_response()
+}
+
+pub async fn get_system_prompt(
+    State(state): State<AppState>,
+) -> Result<Json<SystemPromptResponse>, (StatusCode, Json<AssistantChatErrorResponse>)> {
+    match crate::storage::settings::get_app_setting(&state.pool, SETTING_SYSTEM_PROMPT).await {
+        Ok(Some(prompt)) => Ok(Json(SystemPromptResponse {
+            prompt,
+            is_default: false,
+        })),
+        Ok(None) => Ok(Json(SystemPromptResponse {
+            prompt: DEFAULT_SYSTEM_PROMPT.to_string(),
+            is_default: true,
+        })),
+        Err(error) => {
+            tracing::warn!(error = %error, "failed to load system prompt");
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(AssistantChatErrorResponse {
+                    error: "failed to load system prompt".to_string(),
+                }),
+            ))
+        }
+    }
+}
+
+pub async fn update_system_prompt(
+    State(state): State<AppState>,
+    Json(request): Json<UpdateSystemPromptRequest>,
+) -> Result<Json<SystemPromptResponse>, (StatusCode, Json<AssistantChatErrorResponse>)> {
+    let prompt = request.prompt.trim().to_string();
+    if prompt.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(AssistantChatErrorResponse {
+                error: "system prompt cannot be empty".to_string(),
+            }),
+        ));
+    }
+
+    if let Err(error) =
+        crate::storage::settings::set_app_setting(&state.pool, SETTING_SYSTEM_PROMPT, &prompt).await
+    {
+        tracing::warn!(error = %error, "failed to persist system prompt");
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(AssistantChatErrorResponse {
+                error: "failed to save system prompt".to_string(),
+            }),
+        ));
+    }
+
+    Ok(Json(SystemPromptResponse {
+        prompt,
+        is_default: false,
+    }))
+}
+
+pub async fn delete_system_prompt(
+    State(state): State<AppState>,
+) -> Result<Json<SystemPromptResponse>, (StatusCode, Json<AssistantChatErrorResponse>)> {
+    if let Err(error) =
+        crate::storage::settings::delete_app_setting(&state.pool, SETTING_SYSTEM_PROMPT).await
+    {
+        tracing::warn!(error = %error, "failed to delete system prompt");
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(AssistantChatErrorResponse {
+                error: "failed to reset system prompt".to_string(),
+            }),
+        ));
+    }
+
+    Ok(Json(SystemPromptResponse {
+        prompt: DEFAULT_SYSTEM_PROMPT.to_string(),
+        is_default: true,
+    }))
 }
 
 async fn run_chat_streaming(

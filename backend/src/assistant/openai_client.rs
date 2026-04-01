@@ -17,7 +17,7 @@ const OPENAI_CHAT_URL: &str = "https://api.openai.com/v1/chat/completions";
 const MAX_TOOL_ROUNDS: usize = 5;
 const MAX_MESSAGES_SIZE_BYTES: usize = 256 * 1024;
 
-const SYSTEM_PROMPT: &str = "\
+pub const DEFAULT_SYSTEM_PROMPT: &str = "\
 You are a helpful portfolio assistant for the Siniscalco app. \
 The app tracks investment accounts, assets, transactions, and fund transfers. \
 Use the available tools to look up live data before answering. \
@@ -44,7 +44,16 @@ pub async fn openai_chat_streaming(
     selected_model: &str,
     tx: &mpsc::Sender<Result<Event, Infallible>>,
 ) {
-    let mut messages: Vec<Value> = vec![json!({ "role": "system", "content": SYSTEM_PROMPT })];
+    let system_prompt = crate::storage::settings::get_app_setting(
+        &state.pool,
+        super::model_registry::SETTING_SYSTEM_PROMPT,
+    )
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or_else(|| DEFAULT_SYSTEM_PROMPT.to_string());
+
+    let mut messages: Vec<Value> = vec![json!({ "role": "system", "content": system_prompt })];
 
     for msg in incoming {
         messages.push(json!({ "role": msg.role, "content": msg.content }));
