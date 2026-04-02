@@ -1,10 +1,11 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { gql } from "@apollo/client/core";
 import { useMutation } from "@apollo/client/react";
 
 import { Button } from "@/components/ui/button";
 import { extractGqlErrorMessage } from "@/lib/gql";
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 
 const CREATE_TRANSACTION_MUTATION = gql`
   mutation CreateTransaction($input: TransactionInput!) {
@@ -108,16 +109,7 @@ export function TransactionFormModal({
   const [updateTransaction, { loading: updating }] = useMutation(UPDATE_TRANSACTION_MUTATION);
   const isSubmitting = creating || updating;
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [open]);
+  useBodyScrollLock(open);
 
   if (!open) {
     return null;
