@@ -1,7 +1,7 @@
 use reqwest::Client;
 use serde::Deserialize;
 
-use crate::{AssetUnitPrice, Currency, current_utc_timestamp_iso8601};
+use crate::{AssetUnitPrice, Currency, current_utc_timestamp};
 
 use super::super::{AssetPriceRefreshError, AssetQuote};
 use super::{fetch_json, normalize_provider_datetime};
@@ -80,7 +80,7 @@ pub async fn fetch_twelve_data_quote(
 
     let as_of = match payload.datetime {
         Some(datetime) => normalize_provider_datetime(datetime)?,
-        None => current_utc_timestamp_iso8601()?,
+        None => current_utc_timestamp()?,
     };
 
     Ok(AssetQuote {

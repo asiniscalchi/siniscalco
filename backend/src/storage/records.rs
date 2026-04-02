@@ -25,10 +25,6 @@ pub const UTC_ISO8601_TIMESTAMP_FORMAT: &[FormatItem<'static>] =
     format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]Z");
 
 pub fn current_utc_timestamp() -> Result<String, StorageError> {
-    current_utc_timestamp_iso8601()
-}
-
-pub fn current_utc_timestamp_iso8601() -> Result<String, StorageError> {
     OffsetDateTime::now_utc()
         .format(UTC_ISO8601_TIMESTAMP_FORMAT)
         .map_err(|_| StorageError::Validation("failed to generate UTC timestamp"))

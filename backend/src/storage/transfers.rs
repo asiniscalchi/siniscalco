@@ -3,7 +3,7 @@ use sqlx::{Row, SqlitePool, sqlite::SqliteConnection};
 use crate::format_decimal_amount;
 use crate::storage::records::*;
 use crate::storage::{
-    AccountId, Amount, Currency, StorageError, TradeDate, TransferId, current_utc_timestamp_iso8601,
+    AccountId, Amount, Currency, StorageError, TradeDate, TransferId, current_utc_timestamp,
 };
 
 pub async fn create_transfer(
@@ -17,7 +17,7 @@ pub async fn create_transfer(
     }
 
     let mut tx = pool.begin().await?;
-    let timestamp = current_utc_timestamp_iso8601()?;
+    let timestamp = current_utc_timestamp()?;
 
     // Debit the source account
     let from_balance =
@@ -101,7 +101,7 @@ pub async fn delete_transfer(
     transfer_id: TransferId,
 ) -> Result<(), StorageError> {
     let mut tx = pool.begin().await?;
-    let timestamp = current_utc_timestamp_iso8601()?;
+    let timestamp = current_utc_timestamp()?;
 
     let row = sqlx::query(
         r#"

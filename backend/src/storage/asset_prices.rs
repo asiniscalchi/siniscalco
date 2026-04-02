@@ -1,13 +1,13 @@
 use sqlx::SqlitePool;
 
-use crate::storage::records::{UpsertAssetPriceInput, current_utc_timestamp_iso8601};
+use crate::storage::records::{UpsertAssetPriceInput, current_utc_timestamp};
 use crate::storage::{StorageError, UpsertOutcome};
 
 pub async fn upsert_asset_price(
     pool: &SqlitePool,
     input: UpsertAssetPriceInput,
 ) -> Result<UpsertOutcome, StorageError> {
-    let updated_at = current_utc_timestamp_iso8601()?;
+    let updated_at = current_utc_timestamp()?;
     let mut transaction = pool.begin().await?;
 
     let existed = sqlx::query_scalar::<_, i64>(

@@ -69,7 +69,7 @@ pub async fn fetch_marketstack_quote(
 
     let as_of = match entry.date.clone() {
         Some(date) => normalize_provider_datetime(date)?,
-        None => crate::current_utc_timestamp_iso8601()?,
+        None => crate::current_utc_timestamp()?,
     };
 
     Ok(AssetQuote {

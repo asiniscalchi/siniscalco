@@ -1,7 +1,7 @@
 use reqwest::Client;
 use serde::Deserialize;
 
-use crate::{AssetUnitPrice, Currency, current_utc_timestamp_iso8601};
+use crate::{AssetUnitPrice, Currency, current_utc_timestamp};
 
 use super::super::{AssetPriceRefreshError, AssetQuote};
 use super::{fetch_json, unix_timestamp_to_rfc3339};
@@ -37,7 +37,7 @@ pub async fn fetch_coingecko_quote(
 
     let as_of = match coin_data.last_updated_at {
         Some(ts) => unix_timestamp_to_rfc3339(ts)?,
-        None => current_utc_timestamp_iso8601()?,
+        None => current_utc_timestamp()?,
     };
 
     Ok(AssetQuote {

@@ -3,14 +3,14 @@ use sqlx::{Row, SqlitePool};
 use crate::storage::records::*;
 use crate::storage::{
     AssetId, AssetName, AssetQuantity, AssetSymbol, AssetType, AssetUnitPrice, Currency,
-    StorageError, current_utc_timestamp_iso8601,
+    StorageError, current_utc_timestamp,
 };
 
 pub async fn create_asset(
     pool: &SqlitePool,
     input: CreateAssetInput,
 ) -> Result<AssetId, StorageError> {
-    let timestamp = current_utc_timestamp_iso8601()?;
+    let timestamp = current_utc_timestamp()?;
     let result = sqlx::query(
         r#"
         INSERT INTO assets (symbol, name, asset_type, quote_symbol, isin, created_at, updated_at)
@@ -144,7 +144,7 @@ pub async fn update_asset(
     asset_id: AssetId,
     input: UpdateAssetInput,
 ) -> Result<AssetRecord, StorageError> {
-    let timestamp = current_utc_timestamp_iso8601()?;
+    let timestamp = current_utc_timestamp()?;
     let result = sqlx::query(
         r#"
         UPDATE assets
