@@ -321,7 +321,7 @@ pub struct PortfolioAllocationSlice {
 
 #[derive(SimpleObject)]
 pub struct PortfolioHolding {
-    pub asset_id: i64,
+    pub asset_id: Option<i64>,
     pub symbol: String,
     pub name: String,
     pub value: String,
