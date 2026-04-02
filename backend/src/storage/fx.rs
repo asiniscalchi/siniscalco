@@ -237,3 +237,16 @@ pub(crate) async fn get_direct_fx_rate(
     rate.map(|value| FxRate::from_scaled_i64(value).map(|rate| rate.as_decimal()))
         .transpose()
 }
+
+/// Returns `Some(Decimal::ONE)` when `from_currency == to_currency`,
+/// otherwise delegates to `get_direct_fx_rate`.
+pub(crate) async fn get_fx_rate_or_one(
+    pool: &SqlitePool,
+    from_currency: Currency,
+    to_currency: Currency,
+) -> Result<Option<Decimal>, StorageError> {
+    if from_currency == to_currency {
+        return Ok(Some(Decimal::ONE));
+    }
+    get_direct_fx_rate(pool, from_currency, to_currency).await
+}

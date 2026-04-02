@@ -5,7 +5,7 @@ use sqlx::SqlitePool;
 
 use crate::format_decimal_amount;
 use crate::storage::balances::list_account_balances;
-use crate::storage::fx::get_direct_fx_rate;
+use crate::storage::fx::{get_direct_fx_rate, get_fx_rate_or_one};
 use crate::storage::records::*;
 use crate::storage::{
     AccountSummaryStatus, Amount, AssetId, AssetRecord, AssetType, Currency, StorageError,
@@ -94,11 +94,7 @@ pub async fn get_portfolio_summary(
     // Now calculate converted amounts for each currency in the summary
     let mut total_from_currency_breakdown = Decimal::ZERO;
     for cash_record in &mut cash_by_currency {
-        let rate = if cash_record.currency == display_currency {
-            Some(Decimal::ONE)
-        } else {
-            get_direct_fx_rate(pool, cash_record.currency, display_currency).await?
-        };
+        let rate = get_fx_rate_or_one(pool, cash_record.currency, display_currency).await?;
 
         let converted = rate.map(|r| parse_decimal_amount(cash_record.amount.as_decimal() * r));
         if let Some(amount) = &converted {
@@ -215,11 +211,7 @@ async fn compute_allocation_totals(
         // Cash balances → "Cash" slice
         let balances = list_account_balances(pool, account.id).await?;
         for balance in &balances {
-            let rate = if balance.currency == display_currency {
-                Some(Decimal::ONE)
-            } else {
-                get_direct_fx_rate(pool, balance.currency, display_currency).await?
-            };
+            let rate = get_fx_rate_or_one(pool, balance.currency, display_currency).await?;
             match rate {
                 Some(r) => {
                     *class_totals.entry("Cash").or_insert(Decimal::ZERO) +=
@@ -253,11 +245,7 @@ async fn compute_allocation_totals(
 
             let position_value = position.quantity.as_decimal() * price.as_decimal();
 
-            let rate = if price_currency == display_currency {
-                Some(Decimal::ONE)
-            } else {
-                get_direct_fx_rate(pool, price_currency, display_currency).await?
-            };
+            let rate = get_fx_rate_or_one(pool, price_currency, display_currency).await?;
 
             match rate {
                 Some(r) => {
@@ -300,11 +288,7 @@ async fn compute_top_holdings(
             continue;
         }
 
-        let rate = if cash.currency == display_currency {
-            Some(Decimal::ONE)
-        } else {
-            get_direct_fx_rate(pool, cash.currency, display_currency).await?
-        };
+        let rate = get_fx_rate_or_one(pool, cash.currency, display_currency).await?;
 
         let converted_value = match rate {
             Some(r) => cash.amount.as_decimal() * r,
@@ -350,11 +334,7 @@ async fn compute_top_holdings(
 
             let position_value = position.quantity.as_decimal() * price.as_decimal();
 
-            let rate = if price_currency == display_currency {
-                Some(Decimal::ONE)
-            } else {
-                get_direct_fx_rate(pool, price_currency, display_currency).await?
-            };
+            let rate = get_fx_rate_or_one(pool, price_currency, display_currency).await?;
 
             let converted_value = match rate {
                 Some(r) => position_value * r,
