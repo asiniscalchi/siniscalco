@@ -4,7 +4,7 @@ use serde::Deserialize;
 use crate::{AssetUnitPrice, Currency, current_utc_timestamp_iso8601};
 
 use super::super::{AssetPriceRefreshError, AssetQuote};
-use super::unix_timestamp_to_rfc3339;
+use super::{fetch_json, unix_timestamp_to_rfc3339};
 
 #[derive(Debug, Deserialize)]
 struct CoinGeckoPrice {
@@ -18,32 +18,13 @@ pub async fn fetch_coingecko_quote(
     coin_id: &str,
 ) -> Result<AssetQuote, AssetPriceRefreshError> {
     let url = format!("{}/simple/price", base_url.trim_end_matches('/'));
-    let response = client
-        .get(url)
-        .query(&[
+    let payload =
+        fetch_json::<std::collections::BTreeMap<String, CoinGeckoPrice>>(client.get(url).query(&[
             ("ids", coin_id),
             ("vs_currencies", "usd"),
             ("include_last_updated_at", "true"),
-        ])
-        .send()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
-
-    if !response.status().is_success() {
-        return Err(AssetPriceRefreshError::Provider(format!(
-            "asset price refresh failed: provider returned status {}",
-            response.status()
-        )));
-    }
-
-    let payload = response
-        .json::<std::collections::BTreeMap<String, CoinGeckoPrice>>()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
+        ]))
+        .await?;
 
     let coin_data = payload.get(coin_id).ok_or_else(|| {
         AssetPriceRefreshError::Provider(format!(

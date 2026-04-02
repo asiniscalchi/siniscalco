@@ -4,7 +4,7 @@ use serde::Deserialize;
 use crate::{AssetUnitPrice, Currency};
 
 use super::super::{AssetPriceRefreshError, AssetQuote};
-use super::normalize_provider_datetime;
+use super::{fetch_json, normalize_provider_datetime};
 
 #[derive(Debug, Deserialize)]
 struct MarketstackEntry {
@@ -47,28 +47,12 @@ pub async fn fetch_marketstack_quote(
     symbol: &str,
 ) -> Result<AssetQuote, AssetPriceRefreshError> {
     let url = format!("{}/v1/eod/latest", base_url.trim_end_matches('/'));
-    let response = client
-        .get(url)
-        .query(&[("symbols", symbol), ("access_key", api_key)])
-        .send()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
-
-    if !response.status().is_success() {
-        return Err(AssetPriceRefreshError::Provider(format!(
-            "asset price refresh failed: provider returned status {}",
-            response.status()
-        )));
-    }
-
-    let payload = response
-        .json::<MarketstackResponse>()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
+    let payload = fetch_json::<MarketstackResponse>(
+        client
+            .get(url)
+            .query(&[("symbols", symbol), ("access_key", api_key)]),
+    )
+    .await?;
 
     let entry = payload
         .data

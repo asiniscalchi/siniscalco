@@ -4,7 +4,7 @@ use serde::Deserialize;
 use crate::{AssetUnitPrice, Currency};
 
 use super::super::{AssetPriceRefreshError, AssetQuote};
-use super::unix_timestamp_to_rfc3339;
+use super::{fetch_json, unix_timestamp_to_rfc3339};
 
 #[derive(Debug, Deserialize)]
 struct PolygonAgg {
@@ -51,28 +51,9 @@ pub async fn fetch_polygon_quote(
         base_url.trim_end_matches('/'),
         symbol
     );
-    let response = client
-        .get(url)
-        .query(&[("apiKey", api_key)])
-        .send()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
-
-    if !response.status().is_success() {
-        return Err(AssetPriceRefreshError::Provider(format!(
-            "asset price refresh failed: provider returned status {}",
-            response.status()
-        )));
-    }
-
-    let payload = response
-        .json::<PolygonPrevCloseResponse>()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
+    let payload =
+        fetch_json::<PolygonPrevCloseResponse>(client.get(url).query(&[("apiKey", api_key)]))
+            .await?;
 
     if payload.status.as_deref() == Some("ERROR") {
         return Err(AssetPriceRefreshError::Provider(
