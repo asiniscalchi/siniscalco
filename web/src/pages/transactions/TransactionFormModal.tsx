@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { gql } from "@apollo/client/core";
 import { useMutation } from "@apollo/client/react";
 
+import { FormField } from "@/components/FormField";
 import { ModalDialog } from "@/components/ModalDialog";
 import { Button } from "@/components/ui/button";
 import { extractGqlErrorMessage } from "@/lib/gql";
@@ -169,13 +170,7 @@ export function TransactionFormModal({
     >
       <form className="flex flex-1 flex-col overflow-hidden" onSubmit={handleSubmit}>
           <div className="grid flex-1 min-h-0 gap-5 overflow-y-auto px-6 py-6 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <label
-                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                htmlFor="asset-select"
-              >
-                Asset *
-              </label>
+            <FormField htmlFor="asset-select" label="Asset *">
               <select
                 required
                 className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
@@ -191,14 +186,8 @@ export function TransactionFormModal({
                   </option>
                 ))}
               </select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label
-                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                htmlFor="type-select"
-              >
-                Type *
-              </label>
+            </FormField>
+            <FormField htmlFor="type-select" label="Type *">
               <select
                 required
                 className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
@@ -211,14 +200,8 @@ export function TransactionFormModal({
                 <option value="BUY">BUY</option>
                 <option value="SELL">SELL</option>
               </select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label
-                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                htmlFor="trade-date-input"
-              >
-                Trade Date *
-              </label>
+            </FormField>
+            <FormField htmlFor="trade-date-input" label="Trade Date *">
               <input
                 required
                 className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
@@ -227,14 +210,8 @@ export function TransactionFormModal({
                 type="date"
                 value={formState.tradeDate}
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label
-                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                htmlFor="quantity-input"
-              >
-                Quantity *
-              </label>
+            </FormField>
+            <FormField htmlFor="quantity-input" label="Quantity *">
               <input
                 required
                 className="rounded-md border bg-background px-3 py-2 text-sm font-mono shadow-sm"
@@ -246,14 +223,8 @@ export function TransactionFormModal({
                 type="number"
                 value={formState.quantity}
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label
-                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                htmlFor="price-input"
-              >
-                Unit Price *
-              </label>
+            </FormField>
+            <FormField htmlFor="price-input" label="Unit Price *">
               <input
                 required
                 className="rounded-md border bg-background px-3 py-2 text-sm font-mono shadow-sm"
@@ -265,14 +236,8 @@ export function TransactionFormModal({
                 type="number"
                 value={formState.unitPrice}
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label
-                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                htmlFor="currency-input"
-              >
-                Currency *
-              </label>
+            </FormField>
+            <FormField htmlFor="currency-input" label="Currency *">
               <input
                 required
                 className="rounded-md border bg-background px-3 py-2 text-sm font-mono uppercase shadow-sm"
@@ -283,14 +248,8 @@ export function TransactionFormModal({
                 type="text"
                 value={formState.currency}
               />
-            </div>
-            <div className="flex flex-col gap-1.5 sm:col-span-2">
-              <label
-                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                htmlFor="notes-input"
-              >
-                Notes
-              </label>
+            </FormField>
+            <FormField className="sm:col-span-2" htmlFor="notes-input" label="Notes">
               <input
                 className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
                 id="notes-input"
@@ -299,7 +258,7 @@ export function TransactionFormModal({
                 type="text"
                 value={formState.notes}
               />
-            </div>
+            </FormField>
             {submitError && (
               <div className="col-span-full rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                 {submitError}
