@@ -75,7 +75,7 @@ impl MutationRoot {
         let account = update_account(
             pool,
             account_id,
-            crate::UpdateAccountInput {
+            crate::CreateAccountInput {
                 name,
                 account_type,
                 base_currency,
@@ -188,7 +188,7 @@ impl MutationRoot {
         update_asset(
             pool,
             asset_id,
-            crate::UpdateAssetInput {
+            crate::CreateAssetInput {
                 symbol: storage_input.symbol,
                 name: storage_input.name,
                 asset_type: storage_input.asset_type,
@@ -247,7 +247,7 @@ impl MutationRoot {
         let storage_input = parse_transaction_input(input)?;
         ensure_account_exists(pool, storage_input.account_id).await?;
         ensure_asset_exists(pool, storage_input.asset_id).await?;
-        let update_input = crate::UpdateAssetTransactionInput {
+        let update_input = crate::CreateAssetTransactionInput {
             account_id: storage_input.account_id,
             asset_id: storage_input.asset_id,
             transaction_type: storage_input.transaction_type,

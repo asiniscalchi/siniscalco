@@ -40,12 +40,6 @@ pub struct CreateAccountInput {
     pub base_currency: Currency,
 }
 
-pub struct UpdateAccountInput {
-    pub name: AccountName,
-    pub account_type: AccountType,
-    pub base_currency: Currency,
-}
-
 pub struct CreateAssetInput {
     pub symbol: AssetSymbol,
     pub name: AssetName,
@@ -54,26 +48,7 @@ pub struct CreateAssetInput {
     pub isin: Option<String>,
 }
 
-pub struct UpdateAssetInput {
-    pub symbol: AssetSymbol,
-    pub name: AssetName,
-    pub asset_type: AssetType,
-    pub quote_symbol: Option<String>,
-    pub isin: Option<String>,
-}
-
 pub struct CreateAssetTransactionInput {
-    pub account_id: AccountId,
-    pub asset_id: AssetId,
-    pub transaction_type: AssetTransactionType,
-    pub trade_date: TradeDate,
-    pub quantity: AssetQuantity,
-    pub unit_price: AssetUnitPrice,
-    pub currency_code: Currency,
-    pub notes: Option<String>,
-}
-
-pub struct UpdateAssetTransactionInput {
     pub account_id: AccountId,
     pub asset_id: AssetId,
     pub transaction_type: AssetTransactionType,

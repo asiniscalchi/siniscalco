@@ -11,14 +11,13 @@ use super::{
     AssetQuantity, AssetRecord, AssetSymbol, AssetTransactionType, AssetType, AssetUnitPrice,
     CreateAccountInput, CreateAssetInput, CreateAssetTransactionInput, CreateTransferInput,
     Currency, CurrencyRecord, FxRate, FxRateDetailRecord, FxRateRecord, FxRateSummaryItemRecord,
-    FxRateSummaryRecord, PortfolioSnapshotRecord, StorageError, TradeDate, TransferId,
-    UpdateAssetTransactionInput, UpsertAccountBalanceInput, UpsertAssetPriceInput,
-    UpsertFxRateInput, UpsertOutcome, create_account, create_asset, create_asset_transaction,
-    delete_account, delete_account_balance, get_account, get_latest_fx_rate,
-    insert_portfolio_snapshot_if_missing, list_account_balances, list_account_positions,
-    list_account_summaries, list_accounts, list_asset_transactions, list_assets, list_currencies,
-    list_fx_rate_summary, list_fx_rates, list_portfolio_snapshots, upsert_account_balance,
-    upsert_asset_price, upsert_fx_rate,
+    FxRateSummaryRecord, PortfolioSnapshotRecord, StorageError, TradeDate,
+    UpsertAccountBalanceInput, UpsertAssetPriceInput, UpsertFxRateInput, UpsertOutcome,
+    create_account, create_asset, create_asset_transaction, delete_account, delete_account_balance,
+    get_account, get_latest_fx_rate, insert_portfolio_snapshot_if_missing, list_account_balances,
+    list_account_positions, list_account_summaries, list_accounts, list_asset_transactions,
+    list_assets, list_currencies, list_fx_rate_summary, list_fx_rates, list_portfolio_snapshots,
+    upsert_account_balance, upsert_asset_price, upsert_fx_rate,
 };
 use super::{create_transfer, delete_transfer, list_transfers};
 use crate::db::init_db;
@@ -646,7 +645,7 @@ async fn updating_asset_transaction_rejects_oversell_and_keeps_original_transact
     let error = super::update_asset_transaction(
         &pool,
         sell_transaction.id,
-        super::UpdateAssetTransactionInput {
+        super::CreateAssetTransactionInput {
             account_id,
             asset_id,
             transaction_type: AssetTransactionType::Sell,
@@ -1261,7 +1260,7 @@ async fn updating_transaction_adjusts_cash_balance() {
     super::update_asset_transaction(
         &pool,
         tx.id,
-        super::UpdateAssetTransactionInput {
+        super::CreateAssetTransactionInput {
             account_id,
             asset_id,
             transaction_type: AssetTransactionType::Buy,
