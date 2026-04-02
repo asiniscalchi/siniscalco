@@ -1,4 +1,4 @@
-use sqlx::{Row, SqlitePool};
+use sqlx::{Row, SqlitePool, sqlite::SqliteConnection};
 
 use crate::format_decimal_amount;
 use crate::storage::records::*;
@@ -16,186 +16,152 @@ pub async fn create_transfer(
         ));
     }
 
-    let mut connection = pool.acquire().await?;
-    sqlx::query("BEGIN IMMEDIATE")
-        .execute(&mut *connection)
-        .await?;
+    let mut tx = pool.begin().await?;
+    let timestamp = current_utc_timestamp_iso8601()?;
 
-    let result = async {
-        let timestamp = current_utc_timestamp_iso8601()?;
+    // Debit the source account
+    let from_balance =
+        load_balance_on_connection(&mut *tx, input.from_account_id, input.from_currency).await?;
 
-        // Debit the source account
-        let from_balance =
-            load_balance_on_connection(&mut connection, input.from_account_id, input.from_currency)
-                .await?;
-
-        if from_balance < input.from_amount.as_decimal() {
-            return Err(StorageError::Validation(
-                "insufficient balance in source account for this transfer",
-            ));
-        }
-
-        let new_from_balance = from_balance - input.from_amount.as_decimal();
-        upsert_balance_on_connection(
-            &mut connection,
-            input.from_account_id,
-            input.from_currency,
-            new_from_balance,
-            &timestamp,
-        )
-        .await?;
-
-        // Credit the destination account
-        let to_balance =
-            load_balance_on_connection(&mut connection, input.to_account_id, input.to_currency)
-                .await?;
-
-        let new_to_balance = to_balance + input.to_amount.as_decimal();
-        upsert_balance_on_connection(
-            &mut connection,
-            input.to_account_id,
-            input.to_currency,
-            new_to_balance,
-            &timestamp,
-        )
-        .await?;
-
-        // Insert the transfer record
-        let result = sqlx::query(
-            r#"
-            INSERT INTO account_transfers (
-                from_account_id, to_account_id,
-                from_currency, from_amount,
-                to_currency, to_amount,
-                transfer_date, notes, created_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            "#,
-        )
-        .bind(input.from_account_id.as_i64())
-        .bind(input.to_account_id.as_i64())
-        .bind(input.from_currency.as_str())
-        .bind(input.from_amount.as_scaled_i64())
-        .bind(input.to_currency.as_str())
-        .bind(input.to_amount.as_scaled_i64())
-        .bind(input.transfer_date.as_str())
-        .bind(input.notes.as_deref())
-        .bind(&timestamp)
-        .execute(&mut *connection)
-        .await?;
-
-        let transfer_id = TransferId::try_from(result.last_insert_rowid())?;
-        let row = sqlx::query(
-            r#"
-            SELECT id, from_account_id, to_account_id,
-                   from_currency, from_amount, to_currency, to_amount,
-                   transfer_date, notes, created_at
-            FROM account_transfers
-            WHERE id = ?
-            "#,
-        )
-        .bind(transfer_id.as_i64())
-        .fetch_one(&mut *connection)
-        .await?;
-
-        sqlx::query("COMMIT").execute(&mut *connection).await?;
-        map_transfer_row(row)
-    }
-    .await;
-
-    if result.is_err() {
-        let _ = sqlx::query("ROLLBACK").execute(&mut *connection).await;
+    if from_balance < input.from_amount.as_decimal() {
+        return Err(StorageError::Validation(
+            "insufficient balance in source account for this transfer",
+        ));
     }
 
-    result
+    let new_from_balance = from_balance - input.from_amount.as_decimal();
+    upsert_balance_on_connection(
+        &mut *tx,
+        input.from_account_id,
+        input.from_currency,
+        new_from_balance,
+        &timestamp,
+    )
+    .await?;
+
+    // Credit the destination account
+    let to_balance =
+        load_balance_on_connection(&mut *tx, input.to_account_id, input.to_currency).await?;
+
+    let new_to_balance = to_balance + input.to_amount.as_decimal();
+    upsert_balance_on_connection(
+        &mut *tx,
+        input.to_account_id,
+        input.to_currency,
+        new_to_balance,
+        &timestamp,
+    )
+    .await?;
+
+    // Insert the transfer record
+    let result = sqlx::query(
+        r#"
+        INSERT INTO account_transfers (
+            from_account_id, to_account_id,
+            from_currency, from_amount,
+            to_currency, to_amount,
+            transfer_date, notes, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        "#,
+    )
+    .bind(input.from_account_id.as_i64())
+    .bind(input.to_account_id.as_i64())
+    .bind(input.from_currency.as_str())
+    .bind(input.from_amount.as_scaled_i64())
+    .bind(input.to_currency.as_str())
+    .bind(input.to_amount.as_scaled_i64())
+    .bind(input.transfer_date.as_str())
+    .bind(input.notes.as_deref())
+    .bind(&timestamp)
+    .execute(&mut *tx)
+    .await?;
+
+    let transfer_id = TransferId::try_from(result.last_insert_rowid())?;
+    let row = sqlx::query(
+        r#"
+        SELECT id, from_account_id, to_account_id,
+               from_currency, from_amount, to_currency, to_amount,
+               transfer_date, notes, created_at
+        FROM account_transfers
+        WHERE id = ?
+        "#,
+    )
+    .bind(transfer_id.as_i64())
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let record = map_transfer_row(row)?;
+    tx.commit().await?;
+    Ok(record)
 }
 
 pub async fn delete_transfer(
     pool: &SqlitePool,
     transfer_id: TransferId,
 ) -> Result<(), StorageError> {
-    let mut connection = pool.acquire().await?;
-    sqlx::query("BEGIN IMMEDIATE")
-        .execute(&mut *connection)
-        .await?;
+    let mut tx = pool.begin().await?;
+    let timestamp = current_utc_timestamp_iso8601()?;
 
-    let result = async {
-        let timestamp = current_utc_timestamp_iso8601()?;
+    let row = sqlx::query(
+        r#"
+        SELECT id, from_account_id, to_account_id,
+               from_currency, from_amount, to_currency, to_amount,
+               transfer_date, notes, created_at
+        FROM account_transfers
+        WHERE id = ?
+        "#,
+    )
+    .bind(transfer_id.as_i64())
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(StorageError::Database(sqlx::Error::RowNotFound))?;
 
-        let row = sqlx::query(
-            r#"
-            SELECT id, from_account_id, to_account_id,
-                   from_currency, from_amount, to_currency, to_amount,
-                   transfer_date, notes, created_at
-            FROM account_transfers
-            WHERE id = ?
-            "#,
-        )
-        .bind(transfer_id.as_i64())
-        .fetch_optional(&mut *connection)
-        .await?
-        .ok_or(StorageError::Database(sqlx::Error::RowNotFound))?;
+    let transfer = map_transfer_row(row)?;
 
-        let transfer = map_transfer_row(row)?;
-
-        // Reverse: credit the source account back
-        let from_balance = load_balance_on_connection(
-            &mut connection,
-            transfer.from_account_id,
-            transfer.from_currency,
-        )
-        .await?;
-        let new_from_balance = from_balance + transfer.from_amount.as_decimal();
-        upsert_balance_on_connection(
-            &mut connection,
-            transfer.from_account_id,
-            transfer.from_currency,
-            new_from_balance,
-            &timestamp,
-        )
-        .await?;
-
-        // Reverse: debit the destination account
-        let to_balance = load_balance_on_connection(
-            &mut connection,
-            transfer.to_account_id,
-            transfer.to_currency,
-        )
-        .await?;
-        if to_balance < transfer.to_amount.as_decimal() {
-            return Err(StorageError::Validation(
-                "insufficient balance in destination account to reverse this transfer",
-            ));
-        }
-        let new_to_balance = to_balance - transfer.to_amount.as_decimal();
-        upsert_balance_on_connection(
-            &mut connection,
-            transfer.to_account_id,
-            transfer.to_currency,
-            new_to_balance,
-            &timestamp,
-        )
-        .await?;
-
-        let deleted = sqlx::query("DELETE FROM account_transfers WHERE id = ?")
-            .bind(transfer_id.as_i64())
-            .execute(&mut *connection)
+    // Reverse: credit the source account back
+    let from_balance =
+        load_balance_on_connection(&mut *tx, transfer.from_account_id, transfer.from_currency)
             .await?;
+    let new_from_balance = from_balance + transfer.from_amount.as_decimal();
+    upsert_balance_on_connection(
+        &mut *tx,
+        transfer.from_account_id,
+        transfer.from_currency,
+        new_from_balance,
+        &timestamp,
+    )
+    .await?;
 
-        if deleted.rows_affected() == 0 {
-            return Err(StorageError::Database(sqlx::Error::RowNotFound));
-        }
-
-        sqlx::query("COMMIT").execute(&mut *connection).await?;
-        Ok(())
+    // Reverse: debit the destination account
+    let to_balance =
+        load_balance_on_connection(&mut *tx, transfer.to_account_id, transfer.to_currency).await?;
+    if to_balance < transfer.to_amount.as_decimal() {
+        return Err(StorageError::Validation(
+            "insufficient balance in destination account to reverse this transfer",
+        ));
     }
-    .await;
+    let new_to_balance = to_balance - transfer.to_amount.as_decimal();
+    upsert_balance_on_connection(
+        &mut *tx,
+        transfer.to_account_id,
+        transfer.to_currency,
+        new_to_balance,
+        &timestamp,
+    )
+    .await?;
 
-    if result.is_err() {
-        let _ = sqlx::query("ROLLBACK").execute(&mut *connection).await;
+    let deleted = sqlx::query("DELETE FROM account_transfers WHERE id = ?")
+        .bind(transfer_id.as_i64())
+        .execute(&mut *tx)
+        .await?;
+
+    if deleted.rows_affected() == 0 {
+        return Err(StorageError::Database(sqlx::Error::RowNotFound));
     }
 
-    result
+    tx.commit().await?;
+    Ok(())
 }
 
 pub async fn list_transfers(pool: &SqlitePool) -> Result<Vec<TransferRecord>, StorageError> {
@@ -230,7 +196,7 @@ fn map_transfer_row(row: sqlx::sqlite::SqliteRow) -> Result<TransferRecord, Stor
 }
 
 async fn load_balance_on_connection(
-    connection: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
+    connection: &mut SqliteConnection,
     account_id: AccountId,
     currency: Currency,
 ) -> Result<rust_decimal::Decimal, StorageError> {
@@ -239,7 +205,7 @@ async fn load_balance_on_connection(
     )
     .bind(account_id.as_i64())
     .bind(currency.as_str())
-    .fetch_optional(&mut **connection)
+    .fetch_optional(&mut *connection)
     .await?;
     Ok(amount
         .map(|v| Amount::from_scaled_i64(v).as_decimal())
@@ -247,7 +213,7 @@ async fn load_balance_on_connection(
 }
 
 async fn upsert_balance_on_connection(
-    connection: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
+    connection: &mut SqliteConnection,
     account_id: AccountId,
     currency: Currency,
     new_amount: rust_decimal::Decimal,
@@ -267,7 +233,7 @@ async fn upsert_balance_on_connection(
     .bind(currency.as_str())
     .bind(amount.as_scaled_i64())
     .bind(updated_at)
-    .execute(&mut **connection)
+    .execute(&mut *connection)
     .await?;
     Ok(())
 }
