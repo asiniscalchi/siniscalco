@@ -4,11 +4,12 @@
 /// (inside a `BEGIN IMMEDIATE` transaction) and must not start their own.
 use rust_decimal::Decimal;
 
-use crate::format_decimal_amount;
 use crate::storage::{
     AccountId, Amount, AssetQuantity, AssetTransactionType, AssetUnitPrice, Currency, FxRate,
     StorageError,
 };
+
+use super::balances::{load_balance_on_connection, upsert_balance_on_connection};
 
 pub(super) async fn apply_cash_impact(
     connection: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
@@ -27,7 +28,8 @@ pub(super) async fn apply_cash_impact(
             "fx rate not available for transaction currency conversion",
         ))?;
     let base_amount = transaction_amount * fx_rate;
-    let current_balance = load_balance_on_connection(connection, account_id, base_currency).await?;
+    let current_balance =
+        load_balance_on_connection(&mut *connection, account_id, base_currency).await?;
 
     let new_balance = match transaction_type {
         AssetTransactionType::Buy => {
@@ -42,7 +44,7 @@ pub(super) async fn apply_cash_impact(
     };
 
     upsert_balance_on_connection(
-        connection,
+        &mut *connection,
         account_id,
         base_currency,
         new_balance,
@@ -99,47 +101,4 @@ async fn get_fx_rate_on_connection(
     .await?;
     rate.map(|value| FxRate::from_scaled_i64(value).map(|r| r.as_decimal()))
         .transpose()
-}
-
-async fn load_balance_on_connection(
-    connection: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
-    account_id: AccountId,
-    currency: Currency,
-) -> Result<Decimal, StorageError> {
-    let amount = sqlx::query_scalar::<_, i64>(
-        "SELECT amount FROM account_balances WHERE account_id = ? AND currency = ?",
-    )
-    .bind(account_id.as_i64())
-    .bind(currency.as_str())
-    .fetch_optional(&mut **connection)
-    .await?;
-    Ok(amount
-        .map(|v| Amount::from_scaled_i64(v).as_decimal())
-        .unwrap_or(Decimal::ZERO))
-}
-
-async fn upsert_balance_on_connection(
-    connection: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
-    account_id: AccountId,
-    currency: Currency,
-    new_amount: Decimal,
-    updated_at: &str,
-) -> Result<(), StorageError> {
-    let amount = Amount::try_from(format_decimal_amount(new_amount).as_str())?;
-    sqlx::query(
-        r#"
-        INSERT INTO account_balances (account_id, currency, amount, updated_at)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(account_id, currency) DO UPDATE SET
-            amount = excluded.amount,
-            updated_at = excluded.updated_at
-        "#,
-    )
-    .bind(account_id.as_i64())
-    .bind(currency.as_str())
-    .bind(amount.as_scaled_i64())
-    .bind(updated_at)
-    .execute(&mut **connection)
-    .await?;
-    Ok(())
 }
