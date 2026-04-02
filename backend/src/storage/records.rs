@@ -237,7 +237,7 @@ pub struct PortfolioCashByCurrencyRecord {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PortfolioHoldingRecord {
-    pub asset_id: AssetId,
+    pub asset_id: Option<AssetId>,
     pub symbol: String,
     pub name: String,
     pub value: Amount,

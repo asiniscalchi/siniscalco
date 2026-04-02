@@ -394,7 +394,7 @@ fn to_portfolio_summary(
             .holdings
             .into_iter()
             .map(|h| PortfolioHolding {
-                asset_id: h.asset_id.as_i64(),
+                asset_id: h.asset_id.map(|id| id.as_i64()),
                 symbol: h.symbol,
                 name: h.name,
                 value: normalize_amount_output(&h.value.to_string()),

@@ -3384,7 +3384,7 @@ async fn portfolio_holdings_aggregate_same_asset_across_accounts() {
         .unwrap();
 
     assert_eq!(summary.holdings.len(), 1);
-    assert_eq!(summary.holdings[0].asset_id, asset_id);
+    assert_eq!(summary.holdings[0].asset_id, Some(asset_id));
     assert_eq!(summary.holdings[0].symbol, "VWCE");
     assert_eq!(
         summary.holdings[0].name,
