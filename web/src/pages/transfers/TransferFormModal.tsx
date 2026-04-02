@@ -5,6 +5,7 @@ import { useMutation } from "@apollo/client/react";
 import { ModalDialog } from "@/components/ModalDialog";
 import { Button } from "@/components/ui/button";
 import { extractGqlErrorMessage } from "@/lib/gql";
+import { getAccountCurrency, getTodayDate } from "@/lib/form-utils";
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 
 import type { Account } from "./types";
@@ -37,13 +38,6 @@ type FormState = {
   notes: string;
 };
 
-function getTodayDate() {
-  return new Date().toISOString().split("T")[0];
-}
-
-function getAccountCurrency(accounts: Account[], accountId: string) {
-  return accounts.find((a) => String(a.id) === accountId)?.baseCurrency ?? "";
-}
 
 export function TransferFormModal({
   open,

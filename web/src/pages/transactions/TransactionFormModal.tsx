@@ -5,6 +5,7 @@ import { useMutation } from "@apollo/client/react";
 import { ModalDialog } from "@/components/ModalDialog";
 import { Button } from "@/components/ui/button";
 import { extractGqlErrorMessage } from "@/lib/gql";
+import { getAccountCurrency, getTodayDate } from "@/lib/form-utils";
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 
 const CREATE_TRANSACTION_MUTATION = gql`
@@ -47,21 +48,6 @@ type FormState = {
   notes: string;
 };
 
-function getTodayDate() {
-  return new Date().toISOString().split("T")[0];
-}
-
-function getDefaultCurrency(accounts: Account[], selectedAccountId: string) {
-  if (!selectedAccountId) {
-    return "";
-  }
-
-  return (
-    accounts.find((account) => String(account.id) === selectedAccountId)
-      ?.baseCurrency ?? ""
-  );
-}
-
 function buildCreateState(
   accounts: Account[],
   selectedAccountId: string,
@@ -72,7 +58,7 @@ function buildCreateState(
     tradeDate: getTodayDate(),
     quantity: "",
     unitPrice: "",
-    currency: getDefaultCurrency(accounts, selectedAccountId),
+    currency: getAccountCurrency(accounts, selectedAccountId),
     notes: "",
   };
 }
