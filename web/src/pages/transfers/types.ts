@@ -1,18 +1,3 @@
-export type Account = {
-  id: number;
-  name: string;
-  baseCurrency: string;
-};
+import type { TransferAccountsQuery } from "@/gql/types";
 
-export type Transfer = {
-  id: number;
-  fromAccountId: number;
-  toAccountId: number;
-  fromCurrency: string;
-  fromAmount: string;
-  toCurrency: string;
-  toAmount: string;
-  transferDate: string;
-  notes: string | null;
-  createdAt: string;
-};
+export type Account = TransferAccountsQuery["accounts"][number];
