@@ -44,6 +44,17 @@ pub struct AssistantModelsResponse {
     pub refresh_error: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct SystemPromptResponse {
+    pub prompt: String,
+    pub is_default: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateSystemPromptRequest {
+    pub prompt: String,
+}
+
 // ── Error types ───────────────────────────────────────────────────────────────
 
 #[derive(Debug)]

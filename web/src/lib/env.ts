@@ -18,6 +18,10 @@ export function getAssistantSelectedModelApiUrl() {
   return new URL("/assistant/models/selected", getApiBaseUrl()).toString();
 }
 
+export function getAssistantSystemPromptApiUrl() {
+  return new URL("/assistant/system-prompt", getApiBaseUrl()).toString();
+}
+
 export function getAssistantThreadsApiUrl() {
   return new URL("/assistant/threads", getApiBaseUrl()).toString();
 }

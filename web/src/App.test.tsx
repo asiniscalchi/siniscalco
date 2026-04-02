@@ -206,9 +206,10 @@ describe("App shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open assistant chat" }));
 
     expect(await screen.findByRole("dialog")).toBeTruthy();
-    expect(screen.getByText("Popup chat entrypoint for quick questions inside the app.")).toBeTruthy();
-    expect(await screen.findByRole("combobox", { name: "Assistant model" })).toBeTruthy();
     expect(screen.getByRole("textbox", { name: "Assistant message" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(await screen.findByRole("combobox", { name: "Assistant model" })).toBeTruthy();
   });
 
   it("updates the assistant model from the popup selector", async () => {
@@ -217,6 +218,7 @@ describe("App shell", () => {
     renderApp(["/accounts"]);
 
     fireEvent.click(await screen.findByRole("button", { name: "Open assistant chat" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
 
     const modelSelect = await screen.findByRole("combobox", {
       name: "Assistant model",
@@ -231,7 +233,6 @@ describe("App shell", () => {
         }),
       ]);
     });
-    expect(await screen.findByText("Active model: gpt-4.1-mini")).toBeTruthy();
   });
 
   it("keeps the shell rendered while navigating between wrapped routes", async () => {

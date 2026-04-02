@@ -55,7 +55,7 @@ function ThreadItem({ onSelect }: { onSelect?: () => void }) {
       </ThreadListItemPrimitive.Trigger>
 
       {!renaming && (
-        <div className="mr-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="mr-1 flex shrink-0 items-center gap-0.5 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
           <button
             className="flex size-6 items-center justify-center rounded-md transition-colors hover:bg-muted"
             onClick={startRename}

@@ -102,6 +102,12 @@ pub fn build_router_with_state(state: AppState) -> Router {
             put(crate::assistant::select_model),
         )
         .route(
+            "/assistant/system-prompt",
+            get(crate::assistant::get_system_prompt)
+                .put(crate::assistant::update_system_prompt)
+                .delete(crate::assistant::delete_system_prompt),
+        )
+        .route(
             "/assistant/threads",
             get(crate::chat_threads::list_threads).post(crate::chat_threads::create_thread),
         )
