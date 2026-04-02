@@ -7,11 +7,18 @@ import { ExternalLinkIcon, LockIcon, PencilIcon, PlusIcon, TrashIcon, UnlockIcon
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { formatMoney } from "@/lib/format-money";
 import { extractGqlErrorMessage } from "@/lib/gql";
 import { type AssetsQuery } from "@/gql/types";
 
 import { ASSETS_QUERY } from "./assets-query";
+import {
+  type AssetItem,
+  formatDailyGain,
+  formatGain,
+  formatPrice,
+  formatTotalValue,
+  priceLabel,
+} from "./asset-utils";
 
 const ftMarketsUrl = (isin: string) =>
   `https://markets.ft.com/data/equities/tearsheet/summary?s=${isin}`;
@@ -27,10 +34,8 @@ import { AssetFormModal } from "./AssetFormModal";
 export function AssetsTableCard() {
   const [isLocked, setIsLocked] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [editingAsset, setEditingAsset] = useState<AssetsQuery["assets"][number] | null>(null);
+  const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
-
-  type AssetItem = AssetsQuery["assets"][number];
 
   const { data, loading, error, refetch } = useQuery<AssetsQuery>(ASSETS_QUERY);
   const assets = data?.assets ?? [];
@@ -38,6 +43,7 @@ export function AssetsTableCard() {
   const [deleteAssetMutation] = useMutation(DELETE_ASSET_MUTATION);
 
   const handleDeleteClick = async (asset: AssetItem) => {
+
     if (!window.confirm(`Are you sure you want to delete ${asset.symbol}?`)) {
       return;
     }
@@ -53,83 +59,6 @@ export function AssetsTableCard() {
     }
   };
 
-  const formatPrice = (asset: AssetItem) => {
-    if (!asset.currentPrice || !asset.currentPriceCurrency) {
-      return "Pending";
-    }
-
-    return formatMoney(asset.currentPrice, asset.currentPriceCurrency, false, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 6,
-    }).text;
-  };
-
-  const formatTotalValue = (asset: AssetItem) => {
-    if (!asset.convertedTotalValue || !asset.convertedTotalValueCurrency) {
-      return null;
-    }
-
-    return formatMoney(
-      asset.convertedTotalValue,
-      asset.convertedTotalValueCurrency,
-      false,
-    ).text;
-  };
-
-  const formatGain = (asset: AssetItem) => {
-    const { currentPrice, currentPriceCurrency, totalQuantity, avgCostBasis, avgCostBasisCurrency } =
-      asset;
-    if (!currentPrice || !avgCostBasis || !totalQuantity) return null;
-
-    const price = Number(currentPrice);
-    const cost = Number(avgCostBasis);
-    const qty = Number(totalQuantity);
-    if (Number.isNaN(price) || Number.isNaN(cost) || Number.isNaN(qty) || cost === 0) return null;
-
-    const gainPct = ((price - cost) / cost) * 100;
-    const sameCurrency = currentPriceCurrency && avgCostBasisCurrency === currentPriceCurrency;
-    const gainAbs = sameCurrency ? (price - cost) * qty : null;
-
-    const sign = gainPct >= 0 ? "+" : "";
-    const pct = `${sign}${gainPct.toFixed(2)}%`;
-    const abs = gainAbs !== null
-      ? `${sign}${formatMoney(gainAbs, currentPriceCurrency ?? undefined, false).text}`
-      : null;
-
-    return { pct, abs, positive: gainPct >= 0 };
-  };
-
-  const formatDailyGain = (asset: AssetItem) => {
-    const { currentPrice, currentPriceCurrency, previousClose, previousCloseCurrency } = asset;
-    if (!currentPrice || !previousClose) return null;
-
-    const price = Number(currentPrice);
-    const close = Number(previousClose);
-    if (Number.isNaN(price) || Number.isNaN(close) || close === 0) return null;
-
-    const gainPct = ((price - close) / close) * 100;
-    const sameCurrency = currentPriceCurrency && previousCloseCurrency === currentPriceCurrency;
-    const gainAbs = sameCurrency ? price - close : null;
-
-    const sign = gainPct >= 0 ? "+" : "";
-    const pct = `${sign}${gainPct.toFixed(2)}%`;
-    const abs = gainAbs !== null
-      ? `${sign}${formatMoney(gainAbs, currentPriceCurrency ?? undefined, false).text}`
-      : null;
-
-    return { pct, abs, positive: gainPct >= 0 };
-  };
-
-  const priceLabel = (asset: AssetItem) => {
-    if (asset.currentPriceAsOf) {
-      const parsed = new Date(asset.currentPriceAsOf);
-      if (!Number.isNaN(parsed.getTime())) {
-        return `Updated ${parsed.toLocaleString()}`;
-      }
-    }
-
-    return asset.quoteSymbol || asset.symbol;
-  };
 
   if (loading && assets.length === 0) {
     return <div className="h-64 w-full animate-pulse rounded-xl bg-muted" />;
