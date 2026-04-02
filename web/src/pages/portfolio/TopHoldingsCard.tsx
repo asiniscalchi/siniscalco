@@ -35,7 +35,7 @@ export function TopHoldingsCard({
   }
 
   type ChartableHolding = {
-  assetId: number;
+  assetId?: number | null;
   symbol: string;
   name: string;
   value: number;
