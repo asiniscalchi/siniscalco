@@ -1,8 +1,9 @@
 /// Cash-impact helpers used within asset transaction mutations.
 ///
-/// All functions in this module operate on an already-open connection
-/// (inside a `BEGIN IMMEDIATE` transaction) and must not start their own.
+/// All functions in this module operate on an already-open `SqliteConnection`
+/// (inside an active transaction) and must not start their own.
 use rust_decimal::Decimal;
+use sqlx::sqlite::SqliteConnection;
 
 use crate::format_decimal_amount;
 use crate::storage::{
@@ -11,7 +12,7 @@ use crate::storage::{
 };
 
 pub(super) async fn apply_cash_impact(
-    connection: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
+    connection: &mut SqliteConnection,
     account_id: AccountId,
     transaction_type: AssetTransactionType,
     quantity: AssetQuantity,
@@ -52,7 +53,7 @@ pub(super) async fn apply_cash_impact(
 }
 
 pub(super) async fn reverse_cash_impact(
-    connection: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
+    connection: &mut SqliteConnection,
     account_id: AccountId,
     transaction_type: AssetTransactionType,
     quantity: AssetQuantity,
@@ -71,19 +72,19 @@ pub(super) async fn reverse_cash_impact(
 }
 
 async fn load_account_base_currency(
-    connection: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
+    connection: &mut SqliteConnection,
     account_id: AccountId,
 ) -> Result<Currency, StorageError> {
     let currency_str =
         sqlx::query_scalar::<_, String>("SELECT base_currency FROM accounts WHERE id = ?")
             .bind(account_id.as_i64())
-            .fetch_one(&mut **connection)
+            .fetch_one(&mut *connection)
             .await?;
     Currency::try_from(currency_str.as_str())
 }
 
 async fn get_fx_rate_on_connection(
-    connection: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
+    connection: &mut SqliteConnection,
     from_currency: Currency,
     to_currency: Currency,
 ) -> Result<Option<Decimal>, StorageError> {
@@ -95,14 +96,14 @@ async fn get_fx_rate_on_connection(
     )
     .bind(from_currency.as_str())
     .bind(to_currency.as_str())
-    .fetch_optional(&mut **connection)
+    .fetch_optional(&mut *connection)
     .await?;
     rate.map(|value| FxRate::from_scaled_i64(value).map(|r| r.as_decimal()))
         .transpose()
 }
 
 async fn load_balance_on_connection(
-    connection: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
+    connection: &mut SqliteConnection,
     account_id: AccountId,
     currency: Currency,
 ) -> Result<Decimal, StorageError> {
@@ -111,7 +112,7 @@ async fn load_balance_on_connection(
     )
     .bind(account_id.as_i64())
     .bind(currency.as_str())
-    .fetch_optional(&mut **connection)
+    .fetch_optional(&mut *connection)
     .await?;
     Ok(amount
         .map(|v| Amount::from_scaled_i64(v).as_decimal())
@@ -119,7 +120,7 @@ async fn load_balance_on_connection(
 }
 
 async fn upsert_balance_on_connection(
-    connection: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
+    connection: &mut SqliteConnection,
     account_id: AccountId,
     currency: Currency,
     new_amount: Decimal,
@@ -139,7 +140,7 @@ async fn upsert_balance_on_connection(
     .bind(currency.as_str())
     .bind(amount.as_scaled_i64())
     .bind(updated_at)
-    .execute(&mut **connection)
+    .execute(&mut *connection)
     .await?;
     Ok(())
 }
