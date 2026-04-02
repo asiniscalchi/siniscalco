@@ -68,7 +68,7 @@ pub async fn get_account(
 pub async fn update_account(
     pool: &SqlitePool,
     account_id: AccountId,
-    input: UpdateAccountInput,
+    input: CreateAccountInput,
 ) -> Result<AccountRecord, StorageError> {
     let result = sqlx::query(
         r#"
