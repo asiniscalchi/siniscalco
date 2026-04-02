@@ -23,8 +23,28 @@ pub use tiingo::{TiingoProvider, fetch_tiingo_quote};
 pub use twelve_data::{TwelveDataProvider, fetch_twelve_data_quote};
 
 use reqwest::Client;
+use serde::de::DeserializeOwned;
 
 use super::{AssetPriceRefreshError, AssetQuote};
+
+pub(super) async fn fetch_json<T: DeserializeOwned>(
+    request: reqwest::RequestBuilder,
+) -> Result<T, AssetPriceRefreshError> {
+    let response = request.send().await.map_err(|error| {
+        AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
+    })?;
+
+    if !response.status().is_success() {
+        return Err(AssetPriceRefreshError::Provider(format!(
+            "asset price refresh failed: provider returned status {}",
+            response.status()
+        )));
+    }
+
+    response.json::<T>().await.map_err(|error| {
+        AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
+    })
+}
 
 #[async_trait::async_trait]
 pub trait StockProvider: Send + Sync {

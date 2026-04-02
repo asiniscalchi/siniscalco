@@ -4,7 +4,7 @@ use serde::Deserialize;
 use crate::{AssetUnitPrice, Currency};
 
 use super::super::{AssetPriceRefreshError, AssetQuote};
-use super::unix_timestamp_to_rfc3339;
+use super::{fetch_json, unix_timestamp_to_rfc3339};
 
 #[derive(Debug, Deserialize)]
 struct FmpQuote {
@@ -42,25 +42,12 @@ pub async fn fetch_fmp_quote(
     symbol: &str,
 ) -> Result<AssetQuote, AssetPriceRefreshError> {
     let url = format!("{}/stable/quote", base_url.trim_end_matches('/'));
-    let response = client
-        .get(url)
-        .query(&[("symbol", symbol), ("apikey", api_key)])
-        .send()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
-
-    if !response.status().is_success() {
-        return Err(AssetPriceRefreshError::Provider(format!(
-            "asset price refresh failed: provider returned status {}",
-            response.status()
-        )));
-    }
-
-    let payload = response.json::<Vec<FmpQuote>>().await.map_err(|error| {
-        AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-    })?;
+    let payload = fetch_json::<Vec<FmpQuote>>(
+        client
+            .get(url)
+            .query(&[("symbol", symbol), ("apikey", api_key)]),
+    )
+    .await?;
 
     let quote = payload.first().ok_or_else(|| {
         AssetPriceRefreshError::Provider(format!(

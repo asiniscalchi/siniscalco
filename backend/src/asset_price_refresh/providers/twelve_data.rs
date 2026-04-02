@@ -4,7 +4,7 @@ use serde::Deserialize;
 use crate::{AssetUnitPrice, Currency, current_utc_timestamp_iso8601};
 
 use super::super::{AssetPriceRefreshError, AssetQuote};
-use super::normalize_provider_datetime;
+use super::{fetch_json, normalize_provider_datetime};
 
 #[derive(Debug, Deserialize)]
 struct TwelveDataQuoteResponse {
@@ -43,28 +43,12 @@ pub async fn fetch_twelve_data_quote(
     symbol: &str,
 ) -> Result<AssetQuote, AssetPriceRefreshError> {
     let url = format!("{}/quote", base_url.trim_end_matches('/'));
-    let response = client
-        .get(url)
-        .query(&[("symbol", symbol), ("apikey", api_key)])
-        .send()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
-
-    if !response.status().is_success() {
-        return Err(AssetPriceRefreshError::Provider(format!(
-            "asset price refresh failed: provider returned status {}",
-            response.status()
-        )));
-    }
-
-    let payload = response
-        .json::<TwelveDataQuoteResponse>()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
+    let payload = fetch_json::<TwelveDataQuoteResponse>(
+        client
+            .get(url)
+            .query(&[("symbol", symbol), ("apikey", api_key)]),
+    )
+    .await?;
 
     if payload.status.as_deref() == Some("error") || payload.code.is_some() {
         return Err(AssetPriceRefreshError::Provider(
