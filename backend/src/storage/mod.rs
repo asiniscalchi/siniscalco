@@ -56,7 +56,6 @@ pub use fx_rate::*;
 pub use portfolio::*;
 pub use portfolio_snapshots::*;
 pub use records::*;
-pub use records::{current_utc_timestamp, current_utc_timestamp_iso8601};
 pub use storage_error::*;
 pub use trade_date::*;
 pub use transfer_id::*;

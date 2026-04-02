@@ -6,8 +6,8 @@ use tokio::time::sleep;
 use tracing::{info, warn};
 
 use crate::{
-    AccountSummaryStatus, PRODUCT_BASE_CURRENCY, current_utc_timestamp_iso8601,
-    get_portfolio_summary, insert_portfolio_snapshot_if_missing,
+    AccountSummaryStatus, PRODUCT_BASE_CURRENCY, current_utc_timestamp, get_portfolio_summary,
+    insert_portfolio_snapshot_if_missing,
 };
 
 /// Hour (UTC) at which the daily portfolio snapshot is taken.
@@ -55,7 +55,7 @@ async fn record_portfolio_snapshot(pool: &SqlitePool) {
         return;
     };
 
-    let recorded_at = match current_utc_timestamp_iso8601() {
+    let recorded_at = match current_utc_timestamp() {
         Ok(ts) => ts,
         Err(error) => {
             warn!(error = %error, "portfolio snapshot: failed to get timestamp");

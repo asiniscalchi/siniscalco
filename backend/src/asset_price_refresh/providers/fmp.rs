@@ -60,7 +60,7 @@ pub async fn fetch_fmp_quote(
 
     let as_of = match quote.timestamp {
         Some(ts) => unix_timestamp_to_rfc3339(ts)?,
-        None => crate::current_utc_timestamp_iso8601()?,
+        None => crate::current_utc_timestamp()?,
     };
 
     Ok(AssetQuote {

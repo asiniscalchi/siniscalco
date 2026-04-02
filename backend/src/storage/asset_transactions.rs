@@ -6,7 +6,7 @@ use sqlx::{Row, SqlitePool, sqlite::SqliteConnection};
 use crate::storage::records::*;
 use crate::storage::{
     AccountId, AssetId, AssetPosition, AssetQuantity, AssetTransactionType, AssetUnitPrice,
-    Currency, StorageError, TradeDate, current_utc_timestamp_iso8601,
+    Currency, StorageError, TradeDate, current_utc_timestamp,
 };
 
 use super::transaction_cash::{apply_cash_impact, reverse_cash_impact};
@@ -28,7 +28,7 @@ pub async fn create_asset_transaction(
         }
     }
 
-    let timestamp = current_utc_timestamp_iso8601()?;
+    let timestamp = current_utc_timestamp()?;
     let result = sqlx::query(
         r#"
         INSERT INTO asset_transactions (
@@ -144,7 +144,7 @@ pub async fn update_asset_transaction(
     validate_position_change_for_transaction_update(&mut *tx, &existing_transaction, &input)
         .await?;
 
-    let updated_at = current_utc_timestamp_iso8601()?;
+    let updated_at = current_utc_timestamp()?;
 
     reverse_cash_impact(
         &mut *tx,
@@ -214,7 +214,7 @@ pub async fn delete_asset_transaction(
     let existing_transaction = get_asset_transaction(&mut *tx, transaction_id).await?;
     validate_position_change_for_transaction_delete(&mut *tx, &existing_transaction).await?;
 
-    let updated_at = current_utc_timestamp_iso8601()?;
+    let updated_at = current_utc_timestamp()?;
     reverse_cash_impact(
         &mut *tx,
         existing_transaction.account_id,

@@ -1,7 +1,7 @@
 use reqwest::Client;
 use serde::Deserialize;
 
-use crate::{AssetUnitPrice, Currency, current_utc_timestamp_iso8601};
+use crate::{AssetUnitPrice, Currency, current_utc_timestamp};
 
 use super::super::{AssetPriceRefreshError, AssetQuote};
 use super::{fetch_json, normalize_provider_datetime};
@@ -84,7 +84,7 @@ pub async fn fetch_alpha_vantage_quote(
         .and_then(|q| q.latest_trading_day.clone())
         .map(normalize_provider_datetime)
         .transpose()?
-        .unwrap_or_else(|| current_utc_timestamp_iso8601().unwrap_or_default());
+        .unwrap_or_else(|| current_utc_timestamp().unwrap_or_default());
 
     Ok(AssetQuote {
         price,
