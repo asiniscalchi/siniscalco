@@ -14,7 +14,7 @@ use crate::{
 };
 
 use super::{
-    query::{storage_to_gql, to_account_detail, to_asset, to_transaction},
+    query::{not_found_or, storage_to_gql, to_account_detail, to_asset, to_transaction},
     types::{
         AccountDetail, AccountInput, Asset, AssetInput, Balance, TransactionInput, Transfer,
         TransferInput, UpsertBalanceInput,
@@ -75,19 +75,14 @@ impl MutationRoot {
         let account = update_account(
             pool,
             account_id,
-            crate::UpdateAccountInput {
+            crate::CreateAccountInput {
                 name,
                 account_type,
                 base_currency,
             },
         )
         .await
-        .map_err(|err| match err {
-            StorageError::Database(sqlx::Error::RowNotFound) => {
-                async_graphql::Error::new("Account not found")
-            }
-            other => storage_to_gql(other),
-        })?;
+        .map_err(|e| not_found_or(e, "Account not found", storage_to_gql))?;
         let balances = list_account_balances(pool, account_id)
             .await
             .map_err(storage_to_gql)?;
@@ -103,12 +98,7 @@ impl MutationRoot {
         let account_id = AccountId::try_from(id).map_err(storage_to_gql)?;
         delete_account(pool, account_id)
             .await
-            .map_err(|err| match err {
-                StorageError::Database(sqlx::Error::RowNotFound) => {
-                    async_graphql::Error::new("Account not found")
-                }
-                other => storage_to_gql(other),
-            })?;
+            .map_err(|e| not_found_or(e, "Account not found", storage_to_gql))?;
         Ok(id)
     }
 
@@ -125,12 +115,7 @@ impl MutationRoot {
 
         get_account(pool, account_id)
             .await
-            .map_err(|err| match err {
-                StorageError::Database(sqlx::Error::RowNotFound) => {
-                    async_graphql::Error::new("Account not found")
-                }
-                other => storage_to_gql(other),
-            })?;
+            .map_err(|e| not_found_or(e, "Account not found", storage_to_gql))?;
 
         upsert_account_balance(
             pool,
@@ -168,12 +153,7 @@ impl MutationRoot {
         let currency = Currency::try_from(currency.as_str()).map_err(storage_to_gql)?;
         delete_account_balance(pool, account_id, currency)
             .await
-            .map_err(|err| match err {
-                StorageError::Database(sqlx::Error::RowNotFound) => {
-                    async_graphql::Error::new("Balance not found")
-                }
-                other => storage_to_gql(other),
-            })?;
+            .map_err(|e| not_found_or(e, "Balance not found", storage_to_gql))?;
         Ok(true)
     }
 
@@ -208,7 +188,7 @@ impl MutationRoot {
         update_asset(
             pool,
             asset_id,
-            crate::UpdateAssetInput {
+            crate::CreateAssetInput {
                 symbol: storage_input.symbol,
                 name: storage_input.name,
                 asset_type: storage_input.asset_type,
@@ -217,12 +197,7 @@ impl MutationRoot {
             },
         )
         .await
-        .map_err(|err| match err {
-            StorageError::Database(sqlx::Error::RowNotFound) => {
-                async_graphql::Error::new("Asset not found")
-            }
-            other => asset_storage_error(other),
-        })?;
+        .map_err(|e| not_found_or(e, "Asset not found", asset_storage_error))?;
         refresh_asset_price(pool, config, client, asset_id).await;
         let asset = get_asset(pool, asset_id).await.map_err(storage_to_gql)?;
         Ok(to_asset(asset, None, None))
@@ -272,7 +247,7 @@ impl MutationRoot {
         let storage_input = parse_transaction_input(input)?;
         ensure_account_exists(pool, storage_input.account_id).await?;
         ensure_asset_exists(pool, storage_input.asset_id).await?;
-        let update_input = crate::UpdateAssetTransactionInput {
+        let update_input = crate::CreateAssetTransactionInput {
             account_id: storage_input.account_id,
             asset_id: storage_input.asset_id,
             transaction_type: storage_input.transaction_type,
@@ -284,12 +259,7 @@ impl MutationRoot {
         };
         let tx = update_asset_transaction(pool, id, update_input)
             .await
-            .map_err(|err| match err {
-                StorageError::Database(sqlx::Error::RowNotFound) => {
-                    async_graphql::Error::new("Transaction not found")
-                }
-                other => storage_to_gql(other),
-            })?;
+            .map_err(|e| not_found_or(e, "Transaction not found", storage_to_gql))?;
         Ok(to_transaction(tx))
     }
 
@@ -297,12 +267,7 @@ impl MutationRoot {
         let pool = ctx.data::<SqlitePool>()?;
         delete_asset_transaction(pool, id)
             .await
-            .map_err(|err| match err {
-                StorageError::Database(sqlx::Error::RowNotFound) => {
-                    async_graphql::Error::new("Transaction not found")
-                }
-                other => storage_to_gql(other),
-            })?;
+            .map_err(|e| not_found_or(e, "Transaction not found", storage_to_gql))?;
         Ok(id)
     }
 
@@ -324,12 +289,7 @@ impl MutationRoot {
         let transfer_id = TransferId::try_from(id).map_err(storage_to_gql)?;
         delete_transfer(pool, transfer_id)
             .await
-            .map_err(|err| match err {
-                StorageError::Database(sqlx::Error::RowNotFound) => {
-                    async_graphql::Error::new("Transfer not found")
-                }
-                other => storage_to_gql(other),
-            })?;
+            .map_err(|e| not_found_or(e, "Transfer not found", storage_to_gql))?;
         Ok(id)
     }
 }
@@ -485,12 +445,7 @@ async fn ensure_account_exists(
     get_account(pool, account_id)
         .await
         .map(|_| ())
-        .map_err(|err| match err {
-            StorageError::Database(sqlx::Error::RowNotFound) => {
-                async_graphql::Error::new("Account not found")
-            }
-            other => storage_to_gql(other),
-        })
+        .map_err(|e| not_found_or(e, "Account not found", storage_to_gql))
 }
 
 async fn ensure_asset_exists(
@@ -500,12 +455,7 @@ async fn ensure_asset_exists(
     get_asset(pool, asset_id)
         .await
         .map(|_| ())
-        .map_err(|err| match err {
-            StorageError::Database(sqlx::Error::RowNotFound) => {
-                async_graphql::Error::new("Asset not found")
-            }
-            other => storage_to_gql(other),
-        })
+        .map_err(|e| not_found_or(e, "Asset not found", storage_to_gql))
 }
 
 async fn refresh_asset_price(

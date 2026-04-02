@@ -142,7 +142,7 @@ pub async fn get_asset(pool: &SqlitePool, asset_id: AssetId) -> Result<AssetReco
 pub async fn update_asset(
     pool: &SqlitePool,
     asset_id: AssetId,
-    input: UpdateAssetInput,
+    input: CreateAssetInput,
 ) -> Result<AssetRecord, StorageError> {
     let timestamp = current_utc_timestamp()?;
     let result = sqlx::query(

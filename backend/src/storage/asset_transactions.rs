@@ -136,7 +136,7 @@ pub async fn get_transaction(
 pub async fn update_asset_transaction(
     pool: &SqlitePool,
     transaction_id: i64,
-    input: UpdateAssetTransactionInput,
+    input: CreateAssetTransactionInput,
 ) -> Result<AssetTransactionRecord, StorageError> {
     let mut tx = pool.begin().await?;
 
@@ -335,7 +335,7 @@ async fn get_asset_transaction(
 async fn validate_position_change_for_transaction_update(
     connection: &mut SqliteConnection,
     existing_transaction: &AssetTransactionRecord,
-    input: &UpdateAssetTransactionInput,
+    input: &CreateAssetTransactionInput,
 ) -> Result<(), StorageError> {
     let old_delta = signed_quantity_delta(
         existing_transaction.transaction_type,
