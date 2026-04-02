@@ -1,10 +1,11 @@
-use sqlx::{Row, SqlitePool, sqlite::SqliteConnection};
+use sqlx::{Row, SqlitePool};
 
-use crate::format_decimal_amount;
 use crate::storage::records::*;
 use crate::storage::{
     AccountId, Amount, Currency, StorageError, TradeDate, TransferId, current_utc_timestamp_iso8601,
 };
+
+use super::balances::{load_balance_on_connection, upsert_balance_on_connection};
 
 pub async fn create_transfer(
     pool: &SqlitePool,
@@ -193,47 +194,4 @@ fn map_transfer_row(row: sqlx::sqlite::SqliteRow) -> Result<TransferRecord, Stor
         notes: row.get("notes"),
         created_at: row.get("created_at"),
     })
-}
-
-async fn load_balance_on_connection(
-    connection: &mut SqliteConnection,
-    account_id: AccountId,
-    currency: Currency,
-) -> Result<rust_decimal::Decimal, StorageError> {
-    let amount = sqlx::query_scalar::<_, i64>(
-        "SELECT amount FROM account_balances WHERE account_id = ? AND currency = ?",
-    )
-    .bind(account_id.as_i64())
-    .bind(currency.as_str())
-    .fetch_optional(&mut *connection)
-    .await?;
-    Ok(amount
-        .map(|v| Amount::from_scaled_i64(v).as_decimal())
-        .unwrap_or(rust_decimal::Decimal::ZERO))
-}
-
-async fn upsert_balance_on_connection(
-    connection: &mut SqliteConnection,
-    account_id: AccountId,
-    currency: Currency,
-    new_amount: rust_decimal::Decimal,
-    updated_at: &str,
-) -> Result<(), StorageError> {
-    let amount = Amount::try_from(format_decimal_amount(new_amount).as_str())?;
-    sqlx::query(
-        r#"
-        INSERT INTO account_balances (account_id, currency, amount, updated_at)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(account_id, currency) DO UPDATE SET
-            amount = excluded.amount,
-            updated_at = excluded.updated_at
-        "#,
-    )
-    .bind(account_id.as_i64())
-    .bind(currency.as_str())
-    .bind(amount.as_scaled_i64())
-    .bind(updated_at)
-    .execute(&mut *connection)
-    .await?;
-    Ok(())
 }
