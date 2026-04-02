@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 import { createPortal } from "react-dom";
 import { NavLink, Outlet } from "react-router-dom";
 
@@ -105,13 +106,10 @@ export function AppShell() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!assistantOpen) {
-      document.body.style.overflow = "";
-      return;
-    }
+  useBodyScrollLock(assistantOpen);
 
-    document.body.style.overflow = "hidden";
+  useEffect(() => {
+    if (!assistantOpen) return;
 
     const dialog = dialogRef.current;
     if (dialog) {
@@ -151,7 +149,6 @@ export function AppShell() {
     window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.body.style.overflow = "";
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [assistantOpen]);

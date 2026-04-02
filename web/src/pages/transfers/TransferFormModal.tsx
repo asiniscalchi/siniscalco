@@ -1,10 +1,11 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { gql } from "@apollo/client/core";
 import { useMutation } from "@apollo/client/react";
 
 import { Button } from "@/components/ui/button";
 import { extractGqlErrorMessage } from "@/lib/gql";
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 
 import type { Account } from "./types";
 
@@ -64,13 +65,7 @@ export function TransferFormModal({
 
   const [createTransfer, { loading: creating }] = useMutation(CREATE_TRANSFER_MUTATION);
 
-  useEffect(() => {
-    if (!open) return;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [open]);
+  useBodyScrollLock(open);
 
   if (!open) return null;
 
