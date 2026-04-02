@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from "react";
-import { createPortal } from "react-dom";
 import { gql } from "@apollo/client/core";
 import { useMutation } from "@apollo/client/react";
 
+import { ModalDialog } from "@/components/ModalDialog";
 import { Button } from "@/components/ui/button";
 import { extractGqlErrorMessage } from "@/lib/gql";
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
@@ -126,20 +126,9 @@ export function TransferFormModal({
     }
   };
 
-  return createPortal(
-    <div
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4 backdrop-blur-sm animate-in fade-in duration-200"
-      role="dialog"
-    >
-      <div className="my-auto flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-xl border bg-background shadow-2xl animate-in zoom-in-95 duration-200">
-        <header className="flex-none border-b px-6 py-4">
-          <h2 className="text-lg font-semibold">New Transfer</h2>
-          <p className="text-sm text-muted-foreground">
-            Move funds between accounts.
-          </p>
-        </header>
-        <form className="flex flex-1 flex-col overflow-hidden" onSubmit={handleSubmit}>
+  return (
+    <ModalDialog description="Move funds between accounts." title="New Transfer">
+      <form className="flex flex-1 flex-col overflow-hidden" onSubmit={handleSubmit}>
           <div className="grid flex-1 min-h-0 gap-5 overflow-y-auto px-6 py-6 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <label
@@ -299,8 +288,6 @@ export function TransferFormModal({
             </Button>
           </footer>
         </form>
-      </div>
-    </div>,
-    document.body,
+    </ModalDialog>
   );
 }
