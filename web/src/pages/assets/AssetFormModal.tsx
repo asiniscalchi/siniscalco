@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { gql } from "@apollo/client/core";
 import { useMutation } from "@apollo/client/react";
 
+import { FormField } from "@/components/FormField";
 import { ModalDialog } from "@/components/ModalDialog";
 import { Button } from "@/components/ui/button";
 import { extractGqlErrorMessage, extractGqlFieldErrors } from "@/lib/gql";
@@ -134,13 +135,7 @@ export function AssetFormModal({
       <form className="flex flex-1 flex-col overflow-hidden" onSubmit={handleSubmit}>
           <div className="grid gap-4 overflow-y-auto px-6 py-6">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
-                <label
-                  className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                  htmlFor="asset-symbol"
-                >
-                  Symbol *
-                </label>
+              <FormField error={getFieldError("symbol")} htmlFor="asset-symbol" label="Symbol *">
                 <input
                   autoFocus
                   required
@@ -155,17 +150,8 @@ export function AssetFormModal({
                   placeholder="AAPL"
                   value={formState.symbol}
                 />
-                {getFieldError("symbol") ? (
-                  <p className="text-xs text-destructive">{getFieldError("symbol")}</p>
-                ) : null}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label
-                  className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                  htmlFor="asset-name"
-                >
-                  Name *
-                </label>
+              </FormField>
+              <FormField error={getFieldError("name")} htmlFor="asset-name" label="Name *">
                 <input
                   required
                   className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
@@ -179,17 +165,8 @@ export function AssetFormModal({
                   placeholder="Apple Inc."
                   value={formState.name}
                 />
-                {getFieldError("name") ? (
-                  <p className="text-xs text-destructive">{getFieldError("name")}</p>
-                ) : null}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label
-                  className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                  htmlFor="asset-type"
-                >
-                  Asset Type *
-                </label>
+              </FormField>
+              <FormField error={getFieldError("asset_type")} htmlFor="asset-type" label="Asset Type *">
                 <select
                   required
                   className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
@@ -209,19 +186,8 @@ export function AssetFormModal({
                   <option value="CASH_EQUIVALENT">CASH_EQUIVALENT</option>
                   <option value="OTHER">OTHER</option>
                 </select>
-                {getFieldError("asset_type") ? (
-                  <p className="text-xs text-destructive">
-                    {getFieldError("asset_type")}
-                  </p>
-                ) : null}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label
-                  className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                  htmlFor="asset-quote-symbol"
-                >
-                  Quote Symbol
-                </label>
+              </FormField>
+              <FormField error={getFieldError("quote_symbol")} htmlFor="asset-quote-symbol" label="Quote Symbol">
                 <input
                   className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
                   id="asset-quote-symbol"
@@ -237,19 +203,8 @@ export function AssetFormModal({
                 <p className="text-xs text-muted-foreground">
                   Optional override for the market data provider symbol.
                 </p>
-                {getFieldError("quote_symbol") ? (
-                  <p className="text-xs text-destructive">
-                    {getFieldError("quote_symbol")}
-                  </p>
-                ) : null}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label
-                  className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                  htmlFor="asset-isin"
-                >
-                  ISIN
-                </label>
+              </FormField>
+              <FormField htmlFor="asset-isin" label="ISIN">
                 <input
                   className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
                   id="asset-isin"
@@ -262,7 +217,7 @@ export function AssetFormModal({
                   placeholder="US0378331005"
                   value={formState.isin}
                 />
-              </div>
+              </FormField>
             </div>
             {submitError ? (
               <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">

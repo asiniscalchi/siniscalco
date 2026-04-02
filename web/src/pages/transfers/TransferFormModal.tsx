@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { gql } from "@apollo/client/core";
 import { useMutation } from "@apollo/client/react";
 
+import { FormField } from "@/components/FormField";
 import { ModalDialog } from "@/components/ModalDialog";
 import { Button } from "@/components/ui/button";
 import { extractGqlErrorMessage } from "@/lib/gql";
@@ -124,13 +125,7 @@ export function TransferFormModal({
     <ModalDialog description="Move funds between accounts." title="New Transfer">
       <form className="flex flex-1 flex-col overflow-hidden" onSubmit={handleSubmit}>
           <div className="grid flex-1 min-h-0 gap-5 overflow-y-auto px-6 py-6 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <label
-                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                htmlFor="from-account-select"
-              >
-                From Account *
-              </label>
+            <FormField htmlFor="from-account-select" label="From Account *">
               <select
                 required
                 className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
@@ -145,14 +140,8 @@ export function TransferFormModal({
                   </option>
                 ))}
               </select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label
-                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                htmlFor="to-account-select"
-              >
-                To Account *
-              </label>
+            </FormField>
+            <FormField htmlFor="to-account-select" label="To Account *">
               <select
                 required
                 className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
@@ -169,14 +158,8 @@ export function TransferFormModal({
                     </option>
                   ))}
               </select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label
-                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                htmlFor="from-amount-input"
-              >
-                Amount Sent *
-              </label>
+            </FormField>
+            <FormField htmlFor="from-amount-input" label="Amount Sent *">
               <div className="flex gap-2">
                 <input
                   required
@@ -204,14 +187,8 @@ export function TransferFormModal({
                   value={formState.fromCurrency}
                 />
               </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label
-                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                htmlFor="to-amount-input"
-              >
-                Amount Received *
-              </label>
+            </FormField>
+            <FormField htmlFor="to-amount-input" label="Amount Received *">
               <div className="flex gap-2">
                 <input
                   required
@@ -234,14 +211,8 @@ export function TransferFormModal({
                   value={formState.toCurrency}
                 />
               </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label
-                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                htmlFor="transfer-date-input"
-              >
-                Date *
-              </label>
+            </FormField>
+            <FormField htmlFor="transfer-date-input" label="Date *">
               <input
                 required
                 className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
@@ -250,14 +221,8 @@ export function TransferFormModal({
                 type="date"
                 value={formState.transferDate}
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label
-                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                htmlFor="notes-input"
-              >
-                Notes
-              </label>
+            </FormField>
+            <FormField htmlFor="notes-input" label="Notes">
               <input
                 className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
                 id="notes-input"
@@ -266,7 +231,7 @@ export function TransferFormModal({
                 type="text"
                 value={formState.notes}
               />
-            </div>
+            </FormField>
             {submitError && (
               <div className="col-span-full rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                 {submitError}
