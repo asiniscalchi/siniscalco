@@ -4,7 +4,7 @@ use serde::Deserialize;
 use crate::{AssetUnitPrice, Currency};
 
 use super::super::{AssetPriceRefreshError, AssetQuote};
-use super::unix_timestamp_to_rfc3339;
+use super::{fetch_json, unix_timestamp_to_rfc3339};
 
 #[derive(Debug, Deserialize)]
 struct FinnhubQuoteResponse {
@@ -43,28 +43,12 @@ pub async fn fetch_finnhub_quote(
     symbol: &str,
 ) -> Result<AssetQuote, AssetPriceRefreshError> {
     let url = format!("{}/api/v1/quote", base_url.trim_end_matches('/'));
-    let response = client
-        .get(url)
-        .query(&[("symbol", symbol), ("token", api_key)])
-        .send()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
-
-    if !response.status().is_success() {
-        return Err(AssetPriceRefreshError::Provider(format!(
-            "asset price refresh failed: provider returned status {}",
-            response.status()
-        )));
-    }
-
-    let payload = response
-        .json::<FinnhubQuoteResponse>()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
+    let payload = fetch_json::<FinnhubQuoteResponse>(
+        client
+            .get(url)
+            .query(&[("symbol", symbol), ("token", api_key)]),
+    )
+    .await?;
 
     if let Some(error) = payload.error {
         return Err(AssetPriceRefreshError::Provider(format!(

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use rust_decimal::Decimal;
-use sqlx::{Row, SqlitePool};
+use sqlx::{Row, SqlitePool, sqlite::SqliteConnection};
 
 use crate::storage::records::*;
 use crate::storage::{
@@ -15,88 +15,77 @@ pub async fn create_asset_transaction(
     pool: &SqlitePool,
     input: CreateAssetTransactionInput,
 ) -> Result<AssetTransactionRecord, StorageError> {
-    let mut connection = pool.acquire().await?;
-    sqlx::query("BEGIN IMMEDIATE")
-        .execute(&mut *connection)
-        .await?;
+    let mut tx = pool.begin().await?;
 
-    let result = async {
-        if input.transaction_type == AssetTransactionType::Sell {
-            let current_quantity =
-                load_current_quantity(&mut connection, input.account_id, input.asset_id).await?;
+    if input.transaction_type == AssetTransactionType::Sell {
+        let current_quantity =
+            load_current_quantity(&mut *tx, input.account_id, input.asset_id).await?;
 
-            if current_quantity < input.quantity.as_decimal() {
-                return Err(StorageError::Validation(
-                    "sell transaction would make position negative",
-                ));
-            }
+        if current_quantity < input.quantity.as_decimal() {
+            return Err(StorageError::Validation(
+                "sell transaction would make position negative",
+            ));
         }
-
-        let timestamp = current_utc_timestamp_iso8601()?;
-        let result = sqlx::query(
-            r#"
-            INSERT INTO asset_transactions (
-                account_id,
-                asset_id,
-                transaction_type,
-                trade_date,
-                quantity,
-                unit_price,
-                currency_code,
-                notes,
-                created_at,
-                updated_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            "#,
-        )
-        .bind(input.account_id.as_i64())
-        .bind(input.asset_id.as_i64())
-        .bind(input.transaction_type.as_str())
-        .bind(input.trade_date.as_str())
-        .bind(input.quantity.as_scaled_i64())
-        .bind(input.unit_price.as_scaled_i64())
-        .bind(input.currency_code.as_str())
-        .bind(input.notes.as_deref())
-        .bind(&timestamp)
-        .bind(&timestamp)
-        .execute(&mut *connection)
-        .await?;
-
-        apply_cash_impact(
-            &mut connection,
-            input.account_id,
-            input.transaction_type,
-            input.quantity,
-            input.unit_price,
-            input.currency_code,
-            &timestamp,
-        )
-        .await?;
-
-        let transaction_id = result.last_insert_rowid();
-        let row = sqlx::query(
-            r#"
-            SELECT id, account_id, asset_id, transaction_type, trade_date, quantity, unit_price,
-                   currency_code, notes, created_at, updated_at
-            FROM asset_transactions
-            WHERE id = ?
-            "#,
-        )
-        .bind(transaction_id)
-        .fetch_one(&mut *connection)
-        .await?;
-
-        sqlx::query("COMMIT").execute(&mut *connection).await?;
-        map_transaction_row(row)
-    }
-    .await;
-
-    if result.is_err() {
-        let _ = sqlx::query("ROLLBACK").execute(&mut *connection).await;
     }
 
-    result
+    let timestamp = current_utc_timestamp_iso8601()?;
+    let result = sqlx::query(
+        r#"
+        INSERT INTO asset_transactions (
+            account_id,
+            asset_id,
+            transaction_type,
+            trade_date,
+            quantity,
+            unit_price,
+            currency_code,
+            notes,
+            created_at,
+            updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        "#,
+    )
+    .bind(input.account_id.as_i64())
+    .bind(input.asset_id.as_i64())
+    .bind(input.transaction_type.as_str())
+    .bind(input.trade_date.as_str())
+    .bind(input.quantity.as_scaled_i64())
+    .bind(input.unit_price.as_scaled_i64())
+    .bind(input.currency_code.as_str())
+    .bind(input.notes.as_deref())
+    .bind(&timestamp)
+    .bind(&timestamp)
+    .execute(&mut *tx)
+    .await?;
+
+    apply_cash_impact(
+        &mut *tx,
+        input.account_id,
+        input.transaction_type,
+        input.quantity,
+        input.unit_price,
+        input.currency_code,
+        &timestamp,
+    )
+    .await?;
+
+    let transaction_id = result.last_insert_rowid();
+    let row = sqlx::query(
+        r#"
+        SELECT id, account_id, asset_id, transaction_type, trade_date, quantity, unit_price,
+               currency_code, notes, created_at, updated_at
+        FROM asset_transactions
+        WHERE id = ?
+        "#,
+    )
+    .bind(transaction_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let record = map_transaction_row(row)?;
+    tx.commit().await?;
+    Ok(record)
 }
 
 pub async fn list_asset_transactions(
@@ -141,143 +130,113 @@ pub async fn get_transaction(
     transaction_id: i64,
 ) -> Result<AssetTransactionRecord, StorageError> {
     let mut connection = pool.acquire().await?;
-    get_asset_transaction(&mut connection, transaction_id).await
+    get_asset_transaction(&mut *connection, transaction_id).await
 }
 
 pub async fn update_asset_transaction(
     pool: &SqlitePool,
     transaction_id: i64,
-    input: UpdateAssetTransactionInput,
+    input: CreateAssetTransactionInput,
 ) -> Result<AssetTransactionRecord, StorageError> {
-    let mut connection = pool.acquire().await?;
-    sqlx::query("BEGIN IMMEDIATE")
-        .execute(&mut *connection)
+    let mut tx = pool.begin().await?;
+
+    let existing_transaction = get_asset_transaction(&mut *tx, transaction_id).await?;
+    validate_position_change_for_transaction_update(&mut *tx, &existing_transaction, &input)
         .await?;
 
-    let result = async {
-        let existing_transaction = get_asset_transaction(&mut connection, transaction_id).await?;
-        validate_position_change_for_transaction_update(
-            &mut connection,
-            &existing_transaction,
-            &input,
-        )
-        .await?;
+    let updated_at = current_utc_timestamp_iso8601()?;
 
-        let updated_at = current_utc_timestamp_iso8601()?;
+    reverse_cash_impact(
+        &mut *tx,
+        existing_transaction.account_id,
+        existing_transaction.transaction_type,
+        existing_transaction.quantity,
+        existing_transaction.unit_price,
+        existing_transaction.currency_code,
+        &updated_at,
+    )
+    .await?;
 
-        reverse_cash_impact(
-            &mut connection,
-            existing_transaction.account_id,
-            existing_transaction.transaction_type,
-            existing_transaction.quantity,
-            existing_transaction.unit_price,
-            existing_transaction.currency_code,
-            &updated_at,
-        )
-        .await?;
+    apply_cash_impact(
+        &mut *tx,
+        input.account_id,
+        input.transaction_type,
+        input.quantity,
+        input.unit_price,
+        input.currency_code,
+        &updated_at,
+    )
+    .await?;
 
-        apply_cash_impact(
-            &mut connection,
-            input.account_id,
-            input.transaction_type,
-            input.quantity,
-            input.unit_price,
-            input.currency_code,
-            &updated_at,
-        )
-        .await?;
+    let result = sqlx::query(
+        r#"
+        UPDATE asset_transactions
+        SET account_id = ?,
+            asset_id = ?,
+            transaction_type = ?,
+            trade_date = ?,
+            quantity = ?,
+            unit_price = ?,
+            currency_code = ?,
+            notes = ?,
+            updated_at = ?
+        WHERE id = ?
+        "#,
+    )
+    .bind(input.account_id.as_i64())
+    .bind(input.asset_id.as_i64())
+    .bind(input.transaction_type.as_str())
+    .bind(input.trade_date.as_str())
+    .bind(input.quantity.as_scaled_i64())
+    .bind(input.unit_price.as_scaled_i64())
+    .bind(input.currency_code.as_str())
+    .bind(input.notes.as_deref())
+    .bind(&updated_at)
+    .bind(transaction_id)
+    .execute(&mut *tx)
+    .await?;
 
-        let result = sqlx::query(
-            r#"
-            UPDATE asset_transactions
-            SET account_id = ?,
-                asset_id = ?,
-                transaction_type = ?,
-                trade_date = ?,
-                quantity = ?,
-                unit_price = ?,
-                currency_code = ?,
-                notes = ?,
-                updated_at = ?
-            WHERE id = ?
-            "#,
-        )
-        .bind(input.account_id.as_i64())
-        .bind(input.asset_id.as_i64())
-        .bind(input.transaction_type.as_str())
-        .bind(input.trade_date.as_str())
-        .bind(input.quantity.as_scaled_i64())
-        .bind(input.unit_price.as_scaled_i64())
-        .bind(input.currency_code.as_str())
-        .bind(input.notes.as_deref())
-        .bind(&updated_at)
-        .bind(transaction_id)
-        .execute(&mut *connection)
-        .await?;
-
-        if result.rows_affected() == 0 {
-            return Err(StorageError::Database(sqlx::Error::RowNotFound));
-        }
-
-        let transaction = get_asset_transaction(&mut connection, transaction_id).await?;
-
-        sqlx::query("COMMIT").execute(&mut *connection).await?;
-        Ok(transaction)
-    }
-    .await;
-
-    if result.is_err() {
-        let _ = sqlx::query("ROLLBACK").execute(&mut *connection).await;
+    if result.rows_affected() == 0 {
+        return Err(StorageError::Database(sqlx::Error::RowNotFound));
     }
 
-    result
+    let transaction = get_asset_transaction(&mut *tx, transaction_id).await?;
+    tx.commit().await?;
+    Ok(transaction)
 }
 
 pub async fn delete_asset_transaction(
     pool: &SqlitePool,
     transaction_id: i64,
 ) -> Result<(), StorageError> {
-    let mut connection = pool.acquire().await?;
-    sqlx::query("BEGIN IMMEDIATE")
-        .execute(&mut *connection)
+    let mut tx = pool.begin().await?;
+
+    let existing_transaction = get_asset_transaction(&mut *tx, transaction_id).await?;
+    validate_position_change_for_transaction_delete(&mut *tx, &existing_transaction).await?;
+
+    let updated_at = current_utc_timestamp_iso8601()?;
+    reverse_cash_impact(
+        &mut *tx,
+        existing_transaction.account_id,
+        existing_transaction.transaction_type,
+        existing_transaction.quantity,
+        existing_transaction.unit_price,
+        existing_transaction.currency_code,
+        &updated_at,
+    )
+    .await?;
+
+    let result = sqlx::query("DELETE FROM asset_transactions WHERE id = ?")
+        .bind(transaction_id)
+        .execute(&mut *tx)
         .await?;
 
-    let result = async {
-        let existing_transaction = get_asset_transaction(&mut connection, transaction_id).await?;
-        validate_position_change_for_transaction_delete(&mut connection, &existing_transaction)
-            .await?;
-
-        let updated_at = current_utc_timestamp_iso8601()?;
-        reverse_cash_impact(
-            &mut connection,
-            existing_transaction.account_id,
-            existing_transaction.transaction_type,
-            existing_transaction.quantity,
-            existing_transaction.unit_price,
-            existing_transaction.currency_code,
-            &updated_at,
-        )
-        .await?;
-
-        let result = sqlx::query("DELETE FROM asset_transactions WHERE id = ?")
-            .bind(transaction_id)
-            .execute(&mut *connection)
-            .await?;
-
-        if result.rows_affected() == 0 {
-            return Err(StorageError::Database(sqlx::Error::RowNotFound));
-        }
-
-        sqlx::query("COMMIT").execute(&mut *connection).await?;
-        Ok(())
-    }
-    .await;
-
-    if result.is_err() {
-        let _ = sqlx::query("ROLLBACK").execute(&mut *connection).await;
+    if result.rows_affected() == 0 {
+        return Err(StorageError::Database(sqlx::Error::RowNotFound));
     }
 
-    result
+    tx.commit().await?;
+    Ok(())
 }
 
 pub async fn list_account_positions(
@@ -327,7 +286,7 @@ pub async fn list_account_positions(
 // ── Private helpers ───────────────────────────────────────────────────────────
 
 async fn load_current_quantity(
-    connection: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
+    connection: &mut SqliteConnection,
     account_id: AccountId,
     asset_id: AssetId,
 ) -> Result<Decimal, StorageError> {
@@ -340,7 +299,7 @@ async fn load_current_quantity(
     )
     .bind(account_id.as_i64())
     .bind(asset_id.as_i64())
-    .fetch_all(&mut **connection)
+    .fetch_all(&mut *connection)
     .await?;
 
     rows.into_iter()
@@ -355,7 +314,7 @@ async fn load_current_quantity(
 }
 
 async fn get_asset_transaction(
-    connection: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
+    connection: &mut SqliteConnection,
     transaction_id: i64,
 ) -> Result<AssetTransactionRecord, StorageError> {
     let row = sqlx::query(
@@ -367,16 +326,16 @@ async fn get_asset_transaction(
         "#,
     )
     .bind(transaction_id)
-    .fetch_one(&mut **connection)
+    .fetch_one(&mut *connection)
     .await?;
 
     map_transaction_row(row)
 }
 
 async fn validate_position_change_for_transaction_update(
-    connection: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
+    connection: &mut SqliteConnection,
     existing_transaction: &AssetTransactionRecord,
-    input: &UpdateAssetTransactionInput,
+    input: &CreateAssetTransactionInput,
 ) -> Result<(), StorageError> {
     let old_delta = signed_quantity_delta(
         existing_transaction.transaction_type,
@@ -421,7 +380,7 @@ async fn validate_position_change_for_transaction_update(
 }
 
 async fn validate_position_change_for_transaction_delete(
-    connection: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
+    connection: &mut SqliteConnection,
     existing_transaction: &AssetTransactionRecord,
 ) -> Result<(), StorageError> {
     let current_quantity = load_current_quantity(

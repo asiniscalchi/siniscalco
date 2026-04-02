@@ -4,7 +4,7 @@ use serde::Deserialize;
 use crate::{AssetUnitPrice, Currency};
 
 use super::super::{AssetPriceRefreshError, AssetQuote};
-use super::unix_timestamp_to_rfc3339;
+use super::{fetch_json, unix_timestamp_to_rfc3339};
 
 #[derive(Debug, Deserialize)]
 struct EodhdRealTimeResponse {
@@ -47,28 +47,12 @@ pub async fn fetch_eodhd_quote(
         base_url.trim_end_matches('/'),
         symbol
     );
-    let response = client
-        .get(url)
-        .query(&[("api_token", api_key), ("fmt", "json")])
-        .send()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
-
-    if !response.status().is_success() {
-        return Err(AssetPriceRefreshError::Provider(format!(
-            "asset price refresh failed: provider returned status {}",
-            response.status()
-        )));
-    }
-
-    let payload = response
-        .json::<EodhdRealTimeResponse>()
-        .await
-        .map_err(|error| {
-            AssetPriceRefreshError::Provider(format!("asset price refresh failed: {error}"))
-        })?;
+    let payload = fetch_json::<EodhdRealTimeResponse>(
+        client
+            .get(url)
+            .query(&[("api_token", api_key), ("fmt", "json")]),
+    )
+    .await?;
 
     let price_num = payload.close.ok_or_else(|| {
         AssetPriceRefreshError::Provider(
