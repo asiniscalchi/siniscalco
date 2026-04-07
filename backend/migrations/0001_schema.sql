@@ -5,7 +5,7 @@ CREATE TABLE currencies (
 CREATE TABLE accounts (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL CHECK (length(trim(name)) > 0),
-    account_type TEXT NOT NULL CHECK (account_type IN ('bank', 'broker')),
+    account_type TEXT NOT NULL CHECK (account_type IN ('bank', 'broker', 'crypto')),
     base_currency TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (base_currency) REFERENCES currencies(code)
@@ -83,6 +83,71 @@ CREATE TABLE asset_prices (
     updated_at TEXT NOT NULL,
     FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE,
     FOREIGN KEY (currency_code) REFERENCES currencies(code)
+);
+
+CREATE TABLE asset_price_history (
+    id INTEGER PRIMARY KEY,
+    asset_id INTEGER NOT NULL,
+    price INTEGER NOT NULL CHECK (typeof(price) = 'integer' AND price >= 0),
+    currency_code TEXT NOT NULL,
+    recorded_at TEXT NOT NULL,
+    FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE,
+    FOREIGN KEY (currency_code) REFERENCES currencies(code)
+);
+
+CREATE INDEX asset_price_history_asset_recorded ON asset_price_history (asset_id, recorded_at);
+
+CREATE TABLE portfolio_snapshots (
+    id INTEGER PRIMARY KEY,
+    total_value INTEGER NOT NULL CHECK (typeof(total_value) = 'integer' AND total_value >= 0),
+    currency_code TEXT NOT NULL,
+    recorded_at TEXT NOT NULL,
+    FOREIGN KEY (currency_code) REFERENCES currencies(code)
+);
+
+CREATE UNIQUE INDEX portfolio_snapshots_date_currency
+ON portfolio_snapshots (date(recorded_at), currency_code);
+
+CREATE TABLE account_transfers (
+    id INTEGER PRIMARY KEY,
+    from_account_id INTEGER NOT NULL,
+    to_account_id INTEGER NOT NULL,
+    from_currency TEXT NOT NULL,
+    from_amount INTEGER NOT NULL CHECK (typeof(from_amount) = 'integer' AND from_amount > 0),
+    to_currency TEXT NOT NULL,
+    to_amount INTEGER NOT NULL CHECK (typeof(to_amount) = 'integer' AND to_amount > 0),
+    transfer_date TEXT NOT NULL CHECK (length(transfer_date) = 10 AND transfer_date GLOB '????-??-??'),
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    FOREIGN KEY (from_account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+    FOREIGN KEY (to_account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+    FOREIGN KEY (from_currency) REFERENCES currencies(code),
+    FOREIGN KEY (to_currency) REFERENCES currencies(code),
+    CHECK (from_account_id != to_account_id)
+);
+
+CREATE TABLE chat_threads (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    status TEXT NOT NULL DEFAULT 'regular' CHECK (status IN ('regular', 'archived')),
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
+CREATE TABLE chat_messages (
+    id TEXT PRIMARY KEY,
+    thread_id TEXT NOT NULL REFERENCES chat_threads(id) ON DELETE CASCADE,
+    parent_id TEXT,
+    content_json TEXT NOT NULL,
+    run_config_json TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
+CREATE INDEX chat_messages_thread_id_idx ON chat_messages(thread_id);
+
+CREATE TABLE app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
 );
 
 INSERT INTO currencies (code)
