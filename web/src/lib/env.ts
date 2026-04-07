@@ -1,35 +1,35 @@
 export function getApiBaseUrl() {
-  return import.meta.env.VITE_API_BASE_URL?.trim() || "http://127.0.0.1:3000";
+  return import.meta.env.VITE_API_BASE_URL?.trim() || "/api";
 }
 
 export function getHealthApiUrl() {
-  return new URL("/health", getApiBaseUrl()).toString();
+  return `${getApiBaseUrl()}/health`;
 }
 
 export function getAssistantChatApiUrl() {
-  return new URL("/assistant/chat", getApiBaseUrl()).toString();
+  return `${getApiBaseUrl()}/assistant/chat`;
 }
 
 export function getAssistantModelsApiUrl() {
-  return new URL("/assistant/models", getApiBaseUrl()).toString();
+  return `${getApiBaseUrl()}/assistant/models`;
 }
 
 export function getAssistantSelectedModelApiUrl() {
-  return new URL("/assistant/models/selected", getApiBaseUrl()).toString();
+  return `${getApiBaseUrl()}/assistant/models/selected`;
 }
 
 export function getAssistantSystemPromptApiUrl() {
-  return new URL("/assistant/system-prompt", getApiBaseUrl()).toString();
+  return `${getApiBaseUrl()}/assistant/system-prompt`;
 }
 
 export function getAssistantThreadsApiUrl() {
-  return new URL("/assistant/threads", getApiBaseUrl()).toString();
+  return `${getApiBaseUrl()}/assistant/threads`;
 }
 
 export function getAssistantThreadApiUrl(threadId: string) {
-  return new URL(`/assistant/threads/${encodeURIComponent(threadId)}`, getApiBaseUrl()).toString();
+  return `${getApiBaseUrl()}/assistant/threads/${encodeURIComponent(threadId)}`;
 }
 
 export function getAssistantThreadMessagesApiUrl(threadId: string) {
-  return new URL(`/assistant/threads/${encodeURIComponent(threadId)}/messages`, getApiBaseUrl()).toString();
+  return `${getApiBaseUrl()}/assistant/threads/${encodeURIComponent(threadId)}/messages`;
 }
