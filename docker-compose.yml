@@ -12,6 +12,8 @@ services:
     image: ${WEB_IMAGE:-ghcr.io/asiniscalchi/siniscalco-web:${APP_TAG:-latest}}
     depends_on:
       - backend
+    environment:
+      BACKEND_UPSTREAM: ${BACKEND_UPSTREAM:-backend:3000}
     ports:
       - "8080:80"
 
