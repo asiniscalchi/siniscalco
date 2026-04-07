@@ -6,6 +6,7 @@ import { ApolloClient, HttpLink, InMemoryCache } from "@apollo/client";
 import { ApolloProvider } from "@apollo/client/react";
 
 import {
+  getApiBaseUrl,
   getAssistantModelsApiUrl,
   getAssistantSelectedModelApiUrl,
   getAssistantThreadsApiUrl,
@@ -189,6 +190,7 @@ describe("App shell", () => {
     renderApp(["/accounts"]);
 
     expect(screen.getByLabelText("Siniscalco")).toBeTruthy();
+    expect(screen.getByText(getApiBaseUrl())).toBeTruthy();
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeTruthy();
     expect(screen.getByTitle("Backend: checking")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Open assistant chat" })).toBeTruthy();
