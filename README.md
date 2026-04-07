@@ -48,6 +48,13 @@ The backend expects:
 
 The frontend image is built with `VITE_API_BASE_URL` as a build argument. For Compose usage it should be set to `/api`, which sends browser requests through the nginx proxy in the web container. Nginx then forwards those requests to the backend service over the Compose network.
 
+The nginx backend upstream is runtime-configurable with `BACKEND_UPSTREAM`. The included Compose file defaults it to `backend:3000`. If your deployment uses a different backend service name, set it without rebuilding the web image, for example:
+
+```bash
+export BACKEND_UPSTREAM=siniscalco-backend:3000
+docker compose up -d
+```
+
 For a deployment that serves the frontend and backend separately, build the web image with the public backend URL, for example:
 
 ```bash
@@ -98,7 +105,7 @@ The compose file uses a named volume for backend SQLite data.
 
 The published `siniscalco-web` image is only correct for the `VITE_API_BASE_URL` used when that image was built.
 
-The CI workflow builds and pushes the web image with `VITE_API_BASE_URL=/api`, which is suitable for the included Compose setup because nginx proxies `/api/` to the backend service. For a deployment where the API is hosted on a separate public origin, either:
+The CI workflow builds and pushes the web image with `VITE_API_BASE_URL=/api`, which is suitable for Compose setups because nginx proxies `/api/` to `BACKEND_UPSTREAM`. For a deployment where the API is hosted on a separate public origin, either:
 
 - rebuild the web image from the desired tag with the correct public `VITE_API_BASE_URL`
 - or update the CI workflow to build the tagged web image with the correct deployment URL
