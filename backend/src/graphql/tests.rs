@@ -2625,3 +2625,921 @@ async fn returns_not_found_when_deleting_missing_balance() {
     assert!(json["data"]["deleteBalance"].is_null());
     assert_eq!(json["errors"][0]["message"], "Balance not found");
 }
+
+// ── FX-rate drift correctness tests ──────────────────────────────────────────
+//
+// These tests expose a correctness bug: when a transaction is deleted or
+// updated after the FX rate between the transaction currency and the account
+// base currency has changed, the cash-impact reversal uses the *current* live
+// FX rate instead of the rate that was locked in at trade execution time.
+//
+// This means deleting a week-old cross-currency trade silently corrupts the
+// account cash balance by the full FX-drift amount times the trade notional.
+//
+// Tests whose name starts with "bug_" assert the CORRECT outcome and are
+// expected to FAIL until the issue is fixed. Tests whose name starts with
+// "sanity_" verify scenarios the bug does not affect and must continue to PASS.
+//
+// The fix: store the FX rate on asset_transactions at creation time and use
+// that stored rate—never the live fx_rates table—for reversals.
+
+// ── shared setup helpers ──────────────────────────────────────────────────────
+
+async fn setup_eur_broker_with_usd_asset(
+    pool: &sqlx::SqlitePool,
+    initial_eur: &str,
+    usd_to_eur: &str,
+) -> (crate::AccountId, crate::AssetId) {
+    let account_id = create_account(
+        pool,
+        CreateAccountInput {
+            name: account_name("Broker"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .expect("account should be created");
+
+    upsert_account_balance(
+        pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Eur,
+            amount: amt(initial_eur),
+        },
+    )
+    .await
+    .expect("balance should be set");
+
+    upsert_fx_rate(
+        pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate(usd_to_eur),
+        },
+    )
+    .await
+    .expect("fx rate should be set");
+
+    let asset_id = create_asset(
+        pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset should be created");
+
+    (account_id, asset_id)
+}
+
+async fn buy_usd(
+    pool: &sqlx::SqlitePool,
+    account_id: crate::AccountId,
+    asset_id: crate::AssetId,
+    qty: &str,
+    price: &str,
+) -> i64 {
+    create_asset_transaction(
+        pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2024-01-01"),
+            quantity: AssetQuantity::try_from(qty).unwrap(),
+            unit_price: AssetUnitPrice::try_from(price).unwrap(),
+            currency_code: Currency::Usd,
+            notes: None,
+        },
+    )
+    .await
+    .expect("buy transaction should be created")
+    .id
+}
+
+async fn sell_usd(
+    pool: &sqlx::SqlitePool,
+    account_id: crate::AccountId,
+    asset_id: crate::AssetId,
+    qty: &str,
+    price: &str,
+) -> i64 {
+    create_asset_transaction(
+        pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Sell,
+            trade_date: trade_date("2024-01-02"),
+            quantity: AssetQuantity::try_from(qty).unwrap(),
+            unit_price: AssetUnitPrice::try_from(price).unwrap(),
+            currency_code: Currency::Usd,
+            notes: None,
+        },
+    )
+    .await
+    .expect("sell transaction should be created")
+    .id
+}
+
+async fn set_usd_to_eur(pool: &sqlx::SqlitePool, rate: &str) {
+    upsert_fx_rate(
+        pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate(rate),
+        },
+    )
+    .await
+    .expect("fx rate update should succeed");
+}
+
+async fn eur_balance_after_delete(pool: sqlx::SqlitePool, tx_id: i64, account_id: i64) -> String {
+    let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    gql(
+        app,
+        &format!("mutation {{ deleteTransaction(id: {tx_id}) }}"),
+    )
+    .await;
+
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let json = gql(
+        app,
+        &format!("{{ account(id: {account_id}) {{ balances {{ currency amount }} }} }}"),
+    )
+    .await;
+
+    json["data"]["account"]["balances"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["currency"] == "EUR")
+        .map(|b| b["amount"].as_str().unwrap_or("").to_string())
+        .unwrap_or_default()
+}
+
+// ── GROUP 1: DELETE + FX drift ─────────────────────────────────────────────
+// All eight tests below fail because the reversal uses the live FX rate.
+
+#[tokio::test]
+async fn bug_delete_buy_after_fx_rate_increase_returns_too_much_cash() {
+    // Trade: BUY 10 @ 100 USD at rate 1.0 → cost 1000 EUR → balance: 1000 EUR
+    // FX moves 1.0 → 1.5 before delete.
+    // Bug: reversal credits 10*100*1.5 = 1500 EUR → balance becomes 2500 EUR.
+    // Correct: reversal should credit exactly 1000 EUR → balance: 2000 EUR.
+    let pool = test_pool().await;
+    let (account_id, asset_id) =
+        setup_eur_broker_with_usd_asset(&pool, "2000.000000", "1.000000").await;
+    let tx_id = buy_usd(&pool, account_id, asset_id, "10", "100").await;
+    set_usd_to_eur(&pool, "1.500000").await;
+
+    let balance = eur_balance_after_delete(pool, tx_id, account_id.as_i64()).await;
+    assert_eq!(balance, "2000.000000");
+}
+
+#[tokio::test]
+async fn bug_delete_buy_after_fx_rate_decrease_returns_too_little_cash() {
+    // Trade: BUY 10 @ 100 USD at rate 1.0 → cost 1000 EUR → balance: 1000 EUR
+    // FX moves 1.0 → 0.5 before delete.
+    // Bug: reversal credits 10*100*0.5 = 500 EUR → balance becomes 1500 EUR.
+    // Correct: reversal should credit 1000 EUR → balance: 2000 EUR.
+    let pool = test_pool().await;
+    let (account_id, asset_id) =
+        setup_eur_broker_with_usd_asset(&pool, "2000.000000", "1.000000").await;
+    let tx_id = buy_usd(&pool, account_id, asset_id, "10", "100").await;
+    set_usd_to_eur(&pool, "0.500000").await;
+
+    let balance = eur_balance_after_delete(pool, tx_id, account_id.as_i64()).await;
+    assert_eq!(balance, "2000.000000");
+}
+
+#[tokio::test]
+async fn bug_delete_buy_after_fx_rate_doubles_reversal_amount_is_doubled() {
+    // Trade: BUY 10 @ 100 USD at rate 0.500000 → cost 500 EUR → balance: 1500 EUR
+    // FX doubles: 0.5 → 1.0 before delete.
+    // Bug: reversal credits 10*100*1.0 = 1000 EUR → balance becomes 2500 EUR.
+    // Correct: reversal should credit 500 EUR → balance: 2000 EUR.
+    let pool = test_pool().await;
+    let (account_id, asset_id) =
+        setup_eur_broker_with_usd_asset(&pool, "2000.000000", "0.500000").await;
+    let tx_id = buy_usd(&pool, account_id, asset_id, "10", "100").await;
+    set_usd_to_eur(&pool, "1.000000").await;
+
+    let balance = eur_balance_after_delete(pool, tx_id, account_id.as_i64()).await;
+    assert_eq!(balance, "2000.000000");
+}
+
+#[tokio::test]
+async fn bug_delete_buy_after_large_fx_swing_produces_balance_above_initial_deposit() {
+    // Initial deposit: 1000 EUR.
+    // Trade: BUY 10 @ 100 USD at rate 0.500000 → cost 500 EUR → balance: 500 EUR.
+    // FX moves to 2.0 (4x original rate) before delete.
+    // Bug: reversal credits 10*100*2.0 = 2000 EUR → balance 2500 EUR > 1000 EUR initial.
+    // Correct: balance must never exceed initial deposit after a round-trip.
+    let pool = test_pool().await;
+    let (account_id, asset_id) =
+        setup_eur_broker_with_usd_asset(&pool, "1000.000000", "0.500000").await;
+    let tx_id = buy_usd(&pool, account_id, asset_id, "10", "100").await;
+    set_usd_to_eur(&pool, "2.000000").await;
+
+    let balance = eur_balance_after_delete(pool, tx_id, account_id.as_i64()).await;
+    // Balance must equal initial deposit: the round-trip should be a no-op.
+    assert_eq!(balance, "1000.000000");
+}
+
+#[tokio::test]
+async fn bug_delete_sell_after_fx_rate_increase_deducts_too_much_cash() {
+    // Setup: BUY 10 @ 100 USD at 1.0 → balance: 2000 EUR.
+    //        SELL 10 @ 100 USD at 1.0 → gain 1000 EUR → balance: 3000 EUR.
+    // FX moves 1.0 → 1.5 before the SELL is deleted.
+    // Bug: reversing the SELL = applying a BUY at 1.5 → costs 1500 EUR → balance: 1500 EUR.
+    // Correct: reversing the SELL should deduct exactly 1000 EUR → balance: 2000 EUR.
+    let pool = test_pool().await;
+    let (account_id, asset_id) =
+        setup_eur_broker_with_usd_asset(&pool, "3000.000000", "1.000000").await;
+    buy_usd(&pool, account_id, asset_id, "10", "100").await;
+    let sell_id = sell_usd(&pool, account_id, asset_id, "10", "100").await;
+    set_usd_to_eur(&pool, "1.500000").await;
+
+    let balance = eur_balance_after_delete(pool, sell_id, account_id.as_i64()).await;
+    assert_eq!(balance, "2000.000000");
+}
+
+#[tokio::test]
+async fn bug_delete_sell_after_fx_rate_decrease_deducts_too_little_cash() {
+    // Setup: BUY 10 @ 100 USD at 1.0 → balance: 2000 EUR.
+    //        SELL 10 @ 100 USD at 1.0 → balance: 3000 EUR.
+    // FX moves 1.0 → 0.5 before the SELL is deleted.
+    // Bug: reversing at 0.5 deducts only 500 EUR → balance becomes 2500 EUR.
+    // Correct: should deduct 1000 EUR → balance: 2000 EUR.
+    let pool = test_pool().await;
+    let (account_id, asset_id) =
+        setup_eur_broker_with_usd_asset(&pool, "3000.000000", "1.000000").await;
+    buy_usd(&pool, account_id, asset_id, "10", "100").await;
+    let sell_id = sell_usd(&pool, account_id, asset_id, "10", "100").await;
+    set_usd_to_eur(&pool, "0.500000").await;
+
+    let balance = eur_balance_after_delete(pool, sell_id, account_id.as_i64()).await;
+    assert_eq!(balance, "2000.000000");
+}
+
+// Note: a CHF-base account buying USD assets is not tested here because the
+// system only stores FX rates as X→EUR. USD→CHF is therefore an invalid pair
+// and would be rejected at transaction creation time. The EUR-base tests
+// already provide full coverage of the cross-currency delete bug.
+
+#[tokio::test]
+async fn bug_two_buys_delete_both_after_fx_change_errors_compound() {
+    // Each deleted trade applies the drift independently, so n deletes = n×error.
+    // BUY 10 @ 100 USD at 1.0 → −1000 EUR → balance: 2000 EUR
+    // BUY  5 @ 100 USD at 1.0 → −500  EUR → balance: 1500 EUR
+    // FX moves to 2.0.
+    // Delete first:  reversal = 2000 EUR → balance: 3500 EUR  (should be 2500)
+    // Delete second: reversal = 1000 EUR → balance: 4500 EUR  (should be 3000)
+    let pool = test_pool().await;
+    let (account_id, asset_id) =
+        setup_eur_broker_with_usd_asset(&pool, "3000.000000", "1.000000").await;
+    let tx1 = buy_usd(&pool, account_id, asset_id, "10", "100").await;
+    let tx2 = buy_usd(&pool, account_id, asset_id, "5", "100").await;
+    set_usd_to_eur(&pool, "2.000000").await;
+
+    let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    gql(app, &format!("mutation {{ deleteTransaction(id: {tx1}) }}")).await;
+    let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    gql(app, &format!("mutation {{ deleteTransaction(id: {tx2}) }}")).await;
+
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let json = gql(
+        app,
+        &format!(
+            "{{ account(id: {}) {{ balances {{ currency amount }} }} }}",
+            account_id.as_i64()
+        ),
+    )
+    .await;
+    let balance = json["data"]["account"]["balances"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["currency"] == "EUR")
+        .map(|b| b["amount"].as_str().unwrap_or(""))
+        .unwrap_or("");
+    assert_eq!(balance, "3000.000000");
+}
+
+// ── GROUP 2: DELETE sanity (must continue to PASS) ─────────────────────────
+
+#[tokio::test]
+async fn sanity_delete_same_currency_tx_always_restores_balance_correctly() {
+    // No FX conversion: USD account, USD transaction. The bug cannot appear.
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("USD Broker"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .unwrap();
+
+    upsert_account_balance(
+        &pool,
+        UpsertAccountBalanceInput {
+            account_id,
+            currency: Currency::Usd,
+            amount: amt("2000.000000"),
+        },
+    )
+    .await
+    .unwrap();
+
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    // BUY in the same currency as the account — no FX lookup needed.
+    let tx_id = create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2024-01-01"),
+            quantity: AssetQuantity::try_from("10").unwrap(),
+            unit_price: AssetUnitPrice::try_from("100").unwrap(),
+            currency_code: Currency::Usd,
+            notes: None,
+        },
+    )
+    .await
+    .unwrap()
+    .id;
+
+    let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    gql(
+        app,
+        &format!("mutation {{ deleteTransaction(id: {tx_id}) }}"),
+    )
+    .await;
+
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let json = gql(
+        app,
+        &format!(
+            "{{ account(id: {}) {{ balances {{ currency amount }} }} }}",
+            account_id.as_i64()
+        ),
+    )
+    .await;
+    let balance = json["data"]["account"]["balances"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["currency"] == "USD")
+        .map(|b| b["amount"].as_str().unwrap_or(""))
+        .unwrap_or("");
+    assert_eq!(balance, "2000.000000");
+}
+
+#[tokio::test]
+async fn sanity_delete_cross_currency_tx_at_unchanged_fx_rate_restores_balance_correctly() {
+    // When the FX rate does not change between trade and delete, the reversal
+    // is exact and the balance is fully restored.
+    let pool = test_pool().await;
+    let (account_id, asset_id) =
+        setup_eur_broker_with_usd_asset(&pool, "2000.000000", "1.000000").await;
+    let tx_id = buy_usd(&pool, account_id, asset_id, "10", "100").await;
+    // No rate change between create and delete.
+    let balance = eur_balance_after_delete(pool, tx_id, account_id.as_i64()).await;
+    assert_eq!(balance, "2000.000000");
+}
+
+// ── GROUP 3: UPDATE + FX drift ─────────────────────────────────────────────
+// Updating a transaction reverses the old cash impact and applies the new one,
+// both at the *current* FX rate. When the rate has moved, the old reversal
+// uses the wrong rate, corrupting the balance.
+
+#[tokio::test]
+async fn bug_update_quantity_decrease_after_fx_rate_increase_refunds_wrong_amount() {
+    // Trade: BUY 10 @ 100 USD at 1.0 → cost 1000 EUR → balance: 1000 EUR.
+    // FX moves to 1.5.
+    // Update: reduce quantity 10 → 5 (same price, same currency).
+    //   Reverse at 1.5: credit 10*100*1.5 = 1500 EUR → balance: 2500 EUR.
+    //   Apply at 1.5:  debit  5*100*1.5 = 750  EUR → balance: 1750 EUR.
+    // Correct (using original rate):
+    //   Reverse at 1.0: credit 1000 EUR → balance: 2000 EUR.
+    //   Apply at 1.0:  debit  500  EUR → balance: 1500 EUR.
+    let pool = test_pool().await;
+    let (account_id, asset_id) =
+        setup_eur_broker_with_usd_asset(&pool, "2000.000000", "1.000000").await;
+    let tx_id = buy_usd(&pool, account_id, asset_id, "10", "100").await;
+    set_usd_to_eur(&pool, "1.500000").await;
+
+    let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    gql(
+        app,
+        &format!(
+            r#"mutation {{
+                updateTransaction(id: {tx_id}, input: {{
+                    accountId: {}
+                    assetId: {}
+                    transactionType: BUY
+                    tradeDate: "2024-01-01"
+                    quantity: "5"
+                    unitPrice: "100.00"
+                    currencyCode: "USD"
+                }}) {{ id }}
+            }}"#,
+            account_id.as_i64(),
+            asset_id.as_i64()
+        ),
+    )
+    .await;
+
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let json = gql(
+        app,
+        &format!(
+            "{{ account(id: {}) {{ balances {{ currency amount }} }} }}",
+            account_id.as_i64()
+        ),
+    )
+    .await;
+    let balance = json["data"]["account"]["balances"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["currency"] == "EUR")
+        .map(|b| b["amount"].as_str().unwrap_or(""))
+        .unwrap_or("");
+    assert_eq!(balance, "1500.000000");
+}
+
+#[tokio::test]
+async fn bug_update_quantity_increase_after_fx_rate_decrease_deducts_wrong_amount() {
+    // Trade: BUY 10 @ 100 USD at 1.0 → cost 1000 EUR → balance: 2000 EUR.
+    // FX moves to 0.5.
+    // Update: increase quantity 10 → 20 (same price).
+    //   Reverse at 0.5: credit 10*100*0.5 = 500 EUR → balance: 2500 EUR.
+    //   Apply at 0.5:  debit 20*100*0.5 = 1000 EUR → balance: 1500 EUR.
+    // Correct (same-currency update uses stored rate for both operations):
+    //   Reverse at stored 1.0: credit 1000 EUR → balance: 3000 EUR.
+    //   Apply at stored 1.0:  debit  2000 EUR → balance: 1000 EUR.
+    let pool = test_pool().await;
+    let (account_id, asset_id) =
+        setup_eur_broker_with_usd_asset(&pool, "3000.000000", "1.000000").await;
+    let tx_id = buy_usd(&pool, account_id, asset_id, "10", "100").await;
+    set_usd_to_eur(&pool, "0.500000").await;
+
+    let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    gql(
+        app,
+        &format!(
+            r#"mutation {{
+                updateTransaction(id: {tx_id}, input: {{
+                    accountId: {}
+                    assetId: {}
+                    transactionType: BUY
+                    tradeDate: "2024-01-01"
+                    quantity: "20"
+                    unitPrice: "100.00"
+                    currencyCode: "USD"
+                }}) {{ id }}
+            }}"#,
+            account_id.as_i64(),
+            asset_id.as_i64()
+        ),
+    )
+    .await;
+
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let json = gql(
+        app,
+        &format!(
+            "{{ account(id: {}) {{ balances {{ currency amount }} }} }}",
+            account_id.as_i64()
+        ),
+    )
+    .await;
+    let balance = json["data"]["account"]["balances"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["currency"] == "EUR")
+        .map(|b| b["amount"].as_str().unwrap_or(""))
+        .unwrap_or("");
+    // Correct: reversal at stored 1.0 = +1000 EUR; re-apply at stored 1.0 = −2000 EUR → balance: 1000 EUR.
+    assert_eq!(balance, "1000.000000");
+}
+
+#[tokio::test]
+async fn bug_update_unit_price_after_fx_rate_change_corrupts_balance() {
+    // Trade: BUY 10 @ 100 USD at 1.0 → cost 1000 EUR → balance: 1000 EUR.
+    // FX moves to 2.0.
+    // Update: change price 100 → 50 (same quantity).
+    //   Reverse at 2.0: credit 10*100*2.0 = 2000 EUR → balance: 3000 EUR.
+    //   Apply at 2.0:  debit  10*50*2.0  = 1000 EUR → balance: 2000 EUR.
+    // Correct (same-currency update uses stored rate for both operations):
+    //   Reverse at stored 1.0: credit 1000 EUR → balance: 2000 EUR.
+    //   Apply at stored 1.0:  debit    500 EUR → balance: 1500 EUR.
+    let pool = test_pool().await;
+    let (account_id, asset_id) =
+        setup_eur_broker_with_usd_asset(&pool, "2000.000000", "1.000000").await;
+    let tx_id = buy_usd(&pool, account_id, asset_id, "10", "100").await;
+    set_usd_to_eur(&pool, "2.000000").await;
+
+    let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    gql(
+        app,
+        &format!(
+            r#"mutation {{
+                updateTransaction(id: {tx_id}, input: {{
+                    accountId: {}
+                    assetId: {}
+                    transactionType: BUY
+                    tradeDate: "2024-01-01"
+                    quantity: "10"
+                    unitPrice: "50.00"
+                    currencyCode: "USD"
+                }}) {{ id }}
+            }}"#,
+            account_id.as_i64(),
+            asset_id.as_i64()
+        ),
+    )
+    .await;
+
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let json = gql(
+        app,
+        &format!(
+            "{{ account(id: {}) {{ balances {{ currency amount }} }} }}",
+            account_id.as_i64()
+        ),
+    )
+    .await;
+    let balance = json["data"]["account"]["balances"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["currency"] == "EUR")
+        .map(|b| b["amount"].as_str().unwrap_or(""))
+        .unwrap_or("");
+    // Correct: reversal at stored 1.0 = +1000 EUR; re-apply at stored 1.0 = −500 EUR → balance: 1500 EUR.
+    assert_eq!(balance, "1500.000000");
+}
+
+#[tokio::test]
+async fn sanity_update_trade_date_only_after_fx_drift_does_not_corrupt_balance() {
+    // Changing only the trade date does not touch price, qty, or currency.
+    // The reverse and re-apply use the same values at the same live rate,
+    // so they cancel exactly — the balance is unaffected even after FX drift.
+    let pool = test_pool().await;
+    let (account_id, asset_id) =
+        setup_eur_broker_with_usd_asset(&pool, "2000.000000", "1.000000").await;
+    let tx_id = buy_usd(&pool, account_id, asset_id, "10", "100").await;
+    set_usd_to_eur(&pool, "1.500000").await;
+
+    let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    gql(
+        app,
+        &format!(
+            r#"mutation {{
+                updateTransaction(id: {tx_id}, input: {{
+                    accountId: {}
+                    assetId: {}
+                    transactionType: BUY
+                    tradeDate: "2024-06-01"
+                    quantity: "10"
+                    unitPrice: "100.00"
+                    currencyCode: "USD"
+                }}) {{ id }}
+            }}"#,
+            account_id.as_i64(),
+            asset_id.as_i64()
+        ),
+    )
+    .await;
+
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let json = gql(
+        app,
+        &format!(
+            "{{ account(id: {}) {{ balances {{ currency amount }} }} }}",
+            account_id.as_i64()
+        ),
+    )
+    .await;
+    let balance = json["data"]["account"]["balances"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["currency"] == "EUR")
+        .map(|b| b["amount"].as_str().unwrap_or(""))
+        .unwrap_or("");
+    // Trade date is not a cash field; balance should be unchanged at 1000 EUR.
+    assert_eq!(balance, "1000.000000");
+}
+
+#[tokio::test]
+async fn bug_update_currency_from_usd_to_eur_after_fx_drift_corrupts_balance() {
+    // Trade: BUY 10 @ 100 USD at 1.0 → cost 1000 EUR → balance: 1000 EUR.
+    // FX moves to 1.5.
+    // Update: change transaction currency USD → EUR (keep price 100).
+    //   Reverse USD BUY at 1.5: credit 10*100*1.5 = 1500 EUR → balance: 2500 EUR.
+    //   Apply EUR BUY at 1.0:  debit  10*100*1.0 = 1000 EUR → balance: 1500 EUR.
+    // Correct: reverse at original rate 1.0 gives back 1000 EUR;
+    //          apply 1000 EUR cost → net zero → balance stays at 1000 EUR.
+    let pool = test_pool().await;
+    let (account_id, asset_id) =
+        setup_eur_broker_with_usd_asset(&pool, "2000.000000", "1.000000").await;
+    let tx_id = buy_usd(&pool, account_id, asset_id, "10", "100").await;
+    set_usd_to_eur(&pool, "1.500000").await;
+
+    let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    gql(
+        app,
+        &format!(
+            r#"mutation {{
+                updateTransaction(id: {tx_id}, input: {{
+                    accountId: {}
+                    assetId: {}
+                    transactionType: BUY
+                    tradeDate: "2024-01-01"
+                    quantity: "10"
+                    unitPrice: "100.00"
+                    currencyCode: "EUR"
+                }}) {{ id }}
+            }}"#,
+            account_id.as_i64(),
+            asset_id.as_i64()
+        ),
+    )
+    .await;
+
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let json = gql(
+        app,
+        &format!(
+            "{{ account(id: {}) {{ balances {{ currency amount }} }} }}",
+            account_id.as_i64()
+        ),
+    )
+    .await;
+    let balance = json["data"]["account"]["balances"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["currency"] == "EUR")
+        .map(|b| b["amount"].as_str().unwrap_or(""))
+        .unwrap_or("");
+    // The cost in EUR is the same (100 EUR/share × 10), so balance should not change.
+    assert_eq!(balance, "1000.000000");
+}
+
+// ── GROUP 4: UPDATE sanity (must continue to PASS) ─────────────────────────
+
+#[tokio::test]
+async fn sanity_update_notes_only_after_fx_change_does_not_corrupt_balance() {
+    // When only the notes field changes, the reverse and re-apply use identical
+    // price/qty/currency at the same (current) rate, so they cancel exactly.
+    let pool = test_pool().await;
+    let (account_id, asset_id) =
+        setup_eur_broker_with_usd_asset(&pool, "2000.000000", "1.000000").await;
+    let tx_id = buy_usd(&pool, account_id, asset_id, "10", "100").await;
+    set_usd_to_eur(&pool, "1.500000").await;
+
+    let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    gql(
+        app,
+        &format!(
+            r#"mutation {{
+                updateTransaction(id: {tx_id}, input: {{
+                    accountId: {}
+                    assetId: {}
+                    transactionType: BUY
+                    tradeDate: "2024-01-01"
+                    quantity: "10"
+                    unitPrice: "100.00"
+                    currencyCode: "USD"
+                    notes: "corrected note"
+                }}) {{ id }}
+            }}"#,
+            account_id.as_i64(),
+            asset_id.as_i64()
+        ),
+    )
+    .await;
+
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let json = gql(
+        app,
+        &format!(
+            "{{ account(id: {}) {{ balances {{ currency amount }} }} }}",
+            account_id.as_i64()
+        ),
+    )
+    .await;
+    let balance = json["data"]["account"]["balances"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["currency"] == "EUR")
+        .map(|b| b["amount"].as_str().unwrap_or(""))
+        .unwrap_or("");
+    assert_eq!(balance, "1000.000000");
+}
+
+#[tokio::test]
+async fn sanity_update_with_identical_values_after_fx_change_does_not_corrupt_balance() {
+    // Submitting the exact same payload as the original trade (no actual edit)
+    // should be a cash no-op even after FX drift, because reverse and re-apply
+    // are symmetric at the same live rate.
+    let pool = test_pool().await;
+    let (account_id, asset_id) =
+        setup_eur_broker_with_usd_asset(&pool, "2000.000000", "1.000000").await;
+    let tx_id = buy_usd(&pool, account_id, asset_id, "10", "100").await;
+    set_usd_to_eur(&pool, "2.000000").await;
+
+    let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    gql(
+        app,
+        &format!(
+            r#"mutation {{
+                updateTransaction(id: {tx_id}, input: {{
+                    accountId: {}
+                    assetId: {}
+                    transactionType: BUY
+                    tradeDate: "2024-01-01"
+                    quantity: "10"
+                    unitPrice: "100.00"
+                    currencyCode: "USD"
+                }}) {{ id }}
+            }}"#,
+            account_id.as_i64(),
+            asset_id.as_i64()
+        ),
+    )
+    .await;
+
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let json = gql(
+        app,
+        &format!(
+            "{{ account(id: {}) {{ balances {{ currency amount }} }} }}",
+            account_id.as_i64()
+        ),
+    )
+    .await;
+    let balance = json["data"]["account"]["balances"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["currency"] == "EUR")
+        .map(|b| b["amount"].as_str().unwrap_or(""))
+        .unwrap_or("");
+    assert_eq!(balance, "1000.000000");
+}
+
+// ── GROUP 5: Compound scenarios ────────────────────────────────────────────
+
+#[tokio::test]
+async fn bug_update_then_delete_after_fx_drift_compounds_the_balance_error() {
+    // Each operation (update, then delete) independently uses the live FX rate
+    // for its reversal, compounding the error from the original trade rate.
+    //
+    // Trade: BUY 10 @ 100 USD at 1.0 → cost 1000 EUR → balance: 1000 EUR.
+    // FX moves to 1.5.
+    //
+    // Step 1 — Update (qty 10 → 5):
+    //   Reverse at 1.5: +1500 → 2500 EUR.
+    //   Apply at 1.5:   −750  → 1750 EUR.  (correct would be 1500 EUR)
+    //
+    // Step 2 — Delete the updated tx (BUY 5 @ 100):
+    //   Reverse at 1.5: +750 → 2500 EUR.   (correct would be 2000 EUR)
+    //
+    // Final balance 2500 EUR ≠ initial 2000 EUR.
+    let pool = test_pool().await;
+    let (account_id, asset_id) =
+        setup_eur_broker_with_usd_asset(&pool, "2000.000000", "1.000000").await;
+    let tx_id = buy_usd(&pool, account_id, asset_id, "10", "100").await;
+    set_usd_to_eur(&pool, "1.500000").await;
+
+    // Update qty 10 → 5
+    let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    gql(
+        app,
+        &format!(
+            r#"mutation {{
+                updateTransaction(id: {tx_id}, input: {{
+                    accountId: {}
+                    assetId: {}
+                    transactionType: BUY
+                    tradeDate: "2024-01-01"
+                    quantity: "5"
+                    unitPrice: "100.00"
+                    currencyCode: "USD"
+                }}) {{ id }}
+            }}"#,
+            account_id.as_i64(),
+            asset_id.as_i64()
+        ),
+    )
+    .await;
+
+    // Delete the updated transaction
+    let balance = eur_balance_after_delete(pool, tx_id, account_id.as_i64()).await;
+    assert_eq!(balance, "2000.000000");
+}
+
+#[tokio::test]
+async fn bug_create_delete_round_trip_is_not_idempotent_when_fx_changes() {
+    // A create followed by a delete should always be a net no-op regardless of
+    // what happens to the FX rate in between.
+    let pool = test_pool().await;
+    let (account_id, asset_id) =
+        setup_eur_broker_with_usd_asset(&pool, "5000.000000", "0.800000").await;
+
+    // Create BUY: 20 * 200 * 0.8 = 3200 EUR cost → balance: 1800 EUR.
+    let tx_id = buy_usd(&pool, account_id, asset_id, "20", "200").await;
+
+    // Simulate a week passing: FX moves significantly.
+    set_usd_to_eur(&pool, "1.200000").await;
+
+    // Delete the trade.
+    let balance = eur_balance_after_delete(pool, tx_id, account_id.as_i64()).await;
+
+    // Balance must equal the initial deposit — the round-trip is a no-op.
+    assert_eq!(balance, "5000.000000");
+}
+
+#[tokio::test]
+async fn bug_sequential_fx_changes_each_delete_uses_different_wrong_rate() {
+    // Three trades created at the same original rate; FX drifts differently
+    // before each deletion. Each reversal uses the rate at deletion time,
+    // not the original trade rate.
+    let pool = test_pool().await;
+    let (account_id, asset_id) =
+        setup_eur_broker_with_usd_asset(&pool, "6000.000000", "1.000000").await;
+
+    // Three identical BUYs: each costs 1000 EUR → balance after all: 3000 EUR.
+    let tx1 = buy_usd(&pool, account_id, asset_id, "10", "100").await;
+    let tx2 = buy_usd(&pool, account_id, asset_id, "10", "100").await;
+    let tx3 = buy_usd(&pool, account_id, asset_id, "10", "100").await;
+
+    // Delete tx1 with rate 1.1 → reversal = 1100 EUR (should be 1000)
+    set_usd_to_eur(&pool, "1.100000").await;
+    let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    gql(app, &format!("mutation {{ deleteTransaction(id: {tx1}) }}")).await;
+
+    // Delete tx2 with rate 1.5 → reversal = 1500 EUR (should be 1000)
+    set_usd_to_eur(&pool, "1.500000").await;
+    let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    gql(app, &format!("mutation {{ deleteTransaction(id: {tx2}) }}")).await;
+
+    // Delete tx3 with rate 0.5 → reversal = 500 EUR (should be 1000)
+    set_usd_to_eur(&pool, "0.500000").await;
+    let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    gql(app, &format!("mutation {{ deleteTransaction(id: {tx3}) }}")).await;
+
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let json = gql(
+        app,
+        &format!(
+            "{{ account(id: {}) {{ balances {{ currency amount }} }} }}",
+            account_id.as_i64()
+        ),
+    )
+    .await;
+    let balance = json["data"]["account"]["balances"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["currency"] == "EUR")
+        .map(|b| b["amount"].as_str().unwrap_or(""))
+        .unwrap_or("");
+    // All three trades reversed → balance should equal initial 6000 EUR.
+    // Bug: reversals at 1.1, 1.5, 0.5 give 1100+1500+500=3100 surplus over the
+    //      3000 EUR already remaining → balance = 3000+3100 = 6100 EUR.
+    assert_eq!(balance, "6000.000000");
+}

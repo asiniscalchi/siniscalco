@@ -6,10 +6,10 @@ use sqlx::{Row, SqlitePool, sqlite::SqliteConnection};
 use crate::storage::records::*;
 use crate::storage::{
     AccountId, AssetId, AssetPosition, AssetQuantity, AssetTransactionType, AssetUnitPrice,
-    Currency, StorageError, TradeDate, current_utc_timestamp,
+    Currency, FxRate, StorageError, TradeDate, current_utc_timestamp,
 };
 
-use super::transaction_cash::{apply_cash_impact, reverse_cash_impact};
+use super::transaction_cash::{apply_cash_impact, apply_cash_impact_at_rate, reverse_cash_impact};
 
 pub async fn create_asset_transaction(
     pool: &SqlitePool,
@@ -29,37 +29,10 @@ pub async fn create_asset_transaction(
     }
 
     let timestamp = current_utc_timestamp()?;
-    let result = sqlx::query(
-        r#"
-        INSERT INTO asset_transactions (
-            account_id,
-            asset_id,
-            transaction_type,
-            trade_date,
-            quantity,
-            unit_price,
-            currency_code,
-            notes,
-            created_at,
-            updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        "#,
-    )
-    .bind(input.account_id.as_i64())
-    .bind(input.asset_id.as_i64())
-    .bind(input.transaction_type.as_str())
-    .bind(input.trade_date.as_str())
-    .bind(input.quantity.as_scaled_i64())
-    .bind(input.unit_price.as_scaled_i64())
-    .bind(input.currency_code.as_str())
-    .bind(input.notes.as_deref())
-    .bind(&timestamp)
-    .bind(&timestamp)
-    .execute(&mut *tx)
-    .await?;
 
-    apply_cash_impact(
+    // Apply the cash impact first so we can capture the FX rate that was used
+    // and persist it on the row for correct future reversals.
+    let fx_rate = apply_cash_impact(
         &mut *tx,
         input.account_id,
         input.transaction_type,
@@ -70,11 +43,43 @@ pub async fn create_asset_transaction(
     )
     .await?;
 
+    let result = sqlx::query(
+        r#"
+        INSERT INTO asset_transactions (
+            account_id,
+            asset_id,
+            transaction_type,
+            trade_date,
+            quantity,
+            unit_price,
+            currency_code,
+            fx_rate,
+            notes,
+            created_at,
+            updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        "#,
+    )
+    .bind(input.account_id.as_i64())
+    .bind(input.asset_id.as_i64())
+    .bind(input.transaction_type.as_str())
+    .bind(input.trade_date.as_str())
+    .bind(input.quantity.as_scaled_i64())
+    .bind(input.unit_price.as_scaled_i64())
+    .bind(input.currency_code.as_str())
+    .bind(fx_rate.as_scaled_i64())
+    .bind(input.notes.as_deref())
+    .bind(&timestamp)
+    .bind(&timestamp)
+    .execute(&mut *tx)
+    .await?;
+
     let transaction_id = result.last_insert_rowid();
     let row = sqlx::query(
         r#"
         SELECT id, account_id, asset_id, transaction_type, trade_date, quantity, unit_price,
-               currency_code, notes, created_at, updated_at
+               currency_code, fx_rate, notes, created_at, updated_at
         FROM asset_transactions
         WHERE id = ?
         "#,
@@ -95,7 +100,7 @@ pub async fn list_asset_transactions(
     let rows = sqlx::query(
         r#"
         SELECT id, account_id, asset_id, transaction_type, trade_date, quantity, unit_price,
-               currency_code, notes, created_at, updated_at
+               currency_code, fx_rate, notes, created_at, updated_at
         FROM asset_transactions
         WHERE account_id = ?
         ORDER BY trade_date DESC, created_at DESC, id DESC
@@ -114,7 +119,7 @@ pub async fn list_transactions(
     let rows = sqlx::query(
         r#"
         SELECT id, account_id, asset_id, transaction_type, trade_date, quantity, unit_price,
-               currency_code, notes, created_at, updated_at
+               currency_code, fx_rate, notes, created_at, updated_at
         FROM asset_transactions
         ORDER BY trade_date DESC, created_at DESC, id DESC
         "#,
@@ -146,27 +151,50 @@ pub async fn update_asset_transaction(
 
     let updated_at = current_utc_timestamp()?;
 
+    // Reverse the original cash impact using the rate stored at trade time.
     reverse_cash_impact(
         &mut *tx,
         existing_transaction.account_id,
         existing_transaction.transaction_type,
         existing_transaction.quantity,
         existing_transaction.unit_price,
-        existing_transaction.currency_code,
+        existing_transaction.fx_rate,
         &updated_at,
     )
     .await?;
 
-    apply_cash_impact(
-        &mut *tx,
-        input.account_id,
-        input.transaction_type,
-        input.quantity,
-        input.unit_price,
-        input.currency_code,
-        &updated_at,
-    )
-    .await?;
+    // Apply the new cash impact.
+    //
+    // If the transaction currency is unchanged, use the stored rate so that
+    // a correction (price / quantity fix) is evaluated at the original trade's
+    // FX conditions rather than today's rate. This keeps no-op updates truly
+    // neutral and avoids injecting FX drift through data-entry corrections.
+    //
+    // If the currency changes, resolve the current live rate for the new pair.
+    let new_fx_rate = if input.currency_code == existing_transaction.currency_code {
+        apply_cash_impact_at_rate(
+            &mut *tx,
+            input.account_id,
+            input.transaction_type,
+            input.quantity,
+            input.unit_price,
+            existing_transaction.fx_rate,
+            &updated_at,
+        )
+        .await?;
+        existing_transaction.fx_rate
+    } else {
+        apply_cash_impact(
+            &mut *tx,
+            input.account_id,
+            input.transaction_type,
+            input.quantity,
+            input.unit_price,
+            input.currency_code,
+            &updated_at,
+        )
+        .await?
+    };
 
     let result = sqlx::query(
         r#"
@@ -178,6 +206,7 @@ pub async fn update_asset_transaction(
             quantity = ?,
             unit_price = ?,
             currency_code = ?,
+            fx_rate = ?,
             notes = ?,
             updated_at = ?
         WHERE id = ?
@@ -190,6 +219,7 @@ pub async fn update_asset_transaction(
     .bind(input.quantity.as_scaled_i64())
     .bind(input.unit_price.as_scaled_i64())
     .bind(input.currency_code.as_str())
+    .bind(new_fx_rate.as_scaled_i64())
     .bind(input.notes.as_deref())
     .bind(&updated_at)
     .bind(transaction_id)
@@ -215,13 +245,15 @@ pub async fn delete_asset_transaction(
     validate_position_change_for_transaction_delete(&mut *tx, &existing_transaction).await?;
 
     let updated_at = current_utc_timestamp()?;
+
+    // Reverse the cash impact using the rate that was locked in at trade time.
     reverse_cash_impact(
         &mut *tx,
         existing_transaction.account_id,
         existing_transaction.transaction_type,
         existing_transaction.quantity,
         existing_transaction.unit_price,
-        existing_transaction.currency_code,
+        existing_transaction.fx_rate,
         &updated_at,
     )
     .await?;
@@ -320,7 +352,7 @@ async fn get_asset_transaction(
     let row = sqlx::query(
         r#"
         SELECT id, account_id, asset_id, transaction_type, trade_date, quantity, unit_price,
-               currency_code, notes, created_at, updated_at
+               currency_code, fx_rate, notes, created_at, updated_at
         FROM asset_transactions
         WHERE id = ?
         "#,
@@ -422,6 +454,7 @@ fn map_transaction_row(
         quantity: AssetQuantity::from_scaled_i64(row.get::<i64, _>("quantity"))?,
         unit_price: AssetUnitPrice::from_scaled_i64(row.get::<i64, _>("unit_price"))?,
         currency_code: Currency::try_from(row.get::<&str, _>("currency_code"))?,
+        fx_rate: FxRate::from_scaled_i64(row.get::<i64, _>("fx_rate"))?,
         notes: row.get::<Option<String>, _>("notes"),
         created_at: row.get("created_at"),
         updated_at: row.get("updated_at"),
