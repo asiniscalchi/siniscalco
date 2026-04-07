@@ -55,25 +55,6 @@ export function AppShell() {
       <div className="min-h-svh bg-muted/30">
         <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:gap-6 sm:px-6 sm:py-4">
-            <div className="flex shrink-0 items-center gap-2">
-              <div
-                aria-label="Siniscalco"
-                aria-live="polite"
-                className={cn(
-                  "flex size-9 items-center justify-center rounded-xl shadow-sm transition-colors",
-                  backendStatus === "connected" && "bg-emerald-600 text-white",
-                  backendStatus === "checking" && "bg-amber-500 text-white",
-                  backendStatus === "unavailable" &&
-                    "bg-destructive text-destructive-foreground",
-                )}
-                role="img"
-                title={`Backend: ${backendStatus}`}
-              >
-                <LogoIcon className="size-5" />
-                <span className="sr-only">Backend {backendStatus}</span>
-              </div>
-            </div>
-
             <nav
               aria-label="Primary"
               className="scrollbar-hide flex-1 overflow-x-auto"
@@ -124,6 +105,22 @@ export function AppShell() {
                 >
                   {hideValues ? <EyeClosedIcon /> : <EyeIcon />}
                 </Button>
+                <div
+                  aria-label="Siniscalco"
+                  aria-live="polite"
+                  className={cn(
+                    "flex size-9 items-center justify-center rounded-xl shadow-sm transition-colors",
+                    backendStatus === "connected" && "bg-emerald-600 text-white",
+                    backendStatus === "checking" && "bg-amber-500 text-white",
+                    backendStatus === "unavailable" &&
+                      "bg-destructive text-destructive-foreground",
+                  )}
+                  role="img"
+                  title={`Backend: ${backendStatus}`}
+                >
+                  <LogoIcon className="size-5" />
+                  <span className="sr-only">Backend {backendStatus}</span>
+                </div>
               </div>
               <span className="max-w-36 truncate text-[0.65rem] leading-none text-muted-foreground sm:max-w-56">
                 {apiBaseUrl}
