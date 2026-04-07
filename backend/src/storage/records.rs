@@ -150,6 +150,7 @@ pub struct AssetTransactionRecord {
     pub quantity: AssetQuantity,
     pub unit_price: AssetUnitPrice,
     pub currency_code: Currency,
+    pub fx_rate: FxRate,
     pub notes: Option<String>,
     pub created_at: String,
     pub updated_at: String,
