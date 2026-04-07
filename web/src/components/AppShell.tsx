@@ -122,9 +122,11 @@ export function AppShell() {
                   <span className="sr-only">Backend {backendStatus}</span>
                 </div>
               </div>
-              <span className="max-w-36 truncate text-[0.65rem] leading-none text-muted-foreground sm:max-w-56">
-                {apiBaseUrl}
-              </span>
+              {backendStatus === "unavailable" && (
+                <span className="max-w-36 truncate text-[0.65rem] leading-none text-muted-foreground sm:max-w-56">
+                  {apiBaseUrl}
+                </span>
+              )}
             </div>
           </div>
         </header>

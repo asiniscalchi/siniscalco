@@ -166,6 +166,7 @@ describe("App shell", () => {
 
     expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/health$/));
     expect(await screen.findByTitle("Backend: connected")).toBeTruthy();
+    expect(screen.queryByText(getApiBaseUrl())).toBeNull();
   });
 
   it("shows unavailable when the health request returns a non-success status", async () => {
@@ -174,6 +175,7 @@ describe("App shell", () => {
     renderApp(["/accounts"]);
 
     expect(await screen.findByTitle("Backend: unavailable")).toBeTruthy();
+    expect(screen.getByText(getApiBaseUrl())).toBeTruthy();
   });
 
   it("shows connected when the health request returns another successful status", async () => {
@@ -190,7 +192,7 @@ describe("App shell", () => {
     renderApp(["/accounts"]);
 
     expect(screen.getByLabelText("Siniscalco")).toBeTruthy();
-    expect(screen.getByText(getApiBaseUrl())).toBeTruthy();
+    expect(screen.queryByText(getApiBaseUrl())).toBeNull();
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeTruthy();
     expect(screen.getByTitle("Backend: checking")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Open assistant chat" })).toBeTruthy();
