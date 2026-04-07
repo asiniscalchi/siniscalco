@@ -67,7 +67,7 @@ mod tests {
         let pool = test_pool().await;
 
         let tables: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('accounts', 'account_balances', 'assets', 'asset_transactions', 'currencies', '_sqlx_migrations')",
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('accounts', 'cash_entries', 'assets', 'asset_transactions', 'currencies', '_sqlx_migrations')",
         )
         .fetch_one(&pool)
         .await
@@ -84,7 +84,7 @@ mod tests {
             .expect("file database should initialize");
 
         let tables: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('accounts', 'account_balances', 'assets', 'asset_transactions', 'currencies')",
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('accounts', 'cash_entries', 'assets', 'asset_transactions', 'currencies')",
         )
         .fetch_one(&pool)
         .await
@@ -102,7 +102,7 @@ mod tests {
             .await
             .expect("migration metadata query should succeed");
 
-        assert_eq!(versions, vec![1, 2]);
+        assert_eq!(versions, vec![1, 2, 3]);
     }
 
     #[tokio::test]

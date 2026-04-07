@@ -23,12 +23,11 @@ use super::{AppState, build_router, build_router_with_state};
 use crate::{
     AccountName, AccountType, Amount, AssetName, AssetPriceRefreshConfig, AssetQuantity,
     AssetSymbol, AssetTransactionType, AssetType, AssetUnitPrice, CreateAccountInput,
-    CreateAssetInput, CreateAssetTransactionInput, Currency, FxRate, FxRefreshAvailability,
-    FxRefreshStatus, TradeDate, UpsertAccountBalanceInput, UpsertAssetPriceInput,
-    UpsertFxRateInput, assistant::new_assistant_chat_semaphore,
-    assistant::new_shared_assistant_model_registry, assistant::refresh_assistant_model_registry,
-    create_account, create_asset, create_asset_transaction, init_db, upsert_account_balance,
-    upsert_asset_price, upsert_fx_rate,
+    CreateAssetInput, CreateAssetTransactionInput, CreateCashMovementInput, Currency, FxRate,
+    FxRefreshAvailability, FxRefreshStatus, TradeDate, UpsertAssetPriceInput, UpsertFxRateInput,
+    assistant::new_assistant_chat_semaphore, assistant::new_shared_assistant_model_registry,
+    assistant::refresh_assistant_model_registry, create_account, create_asset,
+    create_asset_transaction, create_cash_movement, init_db, upsert_asset_price, upsert_fx_rate,
 };
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -55,6 +54,26 @@ fn asset_name(value: &str) -> AssetName {
 
 fn trade_date(value: &str) -> TradeDate {
     TradeDate::try_from(value).expect("trade date should parse")
+}
+
+async fn seed_balance(
+    pool: &sqlx::SqlitePool,
+    account_id: crate::AccountId,
+    currency: crate::Currency,
+    amount: crate::Amount,
+) {
+    create_cash_movement(
+        pool,
+        CreateCashMovementInput {
+            account_id,
+            currency,
+            amount,
+            date: trade_date("2024-01-01"),
+            notes: None,
+        },
+    )
+    .await
+    .expect("balance seed should succeed");
 }
 
 async fn test_pool() -> sqlx::SqlitePool {
@@ -416,16 +435,7 @@ async fn assistant_chat_returns_db_backed_portfolio_summary() {
     .await
     .expect("account insert should succeed");
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Eur,
-            amount: amt("125.50"),
-        },
-    )
-    .await
-    .expect("balance upsert should succeed");
+    seed_balance(&pool, account_id, Currency::Eur, amt("125.50")).await;
 
     let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
     let (status, events) = post_chat_sse(
@@ -887,16 +897,13 @@ async fn asset_avg_cost_basis_computed_from_buy_transactions() {
     .await
     .expect("asset insert should succeed");
 
-    upsert_account_balance(
+    seed_balance(
         &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::try_from("USD").unwrap(),
-            amount: amt("3000.000000"),
-        },
+        account_id,
+        Currency::try_from("USD").unwrap(),
+        amt("3000.000000"),
     )
-    .await
-    .expect("balance insert should succeed");
+    .await;
 
     // Buy 10 @ 100 and 10 @ 200 → avg = 150
     for (qty, price) in [("10", "100"), ("10", "200")] {
@@ -953,16 +960,7 @@ async fn asset_query_returns_converted_total_value_in_eur() {
     .await
     .expect("asset insert should succeed");
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Eur,
-            amount: amt("1000.000000"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Eur, amt("1000.000000")).await;
 
     upsert_asset_price(
         &pool,
@@ -1272,16 +1270,7 @@ async fn rejects_deleting_asset_with_transactions() {
     .await
     .expect("asset insert should succeed");
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("100.000000"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Usd, amt("100.000000")).await;
 
     create_asset_transaction(
         &pool,
@@ -1394,16 +1383,7 @@ async fn returns_portfolio_summary() {
         .expect("fx rate insert should succeed");
     }
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id: ibkr_id,
-            currency: Currency::Usd,
-            amount: amt("100.00"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, ibkr_id, Currency::Usd, amt("100.00")).await;
 
     let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
     let json = gql(
@@ -1449,16 +1429,7 @@ async fn returns_conversion_unavailable_portfolio_when_fx_is_missing() {
     .await
     .expect("account insert should succeed");
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("100.00"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Usd, amt("100.00")).await;
 
     let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
     let json = gql(app, "{ portfolio { totalValueStatus totalValueAmount } }").await;
@@ -1498,16 +1469,7 @@ async fn creates_asset_transaction() {
     .await
     .expect("asset insert should succeed");
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("2000.000000"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Usd, amt("2000.000000")).await;
 
     let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
     let json = gql(
@@ -1566,16 +1528,7 @@ async fn lists_asset_transactions_in_trade_date_order() {
     .await
     .expect("asset insert should succeed");
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("2000.000000"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Usd, amt("2000.000000")).await;
 
     for (date, qty) in [
         ("2026-03-01", "5"),
@@ -1633,16 +1586,7 @@ async fn lists_all_transactions_without_filter() {
         .await
         .expect("account insert should succeed");
 
-        upsert_account_balance(
-            &pool,
-            UpsertAccountBalanceInput {
-                account_id,
-                currency,
-                amount: amt("100.000000"),
-            },
-        )
-        .await
-        .expect("balance insert should succeed");
+        seed_balance(&pool, account_id, currency, amt("100.000000")).await;
 
         let asset_id = create_asset(
             &pool,
@@ -1708,16 +1652,7 @@ async fn updates_asset_transaction() {
     .await
     .expect("asset insert should succeed");
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("4000.000000"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Usd, amt("4000.000000")).await;
 
     let tx = create_asset_transaction(
         &pool,
@@ -1790,16 +1725,7 @@ async fn deletes_asset_transaction() {
     .await
     .expect("asset insert should succeed");
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("100.000000"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Usd, amt("100.000000")).await;
 
     let tx = create_asset_transaction(
         &pool,
@@ -1865,16 +1791,7 @@ async fn gets_transaction_detail() {
     .await
     .expect("asset insert should succeed");
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("1000.000000"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Usd, amt("1000.000000")).await;
 
     let tx = create_asset_transaction(
         &pool,
@@ -1937,16 +1854,7 @@ async fn lists_active_positions() {
     .await
     .expect("asset insert should succeed");
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("1000.000000"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Usd, amt("1000.000000")).await;
 
     create_asset_transaction(
         &pool,
@@ -2131,16 +2039,7 @@ async fn lists_account_summaries_with_totals() {
     .expect("account insert should succeed");
 
     // USD balance: kept as manual cash (not affected by the BUY below)
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("20.000000"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Usd, amt("20.000000")).await;
 
     // FX rate must be set up before the transaction so the cash impact can be computed
     upsert_fx_rate(
@@ -2155,16 +2054,7 @@ async fn lists_account_summaries_with_totals() {
     .expect("fx rate insert should succeed");
 
     // EUR balance: covers the cost of the BUY (2 × 80 USD × 0.5 = 80 EUR); after BUY it becomes 0
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Eur,
-            amount: amt("80.000000"),
-        },
-    )
-    .await
-    .expect("eur balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Eur, amt("80.000000")).await;
 
     let asset_id = create_asset(
         &pool,
@@ -2238,16 +2128,7 @@ async fn returns_conversion_unavailable_when_fx_rate_missing() {
     .await
     .expect("account insert should succeed");
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("12.300000"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Usd, amt("12.300000")).await;
 
     let app = build_router(pool);
     let json = gql(
@@ -2279,16 +2160,7 @@ async fn rounds_converted_account_totals() {
     .expect("account insert should succeed");
 
     for currency in [Currency::Usd, Currency::Gbp] {
-        upsert_account_balance(
-            &pool,
-            UpsertAccountBalanceInput {
-                account_id,
-                currency,
-                amount: amt("1.000000"),
-            },
-        )
-        .await
-        .expect("balance insert should succeed");
+        seed_balance(&pool, account_id, currency, amt("1.000000")).await;
         upsert_fx_rate(
             &pool,
             UpsertFxRateInput {
@@ -2330,16 +2202,7 @@ async fn gets_account_detail_with_balances() {
     .await
     .expect("account insert should succeed");
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("12.3"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Usd, amt("12.3")).await;
 
     let app = build_router(pool);
     let json = gql(
@@ -2391,16 +2254,7 @@ async fn lists_account_balances() {
     .expect("account insert should succeed");
 
     for (currency, amount) in [(Currency::Usd, "100.00"), (Currency::Eur, "50.00")] {
-        upsert_account_balance(
-            &pool,
-            UpsertAccountBalanceInput {
-                account_id,
-                currency,
-                amount: amt(amount),
-            },
-        )
-        .await
-        .expect("balance insert should succeed");
+        seed_balance(&pool, account_id, currency, amt(amount)).await;
     }
 
     let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
@@ -2418,7 +2272,7 @@ async fn lists_account_balances() {
 }
 
 #[tokio::test]
-async fn creates_balance() {
+async fn creates_cash_movement() {
     let pool = test_pool().await;
 
     let account_id = create_account(
@@ -2436,19 +2290,20 @@ async fn creates_balance() {
     let json = gql(
         app,
         &format!(
-            r#"mutation {{ upsertBalance(accountId: {}, input: {{ currency: "USD", amount: "1234.56" }}) {{ currency amount }} }}"#,
+            r#"mutation {{ createCashMovement(accountId: {}, input: {{ currency: "USD", amount: "1234.56", date: "2025-01-15" }}) {{ currency amount date }} }}"#,
             account_id.as_i64()
         ),
     )
     .await;
 
-    let balance = &json["data"]["upsertBalance"];
-    assert_eq!(balance["currency"], "USD");
-    assert_eq!(balance["amount"], "1234.560000");
+    let movement = &json["data"]["createCashMovement"];
+    assert_eq!(movement["currency"], "USD");
+    assert_eq!(movement["amount"], "1234.560000");
+    assert_eq!(movement["date"], "2025-01-15");
 }
 
 #[tokio::test]
-async fn rejects_invalid_amount_for_balance() {
+async fn rejects_invalid_amount_for_cash_movement() {
     let pool = test_pool().await;
 
     let account_id = create_account(
@@ -2466,47 +2321,18 @@ async fn rejects_invalid_amount_for_balance() {
     let json = gql(
         app,
         &format!(
-            r#"mutation {{ upsertBalance(accountId: {}, input: {{ currency: "USD", amount: "not_a_number" }}) {{ currency }} }}"#,
-            account_id.as_i64()
-        ),
-    )
-    .await;
-
-    assert!(json["errors"][0]["message"].is_string());
-    assert!(json["data"]["upsertBalance"].is_null());
-}
-
-#[tokio::test]
-async fn rejects_invalid_currency_for_balance() {
-    let pool = test_pool().await;
-
-    let account_id = create_account(
-        &pool,
-        CreateAccountInput {
-            name: account_name("IBKR"),
-            account_type: AccountType::Broker,
-            base_currency: Currency::Usd,
-        },
-    )
-    .await
-    .expect("account insert should succeed");
-
-    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
-    let json = gql(
-        app,
-        &format!(
-            r#"mutation {{ upsertBalance(accountId: {}, input: {{ currency: "XYZ", amount: "100" }}) {{ currency }} }}"#,
+            r#"mutation {{ createCashMovement(accountId: {}, input: {{ currency: "USD", amount: "not_a_number", date: "2025-01-15" }}) {{ currency }} }}"#,
             account_id.as_i64()
         ),
     )
     .await;
 
     assert!(json["errors"][0]["message"].is_string());
-    assert!(json["data"]["upsertBalance"].is_null());
+    assert!(json["data"]["createCashMovement"].is_null());
 }
 
 #[tokio::test]
-async fn updates_balance() {
+async fn rejects_invalid_currency_for_cash_movement() {
     let pool = test_pool().await;
 
     let account_id = create_account(
@@ -2520,110 +2346,63 @@ async fn updates_balance() {
     .await
     .expect("account insert should succeed");
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("100.00"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
-
     let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
     let json = gql(
         app,
         &format!(
-            r#"mutation {{ upsertBalance(accountId: {}, input: {{ currency: "USD", amount: "999.99" }}) {{ amount }} }}"#,
+            r#"mutation {{ createCashMovement(accountId: {}, input: {{ currency: "XYZ", amount: "100", date: "2025-01-15" }}) {{ currency }} }}"#,
             account_id.as_i64()
         ),
     )
     .await;
 
-    assert_eq!(json["data"]["upsertBalance"]["amount"], "999.990000");
+    assert!(json["errors"][0]["message"].is_string());
+    assert!(json["data"]["createCashMovement"].is_null());
 }
 
 #[tokio::test]
-async fn returns_not_found_when_writing_balance_for_missing_account() {
+async fn cash_movements_accumulate() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    seed_balance(&pool, account_id, Currency::Usd, amt("100.00")).await;
+
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let json = gql(
+        app,
+        &format!(
+            r#"mutation {{ createCashMovement(accountId: {}, input: {{ currency: "USD", amount: "50.00", date: "2025-01-15" }}) {{ amount }} }}"#,
+            account_id.as_i64()
+        ),
+    )
+    .await;
+
+    // Returns the movement amount, not the running balance
+    assert_eq!(json["data"]["createCashMovement"]["amount"], "50.000000");
+}
+
+#[tokio::test]
+async fn returns_not_found_when_creating_cash_movement_for_missing_account() {
     let pool = test_pool().await;
     let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
     let json = gql(
         app,
-        r#"mutation { upsertBalance(accountId: 999, input: { currency: "USD", amount: "100" }) { currency } }"#,
+        r#"mutation { createCashMovement(accountId: 999, input: { currency: "USD", amount: "100", date: "2025-01-15" }) { currency } }"#,
     )
     .await;
 
-    assert!(json["data"]["upsertBalance"].is_null());
+    assert!(json["data"]["createCashMovement"].is_null());
     assert_eq!(json["errors"][0]["message"], "Account not found");
-}
-
-#[tokio::test]
-async fn deletes_balance() {
-    let pool = test_pool().await;
-
-    let account_id = create_account(
-        &pool,
-        CreateAccountInput {
-            name: account_name("IBKR"),
-            account_type: AccountType::Broker,
-            base_currency: Currency::Usd,
-        },
-    )
-    .await
-    .expect("account insert should succeed");
-
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("100.00"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
-
-    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
-    let json = gql(
-        app,
-        &format!(
-            r#"mutation {{ deleteBalance(accountId: {}, currency: "USD") }}"#,
-            account_id.as_i64()
-        ),
-    )
-    .await;
-
-    assert_eq!(json["data"]["deleteBalance"], true);
-}
-
-#[tokio::test]
-async fn returns_not_found_when_deleting_missing_balance() {
-    let pool = test_pool().await;
-
-    let account_id = create_account(
-        &pool,
-        CreateAccountInput {
-            name: account_name("IBKR"),
-            account_type: AccountType::Broker,
-            base_currency: Currency::Usd,
-        },
-    )
-    .await
-    .expect("account insert should succeed");
-
-    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
-    let json = gql(
-        app,
-        &format!(
-            r#"mutation {{ deleteBalance(accountId: {}, currency: "USD") }}"#,
-            account_id.as_i64()
-        ),
-    )
-    .await;
-
-    assert!(json["data"]["deleteBalance"].is_null());
-    assert_eq!(json["errors"][0]["message"], "Balance not found");
 }
 
 // ── FX-rate drift correctness tests ──────────────────────────────────────────
@@ -2661,16 +2440,7 @@ async fn setup_eur_broker_with_usd_asset(
     .await
     .expect("account should be created");
 
-    upsert_account_balance(
-        pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Eur,
-            amount: amt(initial_eur),
-        },
-    )
-    .await
-    .expect("balance should be set");
+    seed_balance(pool, account_id, Currency::Eur, amt(initial_eur)).await;
 
     upsert_fx_rate(
         pool,
@@ -2953,16 +2723,7 @@ async fn sanity_delete_same_currency_tx_always_restores_balance_correctly() {
     .await
     .unwrap();
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("2000.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_id, Currency::Usd, amt("2000.000000")).await;
 
     let asset_id = create_asset(
         &pool,

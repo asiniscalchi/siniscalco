@@ -9,7 +9,7 @@ use crate::storage::{
     AccountId, AssetQuantity, AssetTransactionType, AssetUnitPrice, Currency, FxRate, StorageError,
 };
 
-use super::balances::{load_balance_on_connection, upsert_balance_on_connection};
+use super::balances::{CashEntrySource, insert_cash_entry_on_connection};
 
 /// Apply the cash impact of a transaction to the account balance.
 ///
@@ -22,19 +22,20 @@ pub(super) async fn apply_cash_impact(
     quantity: AssetQuantity,
     unit_price: AssetUnitPrice,
     currency: Currency,
-    updated_at: &str,
+    transaction_id: i64,
+    created_at: &str,
 ) -> Result<FxRate, StorageError> {
     let base_currency = load_account_base_currency(connection, account_id).await?;
     let rate = resolve_fx_rate(connection, currency, base_currency).await?;
-    apply_with_rate(
+    let delta = compute_delta(transaction_type, quantity, unit_price, rate);
+    insert_cash_entry_on_connection(
         connection,
         account_id,
-        transaction_type,
-        quantity,
-        unit_price,
         base_currency,
-        rate,
-        updated_at,
+        delta,
+        CashEntrySource::AssetTransaction,
+        Some(transaction_id),
+        created_at,
     )
     .await?;
     Ok(rate)
@@ -52,18 +53,19 @@ pub(super) async fn apply_cash_impact_at_rate(
     quantity: AssetQuantity,
     unit_price: AssetUnitPrice,
     locked_rate: FxRate,
-    updated_at: &str,
+    transaction_id: i64,
+    created_at: &str,
 ) -> Result<(), StorageError> {
     let base_currency = load_account_base_currency(connection, account_id).await?;
-    apply_with_rate(
+    let delta = compute_delta(transaction_type, quantity, unit_price, locked_rate);
+    insert_cash_entry_on_connection(
         connection,
         account_id,
-        transaction_type,
-        quantity,
-        unit_price,
         base_currency,
-        locked_rate,
-        updated_at,
+        delta,
+        CashEntrySource::AssetTransaction,
+        Some(transaction_id),
+        created_at,
     )
     .await
 }
@@ -81,63 +83,40 @@ pub(super) async fn reverse_cash_impact(
     quantity: AssetQuantity,
     unit_price: AssetUnitPrice,
     locked_rate: FxRate,
-    updated_at: &str,
+    transaction_id: i64,
+    created_at: &str,
 ) -> Result<(), StorageError> {
     let base_currency = load_account_base_currency(connection, account_id).await?;
     let reversed_type = match transaction_type {
         AssetTransactionType::Buy => AssetTransactionType::Sell,
         AssetTransactionType::Sell => AssetTransactionType::Buy,
     };
-    apply_with_rate(
+    let delta = compute_delta(reversed_type, quantity, unit_price, locked_rate);
+    insert_cash_entry_on_connection(
         connection,
         account_id,
-        reversed_type,
-        quantity,
-        unit_price,
         base_currency,
-        locked_rate,
-        updated_at,
+        delta,
+        CashEntrySource::AssetTransaction,
+        Some(transaction_id),
+        created_at,
     )
     .await
 }
 
 // ── Private helpers ───────────────────────────────────────────────────────────
 
-async fn apply_with_rate(
-    connection: &mut SqliteConnection,
-    account_id: AccountId,
+fn compute_delta(
     transaction_type: AssetTransactionType,
     quantity: AssetQuantity,
     unit_price: AssetUnitPrice,
-    base_currency: Currency,
     rate: FxRate,
-    updated_at: &str,
-) -> Result<(), StorageError> {
-    let transaction_amount = quantity.as_decimal() * unit_price.as_decimal();
-    let base_amount = transaction_amount * rate.as_decimal();
-    let current_balance =
-        load_balance_on_connection(&mut *connection, account_id, base_currency).await?;
-
-    let new_balance = match transaction_type {
-        AssetTransactionType::Buy => {
-            if current_balance < base_amount {
-                return Err(StorageError::Validation(
-                    "insufficient cash balance for this buy transaction",
-                ));
-            }
-            current_balance - base_amount
-        }
-        AssetTransactionType::Sell => current_balance + base_amount,
-    };
-
-    upsert_balance_on_connection(
-        &mut *connection,
-        account_id,
-        base_currency,
-        new_balance,
-        updated_at,
-    )
-    .await
+) -> Decimal {
+    let amount = quantity.as_decimal() * unit_price.as_decimal() * rate.as_decimal();
+    match transaction_type {
+        AssetTransactionType::Buy => -amount,
+        AssetTransactionType::Sell => amount,
+    }
 }
 
 async fn resolve_fx_rate(

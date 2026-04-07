@@ -5,7 +5,7 @@ use crate::storage::{
     AccountId, Amount, Currency, StorageError, TradeDate, TransferId, current_utc_timestamp,
 };
 
-use super::balances::{load_balance_on_connection, upsert_balance_on_connection};
+use super::balances::{CashEntrySource, insert_cash_entry_on_connection};
 
 pub async fn create_transfer(
     pool: &SqlitePool,
@@ -20,41 +20,7 @@ pub async fn create_transfer(
     let mut tx = pool.begin().await?;
     let timestamp = current_utc_timestamp()?;
 
-    // Debit the source account
-    let from_balance =
-        load_balance_on_connection(&mut *tx, input.from_account_id, input.from_currency).await?;
-
-    if from_balance < input.from_amount.as_decimal() {
-        return Err(StorageError::Validation(
-            "insufficient balance in source account for this transfer",
-        ));
-    }
-
-    let new_from_balance = from_balance - input.from_amount.as_decimal();
-    upsert_balance_on_connection(
-        &mut *tx,
-        input.from_account_id,
-        input.from_currency,
-        new_from_balance,
-        &timestamp,
-    )
-    .await?;
-
-    // Credit the destination account
-    let to_balance =
-        load_balance_on_connection(&mut *tx, input.to_account_id, input.to_currency).await?;
-
-    let new_to_balance = to_balance + input.to_amount.as_decimal();
-    upsert_balance_on_connection(
-        &mut *tx,
-        input.to_account_id,
-        input.to_currency,
-        new_to_balance,
-        &timestamp,
-    )
-    .await?;
-
-    // Insert the transfer record
+    // Insert the transfer record first to obtain its id for source_id.
     let result = sqlx::query(
         r#"
         INSERT INTO account_transfers (
@@ -79,6 +45,31 @@ pub async fn create_transfer(
     .await?;
 
     let transfer_id = TransferId::try_from(result.last_insert_rowid())?;
+
+    // Debit the source account.
+    insert_cash_entry_on_connection(
+        &mut *tx,
+        input.from_account_id,
+        input.from_currency,
+        -input.from_amount.as_decimal(),
+        CashEntrySource::Transfer,
+        Some(transfer_id.as_i64()),
+        &timestamp,
+    )
+    .await?;
+
+    // Credit the destination account.
+    insert_cash_entry_on_connection(
+        &mut *tx,
+        input.to_account_id,
+        input.to_currency,
+        input.to_amount.as_decimal(),
+        CashEntrySource::Transfer,
+        Some(transfer_id.as_i64()),
+        &timestamp,
+    )
+    .await?;
+
     let row = sqlx::query(
         r#"
         SELECT id, from_account_id, to_account_id,
@@ -120,34 +111,26 @@ pub async fn delete_transfer(
 
     let transfer = map_transfer_row(row)?;
 
-    // Reverse: credit the source account back
-    let from_balance =
-        load_balance_on_connection(&mut *tx, transfer.from_account_id, transfer.from_currency)
-            .await?;
-    let new_from_balance = from_balance + transfer.from_amount.as_decimal();
-    upsert_balance_on_connection(
+    // Reverse: credit the source account back.
+    insert_cash_entry_on_connection(
         &mut *tx,
         transfer.from_account_id,
         transfer.from_currency,
-        new_from_balance,
+        transfer.from_amount.as_decimal(),
+        CashEntrySource::Transfer,
+        Some(transfer_id.as_i64()),
         &timestamp,
     )
     .await?;
 
-    // Reverse: debit the destination account
-    let to_balance =
-        load_balance_on_connection(&mut *tx, transfer.to_account_id, transfer.to_currency).await?;
-    if to_balance < transfer.to_amount.as_decimal() {
-        return Err(StorageError::Validation(
-            "insufficient balance in destination account to reverse this transfer",
-        ));
-    }
-    let new_to_balance = to_balance - transfer.to_amount.as_decimal();
-    upsert_balance_on_connection(
+    // Reverse: debit the destination account.
+    insert_cash_entry_on_connection(
         &mut *tx,
         transfer.to_account_id,
         transfer.to_currency,
-        new_to_balance,
+        -transfer.to_amount.as_decimal(),
+        CashEntrySource::Transfer,
+        Some(transfer_id.as_i64()),
         &timestamp,
     )
     .await?;

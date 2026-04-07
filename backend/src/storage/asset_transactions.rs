@@ -30,19 +30,9 @@ pub async fn create_asset_transaction(
 
     let timestamp = current_utc_timestamp()?;
 
-    // Apply the cash impact first so we can capture the FX rate that was used
-    // and persist it on the row for correct future reversals.
-    let fx_rate = apply_cash_impact(
-        &mut *tx,
-        input.account_id,
-        input.transaction_type,
-        input.quantity,
-        input.unit_price,
-        input.currency_code,
-        &timestamp,
-    )
-    .await?;
-
+    // Insert the row with a placeholder fx_rate of 1; we will update it once
+    // we know the transaction_id and have applied the cash impact.
+    let placeholder_rate = FxRate::from_scaled_i64(1_000_000).unwrap();
     let result = sqlx::query(
         r#"
         INSERT INTO asset_transactions (
@@ -68,7 +58,7 @@ pub async fn create_asset_transaction(
     .bind(input.quantity.as_scaled_i64())
     .bind(input.unit_price.as_scaled_i64())
     .bind(input.currency_code.as_str())
-    .bind(fx_rate.as_scaled_i64())
+    .bind(placeholder_rate.as_scaled_i64())
     .bind(input.notes.as_deref())
     .bind(&timestamp)
     .bind(&timestamp)
@@ -76,6 +66,26 @@ pub async fn create_asset_transaction(
     .await?;
 
     let transaction_id = result.last_insert_rowid();
+
+    // Apply the cash impact now that we have the transaction_id, capturing the
+    // FX rate used so we can persist it for correct future reversals.
+    let fx_rate = apply_cash_impact(
+        &mut *tx,
+        input.account_id,
+        input.transaction_type,
+        input.quantity,
+        input.unit_price,
+        input.currency_code,
+        transaction_id,
+        &timestamp,
+    )
+    .await?;
+
+    sqlx::query("UPDATE asset_transactions SET fx_rate = ? WHERE id = ?")
+        .bind(fx_rate.as_scaled_i64())
+        .bind(transaction_id)
+        .execute(&mut *tx)
+        .await?;
     let row = sqlx::query(
         r#"
         SELECT id, account_id, asset_id, transaction_type, trade_date, quantity, unit_price,
@@ -159,6 +169,7 @@ pub async fn update_asset_transaction(
         existing_transaction.quantity,
         existing_transaction.unit_price,
         existing_transaction.fx_rate,
+        transaction_id,
         &updated_at,
     )
     .await?;
@@ -179,6 +190,7 @@ pub async fn update_asset_transaction(
             input.quantity,
             input.unit_price,
             existing_transaction.fx_rate,
+            transaction_id,
             &updated_at,
         )
         .await?;
@@ -191,6 +203,7 @@ pub async fn update_asset_transaction(
             input.quantity,
             input.unit_price,
             input.currency_code,
+            transaction_id,
             &updated_at,
         )
         .await?
@@ -254,6 +267,7 @@ pub async fn delete_asset_transaction(
         existing_transaction.quantity,
         existing_transaction.unit_price,
         existing_transaction.fx_rate,
+        transaction_id,
         &updated_at,
     )
     .await?;

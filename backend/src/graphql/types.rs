@@ -144,9 +144,11 @@ pub struct AccountInput {
 }
 
 #[derive(InputObject)]
-pub struct UpsertBalanceInput {
+pub struct CashMovementInput {
     pub currency: String,
     pub amount: String,
+    pub date: String,
+    pub notes: Option<String>,
 }
 
 #[derive(InputObject)]
@@ -217,6 +219,17 @@ pub struct Balance {
     pub currency: String,
     pub amount: String,
     pub updated_at: String,
+}
+
+#[derive(SimpleObject)]
+pub struct CashMovement {
+    pub id: i64,
+    pub account_id: i64,
+    pub currency: String,
+    pub amount: String,
+    pub date: String,
+    pub notes: Option<String>,
+    pub created_at: String,
 }
 
 #[derive(SimpleObject)]
