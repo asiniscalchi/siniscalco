@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { gql } from "@apollo/client/core";
-import { useMutation, useQuery } from "@apollo/client/react";
+import { useMutation, useQuery, useApolloClient } from "@apollo/client/react";
 
 import { LockIcon, PlusIcon, UnlockIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,7 @@ import { TransactionsHistoryCardEmptyState } from "./TransactionsHistoryCardEmpt
 import { TransactionsHistoryCardMobileItem } from "./TransactionsHistoryCardMobileItem";
 
 export function TransactionsHistoryCard() {
+  const client = useApolloClient();
   const { hideValues } = useUiState();
   const [isLocked, setIsLocked] = useState(true);
   const [selectedAccountId, setSelectedAccountId] = useState("");
@@ -83,6 +84,9 @@ export function TransactionsHistoryCard() {
     setIsDeleting(transactionId);
     try {
       await deleteTransactionMutation({ variables: { id: transactionId } });
+      client.cache.evict({ fieldName: "assets" });
+      client.cache.evict({ fieldName: "portfolio" });
+      client.cache.gc();
       await refetchTransactions();
     } catch (error) {
       alert(extractGqlErrorMessage(error, "Failed to delete transaction"));
