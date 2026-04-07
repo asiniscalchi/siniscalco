@@ -3,7 +3,7 @@ import { NavLink, Outlet } from "react-router-dom";
 
 import { AssistantPanel } from "@/components/AssistantPanel";
 import { Button } from "@/components/ui/button";
-import { getHealthApiUrl } from "@/lib/env";
+import { getApiBaseUrl, getHealthApiUrl } from "@/lib/env";
 import { ChatBubbleIcon, EyeClosedIcon, EyeIcon, LogoIcon } from "@/components/Icons";
 import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,7 @@ const primaryNavItems = [
 export function AppShell() {
   const { hideValues, toggleHideValues } = useUiState();
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const apiBaseUrl = getApiBaseUrl();
   const [backendStatus, setBackendStatus] = useState<
     "connected" | "checking" | "unavailable"
   >("checking");
@@ -97,31 +98,36 @@ export function AppShell() {
               </div>
             </nav>
 
-            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-              <Button
-                aria-expanded={assistantOpen}
-                aria-haspopup="dialog"
-                aria-label="Open assistant chat"
-                className="size-9 rounded-full"
-                onClick={() => setAssistantOpen(true)}
-                size="icon"
-                type="button"
-                variant="ghost"
-              >
-                <ChatBubbleIcon />
-              </Button>
-              <Button
-                aria-label={
-                  hideValues ? "Show financial values" : "Hide financial values"
-                }
-                className="size-9 rounded-full"
-                onClick={toggleHideValues}
-                size="icon"
-                type="button"
-                variant="ghost"
-              >
-                {hideValues ? <EyeClosedIcon /> : <EyeIcon />}
-              </Button>
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <Button
+                  aria-expanded={assistantOpen}
+                  aria-haspopup="dialog"
+                  aria-label="Open assistant chat"
+                  className="size-9 rounded-full"
+                  onClick={() => setAssistantOpen(true)}
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                >
+                  <ChatBubbleIcon />
+                </Button>
+                <Button
+                  aria-label={
+                    hideValues ? "Show financial values" : "Hide financial values"
+                  }
+                  className="size-9 rounded-full"
+                  onClick={toggleHideValues}
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                >
+                  {hideValues ? <EyeClosedIcon /> : <EyeIcon />}
+                </Button>
+              </div>
+              <span className="max-w-36 truncate text-[0.65rem] leading-none text-muted-foreground sm:max-w-56">
+                {apiBaseUrl}
+              </span>
             </div>
           </div>
         </header>
