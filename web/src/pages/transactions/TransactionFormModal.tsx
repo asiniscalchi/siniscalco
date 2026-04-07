@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { gql } from "@apollo/client/core";
-import { useMutation } from "@apollo/client/react";
+import { useMutation, useApolloClient } from "@apollo/client/react";
 
 import { FormField } from "@/components/FormField";
 import { ModalDialog } from "@/components/ModalDialog";
@@ -92,6 +92,7 @@ export function TransactionFormModal({
   );
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  const client = useApolloClient();
   const [createTransaction, { loading: creating }] = useMutation(CREATE_TRANSACTION_MUTATION);
   const [updateTransaction, { loading: updating }] = useMutation(UPDATE_TRANSACTION_MUTATION);
   const isSubmitting = creating || updating;
@@ -123,7 +124,7 @@ export function TransactionFormModal({
           variables: {
             id: transactionId,
             input: {
-              accountId: parseInt(selectedAccountId),
+              accountId: editingTransaction!.accountId,
               assetId: parseInt(formState.assetId),
               transactionType: formState.type,
               tradeDate: formState.tradeDate,
@@ -150,6 +151,9 @@ export function TransactionFormModal({
           },
         });
       }
+      client.cache.evict({ fieldName: "assets" });
+      client.cache.evict({ fieldName: "portfolio" });
+      client.cache.gc();
       onSaved();
     } catch (error) {
       setSubmitError(extractGqlErrorMessage(
