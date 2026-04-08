@@ -24,6 +24,7 @@ const CREATE_TRANSFER_MUTATION = gql`
 type TransferFormModalProps = {
   open: boolean;
   accounts: Account[];
+  initialFromAccountId?: string;
   onClose: () => void;
   onSaved: () => void;
 };
@@ -43,13 +44,14 @@ type FormState = {
 export function TransferFormModal({
   open,
   accounts,
+  initialFromAccountId = "",
   onClose,
   onSaved,
 }: TransferFormModalProps) {
   const [formState, setFormState] = useState<FormState>({
-    fromAccountId: "",
+    fromAccountId: initialFromAccountId,
     toAccountId: "",
-    fromCurrency: "",
+    fromCurrency: getAccountCurrency(accounts, initialFromAccountId),
     fromAmount: "",
     toCurrency: "",
     toAmount: "",

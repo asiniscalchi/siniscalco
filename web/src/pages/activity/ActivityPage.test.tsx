@@ -109,7 +109,7 @@ describe("ActivityPage", () => {
     expect(within(mobileList as HTMLElement).getByText("1,500.00")).toBeTruthy();
     expect(within(mobileList as HTMLElement).queryByText("10.00")).toBeNull();
     expect(within(mobileList as HTMLElement).queryByText("150.00")).toBeNull();
-    expect((screen.getByRole("button", { name: "Add Transaction" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Add Activity" }) as HTMLButtonElement).disabled).toBe(true);
 
     expect(screen.queryByText("Actions")).toBeNull();
     expect(screen.queryByTitle("Edit transaction")).toBeNull();
@@ -292,7 +292,7 @@ describe("ActivityPage", () => {
     fireEvent.change(select, { target: { value: "1" } });
 
     expect(await screen.findByTitle("Filtered trans")).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Add Transaction" }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole("button", { name: "Add Activity" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("puts the account selector below the title row on mobile", async () => {
@@ -432,7 +432,10 @@ describe("ActivityPage", () => {
     const select = await screen.findByLabelText("Account:");
     fireEvent.change(select, { target: { value: "1" } });
 
-    fireEvent.click(screen.getByRole("button", { name: "Add Transaction" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Activity" }));
+
+    const picker = screen.getByRole("dialog");
+    fireEvent.click(within(picker).getByRole("button", { name: /Trade/ }));
 
     const modal = screen.getByRole("dialog");
     expect(within(modal).getByText("Add Transaction", { selector: "h2" })).toBeTruthy();
@@ -445,6 +448,156 @@ describe("ActivityPage", () => {
     fireEvent.click(within(modal).getByRole("button", { name: "Add Transaction" }));
 
     await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+  });
+
+  it("handles create deposit via modal", async () => {
+    const accounts = [
+      { id: 1, name: "Main Account", accountType: "BANK", baseCurrency: "USD", summaryStatus: "OK", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
+      { id: 2, name: "Savings", accountType: "BANK", baseCurrency: "EUR", summaryStatus: "OK", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
+    ];
+
+    let capturedAmount: string | undefined;
+
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string; variables?: { input?: { amount?: string } } } : null;
+      const query = body?.query ?? "";
+      if (query.includes("accounts")) return gqlResponse({ accounts });
+      if (query.includes("assets")) return gqlResponse({ assets: [] });
+      if (query.includes("currencies")) return gqlResponse({ currencies: ["USD", "EUR"] });
+      if (query.includes("createCashMovement")) {
+        capturedAmount = body?.variables?.input?.amount;
+        return gqlResponse({
+          createCashMovement: { currency: "USD", amount: "250.00", date: "2026-03-23" },
+        });
+      }
+      if (query.includes("transactions")) return gqlResponse({ transactions: [] });
+      if (query.includes("cashMovements")) return gqlResponse({ cashMovements: [] });
+      if (query.includes("transfers")) return gqlResponse({ transfers: [] });
+      return Promise.reject(new Error(`Unhandled: ${query}`));
+    });
+
+    renderActivityPage();
+
+    const select = await screen.findByLabelText("Account:");
+    fireEvent.change(select, { target: { value: "1" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Activity" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /Deposit/ }));
+
+    const modal = screen.getByRole("dialog");
+    expect(within(modal).getByText("Record Deposit", { selector: "h2" })).toBeTruthy();
+
+    fireEvent.change(within(modal).getByLabelText(/Deposit Amount \*/), { target: { value: "250" } });
+    fireEvent.click(within(modal).getByRole("button", { name: "Record Deposit" }));
+
+    await waitFor(() => {
+      expect(capturedAmount).toBe("250");
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+  });
+
+  it("handles create withdrawal via modal", async () => {
+    const accounts = [
+      { id: 1, name: "Main Account", accountType: "BANK", baseCurrency: "USD", summaryStatus: "OK", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
+      { id: 2, name: "Savings", accountType: "BANK", baseCurrency: "EUR", summaryStatus: "OK", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
+    ];
+
+    let capturedAmount: string | undefined;
+
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string; variables?: { input?: { amount?: string } } } : null;
+      const query = body?.query ?? "";
+      if (query.includes("accounts")) return gqlResponse({ accounts });
+      if (query.includes("assets")) return gqlResponse({ assets: [] });
+      if (query.includes("currencies")) return gqlResponse({ currencies: ["USD", "EUR"] });
+      if (query.includes("createCashMovement")) {
+        capturedAmount = body?.variables?.input?.amount;
+        return gqlResponse({
+          createCashMovement: { currency: "USD", amount: "-125.00", date: "2026-03-23" },
+        });
+      }
+      if (query.includes("transactions")) return gqlResponse({ transactions: [] });
+      if (query.includes("cashMovements")) return gqlResponse({ cashMovements: [] });
+      if (query.includes("transfers")) return gqlResponse({ transfers: [] });
+      return Promise.reject(new Error(`Unhandled: ${query}`));
+    });
+
+    renderActivityPage();
+
+    const select = await screen.findByLabelText("Account:");
+    fireEvent.change(select, { target: { value: "1" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Activity" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /Withdraw/ }));
+
+    const modal = screen.getByRole("dialog");
+    expect(within(modal).getByText("Record Withdrawal", { selector: "h2" })).toBeTruthy();
+
+    fireEvent.change(within(modal).getByLabelText(/Withdrawal Amount \*/), { target: { value: "125" } });
+    fireEvent.click(within(modal).getByRole("button", { name: "Record Withdrawal" }));
+
+    await waitFor(() => {
+      expect(capturedAmount).toBe("-125");
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+  });
+
+  it("handles create transfer via modal", async () => {
+    const accounts = [
+      { id: 1, name: "Main Account", accountType: "BANK", baseCurrency: "USD", summaryStatus: "OK", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
+      { id: 2, name: "Savings", accountType: "BANK", baseCurrency: "EUR", summaryStatus: "OK", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
+    ];
+
+    let capturedFromAccountId: number | undefined;
+
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string; variables?: { input?: { fromAccountId?: number } } } : null;
+      const query = body?.query ?? "";
+      if (query.includes("accounts")) return gqlResponse({ accounts });
+      if (query.includes("assets")) return gqlResponse({ assets: [] });
+      if (query.includes("createTransfer")) {
+        capturedFromAccountId = body?.variables?.input?.fromAccountId;
+        return gqlResponse({
+          createTransfer: {
+            id: 1,
+            fromAccountId: 1,
+            toAccountId: 2,
+            fromCurrency: "USD",
+            fromAmount: "100",
+            toCurrency: "EUR",
+            toAmount: "90",
+            transferDate: "2026-03-23",
+            notes: null,
+          },
+        });
+      }
+      if (query.includes("transactions")) return gqlResponse({ transactions: [] });
+      if (query.includes("cashMovements")) return gqlResponse({ cashMovements: [] });
+      if (query.includes("transfers")) return gqlResponse({ transfers: [] });
+      return Promise.reject(new Error(`Unhandled: ${query}`));
+    });
+
+    renderActivityPage();
+
+    const select = await screen.findByLabelText("Account:");
+    fireEvent.change(select, { target: { value: "1" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Activity" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /Transfer/ }));
+
+    const modal = screen.getByRole("dialog");
+    expect(within(modal).getByText("New Transfer", { selector: "h2" })).toBeTruthy();
+
+    expect((within(modal).getByLabelText(/From Account \*/) as HTMLSelectElement).value).toBe("1");
+    fireEvent.change(within(modal).getByLabelText(/To Account \*/), { target: { value: "2" } });
+    fireEvent.change(within(modal).getByLabelText(/Amount Sent \*/), { target: { value: "100" } });
+    fireEvent.change(within(modal).getByLabelText(/Amount Received \*/), { target: { value: "90" } });
+    fireEvent.click(within(modal).getByRole("button", { name: "Transfer" }));
+
+    await waitFor(() => {
+      expect(capturedFromAccountId).toBe(1);
       expect(screen.queryByRole("dialog")).toBeNull();
     });
   });
