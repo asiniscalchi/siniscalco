@@ -1,11 +1,13 @@
-use std::fmt;
 use std::sync::Arc;
+use std::{fmt, time::Duration};
 
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 use tokio::sync::Mutex;
 use tracing::{debug, info};
+
+const MCP_TOOL_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub type SharedMcpClient = Arc<McpClient>;
 
@@ -120,12 +122,20 @@ impl McpClient {
     pub async fn call_tool(&self, name: &str, arguments: Value) -> Result<String, McpError> {
         let mut io = self.io.lock().await;
 
-        let result = io
-            .request(
+        let result = tokio::time::timeout(
+            MCP_TOOL_TIMEOUT,
+            io.request(
                 "tools/call",
                 json!({ "name": name, "arguments": arguments }),
-            )
-            .await?;
+            ),
+        )
+        .await
+        .map_err(|_| {
+            McpError::Io(format!(
+                "MCP tool call timed out after {}s",
+                MCP_TOOL_TIMEOUT.as_secs()
+            ))
+        })??;
 
         if result["isError"].as_bool().unwrap_or(false) {
             let msg = result["content"][0]["text"]
