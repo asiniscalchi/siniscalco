@@ -11,6 +11,12 @@ CREATE TABLE accounts (
     FOREIGN KEY (base_currency) REFERENCES currencies(code)
 );
 
+CREATE TRIGGER accounts_base_currency_immutable
+BEFORE UPDATE OF base_currency ON accounts
+BEGIN
+    SELECT RAISE(ABORT, 'base_currency cannot be changed after account creation');
+END;
+
 CREATE TABLE cash_entries (
     id INTEGER PRIMARY KEY,
     account_id INTEGER NOT NULL,
