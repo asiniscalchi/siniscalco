@@ -9,8 +9,6 @@ import { extractGqlErrorMessage } from "@/lib/gql";
 import { getAccountCurrency, getTodayDate } from "@/lib/form-utils";
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 
-import type { Account } from "./types";
-
 const CREATE_TRANSFER_MUTATION = gql`
   mutation CreateTransfer($input: TransferInput!) {
     createTransfer(input: $input) {
@@ -38,6 +36,12 @@ type FormState = {
   toAmount: string;
   transferDate: string;
   notes: string;
+};
+
+type Account = {
+  id: number;
+  name: string;
+  baseCurrency: string;
 };
 
 
