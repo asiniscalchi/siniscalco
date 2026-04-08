@@ -18,6 +18,8 @@ CREATE TABLE cash_entries (
     amount INTEGER NOT NULL CHECK (typeof(amount) = 'integer'),
     source TEXT NOT NULL CHECK (source IN ('deposit', 'asset_transaction', 'transfer')),
     source_id INTEGER,
+    date TEXT,
+    notes TEXT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
     FOREIGN KEY (currency) REFERENCES currencies(code)
