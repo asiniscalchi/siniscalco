@@ -2,8 +2,9 @@ use serde_json::{Value, json};
 
 use crate::mcp::McpClient;
 use crate::{
-    PRODUCT_BASE_CURRENCY, compact_decimal_output, format_decimal_amount, get_portfolio_summary,
-    list_accounts, list_assets, list_transactions, list_transfers,
+    AccountId, PRODUCT_BASE_CURRENCY, compact_decimal_output, format_decimal_amount,
+    get_portfolio_summary, list_accounts, list_asset_transactions, list_assets, list_transactions,
+    list_transfers, list_transfers_by_account,
 };
 
 use super::types::AssistantError;
@@ -23,33 +24,75 @@ pub fn tool_definitions() -> Value {
             "type": "function",
             "function": {
                 "name": "list_accounts",
-                "description": "Returns all accounts with their name, type, and base currency.",
-                "parameters": { "type": "object", "properties": {}, "required": [] }
+                "description": "Returns accounts with their name, type, and base currency. \
+                                Optionally filter by account type.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "account_type": {
+                            "type": "string",
+                            "enum": ["bank", "broker", "crypto"],
+                            "description": "Filter by account type"
+                        }
+                    },
+                    "required": []
+                }
             }
         },
         {
             "type": "function",
             "function": {
                 "name": "list_assets",
-                "description": "Returns all tracked assets with their symbol, name, type, \
-                                current price, and total quantity held.",
-                "parameters": { "type": "object", "properties": {}, "required": [] }
+                "description": "Returns tracked assets with their symbol, name, type, \
+                                current price, and total quantity held. \
+                                Optionally filter by asset type.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "asset_type": {
+                            "type": "string",
+                            "enum": ["STOCK", "ETF", "BOND", "CRYPTO", "CASH_EQUIVALENT", "OTHER"],
+                            "description": "Filter by asset type"
+                        }
+                    },
+                    "required": []
+                }
             }
         },
         {
             "type": "function",
             "function": {
                 "name": "list_transactions",
-                "description": "Returns all asset transactions (buys/sells) ordered by trade date descending.",
-                "parameters": { "type": "object", "properties": {}, "required": [] }
+                "description": "Returns asset transactions (buys/sells) ordered by trade date descending. \
+                                Optionally filter by account.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "account_id": {
+                            "type": "integer",
+                            "description": "Filter transactions by account ID"
+                        }
+                    },
+                    "required": []
+                }
             }
         },
         {
             "type": "function",
             "function": {
                 "name": "list_transfers",
-                "description": "Returns all fund transfers between accounts ordered by date descending.",
-                "parameters": { "type": "object", "properties": {}, "required": [] }
+                "description": "Returns fund transfers between accounts ordered by date descending. \
+                                Optionally filter by account (as sender or receiver).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "account_id": {
+                            "type": "integer",
+                            "description": "Filter transfers involving this account ID"
+                        }
+                    },
+                    "required": []
+                }
             }
         }
     ])
@@ -127,11 +170,15 @@ pub async fn execute_tool(
         }
 
         "list_accounts" => {
-            let accounts = list_accounts(pool).await?;
+            let mut accounts = list_accounts(pool).await?;
+            if let Some(filter) = args["account_type"].as_str() {
+                accounts.retain(|a| a.account_type.as_str().eq_ignore_ascii_case(filter));
+            }
             let items: Vec<Value> = accounts
                 .iter()
                 .map(|a| {
                     json!({
+                        "id": a.id.as_i64(),
                         "name": a.name.as_str(),
                         "type": a.account_type.as_str(),
                         "base_currency": a.base_currency.as_str(),
@@ -142,7 +189,10 @@ pub async fn execute_tool(
         }
 
         "list_assets" => {
-            let assets = list_assets(pool).await?;
+            let mut assets = list_assets(pool).await?;
+            if let Some(filter) = args["asset_type"].as_str() {
+                assets.retain(|a| a.asset_type.as_str().eq_ignore_ascii_case(filter));
+            }
             let items: Vec<Value> = assets
                 .iter()
                 .map(|a| {
@@ -158,6 +208,7 @@ pub async fn execute_tool(
                         .as_ref()
                         .map(|q| compact_decimal_output(&format_decimal_amount(q.as_decimal())));
                     json!({
+                        "id": a.id.as_i64(),
                         "symbol": a.symbol.as_str(),
                         "name": a.name.as_str(),
                         "type": a.asset_type.as_str(),
@@ -170,11 +221,18 @@ pub async fn execute_tool(
         }
 
         "list_transactions" => {
-            let transactions = list_transactions(pool).await?;
+            let transactions = if let Some(id) = args["account_id"].as_i64() {
+                let account_id = AccountId::try_from(id)?;
+                list_asset_transactions(pool, account_id).await?
+            } else {
+                list_transactions(pool).await?
+            };
             let items: Vec<Value> = transactions
                 .iter()
                 .map(|t| {
                     json!({
+                        "account_id": t.account_id.as_i64(),
+                        "asset_id": t.asset_id.as_i64(),
                         "trade_date": t.trade_date.as_str(),
                         "type": t.transaction_type.as_str(),
                         "quantity": compact_decimal_output(&format_decimal_amount(t.quantity.as_decimal())),
@@ -191,11 +249,18 @@ pub async fn execute_tool(
         }
 
         "list_transfers" => {
-            let transfers = list_transfers(pool).await?;
+            let transfers = if let Some(id) = args["account_id"].as_i64() {
+                let account_id = AccountId::try_from(id)?;
+                list_transfers_by_account(pool, account_id).await?
+            } else {
+                list_transfers(pool).await?
+            };
             let items: Vec<Value> = transfers
                 .iter()
                 .map(|t| {
                     json!({
+                        "from_account_id": t.from_account_id.as_i64(),
+                        "to_account_id": t.to_account_id.as_i64(),
                         "transfer_date": t.transfer_date.as_str(),
                         "from": format!(
                             "{} {}",
