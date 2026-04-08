@@ -142,6 +142,7 @@ describe("AccountDetailPage", () => {
     expect(await screen.findByText("IBKR")).toBeTruthy();
     expect(screen.getByText("BROKER · base currency EUR")).toBeTruthy();
     expect(screen.getByText("12.30000000")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Record movement" })).toBeNull();
   });
 
   it("renders account assets when the account has positions", async () => {
@@ -324,77 +325,6 @@ describe("AccountDetailPage", () => {
     expect(screen.getByText("100.00000000")).toBeTruthy();
   });
 
-  it("records a cash movement from the account detail page", async () => {
-    let saved = false;
-
-    vi.mocked(fetch).mockImplementation((_input, init) => {
-      const body = init?.body ? JSON.parse(String(init.body)) as { query: string; variables?: Record<string, unknown> } : null;
-      const query = body?.query ?? "";
-      const variables = body?.variables ?? {};
-
-      if (query.includes("currencies")) {
-        return gqlResponse({ currencies: ["CHF", "EUR", "GBP", "USD"] });
-      }
-
-      if (query.includes("account(")) {
-        return gqlResponse({
-          account: {
-            id: 9,
-            name: "IBKR",
-            accountType: "BROKER",
-            baseCurrency: "EUR",
-            createdAt: "2026-03-22 00:00:00",
-            summaryStatus: "OK",
-            cashTotalAmount: null,
-            assetTotalAmount: null,
-            totalAmount: null,
-            totalCurrency: null,
-            balances: saved
-              ? [{ currency: "USD", amount: "42.50000000", updatedAt: "2026-03-22 00:00:00" }]
-              : [],
-          },
-        });
-      }
-
-      if (query.includes("accountPositions")) {
-        return gqlResponse({ accountPositions: [] });
-      }
-
-      if (query.includes("assets")) {
-        return gqlResponse({ assets: [] });
-      }
-
-      if (query.includes("fxRates")) {
-        return gqlResponse({ fxRates: { targetCurrency: "EUR", rates: [], lastUpdated: null, refreshStatus: "AVAILABLE", refreshError: null } });
-      }
-
-      if (query.includes("createCashMovement")) {
-        expect(variables).toEqual(
-          expect.objectContaining({
-            accountId: 9,
-            input: expect.objectContaining({ currency: "USD", amount: "42.5" }),
-          }),
-        );
-        saved = true;
-        return gqlResponse({
-          createCashMovement: { currency: "USD", amount: "42.50000000", date: "2026-03-22" },
-        });
-      }
-
-      throw new Error(`Unhandled GQL query: ${query}`);
-    });
-
-    renderAccountDetailPage("/accounts/9");
-
-    expect(await screen.findByText("No balances yet")).toBeTruthy();
-
-    fireEvent.change(screen.getByLabelText("Currency"), { target: { value: "USD" } });
-    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "42.5" } });
-    fireEvent.click(screen.getByRole("button", { name: "Record movement" }));
-
-    expect(await screen.findByText("42.50000000")).toBeTruthy();
-  });
-
   it("balance cards do not have a delete button", async () => {
     vi.mocked(fetch).mockImplementation((_input, init) => {
       const body = init?.body ? JSON.parse(String(init.body)) as { query: string; variables?: Record<string, unknown> } : null;
@@ -521,7 +451,7 @@ describe("AccountDetailPage", () => {
     expect(await screen.findByText("Could not delete account.")).toBeTruthy();
   });
 
-  it("resets the balance form when the loaded account changes", async () => {
+  it("does not render the cash movement form", async () => {
     mockAccountDetailFetch((query, variables) => {
       if (query.includes("account(")) {
         const id = variables.id as number;
@@ -568,25 +498,18 @@ describe("AccountDetailPage", () => {
     const firstRender = renderAccountDetailPage("/accounts/11");
 
     expect(await screen.findByText("First Account")).toBeTruthy();
-
-    fireEvent.change(screen.getByLabelText("Currency"), {
-      target: { value: "GBP" },
-    });
-    fireEvent.change(screen.getByLabelText("Amount"), {
-      target: { value: "99.5" },
-    });
+    expect(screen.queryByRole("button", { name: "Record movement" })).toBeNull();
+    expect(screen.queryByLabelText("Currency")).toBeNull();
+    expect(screen.queryByLabelText("Amount")).toBeNull();
 
     firstRender.unmount();
 
     renderAccountDetailPage("/accounts/12");
 
     expect(await screen.findByText("Second Account")).toBeTruthy();
-    expect((screen.getByLabelText("Currency") as HTMLSelectElement).value).toBe(
-      "USD",
-    );
-    expect((screen.getByLabelText("Amount") as HTMLInputElement).value).toBe(
-      "",
-    );
+    expect(screen.queryByRole("button", { name: "Record movement" })).toBeNull();
+    expect(screen.queryByLabelText("Currency")).toBeNull();
+    expect(screen.queryByLabelText("Amount")).toBeNull();
   });
 
   it("masks account balances when hidden mode is enabled", async () => {
