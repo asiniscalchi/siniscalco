@@ -136,7 +136,7 @@ export function AccountDetailReadyState({
 
       <AccountAssetsCard accountId={account.id} baseCurrency={account.baseCurrency} />
 
-      <AccountBalancesCard accountId={account.id} baseCurrency={account.baseCurrency} />
+      <AccountBalancesCard accountId={account.id} />
     </div>
   );
 }
