@@ -76,6 +76,23 @@ pub async fn create_cash_movement(
     })
 }
 
+pub async fn list_all_cash_movements(
+    pool: &SqlitePool,
+) -> Result<Vec<CashMovementRecord>, StorageError> {
+    let rows = sqlx::query(
+        r#"
+        SELECT id, account_id, currency, amount, date, notes, created_at
+        FROM cash_entries
+        WHERE source = 'deposit'
+        ORDER BY date DESC, created_at DESC, id DESC
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    map_cash_movement_rows(rows)
+}
+
 pub async fn list_cash_movements(
     pool: &SqlitePool,
     account_id: AccountId,
@@ -92,12 +109,18 @@ pub async fn list_cash_movements(
     .fetch_all(pool)
     .await?;
 
+    map_cash_movement_rows(rows)
+}
+
+fn map_cash_movement_rows(
+    rows: Vec<sqlx::sqlite::SqliteRow>,
+) -> Result<Vec<CashMovementRecord>, StorageError> {
     rows.into_iter()
         .map(|row| {
             let date_str: Option<&str> = row.get("date");
             let date = match date_str {
                 Some(d) => TradeDate::try_from(d)?,
-                None => TradeDate::try_from(row.get::<&str, _>("created_at"))?,
+                None => TradeDate::try_from(&row.get::<&str, _>("created_at")[..10])?,
             };
             Ok(CashMovementRecord {
                 id: row.get("id"),
@@ -109,7 +132,7 @@ pub async fn list_cash_movements(
                 created_at: row.get("created_at"),
             })
         })
-        .collect::<Result<Vec<_>, StorageError>>()
+        .collect()
 }
 
 // ── Connection-scoped helpers (used inside open transactions) ─────────────────
