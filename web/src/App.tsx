@@ -2,13 +2,13 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { AppShell } from "./components/AppShell";
 import {
+  ActivityPage,
   AssistantPage,
   AccountDetailPage,
   AccountNewPage,
   AccountsListPage,
   AssetsPage,
   PortfolioPage,
-  TransactionsPage,
   TransfersPage,
 } from "./pages";
 
@@ -23,7 +23,7 @@ function App() {
         <Route path="/accounts/new" element={<AccountNewPage />} />
         <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
         <Route path="/assets" element={<AssetsPage />} />
-        <Route path="/transactions" element={<TransactionsPage />} />
+        <Route path="/activity" element={<ActivityPage />} />
         <Route path="/transfers" element={<TransfersPage />} />
       </Route>
     </Routes>

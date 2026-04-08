@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 
 import type { Transaction } from "./types";
 
-type TransactionsHistoryCardActionsProps = {
+type ActivityHistoryCardActionsProps = {
   isLocked: boolean;
   isDeleting: number | null;
   transaction: Transaction;
@@ -11,13 +11,13 @@ type TransactionsHistoryCardActionsProps = {
   onDeleteClick: (transactionId: number) => void;
 };
 
-export function TransactionsHistoryCardActions({
+export function ActivityHistoryCardActions({
   isLocked,
   isDeleting,
   transaction,
   onEditClick,
   onDeleteClick,
-}: TransactionsHistoryCardActionsProps) {
+}: ActivityHistoryCardActionsProps) {
   return (
     <div className="flex justify-end gap-1">
       <Button

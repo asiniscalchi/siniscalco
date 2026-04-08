@@ -15,18 +15,18 @@ import { ApolloProvider } from "@apollo/client/react";
 import { ASSETS_QUERY } from "@/pages/assets/assets-query";
 
 import { UiStateProvider } from "@/lib/ui-state-provider";
-import { TransactionsPage } from ".";
+import { ActivityPage } from ".";
 
 function createTestClient() {
   return new ApolloClient({ link: new HttpLink({ uri: "http://localhost/graphql" }), cache: new InMemoryCache() });
 }
 
-function renderTransactionsPage() {
+function renderActivityPage() {
   return render(
     <ApolloProvider client={createTestClient()}>
       <UiStateProvider>
         <MemoryRouter>
-          <TransactionsPage />
+          <ActivityPage />
         </MemoryRouter>
       </UiStateProvider>
     </ApolloProvider>,
@@ -49,7 +49,7 @@ function gqlResponse(data: unknown) {
   );
 }
 
-describe("TransactionsPage", () => {
+describe("ActivityPage", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
   });
@@ -95,12 +95,12 @@ describe("TransactionsPage", () => {
       return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
-    renderTransactionsPage();
+    renderActivityPage();
 
-    expect(await screen.findByText("Transactions")).toBeTruthy();
+    expect(await screen.findByText("Activity")).toBeTruthy();
     expect(screen.getByTitle("All trans")).toBeTruthy();
     const historyCard = screen
-      .getByText("Transactions")
+      .getByText("Activity")
       .closest('[data-slot="card"]');
     const mobileList = historyCard?.querySelector(".space-y-2.sm\\:hidden");
 
@@ -150,11 +150,11 @@ describe("TransactionsPage", () => {
       return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
-    renderTransactionsPage();
+    renderActivityPage();
 
     await screen.findAllByText("Date");
     const mobileList = screen
-      .getByText("Transactions")
+      .getByText("Activity")
       .closest('[data-slot="card"]')
       ?.querySelector(".sm\\:hidden");
 
@@ -190,7 +190,7 @@ describe("TransactionsPage", () => {
       return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
-    renderTransactionsPage();
+    renderActivityPage();
 
     expect(await screen.findByText("Failed to load transactions")).toBeTruthy();
 
@@ -232,7 +232,7 @@ describe("TransactionsPage", () => {
       return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
-    renderTransactionsPage();
+    renderActivityPage();
 
     expect(await screen.findByText("Failed to load initial data")).toBeTruthy();
 
@@ -286,7 +286,7 @@ describe("TransactionsPage", () => {
       return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
-    renderTransactionsPage();
+    renderActivityPage();
 
     const select = await screen.findByLabelText("Account:");
     fireEvent.change(select, { target: { value: "1" } });
@@ -317,11 +317,11 @@ describe("TransactionsPage", () => {
       return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
-    renderTransactionsPage();
+    renderActivityPage();
 
     await screen.findByLabelText("Account:");
 
-    const titleRow = screen.getByText("Transactions").closest("div");
+    const titleRow = screen.getByText("Activity").closest("div");
     const mobileSelectRow = screen.getByLabelText("Account").closest("div");
 
     expect(titleRow).toBeTruthy();
@@ -369,13 +369,13 @@ describe("TransactionsPage", () => {
       return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
-    renderTransactionsPage();
+    renderActivityPage();
 
     await screen.findAllByText("Overflow regression");
     await unlockEditMode();
 
     const historyCard = screen
-      .getByText("Transactions")
+      .getByText("Activity")
       .closest('[data-slot="card"]');
     const mobileList = historyCard?.querySelector(".space-y-2.sm\\:hidden");
     const desktopTable = historyCard?.querySelector(".sm\\:block");
@@ -427,7 +427,7 @@ describe("TransactionsPage", () => {
       return Promise.reject(new Error(`Unhandled: ${query}`));
     });
 
-    renderTransactionsPage();
+    renderActivityPage();
 
     const select = await screen.findByLabelText("Account:");
     fireEvent.change(select, { target: { value: "1" } });
@@ -486,7 +486,7 @@ describe("TransactionsPage", () => {
       return Promise.reject(new Error(`Unhandled: ${query}`));
     });
 
-    renderTransactionsPage();
+    renderActivityPage();
 
     const select = await screen.findByLabelText("Account:");
     fireEvent.change(select, { target: { value: "1" } });
@@ -541,7 +541,7 @@ describe("TransactionsPage", () => {
       return Promise.reject(new Error(`Unhandled: ${query}`));
     });
 
-    renderTransactionsPage();
+    renderActivityPage();
     await unlockEditMode();
 
     fireEvent.click(screen.getAllByTitle("Delete transaction")[0]);
@@ -597,7 +597,7 @@ describe("TransactionsPage", () => {
       return Promise.reject(new Error(`Unhandled: ${query}`));
     });
 
-    renderTransactionsPage();
+    renderActivityPage();
 
     // Stay in "All Accounts" view (do NOT select an account)
     await screen.findByLabelText("Account:");
@@ -687,7 +687,7 @@ describe("TransactionsPage", () => {
       <ApolloProvider client={client}>
         <UiStateProvider>
           <MemoryRouter>
-            <TransactionsPage />
+            <ActivityPage />
           </MemoryRouter>
         </UiStateProvider>
       </ApolloProvider>,
@@ -776,7 +776,7 @@ describe("TransactionsPage", () => {
       <ApolloProvider client={client}>
         <UiStateProvider>
           <MemoryRouter>
-            <TransactionsPage />
+            <ActivityPage />
           </MemoryRouter>
         </UiStateProvider>
       </ApolloProvider>,

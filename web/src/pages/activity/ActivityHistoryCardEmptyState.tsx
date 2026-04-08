@@ -1,4 +1,4 @@
-export function TransactionsHistoryCardEmptyState() {
+export function ActivityHistoryCardEmptyState() {
   return (
     <div className="py-12 text-center text-sm text-muted-foreground">
       No transactions recorded.

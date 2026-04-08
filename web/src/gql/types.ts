@@ -462,6 +462,59 @@ export type AccountsListPortfolioQueryVariables = Exact<{ [key: string]: never; 
 
 export type AccountsListPortfolioQuery = { __typename?: 'QueryRoot', portfolio: { __typename?: 'PortfolioSummary', displayCurrency: string, totalValueAmount: string | null, accountTotals: Array<{ __typename?: 'PortfolioAccountTotal', id: number, summaryStatus: SummaryStatus, cashTotalAmount: string | null, assetTotalAmount: string | null, totalAmount: string | null }> } };
 
+export type TransactionAccountsQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type TransactionAccountsQuery = { __typename?: 'QueryRoot', accounts: Array<{ __typename?: 'AccountSummary', id: number, name: string, accountType: AccountType, baseCurrency: string }> };
+
+export type TransactionAssetsQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type TransactionAssetsQuery = { __typename?: 'QueryRoot', assets: Array<{ __typename?: 'Asset', id: number, symbol: string, name: string, assetType: AssetType }> };
+
+export type TransactionsQueryVariables = Exact<{
+  accountId?: InputMaybe<Scalars['Int']['input']>;
+}>;
+
+
+export type TransactionsQuery = { __typename?: 'QueryRoot', transactions: Array<{ __typename?: 'Transaction', id: number, accountId: number, assetId: number, transactionType: TransactionType, tradeDate: string, quantity: string, unitPrice: string, currencyCode: string, notes: string | null }> };
+
+export type ActivityCashMovementsQueryVariables = Exact<{
+  accountId?: InputMaybe<Scalars['Int']['input']>;
+}>;
+
+
+export type ActivityCashMovementsQuery = { __typename?: 'QueryRoot', cashMovements: Array<{ __typename?: 'CashMovement', id: number, accountId: number, currency: string, amount: string, date: string, notes: string | null }> };
+
+export type ActivityTransfersQueryVariables = Exact<{
+  accountId?: InputMaybe<Scalars['Int']['input']>;
+}>;
+
+
+export type ActivityTransfersQuery = { __typename?: 'QueryRoot', transfers: Array<{ __typename?: 'Transfer', id: number, fromAccountId: number, toAccountId: number, fromCurrency: string, fromAmount: string, toCurrency: string, toAmount: string, transferDate: string, notes: string | null }> };
+
+export type DeleteTransactionMutationVariables = Exact<{
+  id: Scalars['Int']['input'];
+}>;
+
+
+export type DeleteTransactionMutation = { __typename?: 'MutationRoot', deleteTransaction: number };
+
+export type CreateTransactionMutationVariables = Exact<{
+  input: TransactionInput;
+}>;
+
+
+export type CreateTransactionMutation = { __typename?: 'MutationRoot', createTransaction: { __typename?: 'Transaction', id: number, accountId: number, assetId: number, transactionType: TransactionType, tradeDate: string, quantity: string, unitPrice: string, currencyCode: string, notes: string | null } };
+
+export type UpdateTransactionMutationVariables = Exact<{
+  id: Scalars['Int']['input'];
+  input: TransactionInput;
+}>;
+
+
+export type UpdateTransactionMutation = { __typename?: 'MutationRoot', updateTransaction: { __typename?: 'Transaction', id: number, accountId: number, assetId: number, transactionType: TransactionType, tradeDate: string, quantity: string, unitPrice: string, currencyCode: string, notes: string | null } };
+
 export type CreateAssetMutationVariables = Exact<{
   input: AssetInput;
 }>;
@@ -503,59 +556,6 @@ export type PortfolioQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type PortfolioQuery = { __typename?: 'QueryRoot', portfolio: { __typename?: 'PortfolioSummary', displayCurrency: string, totalValueStatus: SummaryStatus, totalValueAmount: string | null, fxLastUpdated: string | null, fxRefreshStatus: RefreshAvailability, fxRefreshError: string | null, allocationIsPartial: boolean, holdingsIsPartial: boolean, accountTotals: Array<{ __typename?: 'PortfolioAccountTotal', id: number, name: string, accountType: AccountType, summaryStatus: SummaryStatus, cashTotalAmount: string | null, assetTotalAmount: string | null, totalAmount: string | null, totalCurrency: string }>, cashByCurrency: Array<{ __typename?: 'PortfolioCashByCurrency', currency: string, amount: string, convertedAmount: string | null }>, allocationTotals: Array<{ __typename?: 'PortfolioAllocationSlice', label: string, amount: string }>, holdings: Array<{ __typename?: 'PortfolioHolding', assetId: number | null, symbol: string, name: string, value: string }> } };
-
-export type CreateTransactionMutationVariables = Exact<{
-  input: TransactionInput;
-}>;
-
-
-export type CreateTransactionMutation = { __typename?: 'MutationRoot', createTransaction: { __typename?: 'Transaction', id: number, accountId: number, assetId: number, transactionType: TransactionType, tradeDate: string, quantity: string, unitPrice: string, currencyCode: string, notes: string | null } };
-
-export type UpdateTransactionMutationVariables = Exact<{
-  id: Scalars['Int']['input'];
-  input: TransactionInput;
-}>;
-
-
-export type UpdateTransactionMutation = { __typename?: 'MutationRoot', updateTransaction: { __typename?: 'Transaction', id: number, accountId: number, assetId: number, transactionType: TransactionType, tradeDate: string, quantity: string, unitPrice: string, currencyCode: string, notes: string | null } };
-
-export type TransactionAccountsQueryVariables = Exact<{ [key: string]: never; }>;
-
-
-export type TransactionAccountsQuery = { __typename?: 'QueryRoot', accounts: Array<{ __typename?: 'AccountSummary', id: number, name: string, accountType: AccountType, baseCurrency: string }> };
-
-export type TransactionAssetsQueryVariables = Exact<{ [key: string]: never; }>;
-
-
-export type TransactionAssetsQuery = { __typename?: 'QueryRoot', assets: Array<{ __typename?: 'Asset', id: number, symbol: string, name: string, assetType: AssetType }> };
-
-export type TransactionsQueryVariables = Exact<{
-  accountId?: InputMaybe<Scalars['Int']['input']>;
-}>;
-
-
-export type TransactionsQuery = { __typename?: 'QueryRoot', transactions: Array<{ __typename?: 'Transaction', id: number, accountId: number, assetId: number, transactionType: TransactionType, tradeDate: string, quantity: string, unitPrice: string, currencyCode: string, notes: string | null }> };
-
-export type ActivityCashMovementsQueryVariables = Exact<{
-  accountId?: InputMaybe<Scalars['Int']['input']>;
-}>;
-
-
-export type ActivityCashMovementsQuery = { __typename?: 'QueryRoot', cashMovements: Array<{ __typename?: 'CashMovement', id: number, accountId: number, currency: string, amount: string, date: string, notes: string | null }> };
-
-export type ActivityTransfersQueryVariables = Exact<{
-  accountId?: InputMaybe<Scalars['Int']['input']>;
-}>;
-
-
-export type ActivityTransfersQuery = { __typename?: 'QueryRoot', transfers: Array<{ __typename?: 'Transfer', id: number, fromAccountId: number, toAccountId: number, fromCurrency: string, fromAmount: string, toCurrency: string, toAmount: string, transferDate: string, notes: string | null }> };
-
-export type DeleteTransactionMutationVariables = Exact<{
-  id: Scalars['Int']['input'];
-}>;
-
-
-export type DeleteTransactionMutation = { __typename?: 'MutationRoot', deleteTransaction: number };
 
 export type CreateTransferMutationVariables = Exact<{
   input: TransferInput;
