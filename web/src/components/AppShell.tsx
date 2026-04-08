@@ -10,9 +10,9 @@ import { cn } from "@/lib/utils";
 
 const primaryNavItems = [
   { label: "Portfolio", to: "/portfolio" },
-  { label: "Accounts", to: "/accounts" },
-  { label: "Assets", to: "/assets" },
   { label: "Activity", to: "/activity" },
+  { label: "Assets", to: "/assets" },
+  { label: "Accounts", to: "/accounts" },
 ];
 
 export function AppShell() {

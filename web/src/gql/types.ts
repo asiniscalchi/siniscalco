@@ -411,20 +411,7 @@ export type AccountBalancesQueryVariables = Exact<{
 }>;
 
 
-export type AccountBalancesQuery = { __typename?: 'QueryRoot', account: { __typename?: 'AccountDetail', id: number, baseCurrency: string, balances: Array<{ __typename?: 'Balance', currency: string, amount: string, updatedAt: string }> } };
-
-export type BalanceCurrenciesQueryVariables = Exact<{ [key: string]: never; }>;
-
-
-export type BalanceCurrenciesQuery = { __typename?: 'QueryRoot', currencies: Array<string> };
-
-export type CreateCashMovementMutationVariables = Exact<{
-  accountId: Scalars['Int']['input'];
-  input: CashMovementInput;
-}>;
-
-
-export type CreateCashMovementMutation = { __typename?: 'MutationRoot', createCashMovement: { __typename?: 'CashMovement', currency: string, amount: string, date: string } };
+export type AccountBalancesQuery = { __typename?: 'QueryRoot', account: { __typename?: 'AccountDetail', id: number, balances: Array<{ __typename?: 'Balance', currency: string, amount: string, updatedAt: string }> } };
 
 export type AccountQueryVariables = Exact<{
   id: Scalars['Int']['input'];
@@ -499,6 +486,19 @@ export type DeleteTransactionMutationVariables = Exact<{
 
 
 export type DeleteTransactionMutation = { __typename?: 'MutationRoot', deleteTransaction: number };
+
+export type BalanceCurrenciesQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type BalanceCurrenciesQuery = { __typename?: 'QueryRoot', currencies: Array<string> };
+
+export type CreateCashMovementMutationVariables = Exact<{
+  accountId: Scalars['Int']['input'];
+  input: CashMovementInput;
+}>;
+
+
+export type CreateCashMovementMutation = { __typename?: 'MutationRoot', createCashMovement: { __typename?: 'CashMovement', currency: string, amount: string, date: string } };
 
 export type CreateTransactionMutationVariables = Exact<{
   input: TransactionInput;

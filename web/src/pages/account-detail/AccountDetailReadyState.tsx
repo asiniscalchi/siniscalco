@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { gql } from "@apollo/client/core";
 import { useMutation } from "@apollo/client/react";
 
@@ -11,7 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { buttonVariants } from "@/components/ui/button-variants";
 import { extractGqlErrorMessage } from "@/lib/gql";
 
 const DELETE_ACCOUNT_MUTATION = gql`
@@ -21,7 +19,6 @@ const DELETE_ACCOUNT_MUTATION = gql`
 `;
 import { MoneyText } from "@/lib/money";
 import { useUiState } from "@/lib/ui-state";
-import { cn } from "@/lib/utils";
 
 import { AccountAssetsCard } from "./AccountAssetsCard";
 import { AccountBalancesCard } from "./AccountBalancesCard";
@@ -52,7 +49,7 @@ export function AccountDetailReadyState({
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-      <header className="flex flex-col gap-4 rounded-2xl border bg-background p-6 shadow-sm sm:flex-row sm:items-start sm:justify-between">
+      <header className="rounded-2xl border bg-background p-6 shadow-sm">
         <div className="space-y-2">
           <p className="text-sm font-medium uppercase tracking-[0.22em] text-muted-foreground">
             Cash Accounts
@@ -64,12 +61,6 @@ export function AccountDetailReadyState({
             {account.accountType} · base currency {account.baseCurrency}
           </p>
         </div>
-        <Link
-          className={cn(buttonVariants({ variant: "outline" }))}
-          to="/accounts"
-        >
-          Back to accounts
-        </Link>
       </header>
 
       <div className="flex flex-col items-end gap-2">
@@ -136,7 +127,7 @@ export function AccountDetailReadyState({
 
       <AccountAssetsCard accountId={account.id} baseCurrency={account.baseCurrency} />
 
-      <AccountBalancesCard accountId={account.id} baseCurrency={account.baseCurrency} />
+      <AccountBalancesCard accountId={account.id} />
     </div>
   );
 }
