@@ -349,44 +349,44 @@ async fn start_test_openai_tool_server(recorded_requests: Arc<Mutex<Vec<Value>>>
             async move {
                 recorded_requests.lock().await.push(body);
 
-                let response = match request_count.fetch_add(1, Ordering::SeqCst) {
-                    0 => json!({
-                        "choices": [
-                            {
-                                "finish_reason": "tool_calls",
-                                "message": {
-                                    "role": "assistant",
-                                    "content": null,
-                                    "tool_calls": [
-                                        {
-                                            "id": "call_1",
-                                            "type": "function",
-                                            "function": {
-                                                "name": "list_accounts",
-                                                "arguments": "{}"
-                                            }
-                                        }
-                                    ]
-                                }
-                            }
-                        ]
-                    }),
-                    _ => json!({
-                        "choices": [
-                            {
-                                "finish_reason": "stop",
-                                "message": {
-                                    "role": "assistant",
-                                    "content": [
-                                        { "type": "text", "text": "You have 1 account." }
-                                    ]
-                                }
-                            }
-                        ]
-                    }),
+                // Return SSE streaming format: each line is "data: <json>\n\n", ending with "data: [DONE]\n\n"
+                let sse_body = match request_count.fetch_add(1, Ordering::SeqCst) {
+                    0 => {
+                        // First call: trigger a tool call
+                        let chunk = json!({
+                            "choices": [{
+                                "delta": {
+                                    "tool_calls": [{
+                                        "index": 0,
+                                        "id": "call_1",
+                                        "type": "function",
+                                        "function": { "name": "list_accounts", "arguments": "{}" }
+                                    }]
+                                },
+                                "finish_reason": "tool_calls"
+                            }]
+                        });
+                        format!("data: {}\n\ndata: [DONE]\n\n", chunk)
+                    }
+                    _ => {
+                        // Subsequent calls: return a text response
+                        let delta = json!({
+                            "choices": [{"delta": {"content": "You have 1 account."}, "finish_reason": null}]
+                        });
+                        let stop = json!({
+                            "choices": [{"delta": {}, "finish_reason": "stop"}]
+                        });
+                        format!(
+                            "data: {}\n\ndata: {}\n\ndata: [DONE]\n\n",
+                            delta, stop
+                        )
+                    }
                 };
 
-                Json(response)
+                axum::response::Response::builder()
+                    .header("content-type", "text/event-stream")
+                    .body(axum::body::Body::from(sse_body))
+                    .unwrap()
             }
         }),
     );

@@ -40,6 +40,7 @@ type AssistantChatApiErrorResponse = { error?: string };
 type ChatStreamEvent =
   | { type: "tool_call"; id: string; name: string; args: Record<string, unknown> }
   | { type: "tool_result"; id: string; result: unknown }
+  | { type: "text_delta"; delta: string }
   | { type: "text"; text: string; model: string }
   | { type: "error"; error: string };
 
@@ -79,6 +80,7 @@ const assistantModelAdapter: ChatModelAdapter = {
     let buffer = "";
 
     const toolCalls: ToolCallMessagePart[] = [];
+    let accumulatedText = "";
 
     while (true) {
       const { done, value } = await reader.read();
@@ -107,6 +109,9 @@ const assistantModelAdapter: ChatModelAdapter = {
             toolCalls[idx] = { ...toolCalls[idx], result: event.result };
             yield { content: [...toolCalls] };
           }
+        } else if (event.type === "text_delta") {
+          accumulatedText += event.delta;
+          yield { content: [...toolCalls, { type: "text" as const, text: accumulatedText }] };
         } else if (event.type === "text") {
           yield { content: [...toolCalls, { type: "text" as const, text: event.text }] };
         } else if (event.type === "error") {

@@ -1,5 +1,6 @@
 use std::convert::Infallible;
 
+use futures_util::StreamExt;
 use serde_json::{Value, json};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
@@ -9,7 +10,7 @@ use axum::response::sse::Event;
 use crate::AppState;
 
 use super::tool_executor::{execute_tool, tool_definitions};
-use super::types::{AssistantChatMessageRequest, AssistantError};
+use super::types::AssistantChatMessageRequest;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -32,6 +33,70 @@ pub const fn openai_chat_url() -> &'static str {
 pub async fn send_sse_event(tx: &mpsc::Sender<Result<Event, Infallible>>, data: Value) {
     let event = Event::default().data(data.to_string());
     let _ = tx.send(Ok(event)).await;
+}
+
+// ── Streaming accumulator ─────────────────────────────────────────────────────
+
+#[derive(Default)]
+struct AccumulatedToolCall {
+    id: String,
+    name: String,
+    arguments: String,
+}
+
+#[derive(Debug)]
+enum StreamChunk {
+    Done,
+    Delta {
+        content: Option<String>,
+        tool_calls: Option<Vec<Value>>,
+        finish_reason: Option<String>,
+    },
+}
+
+fn parse_openai_sse_line(line: &str) -> Option<StreamChunk> {
+    let data = line.strip_prefix("data: ")?;
+    let data = data.trim();
+
+    if data == "[DONE]" {
+        return Some(StreamChunk::Done);
+    }
+
+    let parsed: Value = serde_json::from_str(data).ok()?;
+    let choice = parsed.get("choices")?.get(0)?;
+    let delta = choice.get("delta")?;
+
+    Some(StreamChunk::Delta {
+        content: delta
+            .get("content")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
+        tool_calls: delta.get("tool_calls").and_then(|v| v.as_array()).cloned(),
+        finish_reason: choice
+            .get("finish_reason")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
+    })
+}
+
+fn accumulate_tool_call_deltas(accumulated: &mut Vec<AccumulatedToolCall>, deltas: &[Value]) {
+    for delta in deltas {
+        let index = delta["index"].as_u64().unwrap_or(0) as usize;
+
+        while accumulated.len() <= index {
+            accumulated.push(AccumulatedToolCall::default());
+        }
+
+        if let Some(id) = delta["id"].as_str() {
+            accumulated[index].id = id.to_string();
+        }
+        if let Some(name) = delta["function"]["name"].as_str() {
+            accumulated[index].name.push_str(name);
+        }
+        if let Some(args) = delta["function"]["arguments"].as_str() {
+            accumulated[index].arguments.push_str(args);
+        }
+    }
 }
 
 // ── OpenAI streaming chat loop ────────────────────────────────────────────────
@@ -91,6 +156,7 @@ pub async fn openai_chat_streaming(
             "messages": messages,
             "tools": all_tools,
             "tool_choice": "auto",
+            "stream": true,
         });
 
         let response = match state
@@ -121,93 +187,132 @@ pub async fn openai_chat_streaming(
             return;
         }
 
-        let data: Value = match response.json().await {
-            Ok(v) => v,
-            Err(e) => {
-                error!(error = %e, "failed to parse OpenAI response JSON");
-                send_sse_event(tx, json!({"type": "error", "error": format!("failed to build assistant response: api error: {e}")})).await;
-                return;
+        // Stream the response
+        let mut stream = response.bytes_stream();
+        let mut buffer = String::new();
+        let mut full_text = String::new();
+        let mut tool_calls: Vec<AccumulatedToolCall> = Vec::new();
+        let mut final_finish_reason: Option<String> = None;
+
+        while let Some(chunk_result) = stream.next().await {
+            let chunk = match chunk_result {
+                Ok(bytes) => bytes,
+                Err(e) => {
+                    error!(error = %e, "error reading OpenAI stream chunk");
+                    send_sse_event(tx, json!({"type": "error", "error": format!("failed to build assistant response: api error: {e}")})).await;
+                    return;
+                }
+            };
+
+            buffer.push_str(&String::from_utf8_lossy(&chunk));
+
+            // Process complete lines
+            while let Some(newline_pos) = buffer.find('\n') {
+                let line = buffer[..newline_pos].trim().to_string();
+                buffer = buffer[newline_pos + 1..].to_string();
+
+                if line.is_empty() {
+                    continue;
+                }
+
+                match parse_openai_sse_line(&line) {
+                    Some(StreamChunk::Done) => {
+                        debug!("OpenAI stream done");
+                    }
+                    Some(StreamChunk::Delta {
+                        content,
+                        tool_calls: tc_deltas,
+                        finish_reason,
+                    }) => {
+                        if let Some(text) = content.filter(|t| !t.is_empty()) {
+                            full_text.push_str(&text);
+                            send_sse_event(tx, json!({"type": "text_delta", "delta": text}))
+                                .await;
+                        }
+
+                        if let Some(deltas) = tc_deltas {
+                            accumulate_tool_call_deltas(&mut tool_calls, &deltas);
+                        }
+
+                        if let Some(reason) = finish_reason {
+                            final_finish_reason = Some(reason);
+                        }
+                    }
+                    None => {}
+                }
             }
-        };
+        }
 
-        debug!(openai_response = %data, "received OpenAI response");
-
-        let choice = &data["choices"][0];
-        let finish_reason = choice["finish_reason"].as_str().unwrap_or("");
-        let message = &choice["message"];
-
+        let finish_reason = final_finish_reason.as_deref().unwrap_or("");
         info!(finish_reason, "OpenAI finish_reason");
 
         if finish_reason == "stop" {
-            let text = extract_message_text(&message["content"]);
             send_sse_event(
                 tx,
-                json!({"type": "text", "text": text, "model": selected_model}),
+                json!({"type": "text", "text": full_text, "model": selected_model}),
             )
             .await;
             return;
         }
 
         if finish_reason == "tool_calls" {
-            let normalized = match normalize_tool_call_message(message) {
-                Ok(v) => v,
-                Err(e) => {
-                    error!(error = %e, "failed to normalize tool call message");
-                    send_sse_event(tx, json!({"type": "error", "error": format!("failed to build assistant response: {e}")})).await;
-                    return;
-                }
-            };
-            messages.push(normalized);
+            // Build the assistant message for conversation history
+            let tool_calls_json: Vec<Value> = tool_calls
+                .iter()
+                .map(|tc| {
+                    json!({
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.name,
+                            "arguments": tc.arguments,
+                        },
+                    })
+                })
+                .collect();
 
-            let tool_calls = match message["tool_calls"].as_array() {
-                Some(v) => v.to_vec(),
-                None => {
-                    send_sse_event(tx, json!({"type": "error", "error": "failed to build assistant response: api error: missing tool_calls array"})).await;
-                    return;
-                }
-            };
+            messages.push(json!({
+                "role": "assistant",
+                "content": if full_text.is_empty() { Value::Null } else { Value::String(full_text.clone()) },
+                "tool_calls": tool_calls_json,
+            }));
 
-            for call in &tool_calls {
-                let id = call["id"].as_str().unwrap_or("").to_string();
-                let name = call["function"]["name"].as_str().unwrap_or("");
-                let args: Value = call["function"]["arguments"]
-                    .as_str()
-                    .and_then(|s| serde_json::from_str(s).ok())
-                    .unwrap_or(json!({}));
+            for tc in &tool_calls {
+                let args: Value = serde_json::from_str(&tc.arguments).unwrap_or(json!({}));
 
-                info!(tool = %name, "executing tool call");
+                info!(tool = %tc.name, "executing tool call");
                 send_sse_event(
                     tx,
-                    json!({"type": "tool_call", "id": id, "name": name, "args": args}),
+                    json!({"type": "tool_call", "id": tc.id, "name": tc.name, "args": args}),
                 )
                 .await;
 
                 let result = match execute_tool(
                     &state.pool,
                     state.mcp_client.as_deref(),
-                    name,
+                    &tc.name,
                     &args,
                 )
                 .await
                 {
                     Ok(v) => v,
                     Err(e) => {
-                        error!(tool = %name, error = %e, "tool execution failed");
+                        error!(tool = %tc.name, error = %e, "tool execution failed");
                         send_sse_event(tx, json!({"type": "error", "error": format!("failed to build assistant response: {e}")})).await;
                         return;
                     }
                 };
 
-                debug!(tool = %name, result = %result, "tool result");
+                debug!(tool = %tc.name, result = %result, "tool result");
                 send_sse_event(
                     tx,
-                    json!({"type": "tool_result", "id": id, "result": result}),
+                    json!({"type": "tool_result", "id": tc.id, "result": result}),
                 )
                 .await;
 
                 messages.push(json!({
                     "role": "tool",
-                    "tool_call_id": id,
+                    "tool_call_id": tc.id,
                     "content": result.to_string(),
                 }));
             }
@@ -237,7 +342,8 @@ pub async fn openai_chat_streaming(
 
 // ── Message utilities ─────────────────────────────────────────────────────────
 
-pub fn extract_message_text(content: &Value) -> String {
+#[cfg(test)]
+fn extract_message_text(content: &Value) -> String {
     if let Some(text) = content.as_str() {
         return text.to_string();
     }
@@ -254,45 +360,6 @@ pub fn extract_message_text(content: &Value) -> String {
         })
         .collect::<Vec<_>>()
         .join("")
-}
-
-fn normalize_tool_call_message(message: &Value) -> Result<Value, AssistantError> {
-    let tool_calls = message["tool_calls"]
-        .as_array()
-        .ok_or_else(|| AssistantError::Api("missing tool_calls array".to_string()))?;
-
-    let normalized_tool_calls = tool_calls
-        .iter()
-        .map(|call| {
-            let id = call["id"]
-                .as_str()
-                .ok_or_else(|| AssistantError::Api("missing tool call id".to_string()))?;
-            let tool_type = call["type"]
-                .as_str()
-                .ok_or_else(|| AssistantError::Api("missing tool call type".to_string()))?;
-            let function_name = call["function"]["name"]
-                .as_str()
-                .ok_or_else(|| AssistantError::Api("missing tool function name".to_string()))?;
-            let function_arguments = call["function"]["arguments"].as_str().ok_or_else(|| {
-                AssistantError::Api("missing tool function arguments".to_string())
-            })?;
-
-            Ok(json!({
-                "id": id,
-                "type": tool_type,
-                "function": {
-                    "name": function_name,
-                    "arguments": function_arguments,
-                },
-            }))
-        })
-        .collect::<Result<Vec<_>, AssistantError>>()?;
-
-    Ok(json!({
-        "role": "assistant",
-        "content": message["content"],
-        "tool_calls": normalized_tool_calls,
-    }))
 }
 
 #[cfg(test)]
@@ -322,48 +389,114 @@ mod tests {
     }
 
     #[test]
-    fn normalize_tool_call_message_happy_path() {
-        let message = json!({
-            "content": null,
-            "tool_calls": [{
-                "id": "call_abc",
-                "type": "function",
-                "function": {
-                    "name": "list_accounts",
-                    "arguments": "{}"
-                }
-            }]
-        });
-
-        let result = normalize_tool_call_message(&message).unwrap();
-        assert_eq!(result["role"], "assistant");
-        assert_eq!(result["tool_calls"][0]["id"], "call_abc");
-        assert_eq!(result["tool_calls"][0]["function"]["name"], "list_accounts");
+    fn parse_sse_line_done() {
+        let chunk = parse_openai_sse_line("data: [DONE]");
+        assert!(matches!(chunk, Some(StreamChunk::Done)));
     }
 
     #[test]
-    fn normalize_tool_call_message_missing_tool_calls_errors() {
-        let message = json!({ "content": "no tool_calls here" });
-        let result = normalize_tool_call_message(&message);
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("missing tool_calls")
+    fn parse_sse_line_text_delta() {
+        let line = r#"data: {"choices":[{"delta":{"content":"Hello"},"finish_reason":null}]}"#;
+        match parse_openai_sse_line(line) {
+            Some(StreamChunk::Delta {
+                content,
+                tool_calls,
+                finish_reason,
+            }) => {
+                assert_eq!(content.as_deref(), Some("Hello"));
+                assert!(tool_calls.is_none());
+                assert!(finish_reason.is_none());
+            }
+            other => panic!("expected Delta, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_sse_line_finish_stop() {
+        let line = r#"data: {"choices":[{"delta":{},"finish_reason":"stop"}]}"#;
+        match parse_openai_sse_line(line) {
+            Some(StreamChunk::Delta {
+                content,
+                finish_reason,
+                ..
+            }) => {
+                assert!(content.is_none());
+                assert_eq!(finish_reason.as_deref(), Some("stop"));
+            }
+            other => panic!("expected Delta, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_sse_line_tool_call_delta() {
+        let line = r#"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_abc","function":{"name":"list_accounts","arguments":""}}]},"finish_reason":null}]}"#;
+        match parse_openai_sse_line(line) {
+            Some(StreamChunk::Delta { tool_calls, .. }) => {
+                let tc = tool_calls.expect("should have tool_calls");
+                assert_eq!(tc.len(), 1);
+                assert_eq!(tc[0]["id"], "call_abc");
+                assert_eq!(tc[0]["function"]["name"], "list_accounts");
+            }
+            other => panic!("expected Delta, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_sse_line_non_data_returns_none() {
+        assert!(parse_openai_sse_line("event: ping").is_none());
+        assert!(parse_openai_sse_line("").is_none());
+    }
+
+    #[test]
+    fn accumulate_tool_calls_across_chunks() {
+        let mut acc = Vec::new();
+
+        // First chunk: id + function name
+        accumulate_tool_call_deltas(
+            &mut acc,
+            &[
+                json!({"index": 0, "id": "call_1", "function": {"name": "list_accounts", "arguments": ""}}),
+            ],
         );
+        assert_eq!(acc.len(), 1);
+        assert_eq!(acc[0].id, "call_1");
+        assert_eq!(acc[0].name, "list_accounts");
+        assert_eq!(acc[0].arguments, "");
+
+        // Second chunk: arguments fragment
+        accumulate_tool_call_deltas(
+            &mut acc,
+            &[json!({"index": 0, "function": {"arguments": "{\"acc"}})],
+        );
+        assert_eq!(acc[0].arguments, "{\"acc");
+
+        // Third chunk: more arguments
+        accumulate_tool_call_deltas(
+            &mut acc,
+            &[json!({"index": 0, "function": {"arguments": "ount_type\": \"bank\"}"}})],
+        );
+        assert_eq!(acc[0].arguments, r#"{"account_type": "bank"}"#);
     }
 
     #[test]
-    fn normalize_tool_call_message_missing_id_errors() {
-        let message = json!({
-            "content": null,
-            "tool_calls": [{
-                "type": "function",
-                "function": { "name": "list_accounts", "arguments": "{}" }
-            }]
-        });
-        let result = normalize_tool_call_message(&message);
-        assert!(result.is_err());
+    fn accumulate_multiple_tool_calls() {
+        let mut acc = Vec::new();
+
+        accumulate_tool_call_deltas(
+            &mut acc,
+            &[
+                json!({"index": 0, "id": "call_1", "function": {"name": "list_accounts", "arguments": "{}"}}),
+            ],
+        );
+        accumulate_tool_call_deltas(
+            &mut acc,
+            &[
+                json!({"index": 1, "id": "call_2", "function": {"name": "list_assets", "arguments": "{}"}}),
+            ],
+        );
+
+        assert_eq!(acc.len(), 2);
+        assert_eq!(acc[0].name, "list_accounts");
+        assert_eq!(acc[1].name, "list_assets");
     }
 }
