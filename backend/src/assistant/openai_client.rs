@@ -1,4 +1,4 @@
-use std::convert::Infallible;
+use std::{convert::Infallible, time::Duration};
 
 use futures_util::StreamExt;
 use serde_json::{Value, json};
@@ -17,6 +17,7 @@ use super::types::AssistantChatMessageRequest;
 const OPENAI_CHAT_URL: &str = "https://api.openai.com/v1/chat/completions";
 const MAX_TOOL_ROUNDS: usize = 5;
 const MAX_MESSAGES_SIZE_BYTES: usize = 256 * 1024;
+const STREAM_CHUNK_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub const DEFAULT_SYSTEM_PROMPT: &str = "\
 You are a helpful portfolio assistant for the Siniscalco app. \
@@ -194,7 +195,17 @@ pub async fn openai_chat_streaming(
         let mut tool_calls: Vec<AccumulatedToolCall> = Vec::new();
         let mut final_finish_reason: Option<String> = None;
 
-        while let Some(chunk_result) = stream.next().await {
+        loop {
+            let next = tokio::time::timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await;
+            let chunk_result = match next {
+                Ok(Some(r)) => r,
+                Ok(None) => break,
+                Err(_) => {
+                    warn!("OpenAI stream chunk timeout after {}s", STREAM_CHUNK_TIMEOUT.as_secs());
+                    send_sse_event(tx, json!({"type": "error", "error": "failed to build assistant response: api error: stream timed out"})).await;
+                    return;
+                }
+            };
             let chunk = match chunk_result {
                 Ok(bytes) => bytes,
                 Err(e) => {
@@ -297,8 +308,7 @@ pub async fn openai_chat_streaming(
                     Ok(v) => v,
                     Err(e) => {
                         error!(tool = %tc.name, error = %e, "tool execution failed");
-                        send_sse_event(tx, json!({"type": "error", "error": format!("failed to build assistant response: {e}")})).await;
-                        return;
+                        json!({ "error": e.to_string() })
                     }
                 };
 
