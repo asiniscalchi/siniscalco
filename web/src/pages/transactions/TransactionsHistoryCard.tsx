@@ -6,7 +6,7 @@ import { LockIcon, PlusIcon, UnlockIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { extractGqlErrorMessage } from "@/lib/gql";
-import { type TransactionAccountsQuery, type TransactionAssetsQuery, type TransactionsQuery } from "@/gql/types";
+import { type ActivityCashMovementsQuery, type ActivityTransfersQuery, type TransactionAccountsQuery, type TransactionAssetsQuery, type TransactionsQuery } from "@/gql/types";
 
 const ACCOUNTS_QUERY = gql`
   query TransactionAccounts {
@@ -33,6 +33,24 @@ const TRANSACTIONS_QUERY = gql`
   }
 `;
 
+const CASH_MOVEMENTS_QUERY = gql`
+  query ActivityCashMovements($accountId: Int) {
+    cashMovements(accountId: $accountId) {
+      id accountId currency amount date notes
+    }
+  }
+`;
+
+const TRANSFERS_QUERY = gql`
+  query ActivityTransfers($accountId: Int) {
+    transfers(accountId: $accountId) {
+      id fromAccountId toAccountId
+      fromCurrency fromAmount toCurrency toAmount
+      transferDate notes
+    }
+  }
+`;
+
 const DELETE_TRANSACTION_MUTATION = gql`
   mutation DeleteTransaction($id: Int!) {
     deleteTransaction(id: $id)
@@ -45,6 +63,46 @@ import { TransactionFormModal } from "./TransactionFormModal";
 import { TransactionsHistoryCardDesktopRow } from "./TransactionsHistoryCardDesktopRow";
 import { TransactionsHistoryCardEmptyState } from "./TransactionsHistoryCardEmptyState";
 import { TransactionsHistoryCardMobileItem } from "./TransactionsHistoryCardMobileItem";
+import type { ActivityFilter, ActivityItem } from "./types";
+
+const FILTER_LABELS: { value: ActivityFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "trades", label: "Trades" },
+  { value: "cash", label: "Cash" },
+  { value: "transfers", label: "Transfers" },
+];
+
+function buildActivityFeed(
+  transactions: TransactionsQuery["transactions"],
+  cashMovements: ActivityCashMovementsQuery["cashMovements"],
+  transfers: ActivityTransfersQuery["transfers"],
+): ActivityItem[] {
+  const items: ActivityItem[] = [
+    ...transactions.map((t) => ({
+      kind: "trade" as const,
+      date: t.tradeDate,
+      id: `trade-${t.id}`,
+      data: t,
+    })),
+    ...cashMovements.map((c) => ({
+      kind: "cash" as const,
+      date: c.date,
+      id: `cash-${c.id}`,
+      data: c,
+    })),
+    ...transfers.map((t) => ({
+      kind: "transfer" as const,
+      date: t.transferDate,
+      id: `transfer-${t.id}`,
+      data: t,
+    })),
+  ];
+
+  return items.sort((a, b) => {
+    if (b.date !== a.date) return b.date.localeCompare(a.date);
+    return b.id.localeCompare(a.id);
+  });
+}
 
 export function TransactionsHistoryCard() {
   const client = useApolloClient();
@@ -54,6 +112,7 @@ export function TransactionsHistoryCard() {
   const [editingTransactionId, setEditingTransactionId] = useState<number | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
+  const [activeFilter, setActiveFilter] = useState<ActivityFilter>("all");
 
   const accountIdVar = selectedAccountId ? parseInt(selectedAccountId) : null;
 
@@ -63,17 +122,34 @@ export function TransactionsHistoryCard() {
     useQuery<TransactionAssetsQuery>(ASSETS_QUERY);
   const { data: transactionsData, error: transactionsError, refetch: refetchTransactions } =
     useQuery<TransactionsQuery>(TRANSACTIONS_QUERY, { variables: { accountId: accountIdVar } });
+  const { data: cashMovementsData, error: cashMovementsError, refetch: refetchCashMovements } =
+    useQuery<ActivityCashMovementsQuery>(CASH_MOVEMENTS_QUERY, { variables: { accountId: accountIdVar } });
+  const { data: transfersData, error: transfersError, refetch: refetchTransfers } =
+    useQuery<ActivityTransfersQuery>(TRANSFERS_QUERY, { variables: { accountId: accountIdVar } });
 
   const [deleteTransactionMutation] = useMutation(DELETE_TRANSACTION_MUTATION);
 
   const accounts = accountsData?.accounts ?? [];
   const assets = assetsData?.assets ?? [];
   const transactions = transactionsData?.transactions ?? [];
+  const cashMovements = cashMovementsData?.cashMovements ?? [];
+  const transfers = transfersData?.transfers ?? [];
   const assetById = new Map(assets.map((asset) => [asset.id, asset]));
+  const accountById = new Map(accounts.map((account) => [account.id, account]));
+
+  const allItems = buildActivityFeed(transactions, cashMovements, transfers);
+  const filteredItems = allItems.filter((item) => {
+    if (activeFilter === "all") return true;
+    if (activeFilter === "trades") return item.kind === "trade";
+    if (activeFilter === "cash") return item.kind === "cash";
+    if (activeFilter === "transfers") return item.kind === "transfer";
+    return true;
+  });
 
   const loading = accountsLoading || assetsLoading;
   const initialDataError = accountsError ?? assetsError;
-  const pageError = initialDataError ?? transactionsError;
+  const activityError = transactionsError ?? cashMovementsError ?? transfersError;
+  const pageError = initialDataError ?? activityError;
   const pageErrorMessage = initialDataError ? "Failed to load initial data" : "Failed to load transactions";
 
   const handleDeleteClick = async (transactionId: number) => {
@@ -99,13 +175,15 @@ export function TransactionsHistoryCard() {
     setShowModal(false);
     setEditingTransactionId(null);
     void refetchTransactions();
+    void refetchCashMovements();
+    void refetchTransfers();
   };
 
-  if (loading && transactions.length === 0 && accounts.length === 0) {
+  if (loading && allItems.length === 0 && accounts.length === 0) {
     return <div className="h-64 w-full animate-pulse rounded-xl bg-muted" />;
   }
 
-  if (pageError && transactions.length === 0) {
+  if (pageError && allItems.length === 0) {
     return (
       <Card className="border-destructive/30 bg-background">
         <CardHeader>
@@ -117,6 +195,8 @@ export function TransactionsHistoryCard() {
             void refetchAccounts();
             void refetchAssets();
             void refetchTransactions();
+            void refetchCashMovements();
+            void refetchTransfers();
           }}>
             Retry
           </Button>
@@ -188,27 +268,45 @@ export function TransactionsHistoryCard() {
               ))}
             </select>
           </div>
+          <div className="flex gap-1 pt-1">
+            {FILTER_LABELS.map(({ value, label }) => (
+              <button
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                  activeFilter === value
+                    ? "bg-foreground text-background"
+                    : "bg-muted text-muted-foreground hover:bg-muted/70",
+                )}
+                key={value}
+                onClick={() => setActiveFilter(value)}
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </CardHeader>
         <CardContent className="min-w-0 pt-4">
-          {transactions.length === 0 ? (
+          {filteredItems.length === 0 ? (
             <TransactionsHistoryCardEmptyState />
           ) : (
             <>
               <div className="space-y-2 sm:hidden">
-                {transactions.map((transaction) => (
+                {filteredItems.map((item) => (
                   <TransactionsHistoryCardMobileItem
-                    asset={assetById.get(transaction.assetId)}
+                    accountById={accountById}
+                    assetById={assetById}
                     hideValues={hideValues}
                     isDeleting={isDeleting}
-                    isEditing={editingTransactionId === transaction.id}
+                    isEditing={item.kind === "trade" && editingTransactionId === item.data.id}
                     isLocked={isLocked}
-                    key={transaction.id}
+                    item={item}
+                    key={item.id}
                     onDeleteClick={handleDeleteClick}
                     onEditClick={(t) => {
                       setEditingTransactionId(t.id);
                       setShowModal(true);
                     }}
-                    transaction={transaction}
                   />
                 ))}
               </div>
@@ -218,31 +316,32 @@ export function TransactionsHistoryCard() {
                   <thead>
                     <tr className="border-b text-left font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">
                       <th className="w-[100px] pb-3 pr-4">Date</th>
-                      <th className="pb-3 pr-4">Asset</th>
-                      <th className="w-[80px] pb-3 pr-4">Type</th>
-                      <th className="w-[100px] pb-3 pr-4 text-right">Quantity</th>
+                      <th className="pb-3 pr-4">Description</th>
+                      <th className="w-[110px] pb-3 pr-4">Type</th>
+                      <th className="w-[100px] pb-3 pr-4 text-right">Qty</th>
                       <th className="w-[100px] pb-3 pr-4 text-right">Price</th>
-                      <th className="w-[130px] pb-3 pr-4 text-right">Total</th>
+                      <th className="w-[130px] pb-3 pr-4 text-right">Amount</th>
                       <th className="w-[60px] pb-3 pr-4">Curr</th>
                       <th className="pb-3 pr-4">Notes</th>
                       {!isLocked ? <th className="w-[90px] pb-3 text-right">Actions</th> : null}
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {transactions.map((transaction) => (
+                    {filteredItems.map((item) => (
                       <TransactionsHistoryCardDesktopRow
-                        asset={assetById.get(transaction.assetId)}
+                        accountById={accountById}
+                        assetById={assetById}
                         hideValues={hideValues}
                         isDeleting={isDeleting}
-                        isEditing={editingTransactionId === transaction.id}
+                        isEditing={item.kind === "trade" && editingTransactionId === item.data.id}
                         isLocked={isLocked}
-                        key={transaction.id}
+                        item={item}
+                        key={item.id}
                         onDeleteClick={handleDeleteClick}
                         onEditClick={(t) => {
                           setEditingTransactionId(t.id);
                           setShowModal(true);
                         }}
-                        transaction={transaction}
                       />
                     ))}
                   </tbody>

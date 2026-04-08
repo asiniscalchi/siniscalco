@@ -191,7 +191,8 @@ type QueryRoot {
 	asset(id: Int!): Asset!
 	transactions(accountId: Int): [Transaction!]!
 	transaction(id: Int!): Transaction!
-	transfers: [Transfer!]!
+	cashMovements(accountId: Int): [CashMovement!]!
+	transfers(accountId: Int): [Transfer!]!
 	currencies: [String!]!
 	fxRates: FxRateSummary!
 }

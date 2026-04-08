@@ -90,6 +90,8 @@ describe("TransactionsPage", () => {
       if (query.includes("transactions")) {
         return gqlResponse({ transactions });
       }
+      if (query.includes("cashMovements")) return gqlResponse({ cashMovements: [] });
+      if (query.includes("transfers")) return gqlResponse({ transfers: [] });
       return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
@@ -143,6 +145,8 @@ describe("TransactionsPage", () => {
       if (query.includes("transactions")) {
         return gqlResponse({ transactions });
       }
+      if (query.includes("cashMovements")) return gqlResponse({ cashMovements: [] });
+      if (query.includes("transfers")) return gqlResponse({ transfers: [] });
       return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
@@ -181,6 +185,8 @@ describe("TransactionsPage", () => {
         }
         return gqlResponse({ transactions: [] });
       }
+      if (query.includes("cashMovements")) return gqlResponse({ cashMovements: [] });
+      if (query.includes("transfers")) return gqlResponse({ transfers: [] });
       return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
@@ -221,6 +227,8 @@ describe("TransactionsPage", () => {
       if (query.includes("transactions")) {
         return gqlResponse({ transactions: [] });
       }
+      if (query.includes("cashMovements")) return gqlResponse({ cashMovements: [] });
+      if (query.includes("transfers")) return gqlResponse({ transfers: [] });
       return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
@@ -273,6 +281,8 @@ describe("TransactionsPage", () => {
         }
         return gqlResponse({ transactions: [] });
       }
+      if (query.includes("cashMovements")) return gqlResponse({ cashMovements: [] });
+      if (query.includes("transfers")) return gqlResponse({ transfers: [] });
       return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
@@ -302,6 +312,8 @@ describe("TransactionsPage", () => {
       if (query.includes("transactions")) {
         return gqlResponse({ transactions: [] });
       }
+      if (query.includes("cashMovements")) return gqlResponse({ cashMovements: [] });
+      if (query.includes("transfers")) return gqlResponse({ transfers: [] });
       return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
@@ -352,6 +364,8 @@ describe("TransactionsPage", () => {
       if (query.includes("transactions")) {
         return gqlResponse({ transactions });
       }
+      if (query.includes("cashMovements")) return gqlResponse({ cashMovements: [] });
+      if (query.includes("transfers")) return gqlResponse({ transfers: [] });
       return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
     });
 
@@ -408,6 +422,8 @@ describe("TransactionsPage", () => {
         });
       }
       if (query.includes("transactions")) return gqlResponse({ transactions: [] });
+      if (query.includes("cashMovements")) return gqlResponse({ cashMovements: [] });
+      if (query.includes("transfers")) return gqlResponse({ transfers: [] });
       return Promise.reject(new Error(`Unhandled: ${query}`));
     });
 
@@ -465,6 +481,8 @@ describe("TransactionsPage", () => {
         return gqlResponse({ updateTransaction: transactions[0] });
       }
       if (query.includes("transactions")) return gqlResponse({ transactions });
+      if (query.includes("cashMovements")) return gqlResponse({ cashMovements: [] });
+      if (query.includes("transfers")) return gqlResponse({ transfers: [] });
       return Promise.reject(new Error(`Unhandled: ${query}`));
     });
 
@@ -518,6 +536,8 @@ describe("TransactionsPage", () => {
       if (query.includes("transactions")) {
         return gqlResponse({ transactions });
       }
+      if (query.includes("cashMovements")) return gqlResponse({ cashMovements: [] });
+      if (query.includes("transfers")) return gqlResponse({ transfers: [] });
       return Promise.reject(new Error(`Unhandled: ${query}`));
     });
 
@@ -572,6 +592,8 @@ describe("TransactionsPage", () => {
       }
       if (query.includes("assets")) return gqlResponse({ assets });
       if (query.includes("transactions")) return gqlResponse({ transactions });
+      if (query.includes("cashMovements")) return gqlResponse({ cashMovements: [] });
+      if (query.includes("transfers")) return gqlResponse({ transfers: [] });
       return Promise.reject(new Error(`Unhandled: ${query}`));
     });
 
@@ -656,6 +678,8 @@ describe("TransactionsPage", () => {
       if (query.includes("updateTransaction")) return gqlResponse({ updateTransaction: transactions[0] });
       if (query.includes("assets")) return gqlResponse({ assets });
       if (query.includes("transactions")) return gqlResponse({ transactions });
+      if (query.includes("cashMovements")) return gqlResponse({ cashMovements: [] });
+      if (query.includes("transfers")) return gqlResponse({ transfers: [] });
       return Promise.reject(new Error(`Unhandled: ${query}`));
     });
 
@@ -743,6 +767,8 @@ describe("TransactionsPage", () => {
       if (query.includes("deleteTransaction")) return gqlResponse({ deleteTransaction: 123 });
       if (query.includes("assets")) return gqlResponse({ assets: [] });
       if (query.includes("transactions")) return gqlResponse({ transactions });
+      if (query.includes("cashMovements")) return gqlResponse({ cashMovements: [] });
+      if (query.includes("transfers")) return gqlResponse({ transfers: [] });
       return Promise.reject(new Error(`Unhandled: ${query}`));
     });
 

@@ -164,6 +164,28 @@ pub async fn list_transfers(pool: &SqlitePool) -> Result<Vec<TransferRecord>, St
     rows.into_iter().map(map_transfer_row).collect()
 }
 
+pub async fn list_transfers_by_account(
+    pool: &SqlitePool,
+    account_id: AccountId,
+) -> Result<Vec<TransferRecord>, StorageError> {
+    let rows = sqlx::query(
+        r#"
+        SELECT id, from_account_id, to_account_id,
+               from_currency, from_amount, to_currency, to_amount,
+               transfer_date, notes, created_at
+        FROM account_transfers
+        WHERE from_account_id = ? OR to_account_id = ?
+        ORDER BY transfer_date DESC, created_at DESC
+        "#,
+    )
+    .bind(account_id.as_i64())
+    .bind(account_id.as_i64())
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter().map(map_transfer_row).collect()
+}
+
 fn map_transfer_row(row: sqlx::sqlite::SqliteRow) -> Result<TransferRecord, StorageError> {
     Ok(TransferRecord {
         id: TransferId::try_from(row.get::<i64, _>("id"))?,
