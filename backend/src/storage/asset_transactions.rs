@@ -158,6 +158,9 @@ pub async fn update_asset_transaction(
     let existing_transaction = get_asset_transaction(&mut *tx, transaction_id).await?;
     validate_position_change_for_transaction_update(&mut *tx, &existing_transaction, &input)
         .await?;
+    let existing_base_currency =
+        load_account_base_currency(&mut *tx, existing_transaction.account_id).await?;
+    let updated_base_currency = load_account_base_currency(&mut *tx, input.account_id).await?;
 
     let updated_at = current_utc_timestamp()?;
 
@@ -182,7 +185,10 @@ pub async fn update_asset_transaction(
     // neutral and avoids injecting FX drift through data-entry corrections.
     //
     // If the currency changes, resolve the current live rate for the new pair.
-    let new_fx_rate = if input.currency_code == existing_transaction.currency_code {
+    let can_reuse_locked_rate = input.currency_code == existing_transaction.currency_code
+        && existing_base_currency == updated_base_currency;
+
+    let new_fx_rate = if can_reuse_locked_rate {
         apply_cash_impact_at_rate(
             &mut *tx,
             input.account_id,
@@ -454,6 +460,18 @@ fn signed_quantity_delta(transaction_type: AssetTransactionType, quantity: Decim
         AssetTransactionType::Buy => quantity,
         AssetTransactionType::Sell => -quantity,
     }
+}
+
+async fn load_account_base_currency(
+    connection: &mut SqliteConnection,
+    account_id: AccountId,
+) -> Result<Currency, StorageError> {
+    let currency_str =
+        sqlx::query_scalar::<_, String>("SELECT base_currency FROM accounts WHERE id = ?")
+            .bind(account_id.as_i64())
+            .fetch_one(&mut *connection)
+            .await?;
+    Currency::try_from(currency_str.as_str())
 }
 
 fn map_transaction_row(

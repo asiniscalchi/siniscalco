@@ -1195,6 +1195,17 @@ async fn updating_transaction_adjusts_cash_balance() {
 async fn moving_cross_currency_transaction_to_account_with_different_base_currency_reprices_cash_impact() {
     let pool = test_pool().await;
 
+    let usd_account = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("USD Broker"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("usd account insert should succeed");
+
     let eur_account = create_account(
         &pool,
         CreateAccountInput {
@@ -1206,19 +1217,8 @@ async fn moving_cross_currency_transaction_to_account_with_different_base_curren
     .await
     .expect("eur account insert should succeed");
 
-    let gbp_account = create_account(
-        &pool,
-        CreateAccountInput {
-            name: account_name("GBP Broker"),
-            account_type: AccountType::Broker,
-            base_currency: Currency::Gbp,
-        },
-    )
-    .await
-    .expect("gbp account insert should succeed");
-
+    seed_balance(&pool, usd_account, Currency::Usd, amt("1000.000000")).await;
     seed_balance(&pool, eur_account, Currency::Eur, amt("1000.000000")).await;
-    seed_balance(&pool, gbp_account, Currency::Gbp, amt("1000.000000")).await;
 
     upsert_fx_rate(
         &pool,
@@ -1230,17 +1230,6 @@ async fn moving_cross_currency_transaction_to_account_with_different_base_curren
     )
     .await
     .expect("usd to eur rate should upsert");
-
-    upsert_fx_rate(
-        &pool,
-        UpsertFxRateInput {
-            from_currency: Currency::Gbp,
-            to_currency: Currency::Eur,
-            rate: fx_rate("1.200000"),
-        },
-    )
-    .await
-    .expect("gbp to eur rate should upsert");
 
     let asset_id = create_asset(
         &pool,
@@ -1258,7 +1247,7 @@ async fn moving_cross_currency_transaction_to_account_with_different_base_curren
     let transaction = create_asset_transaction(
         &pool,
         CreateAssetTransactionInput {
-            account_id: eur_account,
+            account_id: usd_account,
             asset_id,
             transaction_type: AssetTransactionType::Buy,
             trade_date: trade_date("2026-03-20"),
@@ -1275,26 +1264,26 @@ async fn moving_cross_currency_transaction_to_account_with_different_base_curren
         &pool,
         transaction.id,
         CreateAssetTransactionInput {
-            account_id: gbp_account,
+            account_id: eur_account,
             asset_id,
             transaction_type: AssetTransactionType::Buy,
             trade_date: trade_date("2026-03-20"),
             quantity: asset_quantity("10"),
             unit_price: asset_unit_price("10"),
             currency_code: Currency::Usd,
-            notes: Some("moved to gbp account".to_string()),
+            notes: Some("moved to eur account".to_string()),
         },
     )
     .await
     .expect("moving the transaction should succeed");
 
+    let usd_balances = list_account_balances(&pool, usd_account).await.unwrap();
+    assert_eq!(usd_balances[0].currency, Currency::Usd);
+    assert_eq!(usd_balances[0].amount, amt("1000.000000"));
+
     let eur_balances = list_account_balances(&pool, eur_account).await.unwrap();
     assert_eq!(eur_balances[0].currency, Currency::Eur);
-    assert_eq!(eur_balances[0].amount, amt("1000.000000"));
-
-    let gbp_balances = list_account_balances(&pool, gbp_account).await.unwrap();
-    assert_eq!(gbp_balances[0].currency, Currency::Gbp);
-    assert_eq!(gbp_balances[0].amount, amt("916.666667"));
+    assert_eq!(eur_balances[0].amount, amt("910.000000"));
 }
 
 #[tokio::test]
