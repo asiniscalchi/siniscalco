@@ -226,8 +226,7 @@ pub async fn openai_chat_streaming(
                     }) => {
                         if let Some(text) = content.filter(|t| !t.is_empty()) {
                             full_text.push_str(&text);
-                            send_sse_event(tx, json!({"type": "text_delta", "delta": text}))
-                                .await;
+                            send_sse_event(tx, json!({"type": "text_delta", "delta": text})).await;
                         }
 
                         if let Some(deltas) = tc_deltas {
