@@ -17,7 +17,7 @@ use super::{
     delete_account, get_account, get_latest_fx_rate, insert_portfolio_snapshot_if_missing,
     list_account_balances, list_account_positions, list_account_summaries, list_accounts,
     list_asset_transactions, list_assets, list_currencies, list_fx_rate_summary, list_fx_rates,
-    list_portfolio_snapshots, upsert_asset_price, upsert_fx_rate,
+    list_portfolio_snapshots, update_account, upsert_asset_price, upsert_fx_rate,
 };
 use super::{create_transfer, delete_transfer, list_transfers};
 use crate::db::init_db;
@@ -1192,6 +1192,112 @@ async fn updating_transaction_adjusts_cash_balance() {
 }
 
 #[tokio::test]
+async fn moving_cross_currency_transaction_to_account_with_different_base_currency_reprices_cash_impact() {
+    let pool = test_pool().await;
+
+    let eur_account = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("EUR Broker"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .expect("eur account insert should succeed");
+
+    let gbp_account = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("GBP Broker"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Gbp,
+        },
+    )
+    .await
+    .expect("gbp account insert should succeed");
+
+    seed_balance(&pool, eur_account, Currency::Eur, amt("1000.000000")).await;
+    seed_balance(&pool, gbp_account, Currency::Gbp, amt("1000.000000")).await;
+
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate("0.900000"),
+        },
+    )
+    .await
+    .expect("usd to eur rate should upsert");
+
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Gbp,
+            to_currency: Currency::Eur,
+            rate: fx_rate("1.200000"),
+        },
+    )
+    .await
+    .expect("gbp to eur rate should upsert");
+
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    let transaction = create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id: eur_account,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2026-03-20"),
+            quantity: asset_quantity("10"),
+            unit_price: asset_unit_price("10"),
+            currency_code: Currency::Usd,
+            notes: None,
+        },
+    )
+    .await
+    .expect("transaction insert should succeed");
+
+    super::update_asset_transaction(
+        &pool,
+        transaction.id,
+        CreateAssetTransactionInput {
+            account_id: gbp_account,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2026-03-20"),
+            quantity: asset_quantity("10"),
+            unit_price: asset_unit_price("10"),
+            currency_code: Currency::Usd,
+            notes: Some("moved to gbp account".to_string()),
+        },
+    )
+    .await
+    .expect("moving the transaction should succeed");
+
+    let eur_balances = list_account_balances(&pool, eur_account).await.unwrap();
+    assert_eq!(eur_balances[0].currency, Currency::Eur);
+    assert_eq!(eur_balances[0].amount, amt("1000.000000"));
+
+    let gbp_balances = list_account_balances(&pool, gbp_account).await.unwrap();
+    assert_eq!(gbp_balances[0].currency, Currency::Gbp);
+    assert_eq!(gbp_balances[0].amount, amt("916.666667"));
+}
+
+#[tokio::test]
 async fn buy_transaction_blocked_without_fx_rate() {
     let pool = test_pool().await;
 
@@ -1599,6 +1705,38 @@ async fn gets_single_account_by_id() {
     assert_eq!(account.name, account_name("IBKR"));
     assert_eq!(account.account_type, AccountType::Broker);
     assert_eq!(account.base_currency, Currency::Eur);
+}
+
+#[tokio::test]
+async fn updating_account_name_with_same_base_currency_succeeds() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let updated = update_account(
+        &pool,
+        account_id,
+        CreateAccountInput {
+            name: account_name("Updated IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("updating non-currency account fields should succeed");
+
+    assert_eq!(updated.id, account_id);
+    assert_eq!(updated.name, account_name("Updated IBKR"));
+    assert_eq!(updated.base_currency, Currency::Usd);
 }
 
 #[tokio::test]
