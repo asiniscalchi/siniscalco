@@ -92,6 +92,18 @@ pub async fn update_account(
 }
 
 pub async fn delete_account(pool: &SqlitePool, account_id: AccountId) -> Result<(), StorageError> {
+    let has_entries =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM cash_entries WHERE account_id = ?")
+            .bind(account_id.as_i64())
+            .fetch_one(pool)
+            .await?;
+
+    if has_entries > 0 {
+        return Err(StorageError::Validation(
+            "cannot delete an account that has ledger entries",
+        ));
+    }
+
     let result = sqlx::query("DELETE FROM accounts WHERE id = ?")
         .bind(account_id.as_i64())
         .execute(pool)
