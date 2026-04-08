@@ -60,9 +60,9 @@ import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
 
 import { TransactionFormModal } from "./TransactionFormModal";
-import { TransactionsHistoryCardDesktopRow } from "./TransactionsHistoryCardDesktopRow";
-import { TransactionsHistoryCardEmptyState } from "./TransactionsHistoryCardEmptyState";
-import { TransactionsHistoryCardMobileItem } from "./TransactionsHistoryCardMobileItem";
+import { ActivityHistoryCardDesktopRow } from "./ActivityHistoryCardDesktopRow";
+import { ActivityHistoryCardEmptyState } from "./ActivityHistoryCardEmptyState";
+import { ActivityHistoryCardMobileItem } from "./ActivityHistoryCardMobileItem";
 import type { ActivityFilter, ActivityItem } from "./types";
 
 const FILTER_LABELS: { value: ActivityFilter; label: string }[] = [
@@ -104,7 +104,7 @@ function buildActivityFeed(
   });
 }
 
-export function TransactionsHistoryCard() {
+export function ActivityHistoryCard() {
   const client = useApolloClient();
   const { hideValues } = useUiState();
   const [isLocked, setIsLocked] = useState(true);
@@ -210,7 +210,7 @@ export function TransactionsHistoryCard() {
       <Card className="min-w-0 bg-background">
         <CardHeader className="pb-2">
           <div className="flex items-center gap-2">
-            <h1 className="flex-1 text-2xl font-semibold tracking-tight">Transactions</h1>
+            <h1 className="flex-1 text-2xl font-semibold tracking-tight">Activity</h1>
             <label className="sr-only" htmlFor="account-selector">Account:</label>
             <select
               className="hidden rounded-md border bg-background px-3 py-1.5 text-sm shadow-sm transition-colors focus:outline-hidden focus:ring-1 focus:ring-ring sm:block"
@@ -288,12 +288,12 @@ export function TransactionsHistoryCard() {
         </CardHeader>
         <CardContent className="min-w-0 pt-4">
           {filteredItems.length === 0 ? (
-            <TransactionsHistoryCardEmptyState />
+            <ActivityHistoryCardEmptyState />
           ) : (
             <>
               <div className="space-y-2 sm:hidden">
                 {filteredItems.map((item) => (
-                  <TransactionsHistoryCardMobileItem
+                  <ActivityHistoryCardMobileItem
                     accountById={accountById}
                     assetById={assetById}
                     hideValues={hideValues}
@@ -328,7 +328,7 @@ export function TransactionsHistoryCard() {
                   </thead>
                   <tbody className="divide-y">
                     {filteredItems.map((item) => (
-                      <TransactionsHistoryCardDesktopRow
+                      <ActivityHistoryCardDesktopRow
                         accountById={accountById}
                         assetById={assetById}
                         hideValues={hideValues}

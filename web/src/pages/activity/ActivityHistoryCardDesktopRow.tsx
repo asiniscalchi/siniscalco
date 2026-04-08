@@ -2,16 +2,16 @@ import { MoneyText } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 import { ItemLabel } from "@/components/ItemLabel";
-import { TransactionsHistoryCardActions } from "./TransactionsHistoryCardActions";
+import { ActivityHistoryCardActions } from "./ActivityHistoryCardActions";
 import {
   getActivityTypeClassName,
   getActivityTypeLabel,
   getTransactionTotal,
   trimTrailingZeros,
-} from "./TransactionsHistoryCard.utils";
+} from "./ActivityHistoryCard.utils";
 import type { Account, ActivityItem, Asset, Transaction } from "./types";
 
-type TransactionsHistoryCardDesktopRowProps = {
+type ActivityHistoryCardDesktopRowProps = {
   item: ActivityItem;
   assetById: Map<number, Asset>;
   accountById: Map<number, Account>;
@@ -23,7 +23,7 @@ type TransactionsHistoryCardDesktopRowProps = {
   onDeleteClick: (transactionId: number) => void;
 };
 
-export function TransactionsHistoryCardDesktopRow({
+export function ActivityHistoryCardDesktopRow({
   item,
   assetById,
   accountById,
@@ -33,7 +33,7 @@ export function TransactionsHistoryCardDesktopRow({
   isEditing,
   onEditClick,
   onDeleteClick,
-}: TransactionsHistoryCardDesktopRowProps) {
+}: ActivityHistoryCardDesktopRowProps) {
   return (
     <tr
       className={cn(
@@ -130,7 +130,7 @@ export function TransactionsHistoryCardDesktopRow({
       {!isLocked ? (
         <td className="py-3 text-right">
           {item.kind === "trade" ? (
-            <TransactionsHistoryCardActions
+            <ActivityHistoryCardActions
               isDeleting={isDeleting}
               isLocked={isLocked}
               onDeleteClick={onDeleteClick}

@@ -12,7 +12,7 @@ const primaryNavItems = [
   { label: "Portfolio", to: "/portfolio" },
   { label: "Accounts", to: "/accounts" },
   { label: "Assets", to: "/assets" },
-  { label: "Transactions", to: "/transactions" },
+  { label: "Activity", to: "/activity" },
   { label: "Transfers", to: "/transfers" },
 ];
 

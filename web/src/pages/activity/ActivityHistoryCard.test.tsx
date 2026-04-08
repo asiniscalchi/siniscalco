@@ -6,7 +6,7 @@ import { ApolloProvider } from "@apollo/client/react";
 
 import { UiStateProvider } from "@/lib/ui-state-provider";
 
-import { TransactionsHistoryCard } from "./TransactionsHistoryCard";
+import { ActivityHistoryCard } from "./ActivityHistoryCard";
 
 function createTestClient() {
   return new ApolloClient({ link: new HttpLink({ uri: "http://localhost/graphql" }), cache: new InMemoryCache() });
@@ -26,14 +26,14 @@ function renderCard() {
     <ApolloProvider client={createTestClient()}>
       <UiStateProvider>
         <MemoryRouter>
-          <TransactionsHistoryCard />
+          <ActivityHistoryCard />
         </MemoryRouter>
       </UiStateProvider>
     </ApolloProvider>,
   );
 }
 
-describe("TransactionsHistoryCard", () => {
+describe("ActivityHistoryCard", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
   });
@@ -66,7 +66,7 @@ describe("TransactionsHistoryCard", () => {
 
     renderCard();
 
-    const historyCard = (await screen.findByText("Transactions")).closest('[data-slot="card"]');
+    const historyCard = (await screen.findByText("Activity")).closest('[data-slot="card"]');
     const mobileList = historyCard?.querySelector(".space-y-2.sm\\:hidden");
 
     expect(within(mobileList as HTMLElement).getByText("10")).toBeTruthy();
@@ -98,7 +98,7 @@ describe("TransactionsHistoryCard", () => {
 
     renderCard();
 
-    await screen.findByText("Transactions");
+    await screen.findByText("Activity");
 
     expect(screen.queryByText("Actions")).toBeNull();
     expect(screen.queryByTitle("Edit transaction")).toBeNull();
@@ -119,7 +119,7 @@ describe("TransactionsHistoryCard", () => {
 
     renderCard();
 
-    await screen.findByText("Transactions");
+    await screen.findByText("Activity");
 
     expect(screen.getByLabelText("Account:")).toBeTruthy();
     expect(screen.getAllByText("Main Account").length).toBeGreaterThan(0);
