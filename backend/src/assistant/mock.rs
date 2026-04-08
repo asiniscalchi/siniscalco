@@ -21,51 +21,13 @@ pub async fn build_mock_reply(state: &AppState, prompt: &str) -> Result<String, 
     let normalized_prompt = prompt.to_ascii_lowercase();
     let pool = &state.pool;
 
-    let accounts = list_accounts(pool).await?;
-    let assets = list_assets(pool).await?;
-    let transactions = list_transactions(pool).await?;
-    let transfers = list_transfers(pool).await?;
-    let portfolio = get_portfolio_summary(pool, PRODUCT_BASE_CURRENCY).await?;
-
-    let total_value = portfolio.total_value_amount.map(|amount| {
-        format!(
-            "{} {}",
-            compact_decimal_output(&format_decimal_amount(amount.as_decimal())),
-            portfolio.display_currency.as_str(),
-        )
-    });
-
-    let account_names = preview_list(
-        accounts
-            .iter()
-            .map(|account| account.name.as_str())
-            .collect::<Vec<_>>(),
-    );
-    let asset_symbols = preview_list(
-        assets
-            .iter()
-            .map(|asset| asset.symbol.as_str())
-            .collect::<Vec<_>>(),
-    );
-
-    let mut account_type_counts = BTreeMap::new();
-    for account in &accounts {
-        *account_type_counts
-            .entry(account.account_type.as_str())
-            .or_insert(0usize) += 1;
-    }
-
-    let account_type_summary = if account_type_counts.is_empty() {
-        "no accounts yet".to_string()
-    } else {
-        account_type_counts
-            .into_iter()
-            .map(|(account_type, count)| format!("{count} {account_type}"))
-            .collect::<Vec<_>>()
-            .join(", ")
-    };
-
     if prompt.is_empty() {
+        let (accounts, assets, transactions, transfers) = tokio::try_join!(
+            list_accounts(pool),
+            list_assets(pool),
+            list_transactions(pool),
+            list_transfers(pool),
+        )?;
         return Ok(format!(
             "The backend assistant is connected. Right now I can see {} account(s), {} asset(s), {} transaction(s), and {} transfer(s). Ask about your portfolio, accounts, assets, transactions, or transfers.",
             accounts.len(),
@@ -76,22 +38,31 @@ pub async fn build_mock_reply(state: &AppState, prompt: &str) -> Result<String, 
     }
 
     if normalized_prompt.contains("portfolio") {
-        let total_value_sentence = match total_value {
-            Some(total_value) => format!("The current portfolio total is {total_value}."),
+        let (portfolio, accounts, assets) = tokio::try_join!(
+            get_portfolio_summary(pool, PRODUCT_BASE_CURRENCY),
+            list_accounts(pool),
+            list_assets(pool),
+        )?;
+        let total_value_sentence = match portfolio.total_value_amount.map(|amount| {
+            format!(
+                "{} {}",
+                compact_decimal_output(&format_decimal_amount(amount.as_decimal())),
+                portfolio.display_currency.as_str(),
+            )
+        }) {
+            Some(v) => format!("The current portfolio total is {v}."),
             None => {
                 "The portfolio total is currently unavailable because some conversions are missing."
                     .to_string()
             }
         };
-
         let holdings_preview = preview_list(
             portfolio
                 .holdings
                 .iter()
-                .map(|holding| holding.symbol.as_str())
-                .collect::<Vec<_>>(),
+                .map(|h| h.symbol.as_str())
+                .collect(),
         );
-
         return Ok(format!(
             "{total_value_sentence} I can see {} account(s) and {} asset(s). Top holdings right now: {}.",
             accounts.len(),
@@ -101,6 +72,23 @@ pub async fn build_mock_reply(state: &AppState, prompt: &str) -> Result<String, 
     }
 
     if normalized_prompt.contains("account") {
+        let accounts = list_accounts(pool).await?;
+        let mut account_type_counts = BTreeMap::new();
+        for account in &accounts {
+            *account_type_counts
+                .entry(account.account_type.as_str())
+                .or_insert(0usize) += 1;
+        }
+        let account_type_summary = if account_type_counts.is_empty() {
+            "no accounts yet".to_string()
+        } else {
+            account_type_counts
+                .into_iter()
+                .map(|(t, c)| format!("{c} {t}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        let account_names = preview_list(accounts.iter().map(|a| a.name.as_str()).collect());
         return Ok(format!(
             "You currently have {} account(s): {}. Breakdown by type: {}.",
             accounts.len(),
@@ -110,6 +98,8 @@ pub async fn build_mock_reply(state: &AppState, prompt: &str) -> Result<String, 
     }
 
     if normalized_prompt.contains("asset") {
+        let assets = list_assets(pool).await?;
+        let asset_symbols = preview_list(assets.iter().map(|a| a.symbol.as_str()).collect());
         return Ok(format!(
             "You currently track {} asset(s). Symbols in the current set include: {}.",
             assets.len(),
@@ -118,11 +108,11 @@ pub async fn build_mock_reply(state: &AppState, prompt: &str) -> Result<String, 
     }
 
     if normalized_prompt.contains("transaction") {
+        let transactions = list_transactions(pool).await?;
         let latest_trade = transactions
             .first()
-            .map(|transaction| transaction.trade_date.as_str().to_string())
+            .map(|t| t.trade_date.as_str().to_string())
             .unwrap_or_else(|| "no trade date yet".to_string());
-
         return Ok(format!(
             "There are {} transaction(s) recorded. The most recent trade date is {}.",
             transactions.len(),
@@ -131,11 +121,11 @@ pub async fn build_mock_reply(state: &AppState, prompt: &str) -> Result<String, 
     }
 
     if normalized_prompt.contains("transfer") {
+        let transfers = list_transfers(pool).await?;
         let latest_transfer = transfers
             .first()
-            .map(|transfer| transfer.transfer_date.as_str().to_string())
+            .map(|t| t.transfer_date.as_str().to_string())
             .unwrap_or_else(|| "no transfer date yet".to_string());
-
         return Ok(format!(
             "There are {} transfer(s) recorded. The most recent transfer date is {}.",
             transfers.len(),
@@ -143,6 +133,12 @@ pub async fn build_mock_reply(state: &AppState, prompt: &str) -> Result<String, 
         ));
     }
 
+    let (accounts, assets, transactions, transfers) = tokio::try_join!(
+        list_accounts(pool),
+        list_assets(pool),
+        list_transactions(pool),
+        list_transfers(pool),
+    )?;
     Ok(format!(
         "I can answer from the current backend data snapshot. Right now there are {} account(s), {} asset(s), {} transaction(s), and {} transfer(s). Try asking specifically about the portfolio, accounts, assets, transactions, or transfers.",
         accounts.len(),

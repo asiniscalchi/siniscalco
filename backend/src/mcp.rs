@@ -1,5 +1,5 @@
-use std::{fmt, time::Duration};
 use std::sync::Arc;
+use std::{fmt, time::Duration};
 
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
@@ -124,10 +124,18 @@ impl McpClient {
 
         let result = tokio::time::timeout(
             MCP_TOOL_TIMEOUT,
-            io.request("tools/call", json!({ "name": name, "arguments": arguments })),
+            io.request(
+                "tools/call",
+                json!({ "name": name, "arguments": arguments }),
+            ),
         )
         .await
-        .map_err(|_| McpError::Io(format!("MCP tool call timed out after {}s", MCP_TOOL_TIMEOUT.as_secs())))??;
+        .map_err(|_| {
+            McpError::Io(format!(
+                "MCP tool call timed out after {}s",
+                MCP_TOOL_TIMEOUT.as_secs()
+            ))
+        })??;
 
         if result["isError"].as_bool().unwrap_or(false) {
             let msg = result["content"][0]["text"]

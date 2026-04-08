@@ -227,12 +227,23 @@ pub async fn execute_tool(
             } else {
                 list_transactions(pool).await?
             };
+            let assets = list_assets(pool).await?;
+            let asset_lookup: std::collections::HashMap<i64, (&str, &str)> = assets
+                .iter()
+                .map(|a| (a.id.as_i64(), (a.symbol.as_str(), a.name.as_str())))
+                .collect();
             let items: Vec<Value> = transactions
                 .iter()
                 .map(|t| {
+                    let (symbol, name) = asset_lookup
+                        .get(&t.asset_id.as_i64())
+                        .copied()
+                        .unwrap_or(("", ""));
                     json!({
                         "account_id": t.account_id.as_i64(),
                         "asset_id": t.asset_id.as_i64(),
+                        "asset_symbol": symbol,
+                        "asset_name": name,
                         "trade_date": t.trade_date.as_str(),
                         "type": t.transaction_type.as_str(),
                         "quantity": compact_decimal_output(&format_decimal_amount(t.quantity.as_decimal())),

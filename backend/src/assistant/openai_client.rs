@@ -201,7 +201,10 @@ pub async fn openai_chat_streaming(
                 Ok(Some(r)) => r,
                 Ok(None) => break,
                 Err(_) => {
-                    warn!("OpenAI stream chunk timeout after {}s", STREAM_CHUNK_TIMEOUT.as_secs());
+                    warn!(
+                        "OpenAI stream chunk timeout after {}s",
+                        STREAM_CHUNK_TIMEOUT.as_secs()
+                    );
                     send_sse_event(tx, json!({"type": "error", "error": "failed to build assistant response: api error: stream timed out"})).await;
                     return;
                 }
@@ -297,20 +300,16 @@ pub async fn openai_chat_streaming(
                 )
                 .await;
 
-                let result = match execute_tool(
-                    &state.pool,
-                    state.mcp_client.as_deref(),
-                    &tc.name,
-                    &args,
-                )
-                .await
-                {
-                    Ok(v) => v,
-                    Err(e) => {
-                        error!(tool = %tc.name, error = %e, "tool execution failed");
-                        json!({ "error": e.to_string() })
-                    }
-                };
+                let result =
+                    match execute_tool(&state.pool, state.mcp_client.as_deref(), &tc.name, &args)
+                        .await
+                    {
+                        Ok(v) => v,
+                        Err(e) => {
+                            error!(tool = %tc.name, error = %e, "tool execution failed");
+                            json!({ "error": e.to_string() })
+                        }
+                    };
 
                 debug!(tool = %tc.name, result = %result, "tool result");
                 send_sse_event(
