@@ -5,7 +5,6 @@ import { useQuery, useMutation } from "@apollo/client/react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -29,17 +28,11 @@ const CURRENCIES_QUERY = gql`
   }
 `;
 
-const UPSERT_BALANCE_MUTATION = gql`
-  mutation UpsertBalance($accountId: Int!, $input: UpsertBalanceInput!) {
-    upsertBalance(accountId: $accountId, input: $input) {
-      currency amount updatedAt
+const CREATE_CASH_MOVEMENT_MUTATION = gql`
+  mutation CreateCashMovement($accountId: Int!, $input: CashMovementInput!) {
+    createCashMovement(accountId: $accountId, input: $input) {
+      currency amount date
     }
-  }
-`;
-
-const DELETE_BALANCE_MUTATION = gql`
-  mutation DeleteBalance($accountId: Int!, $currency: String!) {
-    deleteBalance(accountId: $accountId, currency: $currency)
   }
 `;
 import { MoneyText } from "@/lib/money";
@@ -52,12 +45,16 @@ type AccountBalancesCardProps = {
   baseCurrency: string;
 };
 
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export function AccountBalancesCard({ accountId, baseCurrency }: AccountBalancesCardProps) {
   const { hideValues } = useUiState();
   const [currency, setCurrency] = useState(baseCurrency);
   const [amount, setAmount] = useState("");
-  const [balanceError, setBalanceError] = useState<string | null>(null);
-  const [deletingCurrency, setDeletingCurrency] = useState<string | null>(null);
+  const [date, setDate] = useState(todayIso());
+  const [movementError, setMovementError] = useState<string | null>(null);
 
   const { data: accountData, refetch } = useQuery<AccountBalancesQuery>(
     ACCOUNT_QUERY,
@@ -66,39 +63,24 @@ export function AccountBalancesCard({ accountId, baseCurrency }: AccountBalances
 
   const { data: currenciesData } = useQuery<BalanceCurrenciesQuery>(CURRENCIES_QUERY);
 
-  const [upsertBalance, { loading: savingBalance }] = useMutation(UPSERT_BALANCE_MUTATION);
-  const [deleteBalance] = useMutation(DELETE_BALANCE_MUTATION);
+  const [createCashMovement, { loading: saving }] = useMutation(CREATE_CASH_MOVEMENT_MUTATION);
 
   const account = accountData?.account;
   const currencies = currenciesData?.currencies ?? [];
   const balances = account?.balances ?? [];
 
-  async function handleBalanceSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setBalanceError(null);
+    setMovementError(null);
 
     try {
-      await upsertBalance({
-        variables: { accountId, input: { currency, amount: amount.trim() } },
+      await createCashMovement({
+        variables: { accountId, input: { currency, amount: amount.trim(), date } },
       });
       setAmount("");
       void refetch();
     } catch (error) {
-      setBalanceError(extractGqlErrorMessage(error, "Could not save balance."));
-    }
-  }
-
-  async function handleDeleteBalance(balanceCurrency: string) {
-    setDeletingCurrency(balanceCurrency);
-    setBalanceError(null);
-
-    try {
-      await deleteBalance({ variables: { accountId, currency: balanceCurrency } });
-      void refetch();
-    } catch (error) {
-      setBalanceError(extractGqlErrorMessage(error, "Could not delete balance."));
-    } finally {
-      setDeletingCurrency(null);
+      setMovementError(extractGqlErrorMessage(error, "Could not record cash movement."));
     }
   }
 
@@ -113,14 +95,14 @@ export function AccountBalancesCard({ accountId, baseCurrency }: AccountBalances
 
       <Card className="bg-background">
         <CardHeader>
-          <CardTitle>Update Balance</CardTitle>
+          <CardTitle>Record Cash Movement</CardTitle>
           <CardDescription>
-            Create or update the current balance for one currency.
+            Record a deposit (positive) or withdrawal (negative) for one currency.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={handleBalanceSubmit}>
-            <div className="grid gap-4 sm:grid-cols-2">
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <label
                   className="text-sm font-medium"
@@ -153,21 +135,37 @@ export function AccountBalancesCard({ accountId, baseCurrency }: AccountBalances
                   className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                   id="balance-amount"
                   onChange={(event) => setAmount(event.target.value)}
-                  placeholder="12000.00000000"
+                  placeholder="1000.00 or -500.00"
                   required
                   type="text"
                   value={amount}
                 />
               </div>
+              <div className="space-y-2">
+                <label
+                  className="text-sm font-medium"
+                  htmlFor="balance-date"
+                >
+                  Date
+                </label>
+                <input
+                  className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  id="balance-date"
+                  onChange={(event) => setDate(event.target.value)}
+                  required
+                  type="date"
+                  value={date}
+                />
+              </div>
             </div>
 
-            {balanceError ? (
-              <p className="text-sm text-destructive">{balanceError}</p>
+            {movementError ? (
+              <p className="text-sm text-destructive">{movementError}</p>
             ) : null}
 
             <div className="flex justify-end">
-              <Button disabled={savingBalance} type="submit">
-                {savingBalance ? "Saving..." : "Save balance"}
+              <Button disabled={saving} type="submit">
+                {saving ? "Saving..." : "Record movement"}
               </Button>
             </div>
           </form>
@@ -179,7 +177,7 @@ export function AccountBalancesCard({ accountId, baseCurrency }: AccountBalances
           <CardHeader>
             <CardTitle>No balances yet</CardTitle>
             <CardDescription>
-              This account does not have any stored balances yet.
+              This account does not have any recorded cash movements yet.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -190,20 +188,8 @@ export function AccountBalancesCard({ accountId, baseCurrency }: AccountBalances
               <CardHeader>
                 <CardTitle>{balance.currency}</CardTitle>
                 <CardDescription>
-                  Updated at {balance.updatedAt}
+                  Last movement at {balance.updatedAt}
                 </CardDescription>
-                <CardAction>
-                  <Button
-                    disabled={deletingCurrency === balance.currency}
-                    onClick={() => void handleDeleteBalance(balance.currency)}
-                    type="button"
-                    variant="outline"
-                  >
-                    {deletingCurrency === balance.currency
-                      ? "Deleting..."
-                      : "Delete"}
-                  </Button>
-                </CardAction>
               </CardHeader>
               <CardContent>
                 <MoneyText

@@ -105,6 +105,24 @@ export type Balance = {
   updatedAt: Scalars['String']['output'];
 };
 
+export type CashMovement = {
+  __typename?: 'CashMovement';
+  accountId: Scalars['Int']['output'];
+  amount: Scalars['String']['output'];
+  createdAt: Scalars['String']['output'];
+  currency: Scalars['String']['output'];
+  date: Scalars['String']['output'];
+  id: Scalars['Int']['output'];
+  notes: Maybe<Scalars['String']['output']>;
+};
+
+export type CashMovementInput = {
+  amount: Scalars['String']['input'];
+  currency: Scalars['String']['input'];
+  date: Scalars['String']['input'];
+  notes?: InputMaybe<Scalars['String']['input']>;
+};
+
 export type FxRateSummary = {
   __typename?: 'FxRateSummary';
   lastUpdated: Maybe<Scalars['String']['output']>;
@@ -124,17 +142,16 @@ export type MutationRoot = {
   __typename?: 'MutationRoot';
   createAccount: AccountDetail;
   createAsset: Asset;
+  createCashMovement: CashMovement;
   createTransaction: Transaction;
   createTransfer: Transfer;
   deleteAccount: Scalars['Int']['output'];
   deleteAsset: Scalars['Int']['output'];
-  deleteBalance: Scalars['Boolean']['output'];
   deleteTransaction: Scalars['Int']['output'];
   deleteTransfer: Scalars['Int']['output'];
   updateAccount: AccountDetail;
   updateAsset: Asset;
   updateTransaction: Transaction;
-  upsertBalance: Balance;
 };
 
 
@@ -145,6 +162,12 @@ export type MutationRootCreateAccountArgs = {
 
 export type MutationRootCreateAssetArgs = {
   input: AssetInput;
+};
+
+
+export type MutationRootCreateCashMovementArgs = {
+  accountId: Scalars['Int']['input'];
+  input: CashMovementInput;
 };
 
 
@@ -165,12 +188,6 @@ export type MutationRootDeleteAccountArgs = {
 
 export type MutationRootDeleteAssetArgs = {
   id: Scalars['Int']['input'];
-};
-
-
-export type MutationRootDeleteBalanceArgs = {
-  accountId: Scalars['Int']['input'];
-  currency: Scalars['String']['input'];
 };
 
 
@@ -199,12 +216,6 @@ export type MutationRootUpdateAssetArgs = {
 export type MutationRootUpdateTransactionArgs = {
   id: Scalars['Int']['input'];
   input: TransactionInput;
-};
-
-
-export type MutationRootUpsertBalanceArgs = {
-  accountId: Scalars['Int']['input'];
-  input: UpsertBalanceInput;
 };
 
 export type PortfolioAccountTotal = {
@@ -367,11 +378,6 @@ export type TransferInput = {
   transferDate: Scalars['String']['input'];
 };
 
-export type UpsertBalanceInput = {
-  amount: Scalars['String']['input'];
-  currency: Scalars['String']['input'];
-};
-
 export type AccountPositionsQueryVariables = Exact<{
   accountId: Scalars['Int']['input'];
 }>;
@@ -401,21 +407,13 @@ export type BalanceCurrenciesQueryVariables = Exact<{ [key: string]: never; }>;
 
 export type BalanceCurrenciesQuery = { __typename?: 'QueryRoot', currencies: Array<string> };
 
-export type UpsertBalanceMutationVariables = Exact<{
+export type CreateCashMovementMutationVariables = Exact<{
   accountId: Scalars['Int']['input'];
-  input: UpsertBalanceInput;
+  input: CashMovementInput;
 }>;
 
 
-export type UpsertBalanceMutation = { __typename?: 'MutationRoot', upsertBalance: { __typename?: 'Balance', currency: string, amount: string, updatedAt: string } };
-
-export type DeleteBalanceMutationVariables = Exact<{
-  accountId: Scalars['Int']['input'];
-  currency: Scalars['String']['input'];
-}>;
-
-
-export type DeleteBalanceMutation = { __typename?: 'MutationRoot', deleteBalance: boolean };
+export type CreateCashMovementMutation = { __typename?: 'MutationRoot', createCashMovement: { __typename?: 'CashMovement', currency: string, amount: string, date: string } };
 
 export type AccountQueryVariables = Exact<{
   id: Scalars['Int']['input'];

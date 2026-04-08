@@ -324,7 +324,7 @@ describe("AccountDetailPage", () => {
     expect(screen.getByText("100.00000000")).toBeTruthy();
   });
 
-  it("upserts a balance from the account detail page", async () => {
+  it("records a cash movement from the account detail page", async () => {
     let saved = false;
 
     vi.mocked(fetch).mockImplementation((_input, init) => {
@@ -350,13 +350,7 @@ describe("AccountDetailPage", () => {
             totalAmount: null,
             totalCurrency: null,
             balances: saved
-              ? [
-                  {
-                    currency: "USD",
-                    amount: "42.50000000",
-                    updatedAt: "2026-03-22 00:00:00",
-                  },
-                ]
+              ? [{ currency: "USD", amount: "42.50000000", updatedAt: "2026-03-22 00:00:00" }]
               : [],
           },
         });
@@ -374,20 +368,16 @@ describe("AccountDetailPage", () => {
         return gqlResponse({ fxRates: { targetCurrency: "EUR", rates: [], lastUpdated: null, refreshStatus: "AVAILABLE", refreshError: null } });
       }
 
-      if (query.includes("upsertBalance")) {
+      if (query.includes("createCashMovement")) {
         expect(variables).toEqual(
           expect.objectContaining({
             accountId: 9,
-            input: { currency: "USD", amount: "42.5" },
+            input: expect.objectContaining({ currency: "USD", amount: "42.5" }),
           }),
         );
         saved = true;
         return gqlResponse({
-          upsertBalance: {
-            currency: "USD",
-            amount: "42.50000000",
-            updatedAt: "2026-03-22 00:00:00",
-          },
+          createCashMovement: { currency: "USD", amount: "42.50000000", date: "2026-03-22" },
         });
       }
 
@@ -398,20 +388,14 @@ describe("AccountDetailPage", () => {
 
     expect(await screen.findByText("No balances yet")).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText("Currency"), {
-      target: { value: "USD" },
-    });
-    fireEvent.change(screen.getByLabelText("Amount"), {
-      target: { value: "42.5" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Save balance" }));
+    fireEvent.change(screen.getByLabelText("Currency"), { target: { value: "USD" } });
+    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "42.5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Record movement" }));
 
     expect(await screen.findByText("42.50000000")).toBeTruthy();
   });
 
-  it("deletes a balance from the account detail page", async () => {
-    let deleted = false;
-
+  it("balance cards do not have a delete button", async () => {
     vi.mocked(fetch).mockImplementation((_input, init) => {
       const body = init?.body ? JSON.parse(String(init.body)) as { query: string; variables?: Record<string, unknown> } : null;
       const query = body?.query ?? "";
@@ -433,15 +417,7 @@ describe("AccountDetailPage", () => {
             assetTotalAmount: null,
             totalAmount: null,
             totalCurrency: null,
-            balances: deleted
-              ? []
-              : [
-                  {
-                    currency: "USD",
-                    amount: "100.00000000",
-                    updatedAt: "2026-03-22 00:00:00",
-                  },
-                ],
+            balances: [{ currency: "USD", amount: "100.00000000", updatedAt: "2026-03-22 00:00:00" }],
           },
         });
       }
@@ -458,21 +434,13 @@ describe("AccountDetailPage", () => {
         return gqlResponse({ fxRates: { targetCurrency: "USD", rates: [], lastUpdated: null, refreshStatus: "AVAILABLE", refreshError: null } });
       }
 
-      if (query.includes("deleteBalance")) {
-        deleted = true;
-        return gqlResponse({ deleteBalance: true });
-      }
-
       throw new Error(`Unhandled GQL query: ${query}`);
     });
 
     renderAccountDetailPage("/accounts/10");
 
     expect(await screen.findByText("100.00000000")).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
-
-    expect(await screen.findByText("No balances yet")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
   });
 
   it("deletes an account from the account detail page", async () => {

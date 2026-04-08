@@ -11,15 +11,19 @@ CREATE TABLE accounts (
     FOREIGN KEY (base_currency) REFERENCES currencies(code)
 );
 
-CREATE TABLE account_balances (
+CREATE TABLE cash_entries (
+    id INTEGER PRIMARY KEY,
     account_id INTEGER NOT NULL,
     currency TEXT NOT NULL,
     amount INTEGER NOT NULL CHECK (typeof(amount) = 'integer'),
-    updated_at TEXT NOT NULL,
-    PRIMARY KEY (account_id, currency),
+    source TEXT NOT NULL CHECK (source IN ('deposit', 'asset_transaction', 'transfer')),
+    source_id INTEGER,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
     FOREIGN KEY (currency) REFERENCES currencies(code)
 );
+
+CREATE INDEX cash_entries_account_currency_idx ON cash_entries(account_id, currency);
 
 CREATE TABLE assets (
     id INTEGER PRIMARY KEY,
@@ -51,6 +55,7 @@ CREATE TABLE asset_transactions (
     quantity INTEGER NOT NULL CHECK (typeof(quantity) = 'integer' AND quantity > 0),
     unit_price INTEGER NOT NULL CHECK (typeof(unit_price) = 'integer' AND unit_price >= 0),
     currency_code TEXT NOT NULL,
+    fx_rate INTEGER NOT NULL DEFAULT 1000000,
     notes TEXT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),

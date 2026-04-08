@@ -55,10 +55,12 @@ pub struct CreateAssetTransactionInput {
     pub notes: Option<String>,
 }
 
-pub struct UpsertAccountBalanceInput {
+pub struct CreateCashMovementInput {
     pub account_id: AccountId,
     pub currency: Currency,
     pub amount: Amount,
+    pub date: TradeDate,
+    pub notes: Option<String>,
 }
 
 pub struct UpsertFxRateInput {
@@ -110,6 +112,17 @@ pub struct AccountBalanceRecord {
     pub currency: Currency,
     pub amount: Amount,
     pub updated_at: String,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct CashMovementRecord {
+    pub id: i64,
+    pub account_id: AccountId,
+    pub currency: Currency,
+    pub amount: Amount,
+    pub date: TradeDate,
+    pub notes: Option<String>,
+    pub created_at: String,
 }
 
 #[derive(Debug, Eq, PartialEq)]

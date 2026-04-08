@@ -86,6 +86,23 @@ type Balance {
 	updatedAt: String!
 }
 
+type CashMovement {
+	id: Int!
+	accountId: Int!
+	currency: String!
+	amount: String!
+	date: String!
+	notes: String
+	createdAt: String!
+}
+
+input CashMovementInput {
+	currency: String!
+	amount: String!
+	date: String!
+	notes: String
+}
+
 type FxRateSummary {
 	targetCurrency: String!
 	rates: [FxRateSummaryItem!]!
@@ -103,8 +120,7 @@ type MutationRoot {
 	createAccount(input: AccountInput!): AccountDetail!
 	updateAccount(id: Int!, input: AccountInput!): AccountDetail!
 	deleteAccount(id: Int!): Int!
-	upsertBalance(accountId: Int!, input: UpsertBalanceInput!): Balance!
-	deleteBalance(accountId: Int!, currency: String!): Boolean!
+	createCashMovement(accountId: Int!, input: CashMovementInput!): CashMovement!
 	createAsset(input: AssetInput!): Asset!
 	updateAsset(id: Int!, input: AssetInput!): Asset!
 	deleteAsset(id: Int!): Int!
@@ -242,11 +258,6 @@ input TransferInput {
 	toAmount: String!
 	transferDate: String!
 	notes: String
-}
-
-input UpsertBalanceInput {
-	currency: String!
-	amount: String!
 }
 
 """

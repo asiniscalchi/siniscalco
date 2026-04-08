@@ -6,18 +6,18 @@ use tracing::warn;
 
 use crate::{
     AccountId, AccountName, Amount, AssetId, AssetName, AssetPriceRefreshConfig, AssetQuantity,
-    AssetSymbol, AssetUnitPrice, Currency, TradeDate, TransferId, create_transfer, delete_account,
-    delete_account_balance, delete_asset, delete_asset_transaction, delete_transfer, get_account,
-    get_account_value_summary, get_asset, list_account_balances, normalize_amount_output,
-    refresh_single_asset_price, storage::StorageError, update_account, update_asset,
-    update_asset_transaction, upsert_account_balance,
+    AssetSymbol, AssetUnitPrice, CreateCashMovementInput, Currency, TradeDate, TransferId,
+    create_cash_movement, create_transfer, delete_account, delete_asset, delete_asset_transaction,
+    delete_transfer, get_account, get_account_value_summary, get_asset, list_account_balances,
+    normalize_amount_output, refresh_single_asset_price, storage::StorageError, update_account,
+    update_asset, update_asset_transaction,
 };
 
 use super::{
     query::{not_found_or, storage_to_gql, to_account_detail, to_asset, to_transaction},
     types::{
-        AccountDetail, AccountInput, Asset, AssetInput, Balance, TransactionInput, Transfer,
-        TransferInput, UpsertBalanceInput,
+        AccountDetail, AccountInput, Asset, AssetInput, CashMovement, CashMovementInput,
+        TransactionInput, Transfer, TransferInput,
     },
 };
 
@@ -102,59 +102,44 @@ impl MutationRoot {
         Ok(id)
     }
 
-    async fn upsert_balance(
+    async fn create_cash_movement(
         &self,
         ctx: &Context<'_>,
         account_id: i64,
-        input: UpsertBalanceInput,
-    ) -> async_graphql::Result<Balance> {
+        input: CashMovementInput,
+    ) -> async_graphql::Result<CashMovement> {
         let pool = ctx.data::<SqlitePool>()?;
         let account_id = AccountId::try_from(account_id).map_err(storage_to_gql)?;
         let currency = Currency::try_from(input.currency.as_str()).map_err(storage_to_gql)?;
         let amount = Amount::try_from(input.amount.as_str()).map_err(storage_to_gql)?;
+        let date = TradeDate::try_from(input.date.as_str()).map_err(storage_to_gql)?;
 
         get_account(pool, account_id)
             .await
             .map_err(|e| not_found_or(e, "Account not found", storage_to_gql))?;
 
-        upsert_account_balance(
+        let record = create_cash_movement(
             pool,
-            crate::UpsertAccountBalanceInput {
+            CreateCashMovementInput {
                 account_id,
                 currency,
                 amount,
+                date,
+                notes: input.notes,
             },
         )
         .await
         .map_err(storage_to_gql)?;
 
-        let balance = list_account_balances(pool, account_id)
-            .await
-            .map_err(storage_to_gql)?
-            .into_iter()
-            .find(|b| b.currency == currency)
-            .ok_or_else(|| async_graphql::Error::new("Internal server error"))?;
-
-        Ok(Balance {
-            currency: balance.currency.as_str().to_string(),
-            amount: normalize_amount_output(&balance.amount.to_string()),
-            updated_at: balance.updated_at,
+        Ok(CashMovement {
+            id: record.id,
+            account_id: record.account_id.as_i64(),
+            currency: record.currency.as_str().to_string(),
+            amount: normalize_amount_output(&record.amount.to_string()),
+            date: record.date.as_str().to_string(),
+            notes: record.notes,
+            created_at: record.created_at,
         })
-    }
-
-    async fn delete_balance(
-        &self,
-        ctx: &Context<'_>,
-        account_id: i64,
-        currency: String,
-    ) -> async_graphql::Result<bool> {
-        let pool = ctx.data::<SqlitePool>()?;
-        let account_id = AccountId::try_from(account_id).map_err(storage_to_gql)?;
-        let currency = Currency::try_from(currency.as_str()).map_err(storage_to_gql)?;
-        delete_account_balance(pool, account_id, currency)
-            .await
-            .map_err(|e| not_found_or(e, "Balance not found", storage_to_gql))?;
-        Ok(true)
     }
 
     async fn create_asset(

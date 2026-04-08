@@ -5,47 +5,6 @@ use crate::format_decimal_amount;
 use crate::storage::records::*;
 use crate::storage::{AccountId, Amount, Currency, StorageError};
 
-pub async fn upsert_account_balance(
-    pool: &SqlitePool,
-    input: UpsertAccountBalanceInput,
-) -> Result<UpsertOutcome, StorageError> {
-    let updated_at = current_utc_timestamp()?;
-    let mut transaction = pool.begin().await?;
-
-    let existed = sqlx::query_scalar::<_, i64>(
-        "SELECT EXISTS(SELECT 1 FROM account_balances WHERE account_id = ? AND currency = ?)",
-    )
-    .bind(input.account_id.as_i64())
-    .bind(input.currency.as_str())
-    .fetch_one(&mut *transaction)
-    .await?
-        != 0;
-
-    sqlx::query(
-        r#"
-        INSERT INTO account_balances (account_id, currency, amount, updated_at)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(account_id, currency) DO UPDATE SET
-            amount = excluded.amount,
-            updated_at = excluded.updated_at
-        "#,
-    )
-    .bind(input.account_id.as_i64())
-    .bind(input.currency.as_str())
-    .bind(input.amount.as_scaled_i64())
-    .bind(updated_at)
-    .execute(&mut *transaction)
-    .await?;
-
-    transaction.commit().await?;
-
-    if existed {
-        Ok(UpsertOutcome::Updated)
-    } else {
-        Ok(UpsertOutcome::Created)
-    }
-}
-
 pub async fn list_account_balances(
     pool: &SqlitePool,
     account_id: AccountId,
@@ -55,10 +14,11 @@ pub async fn list_account_balances(
         SELECT
             account_id,
             currency,
-            amount,
-            updated_at
-        FROM account_balances
+            SUM(amount) AS amount,
+            MAX(created_at) AS updated_at
+        FROM cash_entries
         WHERE account_id = ?
+        GROUP BY account_id, currency
         ORDER BY currency
         "#,
     )
@@ -78,65 +38,81 @@ pub async fn list_account_balances(
         .collect::<Result<Vec<_>, StorageError>>()
 }
 
-pub async fn delete_account_balance(
+pub async fn create_cash_movement(
     pool: &SqlitePool,
-    account_id: AccountId,
-    currency: Currency,
-) -> Result<(), StorageError> {
-    let result = sqlx::query("DELETE FROM account_balances WHERE account_id = ? AND currency = ?")
-        .bind(account_id.as_i64())
-        .bind(currency.as_str())
-        .execute(pool)
-        .await?;
+    input: CreateCashMovementInput,
+) -> Result<CashMovementRecord, StorageError> {
+    let mut tx = pool.begin().await?;
+    let created_at = crate::storage::records::current_utc_timestamp()?;
+    let stored_amount =
+        Amount::try_from(format_decimal_amount(input.amount.as_decimal()).as_str())?;
 
-    if result.rows_affected() == 0 {
-        return Err(StorageError::Database(sqlx::Error::RowNotFound));
-    }
+    let result = sqlx::query(
+        r#"
+        INSERT INTO cash_entries (account_id, currency, amount, source, source_id, created_at)
+        VALUES (?, ?, ?, 'deposit', NULL, ?)
+        "#,
+    )
+    .bind(input.account_id.as_i64())
+    .bind(input.currency.as_str())
+    .bind(stored_amount.as_scaled_i64())
+    .bind(&created_at)
+    .execute(&mut *tx)
+    .await?;
 
-    Ok(())
+    let id = result.last_insert_rowid();
+    tx.commit().await?;
+
+    Ok(CashMovementRecord {
+        id,
+        account_id: input.account_id,
+        currency: input.currency,
+        amount: stored_amount,
+        date: input.date,
+        notes: input.notes,
+        created_at,
+    })
 }
 
 // ── Connection-scoped helpers (used inside open transactions) ─────────────────
 
-pub(super) async fn load_balance_on_connection(
+pub(super) async fn insert_cash_entry_on_connection(
     connection: &mut SqliteConnection,
     account_id: AccountId,
     currency: Currency,
-) -> Result<Decimal, StorageError> {
-    let amount = sqlx::query_scalar::<_, i64>(
-        "SELECT amount FROM account_balances WHERE account_id = ? AND currency = ?",
-    )
-    .bind(account_id.as_i64())
-    .bind(currency.as_str())
-    .fetch_optional(&mut *connection)
-    .await?;
-    Ok(amount
-        .map(|v| Amount::from_scaled_i64(v).as_decimal())
-        .unwrap_or(Decimal::ZERO))
-}
-
-pub(super) async fn upsert_balance_on_connection(
-    connection: &mut SqliteConnection,
-    account_id: AccountId,
-    currency: Currency,
-    new_amount: Decimal,
-    updated_at: &str,
+    amount: Decimal,
+    source: CashEntrySource,
+    source_id: Option<i64>,
+    created_at: &str,
 ) -> Result<(), StorageError> {
-    let amount = Amount::try_from(format_decimal_amount(new_amount).as_str())?;
+    let stored_amount = Amount::try_from(format_decimal_amount(amount).as_str())?;
     sqlx::query(
         r#"
-        INSERT INTO account_balances (account_id, currency, amount, updated_at)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(account_id, currency) DO UPDATE SET
-            amount = excluded.amount,
-            updated_at = excluded.updated_at
+        INSERT INTO cash_entries (account_id, currency, amount, source, source_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(account_id.as_i64())
     .bind(currency.as_str())
-    .bind(amount.as_scaled_i64())
-    .bind(updated_at)
+    .bind(stored_amount.as_scaled_i64())
+    .bind(source.as_str())
+    .bind(source_id)
+    .bind(created_at)
     .execute(&mut *connection)
     .await?;
     Ok(())
+}
+
+pub(super) enum CashEntrySource {
+    AssetTransaction,
+    Transfer,
+}
+
+impl CashEntrySource {
+    fn as_str(&self) -> &'static str {
+        match self {
+            CashEntrySource::AssetTransaction => "asset_transaction",
+            CashEntrySource::Transfer => "transfer",
+        }
+    }
 }

@@ -9,15 +9,15 @@ use super::{
     AccountBalanceRecord, AccountId, AccountName, AccountRecord, AccountSummaryRecord,
     AccountSummaryStatus, AccountType, Amount, AssetId, AssetName, AssetPositionRecord,
     AssetQuantity, AssetRecord, AssetSymbol, AssetTransactionType, AssetType, AssetUnitPrice,
-    CreateAccountInput, CreateAssetInput, CreateAssetTransactionInput, CreateTransferInput,
-    Currency, CurrencyRecord, FxRate, FxRateDetailRecord, FxRateRecord, FxRateSummaryItemRecord,
-    FxRateSummaryRecord, PortfolioSnapshotRecord, StorageError, TradeDate,
-    UpsertAccountBalanceInput, UpsertAssetPriceInput, UpsertFxRateInput, UpsertOutcome,
-    create_account, create_asset, create_asset_transaction, delete_account, delete_account_balance,
-    get_account, get_latest_fx_rate, insert_portfolio_snapshot_if_missing, list_account_balances,
-    list_account_positions, list_account_summaries, list_accounts, list_asset_transactions,
-    list_assets, list_currencies, list_fx_rate_summary, list_fx_rates, list_portfolio_snapshots,
-    upsert_account_balance, upsert_asset_price, upsert_fx_rate,
+    CashMovementRecord, CreateAccountInput, CreateAssetInput, CreateAssetTransactionInput,
+    CreateCashMovementInput, CreateTransferInput, Currency, CurrencyRecord, FxRate,
+    FxRateDetailRecord, FxRateRecord, FxRateSummaryItemRecord, FxRateSummaryRecord,
+    PortfolioSnapshotRecord, StorageError, TradeDate, UpsertAssetPriceInput, UpsertFxRateInput,
+    UpsertOutcome, create_account, create_asset, create_asset_transaction, create_cash_movement,
+    delete_account, get_account, get_latest_fx_rate, insert_portfolio_snapshot_if_missing,
+    list_account_balances, list_account_positions, list_account_summaries, list_accounts,
+    list_asset_transactions, list_assets, list_currencies, list_fx_rate_summary, list_fx_rates,
+    list_portfolio_snapshots, upsert_asset_price, upsert_fx_rate,
 };
 use super::{create_transfer, delete_transfer, list_transfers};
 use crate::db::init_db;
@@ -60,6 +60,26 @@ fn asset_unit_price(value: &str) -> AssetUnitPrice {
 
 fn trade_date(value: &str) -> TradeDate {
     TradeDate::try_from(value).expect("trade date should parse")
+}
+
+async fn seed_balance(
+    pool: &sqlx::SqlitePool,
+    account_id: AccountId,
+    currency: Currency,
+    amount: Amount,
+) {
+    create_cash_movement(
+        pool,
+        CreateCashMovementInput {
+            account_id,
+            currency,
+            amount,
+            date: trade_date("2024-01-01"),
+            notes: None,
+        },
+    )
+    .await
+    .expect("balance seed should succeed");
 }
 
 async fn test_pool() -> sqlx::SqlitePool {
@@ -343,16 +363,7 @@ async fn creates_asset_transactions_and_derives_positions() {
     .await
     .expect("account insert should succeed");
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("2000.000000"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Usd, amt("2000.000000")).await;
 
     let aapl_id = create_asset(
         &pool,
@@ -434,16 +445,13 @@ async fn derives_positions_for_maximum_supported_transaction_quantities() {
     .await
     .expect("account insert should succeed");
 
-    upsert_account_balance(
+    seed_balance(
         &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("9223372036854.775807"),
-        },
+        account_id,
+        Currency::Usd,
+        amt("9223372036854.775807"),
     )
-    .await
-    .expect("balance insert should succeed");
+    .await;
 
     let asset_id = create_asset(
         &pool,
@@ -505,16 +513,7 @@ async fn rejects_oversell_and_keeps_transactions_unchanged() {
     )
     .await
     .expect("account insert should succeed");
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("200000.000000"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Usd, amt("200000.000000")).await;
 
     let asset_id = create_asset(
         &pool,
@@ -586,16 +585,7 @@ async fn updating_asset_transaction_rejects_oversell_and_keeps_original_transact
     )
     .await
     .expect("account insert should succeed");
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("500000.000000"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Usd, amt("500000.000000")).await;
 
     let asset_id = create_asset(
         &pool,
@@ -712,16 +702,7 @@ async fn omits_zero_positions_and_isolates_accounts() {
     .expect("asset insert should succeed");
 
     for (account_id, balance) in [(account_a, "300.000000"), (account_b, "700.000000")] {
-        upsert_account_balance(
-            &pool,
-            UpsertAccountBalanceInput {
-                account_id,
-                currency: Currency::Usd,
-                amount: amt(balance),
-            },
-        )
-        .await
-        .expect("balance insert should succeed");
+        seed_balance(&pool, account_id, Currency::Usd, amt(balance)).await;
     }
 
     for input in [
@@ -787,16 +768,7 @@ async fn prevents_concurrent_oversell() {
     .await
     .expect("asset insert should succeed");
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("1500.000000"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Usd, amt("1500.000000")).await;
 
     create_asset_transaction(
         &pool,
@@ -868,16 +840,7 @@ async fn buy_transaction_deducts_base_currency_balance() {
     .await
     .unwrap();
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("1000.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_id, Currency::Usd, amt("1000.000000")).await;
 
     let asset_id = create_asset(
         &pool,
@@ -942,16 +905,7 @@ async fn buy_transaction_with_fx_deducts_base_currency_balance() {
     .await
     .unwrap();
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Eur,
-            amount: amt("1000.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_id, Currency::Eur, amt("1000.000000")).await;
 
     let asset_id = create_asset(
         &pool,
@@ -990,7 +944,7 @@ async fn buy_transaction_with_fx_deducts_base_currency_balance() {
 }
 
 #[tokio::test]
-async fn buy_transaction_blocked_when_insufficient_cash() {
+async fn buy_transaction_allows_negative_cash_balance() {
     let pool = test_pool().await;
 
     let account_id = create_account(
@@ -1004,16 +958,7 @@ async fn buy_transaction_blocked_when_insufficient_cash() {
     .await
     .unwrap();
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("499.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_id, Currency::Usd, amt("499.000000")).await;
 
     let asset_id = create_asset(
         &pool,
@@ -1028,7 +973,8 @@ async fn buy_transaction_blocked_when_insufficient_cash() {
     .await
     .unwrap();
 
-    let error = create_asset_transaction(
+    // Buy for 500 USD when only 499 is available: succeeds and drives balance negative
+    create_asset_transaction(
         &pool,
         CreateAssetTransactionInput {
             account_id,
@@ -1042,18 +988,12 @@ async fn buy_transaction_blocked_when_insufficient_cash() {
         },
     )
     .await
-    .expect_err("buy with insufficient cash should fail");
+    .expect("buy with insufficient cash should succeed (overdraft allowed)");
 
-    assert_eq!(
-        error.to_string(),
-        "insufficient cash balance for this buy transaction"
-    );
-
-    // Balance and position unchanged after the failed transaction
     let balances = list_account_balances(&pool, account_id).await.unwrap();
-    assert_eq!(balances[0].amount, amt("499.000000"));
+    assert_eq!(balances[0].amount, amt("-1.000000"));
     let positions = list_account_positions(&pool, account_id).await.unwrap();
-    assert!(positions.is_empty());
+    assert_eq!(positions.len(), 1);
 }
 
 #[tokio::test]
@@ -1071,16 +1011,7 @@ async fn sell_transaction_credits_base_currency_balance() {
     .await
     .unwrap();
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("1000.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_id, Currency::Usd, amt("1000.000000")).await;
 
     let asset_id = create_asset(
         &pool,
@@ -1149,16 +1080,7 @@ async fn deleting_buy_transaction_restores_cash_balance() {
     .await
     .unwrap();
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("500.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_id, Currency::Usd, amt("500.000000")).await;
 
     let asset_id = create_asset(
         &pool,
@@ -1215,16 +1137,7 @@ async fn updating_transaction_adjusts_cash_balance() {
     .await
     .unwrap();
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("1000.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_id, Currency::Usd, amt("1000.000000")).await;
 
     let asset_id = create_asset(
         &pool,
@@ -1293,16 +1206,7 @@ async fn buy_transaction_blocked_without_fx_rate() {
     .await
     .unwrap();
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Eur,
-            amount: amt("1000.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_id, Currency::Eur, amt("1000.000000")).await;
 
     let asset_id = create_asset(
         &pool,
@@ -1366,27 +1270,9 @@ async fn transfer_debits_source_and_credits_destination() {
     .await
     .unwrap();
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id: account_a,
-            currency: Currency::Eur,
-            amount: amt("1000.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_a, Currency::Eur, amt("1000.000000")).await;
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id: account_b,
-            currency: Currency::Eur,
-            amount: amt("200.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_b, Currency::Eur, amt("200.000000")).await;
 
     create_transfer(
         &pool,
@@ -1437,27 +1323,9 @@ async fn transfer_cross_currency_uses_specified_amounts() {
     .await
     .unwrap();
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id: account_eur,
-            currency: Currency::Eur,
-            amount: amt("500.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_eur, Currency::Eur, amt("500.000000")).await;
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id: account_usd,
-            currency: Currency::Usd,
-            amount: amt("0.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_usd, Currency::Usd, amt("0.000000")).await;
 
     // Send 200 EUR, receive 220 USD (user-specified rate)
     create_transfer(
@@ -1484,7 +1352,7 @@ async fn transfer_cross_currency_uses_specified_amounts() {
 }
 
 #[tokio::test]
-async fn transfer_blocked_when_source_has_insufficient_balance() {
+async fn transfer_allows_source_overdraft() {
     let pool = test_pool().await;
 
     let account_a = create_account(
@@ -1509,18 +1377,10 @@ async fn transfer_blocked_when_source_has_insufficient_balance() {
     .await
     .unwrap();
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id: account_a,
-            currency: Currency::Eur,
-            amount: amt("100.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_a, Currency::Eur, amt("100.000000")).await;
 
-    let error = create_transfer(
+    // Transfer 200 when source only has 100: succeeds and drives source negative
+    create_transfer(
         &pool,
         CreateTransferInput {
             from_account_id: account_a,
@@ -1534,16 +1394,12 @@ async fn transfer_blocked_when_source_has_insufficient_balance() {
         },
     )
     .await
-    .expect_err("transfer with insufficient balance should fail");
+    .expect("transfer with insufficient balance should succeed (overdraft allowed)");
 
-    assert_eq!(
-        error.to_string(),
-        "insufficient balance in source account for this transfer"
-    );
-
-    // Source balance unchanged
     let balances_a = list_account_balances(&pool, account_a).await.unwrap();
-    assert_eq!(balances_a[0].amount, amt("100.000000"));
+    assert_eq!(balances_a[0].amount, amt("-100.000000"));
+    let balances_b = list_account_balances(&pool, account_b).await.unwrap();
+    assert_eq!(balances_b[0].amount, amt("200.000000"));
 }
 
 #[tokio::test]
@@ -1572,16 +1428,7 @@ async fn deleting_transfer_reverses_balances() {
     .await
     .unwrap();
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id: account_a,
-            currency: Currency::Eur,
-            amount: amt("1000.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_a, Currency::Eur, amt("1000.000000")).await;
 
     let transfer = create_transfer(
         &pool,
@@ -1634,16 +1481,7 @@ async fn list_transfers_returns_in_date_descending_order() {
     .await
     .unwrap();
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id: account_a,
-            currency: Currency::Eur,
-            amount: amt("2000.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_a, Currency::Eur, amt("2000.000000")).await;
 
     for (date, amount) in [
         ("2026-01-10", "100.000000"),
@@ -1779,16 +1617,13 @@ async fn allows_multiple_currencies_per_account() {
     .expect("account insert should succeed");
 
     for (currency, value) in [("EUR", "12000.000000"), ("USD", "3500.000000")] {
-        upsert_account_balance(
+        seed_balance(
             &pool,
-            UpsertAccountBalanceInput {
-                account_id,
-                currency: Currency::try_from(currency).unwrap(),
-                amount: amt(value),
-            },
+            account_id,
+            Currency::try_from(currency).unwrap(),
+            amt(value),
         )
-        .await
-        .expect("balance insert should succeed");
+        .await;
     }
 
     let balances = list_account_balances(&pool, account_id)
@@ -1817,7 +1652,7 @@ async fn allows_multiple_currencies_per_account() {
 }
 
 #[tokio::test]
-async fn upsert_updates_existing_balance() {
+async fn cash_movements_accumulate_balance() {
     let pool = test_pool().await;
 
     let account_id = create_account(
@@ -1831,41 +1666,21 @@ async fn upsert_updates_existing_balance() {
     .await
     .expect("account insert should succeed");
 
-    let first_outcome = upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("10.000000"),
-        },
-    )
-    .await
-    .expect("first balance insert should succeed");
-    assert_eq!(first_outcome, UpsertOutcome::Created);
-
-    let second_outcome = upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("12.000000"),
-        },
-    )
-    .await
-    .expect("upsert should update the existing balance");
-    assert_eq!(second_outcome, UpsertOutcome::Updated);
+    // Two separate deposits: balance is their sum, not the last value
+    seed_balance(&pool, account_id, Currency::Usd, amt("10.000000")).await;
+    seed_balance(&pool, account_id, Currency::Usd, amt("12.000000")).await;
 
     let balances = list_account_balances(&pool, account_id)
         .await
         .expect("balance list should succeed");
 
     assert_eq!(balances.len(), 1);
-    assert_eq!(balances[0].amount, amt("12"));
+    assert_eq!(balances[0].amount, amt("22.000000"));
     assert_eq!(balances[0].updated_at.len(), 20);
 }
 
 #[tokio::test]
-async fn deletes_single_balance() {
+async fn negative_cash_movement_reduces_balance() {
     let pool = test_pool().await;
 
     let account_id = create_account(
@@ -1879,51 +1694,27 @@ async fn deletes_single_balance() {
     .await
     .expect("account insert should succeed");
 
-    upsert_account_balance(
+    seed_balance(&pool, account_id, Currency::Eur, amt("12000.000000")).await;
+
+    create_cash_movement(
         &pool,
-        UpsertAccountBalanceInput {
+        CreateCashMovementInput {
             account_id,
             currency: Currency::Eur,
-            amount: amt("12000.000000"),
+            amount: amt("-12000.000000"),
+            date: trade_date("2024-01-02"),
+            notes: None,
         },
     )
     .await
-    .expect("balance insert should succeed");
-
-    delete_account_balance(&pool, account_id, Currency::Eur)
-        .await
-        .expect("balance delete should succeed");
+    .expect("withdrawal should succeed");
 
     let balances = list_account_balances(&pool, account_id)
         .await
         .expect("balance list should succeed");
 
-    assert!(balances.is_empty());
-}
-
-#[tokio::test]
-async fn deleting_missing_balance_returns_not_found() {
-    let pool = test_pool().await;
-
-    let account_id = create_account(
-        &pool,
-        CreateAccountInput {
-            name: account_name("Main Bank"),
-            account_type: AccountType::Bank,
-            base_currency: Currency::Usd,
-        },
-    )
-    .await
-    .expect("account insert should succeed");
-
-    let error = delete_account_balance(&pool, account_id, Currency::Usd)
-        .await
-        .expect_err("missing balance delete should fail");
-
-    match error {
-        StorageError::Database(sqlx::Error::RowNotFound) => {}
-        other => panic!("expected RowNotFound, got {other}"),
-    }
+    // Balance is zero; the account appears in the list with a zero sum
+    assert_eq!(balances[0].amount, amt("0.000000"));
 }
 
 #[tokio::test]
@@ -1941,16 +1732,7 @@ async fn deletes_account_and_cascades_balances() {
     .await
     .expect("account insert should succeed");
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Eur,
-            amount: amt("12000.000000"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Eur, amt("12000.000000")).await;
 
     delete_account(&pool, account_id)
         .await
@@ -2079,18 +1861,12 @@ async fn accepts_typed_balance_currency_input() {
     .await
     .expect("account insert should succeed");
 
-    let outcome = upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("10.000000"),
-        },
-    )
-    .await
-    .expect("typed currency should succeed");
+    seed_balance(&pool, account_id, Currency::Usd, amt("10.000000")).await;
 
-    assert_eq!(outcome, UpsertOutcome::Created);
+    let balances = list_account_balances(&pool, account_id)
+        .await
+        .expect("balance list should succeed");
+    assert_eq!(balances[0].amount, amt("10.000000"));
 }
 
 #[test]
@@ -2107,12 +1883,14 @@ fn rejects_invalid_typed_amount_input() {
 async fn rejects_balance_for_missing_account() {
     let pool = test_pool().await;
 
-    let error = upsert_account_balance(
+    let error = create_cash_movement(
         &pool,
-        UpsertAccountBalanceInput {
+        CreateCashMovementInput {
             account_id: account_id(999),
             currency: Currency::Usd,
             amount: amt("10.000000"),
+            date: trade_date("2024-01-01"),
+            notes: None,
         },
     )
     .await
@@ -2401,16 +2179,7 @@ async fn lists_account_summaries_with_single_base_currency_balance() {
     .await
     .expect("account insert should succeed");
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("123.450000"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Usd, amt("123.450000")).await;
 
     let summaries = list_account_summaries(&pool)
         .await
@@ -2443,16 +2212,7 @@ async fn lists_account_summaries_with_direct_fx_conversion() {
         (Currency::Usd, "20.000000"),
         (Currency::Gbp, "30.000000"),
     ] {
-        upsert_account_balance(
-            &pool,
-            UpsertAccountBalanceInput {
-                account_id,
-                currency,
-                amount: amt(value),
-            },
-        )
-        .await
-        .expect("balance insert should succeed");
+        seed_balance(&pool, account_id, currency, amt(value)).await;
     }
 
     for (from_currency, rate) in [(Currency::Usd, "0.500000"), (Currency::Gbp, "1.200000")] {
@@ -2495,16 +2255,7 @@ async fn lists_account_summaries_with_separate_cash_and_asset_totals() {
     .expect("account insert should succeed");
 
     // USD balance: kept as manual cash, not affected by the BUY below
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("20.000000"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Usd, amt("20.000000")).await;
 
     // FX rate must be set up before the transaction so the cash impact can be computed
     upsert_fx_rate(
@@ -2519,16 +2270,7 @@ async fn lists_account_summaries_with_separate_cash_and_asset_totals() {
     .expect("fx rate insert should succeed");
 
     // EUR balance: covers the cost of the BUY (2 × 80 USD × 0.5 = 80 EUR); after BUY it becomes 0
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Eur,
-            amount: amt("80.000000"),
-        },
-    )
-    .await
-    .expect("eur balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Eur, amt("80.000000")).await;
 
     let asset_id = create_asset(
         &pool,
@@ -2598,16 +2340,7 @@ async fn marks_summary_unavailable_when_direct_fx_rate_is_missing() {
     .await
     .expect("account insert should succeed");
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("20.000000"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Usd, amt("20.000000")).await;
 
     let summaries = list_account_summaries(&pool)
         .await
@@ -2644,16 +2377,7 @@ async fn does_not_use_inverse_fx_rates() {
     .await
     .expect("account insert should succeed");
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("20.000000"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Usd, amt("20.000000")).await;
 
     let summaries = list_account_summaries(&pool)
         .await
@@ -2680,16 +2404,7 @@ async fn does_not_use_multi_hop_fx_rates() {
     .await
     .expect("account insert should succeed");
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Chf,
-            amount: amt("20.000000"),
-        },
-    )
-    .await
-    .expect("balance insert should succeed");
+    seed_balance(&pool, account_id, Currency::Chf, amt("20.000000")).await;
 
     upsert_fx_rate(
         &pool,
@@ -2728,16 +2443,7 @@ async fn rounds_after_summing_converted_balances() {
     .expect("account insert should succeed");
 
     for currency in [Currency::Usd, Currency::Gbp] {
-        upsert_account_balance(
-            &pool,
-            UpsertAccountBalanceInput {
-                account_id,
-                currency,
-                amount: amt("1.000000"),
-            },
-        )
-        .await
-        .expect("balance insert should succeed");
+        seed_balance(&pool, account_id, currency, amt("1.000000")).await;
     }
 
     for (from_currency, rate) in [(Currency::Usd, "0.333333"), (Currency::Gbp, "0.333333")] {
@@ -2790,12 +2496,12 @@ async fn rejects_invalid_balance_amounts_at_the_schema_level() {
     .expect("account insert should succeed");
 
     let error = sqlx::query(
-        "INSERT INTO account_balances (account_id, currency, amount, updated_at) VALUES (?, 'USD', '1.1234567', '2026-03-22 00:00:00')",
+        "INSERT INTO cash_entries (account_id, currency, amount, source, created_at) VALUES (?, 'USD', '1.1234567', 'deposit', '2026-03-22T00:00:00Z')",
     )
     .bind(account_id.as_i64())
     .execute(&pool)
     .await
-    .expect_err("invalid balance amount should be rejected");
+    .expect_err("invalid cash entry amount should be rejected");
 
     assert!(error.to_string().contains("CHECK constraint failed"));
 }
@@ -2839,16 +2545,7 @@ async fn calculates_portfolio_summary_with_currency_breakdown_and_converted_amou
     .expect("account insert should succeed");
 
     for (currency, value) in [(Currency::Eur, "100.000000"), (Currency::Usd, "100.000000")] {
-        upsert_account_balance(
-            &pool,
-            UpsertAccountBalanceInput {
-                account_id,
-                currency,
-                amount: amt(value),
-            },
-        )
-        .await
-        .expect("balance insert should succeed");
+        seed_balance(&pool, account_id, currency, amt(value)).await;
     }
 
     upsert_fx_rate(
@@ -2943,16 +2640,7 @@ async fn ensures_portfolio_total_matches_sum_of_cash_by_currency() {
         .await
         .unwrap();
 
-        upsert_account_balance(
-            &pool,
-            UpsertAccountBalanceInput {
-                account_id,
-                currency: Currency::Usd,
-                amount: amt("0.5"),
-            },
-        )
-        .await
-        .unwrap();
+        seed_balance(&pool, account_id, Currency::Usd, amt("0.5")).await;
     }
 
     let summary = super::get_portfolio_summary(&pool, Currency::Eur)
@@ -2992,16 +2680,7 @@ async fn allocation_totals_groups_cash_balances_into_cash_slice() {
     .await
     .unwrap();
 
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Eur,
-            amount: amt("500.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_id, Currency::Eur, amt("500.000000")).await;
 
     let summary = super::get_portfolio_summary(&pool, Currency::Eur)
         .await
@@ -3029,16 +2708,7 @@ async fn allocation_totals_groups_asset_positions_by_type() {
     .unwrap();
 
     // Pre-fund account to cover both BUYs (200 + 100 EUR)
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Eur,
-            amount: amt("300.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_id, Currency::Eur, amt("300.000000")).await;
 
     // Stock asset: 10 shares at 20 EUR each = 200 EUR
     let stock_id = create_asset(
@@ -3155,16 +2825,7 @@ async fn allocation_totals_marks_partial_when_asset_has_no_price() {
     .unwrap();
 
     // Cash balance: fully chartable
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Eur,
-            amount: amt("100.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_id, Currency::Eur, amt("100.000000")).await;
 
     // Asset with no price
     let asset_id = create_asset(
@@ -3222,28 +2883,10 @@ async fn allocation_totals_marks_partial_when_fx_unavailable_for_cash() {
     .unwrap();
 
     // EUR balance: chartable (same as display)
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Eur,
-            amount: amt("200.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_id, Currency::Eur, amt("200.000000")).await;
 
     // USD balance: no FX rate to EUR available
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("100.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_id, Currency::Usd, amt("100.000000")).await;
 
     // No FX rate inserted — USD→EUR conversion unavailable
     let summary = super::get_portfolio_summary(&pool, Currency::Eur)
@@ -3273,16 +2916,7 @@ async fn allocation_totals_is_empty_when_nothing_is_chartable() {
     .unwrap();
 
     // USD cash balance but display currency is EUR and no FX rate
-    upsert_account_balance(
-        &pool,
-        UpsertAccountBalanceInput {
-            account_id,
-            currency: Currency::Usd,
-            amount: amt("100.000000"),
-        },
-    )
-    .await
-    .unwrap();
+    seed_balance(&pool, account_id, Currency::Usd, amt("100.000000")).await;
 
     let summary = super::get_portfolio_summary(&pool, Currency::Eur)
         .await
@@ -3321,16 +2955,7 @@ async fn portfolio_holdings_aggregate_same_asset_across_accounts() {
         (first_account_id, "150.000000"),
         (second_account_id, "200.000000"),
     ] {
-        upsert_account_balance(
-            &pool,
-            UpsertAccountBalanceInput {
-                account_id,
-                currency: Currency::Eur,
-                amount: amt(amount),
-            },
-        )
-        .await
-        .unwrap();
+        seed_balance(&pool, account_id, Currency::Eur, amt(amount)).await;
     }
 
     let asset_id = create_asset(
