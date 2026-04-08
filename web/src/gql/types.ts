@@ -563,20 +563,3 @@ export type CreateTransferMutationVariables = Exact<{
 
 
 export type CreateTransferMutation = { __typename?: 'MutationRoot', createTransfer: { __typename?: 'Transfer', id: number, fromAccountId: number, toAccountId: number, fromCurrency: string, fromAmount: string, toCurrency: string, toAmount: string, transferDate: string, notes: string | null } };
-
-export type TransferAccountsQueryVariables = Exact<{ [key: string]: never; }>;
-
-
-export type TransferAccountsQuery = { __typename?: 'QueryRoot', accounts: Array<{ __typename?: 'AccountSummary', id: number, name: string, baseCurrency: string }> };
-
-export type TransfersQueryVariables = Exact<{ [key: string]: never; }>;
-
-
-export type TransfersQuery = { __typename?: 'QueryRoot', transfers: Array<{ __typename?: 'Transfer', id: number, fromAccountId: number, toAccountId: number, fromCurrency: string, fromAmount: string, toCurrency: string, toAmount: string, transferDate: string, notes: string | null }> };
-
-export type DeleteTransferMutationVariables = Exact<{
-  id: Scalars['Int']['input'];
-}>;
-
-
-export type DeleteTransferMutation = { __typename?: 'MutationRoot', deleteTransfer: number };

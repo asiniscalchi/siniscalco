@@ -13,7 +13,6 @@ const primaryNavItems = [
   { label: "Accounts", to: "/accounts" },
   { label: "Assets", to: "/assets" },
   { label: "Activity", to: "/activity" },
-  { label: "Transfers", to: "/transfers" },
 ];
 
 export function AppShell() {

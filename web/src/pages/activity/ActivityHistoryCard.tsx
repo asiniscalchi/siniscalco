@@ -59,10 +59,13 @@ const DELETE_TRANSACTION_MUTATION = gql`
 import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
 
+import { ActivityActionPickerModal, type ActivityCreateAction } from "./ActivityActionPickerModal";
 import { TransactionFormModal } from "./TransactionFormModal";
+import { CashMovementFormModal } from "./CashMovementFormModal";
 import { ActivityHistoryCardDesktopRow } from "./ActivityHistoryCardDesktopRow";
 import { ActivityHistoryCardEmptyState } from "./ActivityHistoryCardEmptyState";
 import { ActivityHistoryCardMobileItem } from "./ActivityHistoryCardMobileItem";
+import { TransferFormModal } from "../transfers/TransferFormModal";
 import type { ActivityFilter, ActivityItem } from "./types";
 
 const FILTER_LABELS: { value: ActivityFilter; label: string }[] = [
@@ -110,7 +113,8 @@ export function ActivityHistoryCard() {
   const [isLocked, setIsLocked] = useState(true);
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const [editingTransactionId, setEditingTransactionId] = useState<number | null>(null);
-  const [showModal, setShowModal] = useState(false);
+  const [activeCreateAction, setActiveCreateAction] = useState<ActivityCreateAction | null>(null);
+  const [showActionPicker, setShowActionPicker] = useState(false);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
   const [activeFilter, setActiveFilter] = useState<ActivityFilter>("all");
 
@@ -151,6 +155,10 @@ export function ActivityHistoryCard() {
   const activityError = transactionsError ?? cashMovementsError ?? transfersError;
   const pageError = initialDataError ?? activityError;
   const pageErrorMessage = initialDataError ? "Failed to load initial data" : "Failed to load transactions";
+  const selectedAccount = accounts.find((account) => String(account.id) === selectedAccountId) ?? null;
+  const editingTransaction = editingTransactionId
+    ? transactions.find((t) => t.id === editingTransactionId) ?? null
+    : null;
 
   const handleDeleteClick = async (transactionId: number) => {
     if (!window.confirm("Are you sure you want to delete this transaction?")) {
@@ -172,11 +180,18 @@ export function ActivityHistoryCard() {
   };
 
   const handleModalSaved = () => {
-    setShowModal(false);
+    setShowActionPicker(false);
+    setActiveCreateAction(null);
     setEditingTransactionId(null);
     void refetchTransactions();
     void refetchCashMovements();
     void refetchTransfers();
+  };
+
+  const handleModalClose = () => {
+    setShowActionPicker(false);
+    setActiveCreateAction(null);
+    setEditingTransactionId(null);
   };
 
   if (loading && allItems.length === 0 && accounts.length === 0) {
@@ -241,14 +256,14 @@ export function ActivityHistoryCard() {
               {isLocked ? <LockIcon /> : <UnlockIcon />}
             </Button>
             <Button
-              aria-label="Add Transaction"
+              aria-label="Add Activity"
               disabled={!selectedAccountId}
               onClick={() => {
                 setEditingTransactionId(null);
-                setShowModal(true);
+                setShowActionPicker(true);
               }}
               size="icon-lg"
-              title="Add Transaction"
+              title="Add Activity"
             >
               <PlusIcon />
             </Button>
@@ -305,7 +320,7 @@ export function ActivityHistoryCard() {
                     onDeleteClick={handleDeleteClick}
                     onEditClick={(t) => {
                       setEditingTransactionId(t.id);
-                      setShowModal(true);
+                      setActiveCreateAction("trade");
                     }}
                   />
                 ))}
@@ -340,7 +355,7 @@ export function ActivityHistoryCard() {
                         onDeleteClick={handleDeleteClick}
                         onEditClick={(t) => {
                           setEditingTransactionId(t.id);
-                          setShowModal(true);
+                          setActiveCreateAction("trade");
                         }}
                       />
                     ))}
@@ -352,20 +367,53 @@ export function ActivityHistoryCard() {
         </CardContent>
       </Card>
 
+      <ActivityActionPickerModal
+        canTransfer={accounts.length >= 2}
+        onClose={handleModalClose}
+        onSelect={(action) => {
+          setShowActionPicker(false);
+          setActiveCreateAction(action);
+        }}
+        open={showActionPicker}
+        selectedAccountName={selectedAccount?.name ?? null}
+      />
+
       <TransactionFormModal
-        key={showModal ? (editingTransactionId ?? "new") : "closed"}
+        key={activeCreateAction === "trade" ? (editingTransactionId ?? "new") : "closed"}
         accounts={accounts}
         assets={assets}
-        editingTransaction={editingTransactionId
-          ? transactions.find((t) => t.id === editingTransactionId) ?? null
-          : null}
-        onClose={() => {
-          setShowModal(false);
-          setEditingTransactionId(null);
-        }}
+        editingTransaction={editingTransaction}
+        onClose={handleModalClose}
         onSaved={handleModalSaved}
-        open={showModal}
+        open={activeCreateAction === "trade"}
         selectedAccountId={selectedAccountId}
+      />
+
+      <CashMovementFormModal
+        key={activeCreateAction === "deposit" ? `deposit-${selectedAccountId}` : `closed-deposit`}
+        account={selectedAccount}
+        kind="deposit"
+        onClose={handleModalClose}
+        onSaved={handleModalSaved}
+        open={activeCreateAction === "deposit"}
+      />
+
+      <CashMovementFormModal
+        key={activeCreateAction === "withdraw" ? `withdraw-${selectedAccountId}` : `closed-withdraw`}
+        account={selectedAccount}
+        kind="withdraw"
+        onClose={handleModalClose}
+        onSaved={handleModalSaved}
+        open={activeCreateAction === "withdraw"}
+      />
+
+      <TransferFormModal
+        key={activeCreateAction === "transfer" ? `transfer-${selectedAccountId}` : "closed-transfer"}
+        accounts={accounts}
+        initialFromAccountId={selectedAccountId}
+        onClose={handleModalClose}
+        onSaved={handleModalSaved}
+        open={activeCreateAction === "transfer"}
       />
     </>
   );

@@ -9,8 +9,6 @@ import { extractGqlErrorMessage } from "@/lib/gql";
 import { getAccountCurrency, getTodayDate } from "@/lib/form-utils";
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 
-import type { Account } from "./types";
-
 const CREATE_TRANSFER_MUTATION = gql`
   mutation CreateTransfer($input: TransferInput!) {
     createTransfer(input: $input) {
@@ -24,6 +22,7 @@ const CREATE_TRANSFER_MUTATION = gql`
 type TransferFormModalProps = {
   open: boolean;
   accounts: Account[];
+  initialFromAccountId?: string;
   onClose: () => void;
   onSaved: () => void;
 };
@@ -39,17 +38,24 @@ type FormState = {
   notes: string;
 };
 
+type Account = {
+  id: number;
+  name: string;
+  baseCurrency: string;
+};
+
 
 export function TransferFormModal({
   open,
   accounts,
+  initialFromAccountId = "",
   onClose,
   onSaved,
 }: TransferFormModalProps) {
   const [formState, setFormState] = useState<FormState>({
-    fromAccountId: "",
+    fromAccountId: initialFromAccountId,
     toAccountId: "",
-    fromCurrency: "",
+    fromCurrency: getAccountCurrency(accounts, initialFromAccountId),
     fromAmount: "",
     toCurrency: "",
     toAmount: "",
