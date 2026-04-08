@@ -544,6 +544,34 @@ describe("ActivityPage", () => {
     });
   });
 
+  it("disables transfer creation when only one account exists", async () => {
+    const accounts = [
+      { id: 1, name: "Main Account", accountType: "BANK", baseCurrency: "USD", summaryStatus: "OK", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },
+    ];
+
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string } : null;
+      const query = body?.query ?? "";
+      if (query.includes("accounts")) return gqlResponse({ accounts });
+      if (query.includes("assets")) return gqlResponse({ assets: [] });
+      if (query.includes("transactions")) return gqlResponse({ transactions: [] });
+      if (query.includes("cashMovements")) return gqlResponse({ cashMovements: [] });
+      if (query.includes("transfers")) return gqlResponse({ transfers: [] });
+      return Promise.reject(new Error(`Unhandled: ${query}`));
+    });
+
+    renderActivityPage();
+
+    const select = await screen.findByLabelText("Account:");
+    fireEvent.change(select, { target: { value: "1" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Activity" }));
+
+    expect(
+      (within(screen.getByRole("dialog")).getByRole("button", { name: /Transfer/ }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+
   it("handles create transfer via modal", async () => {
     const accounts = [
       { id: 1, name: "Main Account", accountType: "BANK", baseCurrency: "USD", summaryStatus: "OK", cashTotalAmount: null, assetTotalAmount: null, totalAmount: null, totalCurrency: null },

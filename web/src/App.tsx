@@ -9,7 +9,6 @@ import {
   AccountsListPage,
   AssetsPage,
   PortfolioPage,
-  TransfersPage,
 } from "./pages";
 
 function App() {
@@ -24,7 +23,6 @@ function App() {
         <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
         <Route path="/assets" element={<AssetsPage />} />
         <Route path="/activity" element={<ActivityPage />} />
-        <Route path="/transfers" element={<TransfersPage />} />
       </Route>
     </Routes>
   );

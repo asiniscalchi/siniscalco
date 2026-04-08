@@ -198,6 +198,7 @@ describe("App shell", () => {
     expect(screen.getByRole("button", { name: "Open assistant chat" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Portfolio" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Accounts" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Transfers" })).toBeNull();
   });
 
   it("opens the assistant popup from the shell header", async () => {

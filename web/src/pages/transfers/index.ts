@@ -1,1 +1,0 @@
-export { TransfersPage } from "./TransfersPage";
