@@ -34,7 +34,17 @@ import {
 
 // ── Chat model adapter ────────────────────────────────────────────────────────
 
-type AssistantChatApiMessage = { role: string; content: string };
+type AssistantChatApiMessage =
+  | { role: string; content: string }
+  | { role: "assistant"; content: string | null; tool_calls: OpenAiToolCall[] }
+  | { role: "tool"; tool_call_id: string; content: string };
+
+type OpenAiToolCall = {
+  id: string;
+  type: "function";
+  function: { name: string; arguments: string };
+};
+
 type AssistantChatApiErrorResponse = { error?: string };
 
 type ChatStreamEvent =
@@ -54,9 +64,47 @@ function extractMessageText(message: ThreadMessageLike): string {
 }
 
 function serializeMessages(messages: readonly ThreadMessageLike[]): AssistantChatApiMessage[] {
-  return messages
-    .map((m) => ({ role: m.role, content: extractMessageText(m) }))
-    .filter((m) => m.content.length > 0);
+  return messages.flatMap((m): AssistantChatApiMessage[] => {
+    if (m.role === "user") {
+      const text = extractMessageText(m);
+      if (!text) return [];
+      return [{ role: "user", content: text }];
+    }
+
+    if (m.role === "assistant") {
+      const parts = Array.isArray(m.content) ? m.content : [];
+      const toolCallParts = parts.filter((p): p is ToolCallMessagePart => p.type === "tool-call");
+      const text = extractMessageText(m);
+
+      if (toolCallParts.length > 0) {
+        const toolCallMsg: AssistantChatApiMessage = {
+          role: "assistant",
+          content: text || null,
+          tool_calls: toolCallParts.map((tc) => ({
+            id: tc.toolCallId,
+            type: "function" as const,
+            function: {
+              name: tc.toolName,
+              arguments: tc.argsText ?? JSON.stringify(tc.args),
+            },
+          })),
+        };
+        const toolResultMsgs: AssistantChatApiMessage[] = toolCallParts
+          .filter((tc) => tc.result !== undefined)
+          .map((tc) => ({
+            role: "tool" as const,
+            tool_call_id: tc.toolCallId,
+            content: typeof tc.result === "string" ? tc.result : JSON.stringify(tc.result),
+          }));
+        return [toolCallMsg, ...toolResultMsgs];
+      }
+
+      if (!text) return [];
+      return [{ role: "assistant", content: text }];
+    }
+
+    return [];
+  });
 }
 
 const assistantModelAdapter: ChatModelAdapter = {

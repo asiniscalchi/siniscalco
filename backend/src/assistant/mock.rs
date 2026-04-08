@@ -13,7 +13,8 @@ pub fn latest_user_prompt_from(messages: &[AssistantChatMessageRequest]) -> Opti
         .iter()
         .rev()
         .find(|message| message.role.eq_ignore_ascii_case("user"))
-        .map(|message| message.content.trim())
+        .and_then(|message| message.content.as_str())
+        .map(str::trim)
         .filter(|content| !content.is_empty())
 }
 
@@ -171,6 +172,8 @@ pub fn preview_list(items: Vec<&str>) -> String {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
 
     #[test]
@@ -198,15 +201,21 @@ mod tests {
         let messages = vec![
             AssistantChatMessageRequest {
                 role: "user".to_string(),
-                content: "first".to_string(),
+                content: json!("first"),
+                tool_calls: None,
+                tool_call_id: None,
             },
             AssistantChatMessageRequest {
                 role: "assistant".to_string(),
-                content: "response".to_string(),
+                content: json!("response"),
+                tool_calls: None,
+                tool_call_id: None,
             },
             AssistantChatMessageRequest {
                 role: "user".to_string(),
-                content: "  second  ".to_string(),
+                content: json!("  second  "),
+                tool_calls: None,
+                tool_call_id: None,
             },
         ];
         assert_eq!(latest_user_prompt_from(&messages), Some("second"));
@@ -219,11 +228,15 @@ mod tests {
         let messages = vec![
             AssistantChatMessageRequest {
                 role: "user".to_string(),
-                content: "first".to_string(),
+                content: json!("first"),
+                tool_calls: None,
+                tool_call_id: None,
             },
             AssistantChatMessageRequest {
                 role: "user".to_string(),
-                content: "   ".to_string(),
+                content: json!("   "),
+                tool_calls: None,
+                tool_call_id: None,
             },
         ];
         assert_eq!(latest_user_prompt_from(&messages), None);
@@ -233,7 +246,9 @@ mod tests {
     fn latest_user_prompt_case_insensitive_role() {
         let messages = vec![AssistantChatMessageRequest {
             role: "USER".to_string(),
-            content: "hello".to_string(),
+            content: json!("hello"),
+            tool_calls: None,
+            tool_call_id: None,
         }];
         assert_eq!(latest_user_prompt_from(&messages), Some("hello"));
     }
@@ -242,7 +257,9 @@ mod tests {
     fn latest_user_prompt_no_user_messages_returns_none() {
         let messages = vec![AssistantChatMessageRequest {
             role: "assistant".to_string(),
-            content: "hello".to_string(),
+            content: json!("hello"),
+            tool_calls: None,
+            tool_call_id: None,
         }];
         assert_eq!(latest_user_prompt_from(&messages), None);
     }

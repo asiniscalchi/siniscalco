@@ -122,8 +122,17 @@ pub async fn openai_chat_streaming(
     let mut messages: Vec<Value> = vec![json!({ "role": "system", "content": system_prompt })];
 
     for msg in incoming {
-        messages.push(json!({ "role": msg.role, "content": msg.content }));
+        let mut m = json!({ "role": msg.role, "content": msg.content });
+        if let Some(tool_calls) = &msg.tool_calls {
+            m["tool_calls"] = tool_calls.clone();
+        }
+        if let Some(tool_call_id) = &msg.tool_call_id {
+            m["tool_call_id"] = json!(tool_call_id);
+        }
+        messages.push(m);
     }
+
+    let mut last_full_text = String::new();
 
     for _ in 0..MAX_TOOL_ROUNDS {
         let messages_size: usize = messages.iter().map(|m| m.to_string().len()).sum();
@@ -256,6 +265,10 @@ pub async fn openai_chat_streaming(
             }
         }
 
+        if !full_text.is_empty() {
+            last_full_text = full_text.clone();
+        }
+
         let finish_reason = final_finish_reason.as_deref().unwrap_or("");
         info!(finish_reason, "OpenAI finish_reason");
 
@@ -341,6 +354,13 @@ pub async fn openai_chat_streaming(
         max_rounds = MAX_TOOL_ROUNDS,
         "tool call loop exceeded max iterations"
     );
+    if !last_full_text.is_empty() {
+        send_sse_event(
+            tx,
+            json!({"type": "text", "text": last_full_text, "model": selected_model}),
+        )
+        .await;
+    }
     send_sse_event(
         tx,
         json!({"type": "error", "error": "failed to build assistant response: api error: tool call loop exceeded max iterations"}),
