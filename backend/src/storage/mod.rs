@@ -23,6 +23,7 @@ mod fx_rate;
 #[cfg(test)]
 mod integration_tests;
 mod portfolio;
+mod portfolio_account_summaries;
 mod portfolio_snapshots;
 mod records;
 pub mod settings;
@@ -56,6 +57,7 @@ pub use currency::*;
 pub use fx::*;
 pub use fx_rate::*;
 pub use portfolio::*;
+pub use portfolio_account_summaries::{get_account_value_summary, list_account_summaries};
 pub use portfolio_snapshots::*;
 pub use records::*;
 pub use storage_error::*;
