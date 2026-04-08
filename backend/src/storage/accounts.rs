@@ -70,16 +70,23 @@ pub async fn update_account(
     account_id: AccountId,
     input: CreateAccountInput,
 ) -> Result<AccountRecord, StorageError> {
+    let existing_account = get_account(pool, account_id).await?;
+
+    if input.base_currency != existing_account.base_currency {
+        return Err(StorageError::Validation(
+            "base_currency cannot be changed after account creation",
+        ));
+    }
+
     let result = sqlx::query(
         r#"
         UPDATE accounts
-        SET name = ?, account_type = ?, base_currency = ?
+        SET name = ?, account_type = ?
         WHERE id = ?
         "#,
     )
     .bind(input.name.as_str())
     .bind(input.account_type.as_str())
-    .bind(input.base_currency.as_str())
     .bind(account_id.as_i64())
     .execute(pool)
     .await?;

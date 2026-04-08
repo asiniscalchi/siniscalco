@@ -1989,6 +1989,35 @@ async fn updates_account() {
 }
 
 #[tokio::test]
+async fn rejects_base_currency_change() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let json = gql(
+        app,
+        &format!(
+            r#"mutation {{ updateAccount(id: {}, input: {{ name: "IBKR", accountType: BROKER, baseCurrency: "EUR" }}) {{ id }} }}"#,
+            account_id.as_i64()
+        ),
+    )
+    .await;
+
+    assert!(json["errors"][0]["message"].is_string());
+    assert!(json["data"]["updateAccount"].is_null());
+}
+
+#[tokio::test]
 async fn deletes_account() {
     let pool = test_pool().await;
 
