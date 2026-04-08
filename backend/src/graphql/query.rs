@@ -5,9 +5,10 @@ use crate::{
     AccountId, AssetId, PRODUCT_BASE_CURRENCY, SharedFxRefreshStatus, compact_decimal_output,
     convert_asset_total_value_in_currency, get_account, get_account_value_summary, get_asset,
     get_portfolio_summary, get_transaction, list_account_balances, list_account_positions,
-    list_account_summaries, list_asset_transactions, list_assets, list_cash_movements,
-    list_currencies, list_fx_rate_summary, list_portfolio_snapshots, list_transactions,
-    list_transfers, list_transfers_by_account, normalize_amount_output, storage::StorageError,
+    list_account_summaries, list_all_cash_movements, list_asset_transactions, list_assets,
+    list_cash_movements, list_currencies, list_fx_rate_summary, list_portfolio_snapshots,
+    list_transactions, list_transfers, list_transfers_by_account, normalize_amount_output,
+    storage::StorageError,
 };
 
 use super::types::*;
@@ -281,13 +282,19 @@ impl QueryRoot {
     async fn cash_movements(
         &self,
         ctx: &Context<'_>,
-        account_id: i64,
+        account_id: Option<i64>,
     ) -> async_graphql::Result<Vec<CashMovement>> {
         let pool = ctx.data::<SqlitePool>()?;
-        let account_id = AccountId::try_from(account_id).map_err(storage_to_gql)?;
-        let movements = list_cash_movements(pool, account_id)
-            .await
-            .map_err(storage_to_gql)?;
+        let movements = if let Some(id) = account_id {
+            let account_id = AccountId::try_from(id).map_err(storage_to_gql)?;
+            list_cash_movements(pool, account_id)
+                .await
+                .map_err(storage_to_gql)?
+        } else {
+            list_all_cash_movements(pool)
+                .await
+                .map_err(storage_to_gql)?
+        };
         Ok(movements.into_iter().map(to_cash_movement).collect())
     }
 

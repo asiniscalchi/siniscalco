@@ -49,7 +49,9 @@ pub use asset_transactions::*;
 pub use asset_type::*;
 pub use asset_unit_price::*;
 pub use assets::*;
-pub use balances::{create_cash_movement, list_account_balances, list_cash_movements};
+pub use balances::{
+    create_cash_movement, list_account_balances, list_all_cash_movements, list_cash_movements,
+};
 pub use currency::*;
 pub use fx::*;
 pub use fx_rate::*;
