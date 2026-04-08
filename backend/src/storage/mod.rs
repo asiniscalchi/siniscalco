@@ -24,6 +24,8 @@ mod fx_rate;
 mod integration_tests;
 mod portfolio;
 mod portfolio_account_summaries;
+mod portfolio_allocation;
+mod portfolio_holdings;
 mod portfolio_snapshots;
 mod records;
 pub mod settings;
