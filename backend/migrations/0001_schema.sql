@@ -18,14 +18,32 @@ CREATE TABLE cash_entries (
     amount INTEGER NOT NULL CHECK (typeof(amount) = 'integer'),
     source TEXT NOT NULL CHECK (source IN ('deposit', 'asset_transaction', 'transfer')),
     source_id INTEGER,
-    date TEXT,
+    date TEXT NOT NULL DEFAULT (date('now')) CHECK (length(date) = 10 AND date GLOB '????-??-??'),
     notes TEXT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
-    FOREIGN KEY (currency) REFERENCES currencies(code)
+    FOREIGN KEY (currency) REFERENCES currencies(code),
+    CHECK (
+        (source = 'deposit' AND source_id IS NULL) OR
+        (source IN ('transfer', 'asset_transaction') AND source_id IS NOT NULL)
+    )
 );
 
 CREATE INDEX cash_entries_account_currency_idx ON cash_entries(account_id, currency);
+
+-- cash_entries are ledger rows: once written they must never be modified or removed.
+-- Corrections must be made via compensating rows with the opposite sign.
+CREATE TRIGGER cash_entries_immutable_update
+BEFORE UPDATE ON cash_entries
+BEGIN
+    SELECT RAISE(ABORT, 'cash_entries rows are immutable; use a compensating entry to correct');
+END;
+
+CREATE TRIGGER cash_entries_immutable_delete
+BEFORE DELETE ON cash_entries
+BEGIN
+    SELECT RAISE(ABORT, 'cash_entries rows are immutable; use a compensating entry to correct');
+END;
 
 CREATE TABLE assets (
     id INTEGER PRIMARY KEY,
@@ -132,6 +150,14 @@ CREATE TABLE account_transfers (
     FOREIGN KEY (to_currency) REFERENCES currencies(code),
     CHECK (from_account_id != to_account_id)
 );
+
+-- Transfer records are immutable once created. Reversal is done by inserting
+-- compensating cash_entries and then deleting the transfer row; updates are never needed.
+CREATE TRIGGER account_transfers_immutable_update
+BEFORE UPDATE ON account_transfers
+BEGIN
+    SELECT RAISE(ABORT, 'account_transfers rows are immutable');
+END;
 
 CREATE TABLE chat_threads (
     id TEXT PRIMARY KEY,

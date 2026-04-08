@@ -1718,7 +1718,36 @@ async fn negative_cash_movement_reduces_balance() {
 }
 
 #[tokio::test]
-async fn deletes_account_and_cascades_balances() {
+async fn deletes_empty_account() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    delete_account(&pool, account_id)
+        .await
+        .expect("empty account delete should succeed");
+
+    let account_error = get_account(&pool, account_id)
+        .await
+        .expect_err("deleted account should not exist");
+
+    match account_error {
+        StorageError::Database(sqlx::Error::RowNotFound) => {}
+        other => panic!("expected RowNotFound, got {other}"),
+    }
+}
+
+#[tokio::test]
+async fn cannot_delete_account_with_ledger_entries() {
     let pool = test_pool().await;
 
     let account_id = create_account(
@@ -1734,22 +1763,14 @@ async fn deletes_account_and_cascades_balances() {
 
     seed_balance(&pool, account_id, Currency::Eur, amt("12000.000000")).await;
 
-    delete_account(&pool, account_id)
+    let error = delete_account(&pool, account_id)
         .await
-        .expect("account delete should succeed");
+        .expect_err("account with entries should not be deletable");
 
-    let account_error = get_account(&pool, account_id)
-        .await
-        .expect_err("deleted account should not exist");
-    let balances = list_account_balances(&pool, account_id)
-        .await
-        .expect("balance list should still succeed");
-
-    match account_error {
-        StorageError::Database(sqlx::Error::RowNotFound) => {}
-        other => panic!("expected RowNotFound, got {other}"),
+    match error {
+        StorageError::Validation(_) => {}
+        other => panic!("expected Validation error, got {other}"),
     }
-    assert!(balances.is_empty());
 }
 
 #[tokio::test]
