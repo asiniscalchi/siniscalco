@@ -281,6 +281,7 @@ export type QueryRoot = {
   accounts: Array<AccountSummary>;
   asset: Asset;
   assets: Array<Asset>;
+  cashMovements: Array<CashMovement>;
   currencies: Array<Scalars['String']['output']>;
   fxRates: FxRateSummary;
   portfolio: PortfolioSummary;
@@ -306,12 +307,22 @@ export type QueryRootAssetArgs = {
 };
 
 
+export type QueryRootCashMovementsArgs = {
+  accountId?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
 export type QueryRootTransactionArgs = {
   id: Scalars['Int']['input'];
 };
 
 
 export type QueryRootTransactionsArgs = {
+  accountId?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryRootTransfersArgs = {
   accountId?: InputMaybe<Scalars['Int']['input']>;
 };
 
@@ -524,6 +535,20 @@ export type TransactionsQueryVariables = Exact<{
 
 
 export type TransactionsQuery = { __typename?: 'QueryRoot', transactions: Array<{ __typename?: 'Transaction', id: number, accountId: number, assetId: number, transactionType: TransactionType, tradeDate: string, quantity: string, unitPrice: string, currencyCode: string, notes: string | null }> };
+
+export type ActivityCashMovementsQueryVariables = Exact<{
+  accountId?: InputMaybe<Scalars['Int']['input']>;
+}>;
+
+
+export type ActivityCashMovementsQuery = { __typename?: 'QueryRoot', cashMovements: Array<{ __typename?: 'CashMovement', id: number, accountId: number, currency: string, amount: string, date: string, notes: string | null }> };
+
+export type ActivityTransfersQueryVariables = Exact<{
+  accountId?: InputMaybe<Scalars['Int']['input']>;
+}>;
+
+
+export type ActivityTransfersQuery = { __typename?: 'QueryRoot', transfers: Array<{ __typename?: 'Transfer', id: number, fromAccountId: number, toAccountId: number, fromCurrency: string, fromAmount: string, toCurrency: string, toAmount: string, transferDate: string, notes: string | null }> };
 
 export type DeleteTransactionMutationVariables = Exact<{
   id: Scalars['Int']['input'];

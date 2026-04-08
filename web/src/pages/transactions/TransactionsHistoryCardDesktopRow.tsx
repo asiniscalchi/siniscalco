@@ -4,15 +4,17 @@ import { cn } from "@/lib/utils";
 import { ItemLabel } from "@/components/ItemLabel";
 import { TransactionsHistoryCardActions } from "./TransactionsHistoryCardActions";
 import {
+  getActivityTypeClassName,
+  getActivityTypeLabel,
   getTransactionTotal,
-  getTransactionTypeClassName,
   trimTrailingZeros,
 } from "./TransactionsHistoryCard.utils";
-import type { Asset, Transaction } from "./types";
+import type { Account, ActivityItem, Asset, Transaction } from "./types";
 
 type TransactionsHistoryCardDesktopRowProps = {
-  asset: Asset | undefined;
-  transaction: Transaction;
+  item: ActivityItem;
+  assetById: Map<number, Asset>;
+  accountById: Map<number, Account>;
   hideValues: boolean;
   isLocked: boolean;
   isDeleting: number | null;
@@ -22,8 +24,9 @@ type TransactionsHistoryCardDesktopRowProps = {
 };
 
 export function TransactionsHistoryCardDesktopRow({
-  asset,
-  transaction,
+  item,
+  assetById,
+  accountById,
   hideValues,
   isLocked,
   isDeleting,
@@ -31,8 +34,6 @@ export function TransactionsHistoryCardDesktopRow({
   onEditClick,
   onDeleteClick,
 }: TransactionsHistoryCardDesktopRowProps) {
-  const total = getTransactionTotal(transaction);
-
   return (
     <tr
       className={cn(
@@ -41,62 +42,102 @@ export function TransactionsHistoryCardDesktopRow({
       )}
     >
       <td className="py-3 pr-4 whitespace-nowrap tabular-nums">
-        {transaction.tradeDate}
+        {item.date}
       </td>
       <td className="py-3 pr-4">
-        <ItemLabel primary={asset?.symbol || "Unknown"} secondary={asset?.name} />
+        {item.kind === "trade" ? (
+          <ItemLabel
+            primary={assetById.get(item.data.assetId)?.symbol || "Unknown"}
+            secondary={assetById.get(item.data.assetId)?.name}
+          />
+        ) : item.kind === "cash" ? (
+          <span className="text-muted-foreground">{item.data.currency}</span>
+        ) : (
+          <ItemLabel
+            primary={accountById.get(item.data.fromAccountId)?.name ?? `Account ${item.data.fromAccountId}`}
+            secondary={`→ ${accountById.get(item.data.toAccountId)?.name ?? `Account ${item.data.toAccountId}`}`}
+          />
+        )}
       </td>
       <td className="py-3 pr-4">
         <span
           className={cn(
             "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
-            getTransactionTypeClassName(transaction.transactionType),
+            getActivityTypeClassName(item),
           )}
         >
-          {transaction.transactionType}
+          {getActivityTypeLabel(item)}
         </span>
       </td>
-      <td className="py-3 pr-4 text-right font-mono tabular-nums">
-        {trimTrailingZeros(transaction.quantity)}
+      <td className="py-3 pr-4 text-right font-mono tabular-nums text-muted-foreground">
+        {item.kind === "trade" ? trimTrailingZeros(item.data.quantity) : "—"}
+      </td>
+      <td className="py-3 pr-4 text-right text-muted-foreground">
+        {item.kind === "trade" ? (
+          <MoneyText
+            className="text-right"
+            hidden={hideValues}
+            includeCurrency={false}
+            maximumFractionDigits={8}
+            minimumFractionDigits={0}
+            value={item.data.unitPrice}
+          />
+        ) : "—"}
       </td>
       <td className="py-3 pr-4 text-right">
-        <MoneyText
-          className="text-right"
-          hidden={hideValues}
-          includeCurrency={false}
-          maximumFractionDigits={8}
-          minimumFractionDigits={0}
-          value={transaction.unitPrice}
-        />
-      </td>
-      <td className="py-3 pr-4 text-right">
-        <MoneyText
-          className="text-right"
-          hidden={hideValues}
-          includeCurrency={false}
-          maximumFractionDigits={2}
-          minimumFractionDigits={2}
-          value={total}
-        />
+        {item.kind === "trade" ? (
+          <MoneyText
+            className="text-right"
+            hidden={hideValues}
+            includeCurrency={false}
+            maximumFractionDigits={2}
+            minimumFractionDigits={2}
+            value={getTransactionTotal(item.data)}
+          />
+        ) : item.kind === "cash" ? (
+          <MoneyText
+            className="text-right"
+            hidden={hideValues}
+            includeCurrency={false}
+            maximumFractionDigits={2}
+            minimumFractionDigits={2}
+            value={Math.abs(Number(item.data.amount))}
+          />
+        ) : (
+          <MoneyText
+            className="text-right"
+            hidden={hideValues}
+            includeCurrency={false}
+            maximumFractionDigits={2}
+            minimumFractionDigits={2}
+            value={item.data.fromAmount}
+          />
+        )}
       </td>
       <td className="py-3 pr-4 font-mono text-[11px] text-muted-foreground">
-        {transaction.currencyCode}
+        {item.kind === "trade"
+          ? item.data.currencyCode
+          : item.kind === "cash"
+          ? item.data.currency
+          : item.data.fromCurrency}
       </td>
       <td
         className="max-w-[150px] truncate py-3 pr-4 italic text-muted-foreground"
-        title={transaction.notes || ""}
+        title={item.data.notes || ""}
       >
-        {transaction.notes || ""}
+        {item.data.notes || ""}
       </td>
       {!isLocked ? (
         <td className="py-3 text-right">
-          <TransactionsHistoryCardActions
-            isDeleting={isDeleting}
-            isLocked={isLocked}
-            onDeleteClick={onDeleteClick}
-            onEditClick={onEditClick}
-            transaction={transaction}
-          />
+          {item.kind === "trade" ? (
+            <TransactionsHistoryCardActions
+              isDeleting={isDeleting}
+              isLocked={isLocked}
+              onDeleteClick={onDeleteClick}
+              onEditClick={onEditClick}
+              transaction={item.data}
+            />
+          ) : null}
         </td>
       ) : null}
     </tr>

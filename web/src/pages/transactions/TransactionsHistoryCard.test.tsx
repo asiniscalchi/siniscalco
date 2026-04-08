@@ -59,6 +59,8 @@ describe("TransactionsHistoryCard", () => {
           }],
         });
       }
+      if (query.includes("cashMovements")) return gqlResponse({ cashMovements: [] });
+      if (query.includes("transfers")) return gqlResponse({ transfers: [] });
       return Promise.reject(new Error(`Unhandled: ${query}`));
     });
 
@@ -89,6 +91,8 @@ describe("TransactionsHistoryCard", () => {
           }],
         });
       }
+      if (query.includes("cashMovements")) return gqlResponse({ cashMovements: [] });
+      if (query.includes("transfers")) return gqlResponse({ transfers: [] });
       return Promise.reject(new Error(`Unhandled: ${query}`));
     });
 
@@ -108,6 +112,8 @@ describe("TransactionsHistoryCard", () => {
       if (query.includes("accounts")) return gqlResponse({ accounts: [{ id: 1, name: "Main Account", accountType: "BANK", baseCurrency: "USD" }] });
       if (query.includes("assets")) return gqlResponse({ assets: [] });
       if (query.includes("transactions")) return gqlResponse({ transactions: [] });
+      if (query.includes("cashMovements")) return gqlResponse({ cashMovements: [] });
+      if (query.includes("transfers")) return gqlResponse({ transfers: [] });
       return Promise.reject(new Error(`Unhandled: ${query}`));
     });
 
