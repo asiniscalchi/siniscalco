@@ -1,6 +1,7 @@
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::mcp::McpError;
 use crate::storage::StorageError;
@@ -16,7 +17,15 @@ pub struct AssistantChatRequest {
 #[derive(Debug, Deserialize)]
 pub struct AssistantChatMessageRequest {
     pub role: String,
-    pub content: String,
+    /// Text content for user/system messages; null or a string for assistant messages
+    /// that also carry `tool_calls`.
+    pub content: Value,
+    /// OpenAI-format tool_calls array (assistant role only).
+    #[serde(default)]
+    pub tool_calls: Option<Value>,
+    /// Tool call ID this message is a result for (role: "tool").
+    #[serde(default)]
+    pub tool_call_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
