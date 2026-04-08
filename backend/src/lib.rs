@@ -45,7 +45,8 @@ pub use storage::{
     get_account, get_account_value_summary, get_asset, get_latest_fx_rate, get_portfolio_summary,
     get_transaction, insert_portfolio_snapshot_if_missing, list_account_balances,
     list_account_positions, list_account_summaries, list_accounts, list_asset_transactions,
-    list_assets, list_currencies, list_fx_rate_summary, list_fx_rates, list_portfolio_snapshots,
-    list_transactions, list_transfers, replace_fx_rates, update_account, update_asset,
-    update_asset_transaction, upsert_asset_price, upsert_fx_rate,
+    list_assets, list_cash_movements, list_currencies, list_fx_rate_summary, list_fx_rates,
+    list_portfolio_snapshots, list_transactions, list_transfers, list_transfers_by_account,
+    replace_fx_rates, update_account, update_asset, update_asset_transaction, upsert_asset_price,
+    upsert_fx_rate,
 };

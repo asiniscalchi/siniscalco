@@ -3,7 +3,7 @@ use sqlx::{Row, SqlitePool, sqlite::SqliteConnection};
 
 use crate::format_decimal_amount;
 use crate::storage::records::*;
-use crate::storage::{AccountId, Amount, Currency, StorageError};
+use crate::storage::{AccountId, Amount, Currency, StorageError, TradeDate};
 
 pub async fn list_account_balances(
     pool: &SqlitePool,
@@ -49,13 +49,15 @@ pub async fn create_cash_movement(
 
     let result = sqlx::query(
         r#"
-        INSERT INTO cash_entries (account_id, currency, amount, source, source_id, created_at)
-        VALUES (?, ?, ?, 'deposit', NULL, ?)
+        INSERT INTO cash_entries (account_id, currency, amount, source, source_id, date, notes, created_at)
+        VALUES (?, ?, ?, 'deposit', NULL, ?, ?, ?)
         "#,
     )
     .bind(input.account_id.as_i64())
     .bind(input.currency.as_str())
     .bind(stored_amount.as_scaled_i64())
+    .bind(input.date.as_str())
+    .bind(input.notes.as_deref())
     .bind(&created_at)
     .execute(&mut *tx)
     .await?;
@@ -72,6 +74,42 @@ pub async fn create_cash_movement(
         notes: input.notes,
         created_at,
     })
+}
+
+pub async fn list_cash_movements(
+    pool: &SqlitePool,
+    account_id: AccountId,
+) -> Result<Vec<CashMovementRecord>, StorageError> {
+    let rows = sqlx::query(
+        r#"
+        SELECT id, account_id, currency, amount, date, notes, created_at
+        FROM cash_entries
+        WHERE account_id = ? AND source = 'deposit'
+        ORDER BY date DESC, created_at DESC, id DESC
+        "#,
+    )
+    .bind(account_id.as_i64())
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter()
+        .map(|row| {
+            let date_str: Option<&str> = row.get("date");
+            let date = match date_str {
+                Some(d) => TradeDate::try_from(d)?,
+                None => TradeDate::try_from(row.get::<&str, _>("created_at"))?,
+            };
+            Ok(CashMovementRecord {
+                id: row.get("id"),
+                account_id: AccountId::try_from(row.get::<i64, _>("account_id"))?,
+                currency: Currency::try_from(row.get::<&str, _>("currency"))?,
+                amount: Amount::from_scaled_i64(row.get::<i64, _>("amount")),
+                date,
+                notes: row.get("notes"),
+                created_at: row.get("created_at"),
+            })
+        })
+        .collect::<Result<Vec<_>, StorageError>>()
 }
 
 // ── Connection-scoped helpers (used inside open transactions) ─────────────────
