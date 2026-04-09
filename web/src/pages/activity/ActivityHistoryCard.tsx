@@ -180,9 +180,6 @@ export function ActivityHistoryCard() {
     setShowActionPicker(false);
     setActiveCreateAction(null);
     setEditingTransactionId(null);
-    void refetchTransactions();
-    void refetchCashMovements();
-    void refetchTransfers();
   };
 
   const handleModalClose = () => {

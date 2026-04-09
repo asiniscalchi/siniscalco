@@ -93,10 +93,10 @@ export function TransactionFormModal({
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const [createTransaction, { loading: creating }] = useMutation(CREATE_TRANSACTION_MUTATION, {
-    refetchQueries: ["Assets", "Portfolio"],
+    refetchQueries: ["Assets", "Portfolio", "Transactions"],
   });
   const [updateTransaction, { loading: updating }] = useMutation(UPDATE_TRANSACTION_MUTATION, {
-    refetchQueries: ["Assets", "Portfolio"],
+    refetchQueries: ["Assets", "Portfolio", "Transactions"],
   });
   const isSubmitting = creating || updating;
 
