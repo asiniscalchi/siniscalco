@@ -316,6 +316,24 @@ async fn fetches_finnhub_quote() {
 }
 
 #[tokio::test]
+async fn finnhub_quote_infers_eur_for_italian_exchange_symbol() {
+    let base_url = start_test_server_at(
+        "/api/v1/quote",
+        json!({
+            "c": 51.19,
+            "t": 1742817600
+        }),
+    )
+    .await;
+
+    let quote = fetch_finnhub_quote(&Client::new(), &base_url, "test-key", "GRID.MI")
+        .await
+        .expect("quote fetch should succeed");
+
+    assert_eq!(quote.currency, Currency::Eur);
+}
+
+#[tokio::test]
 async fn finnhub_quote_fails_on_error_field() {
     let base_url = start_test_server_at(
         "/api/v1/quote",

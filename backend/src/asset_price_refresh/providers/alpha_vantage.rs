@@ -1,7 +1,7 @@
 use reqwest::Client;
 use serde::Deserialize;
 
-use crate::{AssetUnitPrice, Currency, current_utc_timestamp};
+use crate::{AssetUnitPrice, current_utc_timestamp};
 
 use super::super::{AssetPriceRefreshError, AssetQuote};
 use super::{fetch_json, normalize_provider_datetime};
@@ -44,7 +44,7 @@ impl super::StockProvider for AlphaVantageProvider {
 
 /// Fetches a quote from the Alpha Vantage GLOBAL_QUOTE endpoint.
 /// Note: Alpha Vantage does not return the currency in this endpoint.
-/// Prices are returned in the currency of the exchange where the symbol trades (defaults to USD).
+/// Currency is inferred from the exchange suffix in the symbol (e.g. `.MI` → EUR).
 pub async fn fetch_alpha_vantage_quote(
     client: &Client,
     base_url: &str,
@@ -88,7 +88,7 @@ pub async fn fetch_alpha_vantage_quote(
 
     Ok(AssetQuote {
         price,
-        currency: Currency::Usd,
+        currency: super::currency_from_symbol(symbol),
         as_of,
     })
 }
