@@ -10,7 +10,7 @@ pub use config::AssetPriceRefreshConfig;
 pub use providers::{
     fetch_alpha_vantage_quote, fetch_coingecko_quote, fetch_eodhd_quote, fetch_finnhub_quote,
     fetch_fmp_quote, fetch_marketstack_quote, fetch_openfigi_tickers, fetch_polygon_quote,
-    fetch_tiingo_quote, fetch_twelve_data_quote, fetch_yahoo_quote,
+    fetch_tiingo_quote, fetch_twelve_data_quote,
 };
 pub use refresh::{fill_missing_asset_prices, refresh_asset_prices, refresh_single_asset_price};
 pub use types::{AssetPriceRefreshError, AssetQuote};
