@@ -154,7 +154,7 @@ impl MutationRoot {
         let asset_id = crate::create_asset(pool, storage_input)
             .await
             .map_err(asset_storage_error)?;
-        refresh_asset_price(pool, config, client, asset_id).await;
+        spawn_asset_price_refresh(pool.clone(), config.clone(), client.clone(), asset_id);
         let asset = get_asset(pool, asset_id).await.map_err(storage_to_gql)?;
         Ok(to_asset(asset, None, None))
     }
@@ -183,7 +183,7 @@ impl MutationRoot {
         )
         .await
         .map_err(|e| not_found_or(e, "Asset not found", asset_storage_error))?;
-        refresh_asset_price(pool, config, client, asset_id).await;
+        spawn_asset_price_refresh(pool.clone(), config.clone(), client.clone(), asset_id);
         let asset = get_asset(pool, asset_id).await.map_err(storage_to_gql)?;
         Ok(to_asset(asset, None, None))
     }
@@ -443,17 +443,19 @@ async fn ensure_asset_exists(
         .map_err(|e| not_found_or(e, "Asset not found", storage_to_gql))
 }
 
-async fn refresh_asset_price(
-    pool: &SqlitePool,
-    config: &AssetPriceRefreshConfig,
-    client: &reqwest::Client,
+fn spawn_asset_price_refresh(
+    pool: SqlitePool,
+    config: AssetPriceRefreshConfig,
+    client: reqwest::Client,
     asset_id: crate::AssetId,
 ) {
-    if let Err(error) = refresh_single_asset_price(pool, client, config, asset_id).await {
-        warn!(
-            asset_id = asset_id.as_i64(),
-            error = %error,
-            "failed to refresh immediate asset price"
-        );
-    }
+    tokio::spawn(async move {
+        if let Err(error) = refresh_single_asset_price(&pool, &client, &config, asset_id).await {
+            warn!(
+                asset_id = asset_id.as_i64(),
+                error = %error,
+                "failed to refresh immediate asset price"
+            );
+        }
+    });
 }
