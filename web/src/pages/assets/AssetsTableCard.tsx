@@ -37,7 +37,7 @@ export function AssetsTableCard() {
   const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
 
-  const { data, loading, error, refetch } = useQuery<AssetsQuery>(ASSETS_QUERY);
+  const { data, loading, error, refetch } = useQuery<AssetsQuery>(ASSETS_QUERY, { fetchPolicy: "cache-and-network" });
   const assets = data?.assets ?? [];
 
   const [deleteAssetMutation] = useMutation(DELETE_ASSET_MUTATION, {
