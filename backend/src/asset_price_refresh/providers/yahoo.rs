@@ -84,10 +84,9 @@ pub async fn fetch_yahoo_quote(
         )));
     }
 
-    let payload = response
-        .json::<YahooChartResponse>()
-        .await
-        .map_err(|e| AssetPriceRefreshError::Provider(format!("asset price refresh failed: {e}")))?;
+    let payload = response.json::<YahooChartResponse>().await.map_err(|e| {
+        AssetPriceRefreshError::Provider(format!("asset price refresh failed: {e}"))
+    })?;
 
     if let Some(error) = payload.chart.error {
         let desc = error.description.unwrap_or_default();
