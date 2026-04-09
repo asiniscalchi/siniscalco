@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use super::providers::{
     AlphaVantageProvider, EodhdProvider, FinnhubProvider, FmpProvider, MarketstackProvider,
-    PolygonProvider, StockProvider, TiingoProvider, TwelveDataProvider,
+    PolygonProvider, StockProvider, TiingoProvider, TwelveDataProvider, YahooFinanceProvider,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -13,6 +13,8 @@ pub struct AssetPriceRefreshConfig {
     pub coincap_api_key: Option<String>,
     pub openfigi_base_url: String,
     pub openfigi_api_key: Option<String>,
+    pub yahoo_finance_base_url: String,
+    pub yahoo_finance_enabled: bool,
     pub twelve_data_base_url: String,
     pub twelve_data_api_key: Option<String>,
     pub finnhub_base_url: String,
@@ -34,6 +36,11 @@ pub struct AssetPriceRefreshConfig {
 impl AssetPriceRefreshConfig {
     pub fn stock_providers(&self) -> Vec<Box<dyn StockProvider>> {
         let mut providers: Vec<Box<dyn StockProvider>> = Vec::new();
+        if self.yahoo_finance_enabled {
+            providers.push(Box::new(YahooFinanceProvider {
+                base_url: self.yahoo_finance_base_url.clone(),
+            }));
+        }
         if let Some(ref key) = self.twelve_data_api_key {
             providers.push(Box::new(TwelveDataProvider {
                 base_url: self.twelve_data_base_url.clone(),

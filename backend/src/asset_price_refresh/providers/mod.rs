@@ -9,6 +9,7 @@ pub mod openfigi;
 pub mod polygon;
 pub mod tiingo;
 pub mod twelve_data;
+pub mod yahoo;
 
 pub use alpha_vantage::{AlphaVantageProvider, fetch_alpha_vantage_quote};
 pub use coincap::fetch_coincap_quote;
@@ -21,6 +22,7 @@ pub use openfigi::fetch_openfigi_tickers;
 pub use polygon::{PolygonProvider, fetch_polygon_quote};
 pub use tiingo::{TiingoProvider, fetch_tiingo_quote};
 pub use twelve_data::{TwelveDataProvider, fetch_twelve_data_quote};
+pub use yahoo::{YahooFinanceProvider, fetch_yahoo_quote};
 
 use reqwest::Client;
 use serde::de::DeserializeOwned;
