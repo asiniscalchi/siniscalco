@@ -1,7 +1,7 @@
 use reqwest::Client;
 use serde::Deserialize;
 
-use crate::{AssetUnitPrice, Currency};
+use crate::AssetUnitPrice;
 
 use super::super::{AssetPriceRefreshError, AssetQuote};
 use super::{fetch_json, normalize_provider_datetime};
@@ -74,7 +74,7 @@ pub async fn fetch_marketstack_quote(
 
     Ok(AssetQuote {
         price,
-        currency: Currency::Usd,
+        currency: super::currency_from_symbol(symbol),
         as_of,
     })
 }

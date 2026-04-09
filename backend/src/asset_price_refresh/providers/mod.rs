@@ -9,6 +9,7 @@ pub mod openfigi;
 pub mod polygon;
 pub mod tiingo;
 pub mod twelve_data;
+pub mod yahoo;
 
 pub use alpha_vantage::{AlphaVantageProvider, fetch_alpha_vantage_quote};
 pub use coincap::fetch_coincap_quote;
@@ -21,9 +22,12 @@ pub use openfigi::fetch_openfigi_tickers;
 pub use polygon::{PolygonProvider, fetch_polygon_quote};
 pub use tiingo::{TiingoProvider, fetch_tiingo_quote};
 pub use twelve_data::{TwelveDataProvider, fetch_twelve_data_quote};
+pub use yahoo::{YahooFinanceProvider, fetch_yahoo_quote};
 
 use reqwest::Client;
 use serde::de::DeserializeOwned;
+
+use crate::Currency;
 
 use super::{AssetPriceRefreshError, AssetQuote};
 
@@ -54,6 +58,26 @@ pub trait StockProvider: Send + Sync {
         client: &Client,
         symbol: &str,
     ) -> Result<AssetQuote, AssetPriceRefreshError>;
+}
+
+/// Infers the price currency from the exchange suffix in a symbol.
+/// For example, `GRID.MI` → EUR (Borsa Italiana), `VOD.L` → GBP (London).
+/// Falls back to USD for US symbols and unknown suffixes.
+fn currency_from_symbol(symbol: &str) -> Currency {
+    let suffix = match symbol.rsplit_once('.') {
+        Some((_, s)) => s,
+        None => return Currency::Usd,
+    };
+    match suffix {
+        // EUR exchanges
+        "MI" | "AS" | "PA" | "DE" | "F" | "BE" | "IR" | "HE" | "LS" | "VI" | "AT" => Currency::Eur,
+        // GBP exchanges
+        "L" | "IL" => Currency::Gbp,
+        // CHF exchanges
+        "SW" | "VX" => Currency::Chf,
+        // USD exchanges and fallback
+        _ => Currency::Usd,
+    }
 }
 
 use time::format_description::well_known::Rfc3339;
@@ -146,4 +170,43 @@ fn normalize_provider_datetime(datetime: String) -> Result<String, AssetPriceRef
     Err(AssetPriceRefreshError::Provider(format!(
         "asset price refresh failed: unsupported datetime format: {datetime}"
     )))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn currency_from_symbol_infers_eur_for_italian_exchange() {
+        assert_eq!(currency_from_symbol("GRID.MI"), Currency::Eur);
+    }
+
+    #[test]
+    fn currency_from_symbol_infers_eur_for_other_european_exchanges() {
+        assert_eq!(currency_from_symbol("ASML.AS"), Currency::Eur);
+        assert_eq!(currency_from_symbol("AIR.PA"), Currency::Eur);
+        assert_eq!(currency_from_symbol("SAP.DE"), Currency::Eur);
+    }
+
+    #[test]
+    fn currency_from_symbol_infers_gbp_for_london() {
+        assert_eq!(currency_from_symbol("VOD.L"), Currency::Gbp);
+    }
+
+    #[test]
+    fn currency_from_symbol_infers_chf_for_swiss() {
+        assert_eq!(currency_from_symbol("NESN.SW"), Currency::Chf);
+        assert_eq!(currency_from_symbol("NOVN.VX"), Currency::Chf);
+    }
+
+    #[test]
+    fn currency_from_symbol_defaults_to_usd_for_us_symbols() {
+        assert_eq!(currency_from_symbol("AAPL"), Currency::Usd);
+        assert_eq!(currency_from_symbol("AAPL.US"), Currency::Usd);
+    }
+
+    #[test]
+    fn currency_from_symbol_defaults_to_usd_for_unknown_suffix() {
+        assert_eq!(currency_from_symbol("STOCK.XX"), Currency::Usd);
+    }
 }

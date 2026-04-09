@@ -99,6 +99,8 @@ fn no_price_config() -> AssetPriceRefreshConfig {
         coincap_api_key: None,
         openfigi_base_url: "http://127.0.0.1:1".to_string(),
         openfigi_api_key: None,
+        yahoo_finance_base_url: "http://127.0.0.1:1".to_string(),
+        yahoo_finance_enabled: false,
         twelve_data_base_url: "http://127.0.0.1:1".to_string(),
         twelve_data_api_key: None,
         finnhub_base_url: "http://127.0.0.1:1".to_string(),

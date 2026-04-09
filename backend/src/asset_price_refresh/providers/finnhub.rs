@@ -1,7 +1,7 @@
 use reqwest::Client;
 use serde::Deserialize;
 
-use crate::{AssetUnitPrice, Currency};
+use crate::AssetUnitPrice;
 
 use super::super::{AssetPriceRefreshError, AssetQuote};
 use super::{fetch_json, unix_timestamp_to_rfc3339};
@@ -35,7 +35,7 @@ impl super::StockProvider for FinnhubProvider {
 
 /// Fetches a quote from the Finnhub `/api/v1/quote` endpoint.
 /// Note: Finnhub does not return the currency in this endpoint.
-/// Prices are returned in the currency of the exchange where the symbol trades (defaults to USD).
+/// Currency is inferred from the exchange suffix in the symbol (e.g. `.MI` → EUR).
 pub async fn fetch_finnhub_quote(
     client: &Client,
     base_url: &str,
@@ -76,7 +76,7 @@ pub async fn fetch_finnhub_quote(
 
     Ok(AssetQuote {
         price,
-        currency: Currency::Usd,
+        currency: super::currency_from_symbol(symbol),
         as_of,
     })
 }

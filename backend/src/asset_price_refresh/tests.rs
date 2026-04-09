@@ -11,7 +11,7 @@ use super::{
     providers::{
         fetch_alpha_vantage_quote, fetch_coingecko_quote, fetch_eodhd_quote, fetch_finnhub_quote,
         fetch_fmp_quote, fetch_marketstack_quote, fetch_openfigi_tickers, fetch_polygon_quote,
-        fetch_tiingo_quote, fetch_twelve_data_quote,
+        fetch_tiingo_quote, fetch_twelve_data_quote, fetch_yahoo_quote,
     },
     refresh_asset_prices,
 };
@@ -124,6 +124,8 @@ async fn refreshes_crypto_asset_price_via_coingecko() {
             coincap_api_key: None,
             openfigi_base_url: "http://127.0.0.1:1".to_string(),
             openfigi_api_key: None,
+            yahoo_finance_base_url: "http://127.0.0.1:1".to_string(),
+            yahoo_finance_enabled: false,
             twelve_data_base_url: "http://127.0.0.1:1".to_string(),
             twelve_data_api_key: None,
             finnhub_base_url: "http://127.0.0.1:1".to_string(),
@@ -255,6 +257,8 @@ async fn refreshes_asset_prices_via_twelve_data() {
             coincap_api_key: None,
             openfigi_base_url: "http://127.0.0.1:1".to_string(),
             openfigi_api_key: None,
+            yahoo_finance_base_url: "http://127.0.0.1:1".to_string(),
+            yahoo_finance_enabled: false,
             twelve_data_base_url: base_url,
             twelve_data_api_key: Some("test-key".to_string()),
             finnhub_base_url: "http://127.0.0.1:1".to_string(),
@@ -309,6 +313,24 @@ async fn fetches_finnhub_quote() {
     assert_eq!(quote.price.to_string(), "173.57");
     assert_eq!(quote.currency, Currency::Usd);
     assert_eq!(quote.as_of, "2025-03-24T12:00:00Z");
+}
+
+#[tokio::test]
+async fn finnhub_quote_infers_eur_for_italian_exchange_symbol() {
+    let base_url = start_test_server_at(
+        "/api/v1/quote",
+        json!({
+            "c": 51.19,
+            "t": 1742817600
+        }),
+    )
+    .await;
+
+    let quote = fetch_finnhub_quote(&Client::new(), &base_url, "test-key", "GRID.MI")
+        .await
+        .expect("quote fetch should succeed");
+
+    assert_eq!(quote.currency, Currency::Eur);
 }
 
 #[tokio::test]
@@ -384,6 +406,8 @@ async fn refreshes_asset_prices_via_finnhub() {
             coincap_api_key: None,
             openfigi_base_url: "http://127.0.0.1:1".to_string(),
             openfigi_api_key: None,
+            yahoo_finance_base_url: "http://127.0.0.1:1".to_string(),
+            yahoo_finance_enabled: false,
             twelve_data_base_url: "http://127.0.0.1:1".to_string(),
             twelve_data_api_key: None,
             finnhub_base_url,
@@ -566,6 +590,8 @@ async fn tries_all_openfigi_tickers_until_success() {
             coincap_api_key: None,
             openfigi_base_url,
             openfigi_api_key: None,
+            yahoo_finance_base_url: "http://127.0.0.1:1".to_string(),
+            yahoo_finance_enabled: false,
             twelve_data_base_url,
             twelve_data_api_key: Some("test-key".to_string()),
             finnhub_base_url: "http://127.0.0.1:1".to_string(),
@@ -639,6 +665,8 @@ async fn resolves_isin_via_openfigi_and_fetches_price() {
             coincap_api_key: None,
             openfigi_base_url,
             openfigi_api_key: None,
+            yahoo_finance_base_url: "http://127.0.0.1:1".to_string(),
+            yahoo_finance_enabled: false,
             twelve_data_base_url: "http://127.0.0.1:1".to_string(),
             twelve_data_api_key: None,
             finnhub_base_url,
@@ -705,6 +733,8 @@ async fn falls_back_to_asset_symbol_when_openfigi_fails() {
             coincap_api_key: None,
             openfigi_base_url: "http://127.0.0.1:1".to_string(),
             openfigi_api_key: None,
+            yahoo_finance_base_url: "http://127.0.0.1:1".to_string(),
+            yahoo_finance_enabled: false,
             twelve_data_base_url: "http://127.0.0.1:1".to_string(),
             twelve_data_api_key: None,
             finnhub_base_url,
@@ -771,6 +801,8 @@ async fn falls_back_to_next_provider_on_failure() {
             coincap_api_key: None,
             openfigi_base_url: "http://127.0.0.1:1".to_string(),
             openfigi_api_key: None,
+            yahoo_finance_base_url: "http://127.0.0.1:1".to_string(),
+            yahoo_finance_enabled: false,
             twelve_data_base_url: "http://127.0.0.1:1".to_string(),
             twelve_data_api_key: Some("test-key".to_string()),
             finnhub_base_url,
@@ -839,6 +871,8 @@ async fn refreshes_asset_prices_via_alpha_vantage() {
             coincap_api_key: None,
             openfigi_base_url: "http://127.0.0.1:1".to_string(),
             openfigi_api_key: None,
+            yahoo_finance_base_url: "http://127.0.0.1:1".to_string(),
+            yahoo_finance_enabled: false,
             twelve_data_base_url: "http://127.0.0.1:1".to_string(),
             twelve_data_api_key: None,
             finnhub_base_url: "http://127.0.0.1:1".to_string(),
@@ -949,6 +983,8 @@ async fn refreshes_asset_prices_via_polygon() {
             coincap_api_key: None,
             openfigi_base_url: "http://127.0.0.1:1".to_string(),
             openfigi_api_key: None,
+            yahoo_finance_base_url: "http://127.0.0.1:1".to_string(),
+            yahoo_finance_enabled: false,
             twelve_data_base_url: "http://127.0.0.1:1".to_string(),
             twelve_data_api_key: None,
             finnhub_base_url: "http://127.0.0.1:1".to_string(),
@@ -1049,6 +1085,8 @@ async fn refreshes_asset_prices_via_fmp() {
             coincap_api_key: None,
             openfigi_base_url: "http://127.0.0.1:1".to_string(),
             openfigi_api_key: None,
+            yahoo_finance_base_url: "http://127.0.0.1:1".to_string(),
+            yahoo_finance_enabled: false,
             twelve_data_base_url: "http://127.0.0.1:1".to_string(),
             twelve_data_api_key: None,
             finnhub_base_url: "http://127.0.0.1:1".to_string(),
@@ -1153,6 +1191,8 @@ async fn refreshes_asset_prices_via_eodhd() {
             coincap_api_key: None,
             openfigi_base_url: "http://127.0.0.1:1".to_string(),
             openfigi_api_key: None,
+            yahoo_finance_base_url: "http://127.0.0.1:1".to_string(),
+            yahoo_finance_enabled: false,
             twelve_data_base_url: "http://127.0.0.1:1".to_string(),
             twelve_data_api_key: None,
             finnhub_base_url: "http://127.0.0.1:1".to_string(),
@@ -1253,6 +1293,8 @@ async fn refreshes_asset_prices_via_tiingo() {
             coincap_api_key: None,
             openfigi_base_url: "http://127.0.0.1:1".to_string(),
             openfigi_api_key: None,
+            yahoo_finance_base_url: "http://127.0.0.1:1".to_string(),
+            yahoo_finance_enabled: false,
             twelve_data_base_url: "http://127.0.0.1:1".to_string(),
             twelve_data_api_key: None,
             finnhub_base_url: "http://127.0.0.1:1".to_string(),
@@ -1353,6 +1395,8 @@ async fn refreshes_asset_prices_via_marketstack() {
             coincap_api_key: None,
             openfigi_base_url: "http://127.0.0.1:1".to_string(),
             openfigi_api_key: None,
+            yahoo_finance_base_url: "http://127.0.0.1:1".to_string(),
+            yahoo_finance_enabled: false,
             twelve_data_base_url: "http://127.0.0.1:1".to_string(),
             twelve_data_api_key: None,
             finnhub_base_url: "http://127.0.0.1:1".to_string(),
@@ -1384,5 +1428,162 @@ async fn refreshes_asset_prices_via_marketstack() {
     assert_eq!(
         asset.current_price_as_of,
         Some("2026-03-24T00:00:00Z".to_string())
+    );
+}
+
+// Yahoo Finance tests
+
+#[tokio::test]
+async fn fetches_yahoo_finance_quote() {
+    let base_url = start_test_server_at(
+        "/v8/finance/chart/GRID.MI",
+        json!({
+            "chart": {
+                "result": [{
+                    "meta": {
+                        "regularMarketPrice": 51.19,
+                        "regularMarketTime": 1742817600,
+                        "currency": "EUR"
+                    }
+                }],
+                "error": null
+            }
+        }),
+    )
+    .await;
+
+    let quote = fetch_yahoo_quote(&Client::new(), &base_url, "GRID.MI")
+        .await
+        .expect("quote fetch should succeed");
+
+    assert_eq!(quote.price.to_string(), "51.19");
+    assert_eq!(quote.currency, Currency::Eur);
+    assert_eq!(quote.as_of, "2025-03-24T12:00:00Z");
+}
+
+#[tokio::test]
+async fn yahoo_finance_quote_defaults_to_usd_for_unknown_currency() {
+    let base_url = start_test_server_at(
+        "/v8/finance/chart/TEST",
+        json!({
+            "chart": {
+                "result": [{
+                    "meta": {
+                        "regularMarketPrice": 100.0,
+                        "regularMarketTime": 1742817600,
+                        "currency": "JPY"
+                    }
+                }],
+                "error": null
+            }
+        }),
+    )
+    .await;
+
+    let quote = fetch_yahoo_quote(&Client::new(), &base_url, "TEST")
+        .await
+        .expect("quote fetch should succeed");
+
+    assert_eq!(quote.currency, Currency::Usd);
+}
+
+#[tokio::test]
+async fn yahoo_finance_quote_fails_on_error_response() {
+    let base_url = start_test_server_at(
+        "/v8/finance/chart/INVALID",
+        json!({
+            "chart": {
+                "result": null,
+                "error": {
+                    "code": "Not Found",
+                    "description": "No data found for symbol INVALID"
+                }
+            }
+        }),
+    )
+    .await;
+
+    let result = fetch_yahoo_quote(&Client::new(), &base_url, "INVALID").await;
+
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("No data found"));
+}
+
+#[tokio::test]
+async fn refreshes_asset_prices_via_yahoo_finance() {
+    let pool = test_pool().await;
+    let asset_id = crate::create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: "GRID".try_into().unwrap(),
+            name: "Smart Grid ETF".try_into().unwrap(),
+            asset_type: AssetType::Stock,
+            quote_symbol: Some("GRID.MI".to_string()),
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset should be created");
+
+    let base_url = start_test_server_at(
+        "/v8/finance/chart/GRID.MI",
+        json!({
+            "chart": {
+                "result": [{
+                    "meta": {
+                        "regularMarketPrice": 51.19,
+                        "regularMarketTime": 1742817600,
+                        "currency": "EUR"
+                    }
+                }],
+                "error": null
+            }
+        }),
+    )
+    .await;
+
+    let updated_count = refresh_asset_prices(
+        &pool,
+        &Client::new(),
+        &AssetPriceRefreshConfig {
+            refresh_interval: Duration::from_secs(60),
+            coingecko_base_url: "http://127.0.0.1:1".to_string(),
+            coincap_base_url: "http://127.0.0.1:1".to_string(),
+            coincap_api_key: None,
+            openfigi_base_url: "http://127.0.0.1:1".to_string(),
+            openfigi_api_key: None,
+            yahoo_finance_base_url: base_url,
+            yahoo_finance_enabled: true,
+            twelve_data_base_url: "http://127.0.0.1:1".to_string(),
+            twelve_data_api_key: None,
+            finnhub_base_url: "http://127.0.0.1:1".to_string(),
+            finnhub_api_key: None,
+            alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
+            alpha_vantage_api_key: None,
+            polygon_base_url: "http://127.0.0.1:1".to_string(),
+            polygon_api_key: None,
+            fmp_base_url: "http://127.0.0.1:1".to_string(),
+            fmp_api_key: None,
+            eodhd_base_url: "http://127.0.0.1:1".to_string(),
+            eodhd_api_key: None,
+            tiingo_base_url: "http://127.0.0.1:1".to_string(),
+            tiingo_api_key: None,
+            marketstack_base_url: "http://127.0.0.1:1".to_string(),
+            marketstack_api_key: None,
+        },
+    )
+    .await
+    .expect("refresh should succeed");
+
+    let asset = get_asset(&pool, asset_id)
+        .await
+        .expect("asset should load with price");
+
+    assert_eq!(updated_count, 1);
+    assert_eq!(asset.current_price.unwrap().to_string(), "51.19");
+    assert_eq!(asset.current_price_currency, Some(Currency::Eur));
+    assert_eq!(
+        asset.current_price_as_of,
+        Some("2025-03-24T12:00:00Z".to_string())
     );
 }

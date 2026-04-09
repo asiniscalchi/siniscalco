@@ -57,6 +57,18 @@ pub struct Config {
     #[arg(long, env = "OPENFIGI_API_KEY")]
     pub openfigi_api_key: Option<String>,
 
+    /// Yahoo Finance API base URL
+    #[arg(
+        long,
+        env = "YAHOO_FINANCE_BASE_URL",
+        default_value = "https://query1.finance.yahoo.com"
+    )]
+    pub yahoo_finance_base_url: String,
+
+    /// Enable Yahoo Finance as the stock price provider (no API key required)
+    #[arg(long, env = "YAHOO_FINANCE_ENABLED", default_value_t = false)]
+    pub yahoo_finance_enabled: bool,
+
     /// Twelve Data API base URL
     #[arg(
         long,
@@ -170,6 +182,8 @@ impl Config {
             coincap_api_key: non_empty(self.coincap_api_key.as_deref()),
             openfigi_base_url: trim_url(&self.openfigi_base_url),
             openfigi_api_key: non_empty(self.openfigi_api_key.as_deref()),
+            yahoo_finance_base_url: trim_url(&self.yahoo_finance_base_url),
+            yahoo_finance_enabled: self.yahoo_finance_enabled,
             twelve_data_base_url: trim_url(&self.twelve_data_base_url),
             twelve_data_api_key: non_empty(self.twelve_data_api_key.as_deref()),
             finnhub_base_url: trim_url(&self.finnhub_base_url),

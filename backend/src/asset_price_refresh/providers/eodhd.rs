@@ -1,7 +1,7 @@
 use reqwest::Client;
 use serde::Deserialize;
 
-use crate::{AssetUnitPrice, Currency};
+use crate::AssetUnitPrice;
 
 use super::super::{AssetPriceRefreshError, AssetQuote};
 use super::{fetch_json, unix_timestamp_to_rfc3339};
@@ -34,7 +34,7 @@ impl super::StockProvider for EodhdProvider {
 
 /// Fetches a quote from the EODHD `/api/real-time/{symbol}` endpoint.
 /// Note: EODHD does not return currency in this endpoint.
-/// Prices are in the local currency of the exchange (defaults to USD).
+/// Currency is inferred from the exchange suffix in the symbol (e.g. `.MI` → EUR).
 /// The symbol should include the exchange suffix (e.g. "AAPL.US").
 pub async fn fetch_eodhd_quote(
     client: &Client,
@@ -70,7 +70,7 @@ pub async fn fetch_eodhd_quote(
 
     Ok(AssetQuote {
         price,
-        currency: Currency::Usd,
+        currency: super::currency_from_symbol(symbol),
         as_of,
     })
 }
