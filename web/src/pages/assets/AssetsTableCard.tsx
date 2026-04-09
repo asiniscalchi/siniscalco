@@ -37,10 +37,12 @@ export function AssetsTableCard() {
   const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
 
-  const { data, loading, error, refetch } = useQuery<AssetsQuery>(ASSETS_QUERY);
+  const { data, loading, error, refetch } = useQuery<AssetsQuery>(ASSETS_QUERY, { fetchPolicy: "cache-and-network" });
   const assets = data?.assets ?? [];
 
-  const [deleteAssetMutation] = useMutation(DELETE_ASSET_MUTATION);
+  const [deleteAssetMutation] = useMutation(DELETE_ASSET_MUTATION, {
+    refetchQueries: ["Assets"],
+  });
 
   const handleDeleteClick = async (asset: AssetItem) => {
 
@@ -51,7 +53,6 @@ export function AssetsTableCard() {
     setIsDeleting(asset.id);
     try {
       await deleteAssetMutation({ variables: { id: asset.id } });
-      await refetch();
     } catch (err) {
       alert(extractGqlErrorMessage(err, "Failed to delete asset"));
     } finally {
@@ -388,7 +389,6 @@ export function AssetsTableCard() {
         onSaved={() => {
           setShowModal(false);
           setEditingAsset(null);
-          void refetch();
         }}
       />
     </>

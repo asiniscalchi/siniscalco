@@ -72,7 +72,9 @@ export function CashMovementFormModal({
   const [createCashMovement, { loading: saving }] = useMutation<
     CreateCashMovementMutation,
     CreateCashMovementMutationVariables
-  >(CREATE_CASH_MOVEMENT_MUTATION);
+  >(CREATE_CASH_MOVEMENT_MUTATION, {
+    refetchQueries: ["ActivityCashMovements", "Portfolio", "TransactionAccounts"],
+  });
 
   useBodyScrollLock(open);
 

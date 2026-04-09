@@ -46,6 +46,7 @@ export function PortfolioHistoryCard() {
   const [range, setRange] = useState<Range>("1Y");
   const { data, loading } = useQuery<PortfolioHistoryQuery>(
     PORTFOLIO_HISTORY_QUERY,
+    { fetchPolicy: "cache-and-network" },
   );
 
   const snapshots = data?.portfolioHistory ?? [];

@@ -64,7 +64,9 @@ export function TransferFormModal({
   });
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const [createTransfer, { loading: creating }] = useMutation(CREATE_TRANSFER_MUTATION);
+  const [createTransfer, { loading: creating }] = useMutation(CREATE_TRANSFER_MUTATION, {
+    refetchQueries: ["ActivityTransfers", "Portfolio", "TransactionAccounts"],
+  });
 
   useBodyScrollLock(open);
 

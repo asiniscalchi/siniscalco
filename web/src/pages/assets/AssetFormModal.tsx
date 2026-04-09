@@ -70,8 +70,12 @@ export function AssetFormModal({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const [createAsset, { loading: creating }] = useMutation(CREATE_ASSET_MUTATION);
-  const [updateAsset, { loading: updating }] = useMutation(UPDATE_ASSET_MUTATION);
+  const [createAsset, { loading: creating }] = useMutation(CREATE_ASSET_MUTATION, {
+    refetchQueries: ["Assets"],
+  });
+  const [updateAsset, { loading: updating }] = useMutation(UPDATE_ASSET_MUTATION, {
+    refetchQueries: ["Assets"],
+  });
   const isSubmitting = creating || updating;
 
   useBodyScrollLock(open);

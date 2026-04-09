@@ -26,7 +26,7 @@ import { PortfolioLoadingState } from "./PortfolioLoadingState";
 import { PortfolioReadyState } from "./PortfolioReadyState";
 
 export function PortfolioPage() {
-  const { data, loading, error, refetch } = useQuery<PortfolioQuery>(PORTFOLIO_QUERY);
+  const { data, loading, error, refetch } = useQuery<PortfolioQuery>(PORTFOLIO_QUERY, { fetchPolicy: "cache-and-network" });
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">

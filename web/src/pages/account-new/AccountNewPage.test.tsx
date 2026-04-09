@@ -5,6 +5,8 @@ import { ApolloClient, HttpLink, InMemoryCache } from "@apollo/client";
 import { ApolloProvider } from "@apollo/client/react";
 
 import { AccountNewPage } from ".";
+import { AccountsListPage } from "../accounts-list";
+import { UiStateProvider } from "@/lib/ui-state-provider";
 
 function createTestClient() {
   return new ApolloClient({ link: new HttpLink({ uri: "http://localhost/graphql" }), cache: new InMemoryCache() });
@@ -212,6 +214,84 @@ describe("AccountNewPage", () => {
     expect(
       await screen.findByText("currency must be one of: EUR, USD, GBP, CHF"),
     ).toBeTruthy();
+  });
+
+  it("shows the new account in the accounts list after creation", async () => {
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body ? JSON.parse(String(init.body)) as { query: string } : null;
+      const query = body?.query ?? "";
+
+      if (query.includes("currencies")) {
+        return gqlResponse({ currencies: ["CHF", "EUR", "GBP", "USD"] });
+      }
+
+      if (query.includes("createAccount")) {
+        return gqlResponse({
+          createAccount: {
+            id: 99,
+            name: "New Broker",
+            accountType: "BROKER",
+            baseCurrency: "EUR",
+          },
+        });
+      }
+
+      if (query.includes("accounts {")) {
+        return gqlResponse({
+          accounts: [
+            {
+              id: 99,
+              name: "New Broker",
+              accountType: "BROKER",
+              baseCurrency: "EUR",
+              summaryStatus: "OK",
+              cashTotalAmount: null,
+              assetTotalAmount: null,
+              totalAmount: "0.00000000",
+              totalCurrency: "EUR",
+            },
+          ],
+        });
+      }
+
+      if (query.includes("portfolio {")) {
+        return gqlResponse({
+          portfolio: {
+            displayCurrency: "EUR",
+            totalValueAmount: "0.00000000",
+            accountTotals: [],
+          },
+        });
+      }
+
+      throw new Error(`Unhandled GQL query: ${query}`);
+    });
+
+    render(
+      <ApolloProvider client={createTestClient()}>
+        <UiStateProvider>
+          <MemoryRouter initialEntries={["/accounts/new"]}>
+            <Routes>
+              <Route path="/accounts/new" element={<AccountNewPage />} />
+              <Route path="/accounts" element={<AccountsListPage />} />
+            </Routes>
+          </MemoryRouter>
+        </UiStateProvider>
+      </ApolloProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "New Broker" },
+    });
+    await screen.findByRole("option", { name: "CHF" });
+    fireEvent.change(screen.getByLabelText("Base currency"), {
+      target: { value: "EUR" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+
+    const accountLink = await screen.findByRole("link", { name: /New Broker/ });
+    expect(accountLink.getAttribute("href")).toBe("/accounts/99");
   });
 
   it("renders allowed currencies as dropdown options", async () => {
