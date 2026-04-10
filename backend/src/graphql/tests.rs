@@ -117,6 +117,10 @@ fn no_price_config() -> AssetPriceRefreshConfig {
         tiingo_api_key: None,
         marketstack_base_url: "http://127.0.0.1:1".to_string(),
         marketstack_api_key: None,
+        fcsapi_base_url: "http://127.0.0.1:1".to_string(),
+        fcsapi_api_key: None,
+        itick_base_url: "http://127.0.0.1:1".to_string(),
+        itick_api_key: None,
     }
 }
 

@@ -142,6 +142,10 @@ async fn refreshes_crypto_asset_price_via_coingecko() {
             tiingo_api_key: None,
             marketstack_base_url: "http://127.0.0.1:1".to_string(),
             marketstack_api_key: None,
+            fcsapi_base_url: "http://127.0.0.1:1".to_string(),
+            fcsapi_api_key: None,
+            itick_base_url: "http://127.0.0.1:1".to_string(),
+            itick_api_key: None,
         },
     )
     .await
@@ -275,6 +279,10 @@ async fn refreshes_asset_prices_via_twelve_data() {
             tiingo_api_key: None,
             marketstack_base_url: "http://127.0.0.1:1".to_string(),
             marketstack_api_key: None,
+            fcsapi_base_url: "http://127.0.0.1:1".to_string(),
+            fcsapi_api_key: None,
+            itick_base_url: "http://127.0.0.1:1".to_string(),
+            itick_api_key: None,
         },
     )
     .await
@@ -424,6 +432,10 @@ async fn refreshes_asset_prices_via_finnhub() {
             tiingo_api_key: None,
             marketstack_base_url: "http://127.0.0.1:1".to_string(),
             marketstack_api_key: None,
+            fcsapi_base_url: "http://127.0.0.1:1".to_string(),
+            fcsapi_api_key: None,
+            itick_base_url: "http://127.0.0.1:1".to_string(),
+            itick_api_key: None,
         },
     )
     .await
@@ -608,6 +620,10 @@ async fn tries_all_openfigi_tickers_until_success() {
             tiingo_api_key: None,
             marketstack_base_url: "http://127.0.0.1:1".to_string(),
             marketstack_api_key: None,
+            fcsapi_base_url: "http://127.0.0.1:1".to_string(),
+            fcsapi_api_key: None,
+            itick_base_url: "http://127.0.0.1:1".to_string(),
+            itick_api_key: None,
         },
     )
     .await
@@ -683,6 +699,10 @@ async fn resolves_isin_via_openfigi_and_fetches_price() {
             tiingo_api_key: None,
             marketstack_base_url: "http://127.0.0.1:1".to_string(),
             marketstack_api_key: None,
+            fcsapi_base_url: "http://127.0.0.1:1".to_string(),
+            fcsapi_api_key: None,
+            itick_base_url: "http://127.0.0.1:1".to_string(),
+            itick_api_key: None,
         },
     )
     .await
@@ -751,6 +771,10 @@ async fn falls_back_to_asset_symbol_when_openfigi_fails() {
             tiingo_api_key: None,
             marketstack_base_url: "http://127.0.0.1:1".to_string(),
             marketstack_api_key: None,
+            fcsapi_base_url: "http://127.0.0.1:1".to_string(),
+            fcsapi_api_key: None,
+            itick_base_url: "http://127.0.0.1:1".to_string(),
+            itick_api_key: None,
         },
     )
     .await
@@ -819,6 +843,10 @@ async fn falls_back_to_next_provider_on_failure() {
             tiingo_api_key: None,
             marketstack_base_url: "http://127.0.0.1:1".to_string(),
             marketstack_api_key: None,
+            fcsapi_base_url: "http://127.0.0.1:1".to_string(),
+            fcsapi_api_key: None,
+            itick_base_url: "http://127.0.0.1:1".to_string(),
+            itick_api_key: None,
         },
     )
     .await
@@ -889,6 +917,10 @@ async fn refreshes_asset_prices_via_alpha_vantage() {
             tiingo_api_key: None,
             marketstack_base_url: "http://127.0.0.1:1".to_string(),
             marketstack_api_key: None,
+            fcsapi_base_url: "http://127.0.0.1:1".to_string(),
+            fcsapi_api_key: None,
+            itick_base_url: "http://127.0.0.1:1".to_string(),
+            itick_api_key: None,
         },
     )
     .await
@@ -1001,6 +1033,10 @@ async fn refreshes_asset_prices_via_polygon() {
             tiingo_api_key: None,
             marketstack_base_url: "http://127.0.0.1:1".to_string(),
             marketstack_api_key: None,
+            fcsapi_base_url: "http://127.0.0.1:1".to_string(),
+            fcsapi_api_key: None,
+            itick_base_url: "http://127.0.0.1:1".to_string(),
+            itick_api_key: None,
         },
     )
     .await
@@ -1103,6 +1139,10 @@ async fn refreshes_asset_prices_via_fmp() {
             tiingo_api_key: None,
             marketstack_base_url: "http://127.0.0.1:1".to_string(),
             marketstack_api_key: None,
+            fcsapi_base_url: "http://127.0.0.1:1".to_string(),
+            fcsapi_api_key: None,
+            itick_base_url: "http://127.0.0.1:1".to_string(),
+            itick_api_key: None,
         },
     )
     .await
@@ -1209,6 +1249,10 @@ async fn refreshes_asset_prices_via_eodhd() {
             tiingo_api_key: None,
             marketstack_base_url: "http://127.0.0.1:1".to_string(),
             marketstack_api_key: None,
+            fcsapi_base_url: "http://127.0.0.1:1".to_string(),
+            fcsapi_api_key: None,
+            itick_base_url: "http://127.0.0.1:1".to_string(),
+            itick_api_key: None,
         },
     )
     .await
@@ -1311,6 +1355,10 @@ async fn refreshes_asset_prices_via_tiingo() {
             tiingo_api_key: Some("test-key".to_string()),
             marketstack_base_url: "http://127.0.0.1:1".to_string(),
             marketstack_api_key: None,
+            fcsapi_base_url: "http://127.0.0.1:1".to_string(),
+            fcsapi_api_key: None,
+            itick_base_url: "http://127.0.0.1:1".to_string(),
+            itick_api_key: None,
         },
     )
     .await
@@ -1413,6 +1461,10 @@ async fn refreshes_asset_prices_via_marketstack() {
             tiingo_api_key: None,
             marketstack_base_url,
             marketstack_api_key: Some("test-key".to_string()),
+            fcsapi_base_url: "http://127.0.0.1:1".to_string(),
+            fcsapi_api_key: None,
+            itick_base_url: "http://127.0.0.1:1".to_string(),
+            itick_api_key: None,
         },
     )
     .await
@@ -1570,6 +1622,10 @@ async fn refreshes_asset_prices_via_yahoo_finance() {
             tiingo_api_key: None,
             marketstack_base_url: "http://127.0.0.1:1".to_string(),
             marketstack_api_key: None,
+            fcsapi_base_url: "http://127.0.0.1:1".to_string(),
+            fcsapi_api_key: None,
+            itick_base_url: "http://127.0.0.1:1".to_string(),
+            itick_api_key: None,
         },
     )
     .await

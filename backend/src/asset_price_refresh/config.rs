@@ -1,8 +1,9 @@
 use std::time::Duration;
 
 use super::providers::{
-    AlphaVantageProvider, EodhdProvider, FinnhubProvider, FmpProvider, MarketstackProvider,
-    PolygonProvider, StockProvider, TiingoProvider, TwelveDataProvider, YahooFinanceProvider,
+    AlphaVantageProvider, EodhdProvider, FcsApiProvider, FinnhubProvider, FmpProvider,
+    ITickProvider, MarketstackProvider, PolygonProvider, StockProvider, TiingoProvider,
+    TwelveDataProvider, YahooFinanceProvider,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -31,6 +32,10 @@ pub struct AssetPriceRefreshConfig {
     pub tiingo_api_key: Option<String>,
     pub marketstack_base_url: String,
     pub marketstack_api_key: Option<String>,
+    pub fcsapi_base_url: String,
+    pub fcsapi_api_key: Option<String>,
+    pub itick_base_url: String,
+    pub itick_api_key: Option<String>,
 }
 
 impl AssetPriceRefreshConfig {
@@ -86,6 +91,18 @@ impl AssetPriceRefreshConfig {
         if let Some(ref key) = self.marketstack_api_key {
             providers.push(Box::new(MarketstackProvider {
                 base_url: self.marketstack_base_url.clone(),
+                api_key: key.clone(),
+            }));
+        }
+        if let Some(ref key) = self.fcsapi_api_key {
+            providers.push(Box::new(FcsApiProvider {
+                base_url: self.fcsapi_base_url.clone(),
+                api_key: key.clone(),
+            }));
+        }
+        if let Some(ref key) = self.itick_api_key {
+            providers.push(Box::new(ITickProvider {
+                base_url: self.itick_base_url.clone(),
                 api_key: key.clone(),
             }));
         }

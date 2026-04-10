@@ -157,6 +157,26 @@ pub struct Config {
     #[arg(long, env = "MARKETSTACK_API_KEY")]
     pub marketstack_api_key: Option<String>,
 
+    /// FCS API base URL
+    #[arg(
+        long,
+        env = "FCSAPI_BASE_URL",
+        default_value = "https://api-v4.fcsapi.com"
+    )]
+    pub fcsapi_base_url: String,
+
+    /// FCS API key (enables FCS API as the stock price provider)
+    #[arg(long, env = "FCSAPI_API_KEY")]
+    pub fcsapi_api_key: Option<String>,
+
+    /// iTick API base URL
+    #[arg(long, env = "ITICK_BASE_URL", default_value = "https://api.itick.org")]
+    pub itick_base_url: String,
+
+    /// iTick API key (enables iTick as the stock price provider)
+    #[arg(long, env = "ITICK_API_KEY")]
+    pub itick_api_key: Option<String>,
+
     /// OpenAI API key (enables the AI assistant chat endpoint)
     #[arg(long, env = "OPENAI_API_KEY")]
     pub openai_api_key: Option<String>,
@@ -200,6 +220,10 @@ impl Config {
             tiingo_api_key: non_empty(self.tiingo_api_key.as_deref()),
             marketstack_base_url: trim_url(&self.marketstack_base_url),
             marketstack_api_key: non_empty(self.marketstack_api_key.as_deref()),
+            fcsapi_base_url: trim_url(&self.fcsapi_base_url),
+            fcsapi_api_key: non_empty(self.fcsapi_api_key.as_deref()),
+            itick_base_url: trim_url(&self.itick_base_url),
+            itick_api_key: non_empty(self.itick_api_key.as_deref()),
         }
     }
 }
