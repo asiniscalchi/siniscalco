@@ -199,7 +199,7 @@ async fn run_chat_streaming(
                 message_count = messages.len(),
                 model, "dispatching to OpenAI"
             );
-            openai_chat_streaming(&state, &messages, api_key, model, &selected_model, &tx).await;
+            openai_chat_streaming(&state, &messages, api_key, model, &tx).await;
         }
         _ => {
             if openai_api_key.is_some() {

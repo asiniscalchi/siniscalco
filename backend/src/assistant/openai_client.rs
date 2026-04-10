@@ -107,7 +107,6 @@ pub async fn openai_chat_streaming(
     incoming: &[AssistantChatMessageRequest],
     api_key: &str,
     model: &str,
-    selected_model: &str,
     tx: &mpsc::Sender<Result<Event, Infallible>>,
 ) {
     let system_prompt = crate::storage::settings::get_app_setting(
@@ -131,8 +130,6 @@ pub async fn openai_chat_streaming(
         }
         messages.push(m);
     }
-
-    let mut last_full_text = String::new();
 
     for _ in 0..MAX_TOOL_ROUNDS {
         let messages_size: usize = messages.iter().map(|m| m.to_string().len()).sum();
@@ -265,19 +262,10 @@ pub async fn openai_chat_streaming(
             }
         }
 
-        if !full_text.is_empty() {
-            last_full_text = full_text.clone();
-        }
-
         let finish_reason = final_finish_reason.as_deref().unwrap_or("");
         info!(finish_reason, "OpenAI finish_reason");
 
         if finish_reason == "stop" {
-            send_sse_event(
-                tx,
-                json!({"type": "text", "text": full_text, "model": selected_model}),
-            )
-            .await;
             return;
         }
 
@@ -354,13 +342,6 @@ pub async fn openai_chat_streaming(
         max_rounds = MAX_TOOL_ROUNDS,
         "tool call loop exceeded max iterations"
     );
-    if !last_full_text.is_empty() {
-        send_sse_event(
-            tx,
-            json!({"type": "text", "text": last_full_text, "model": selected_model}),
-        )
-        .await;
-    }
     send_sse_event(
         tx,
         json!({"type": "error", "error": "failed to build assistant response: api error: tool call loop exceeded max iterations"}),

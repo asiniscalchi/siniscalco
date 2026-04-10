@@ -594,11 +594,10 @@ async fn assistant_models_selection_updates_in_memory_model_used_by_chat() {
     .await;
 
     assert_eq!(status, StatusCode::OK);
-    let text_event = events
-        .iter()
-        .find(|e| e["type"] == "text")
-        .expect("should have a text event");
-    assert_eq!(text_event["model"], "gpt-4.1-mini");
+    assert!(
+        events.iter().any(|e| e["type"] == "text_delta"),
+        "should have a text_delta event"
+    );
 
     let recorded_requests = recorded_requests.lock().await;
     assert_eq!(recorded_requests[0]["model"], "gpt-4.1-mini");
@@ -759,12 +758,11 @@ async fn assistant_chat_completes_tool_call_round_trip_against_openai() {
             .to_string()
             .contains("\"count\":1")
     );
-    let text_event = events
+    let text_delta_event = events
         .iter()
-        .find(|e| e["type"] == "text")
-        .expect("should have a text event");
-    assert_eq!(text_event["text"], "You have 1 account.");
-    assert_eq!(text_event["model"], "gpt-4o-mini");
+        .find(|e| e["type"] == "text_delta")
+        .expect("should have a text_delta event");
+    assert_eq!(text_delta_event["delta"], "You have 1 account.");
 
     let recorded_requests = recorded_requests.lock().await;
     assert_eq!(recorded_requests.len(), 2);
