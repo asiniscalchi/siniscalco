@@ -85,12 +85,13 @@ export async function apiLoadMessages(threadId: string): Promise<ExportedMessage
   // Deserialize createdAt string back to Date for each message
   const messages = body.messages.map((m) => {
     const msg = m.content as { createdAt?: string | Date };
-    if (typeof msg.createdAt === "string") {
-      (msg as Record<string, unknown>).createdAt = new Date(msg.createdAt);
-    }
+    const message =
+      typeof msg.createdAt === "string"
+        ? ({ ...msg, createdAt: new Date(msg.createdAt) } as ExportedMessageRepositoryItem["message"])
+        : (msg as ExportedMessageRepositoryItem["message"]);
     return {
       parentId: m.parent_id,
-      message: msg as ExportedMessageRepositoryItem["message"],
+      message,
       runConfig: (m.run_config ?? undefined) as ExportedMessageRepositoryItem["runConfig"],
     };
   });

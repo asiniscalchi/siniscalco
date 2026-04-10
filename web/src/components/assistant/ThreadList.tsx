@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ThreadListItemPrimitive, ThreadListPrimitive, useAui } from "@assistant-ui/react";
 
 import { PlusIcon, TrashIcon, PencilIcon } from "@/components/Icons";
@@ -12,11 +12,14 @@ function ThreadItem({ onSelect }: { onSelect?: () => void }) {
 
   const title = aui.threadListItem().getState().title ?? "New chat";
 
+  useEffect(() => {
+    if (renaming) inputRef.current?.select();
+  }, [renaming]);
+
   function startRename(e: React.MouseEvent) {
     e.stopPropagation();
     setDraft(title);
     setRenaming(true);
-    setTimeout(() => inputRef.current?.select(), 0);
   }
 
   async function commitRename() {
