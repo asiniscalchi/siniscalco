@@ -20,7 +20,7 @@ use super::mock::{build_mock_reply, latest_user_prompt_from};
 use super::model_registry::SETTING_SYSTEM_PROMPT;
 use super::model_registry::{MOCK_BACKEND_MODEL, SETTING_SELECTED_MODEL};
 use super::openai_client::DEFAULT_SYSTEM_PROMPT;
-use super::openai_client::{openai_chat_streaming, send_sse_event};
+use super::openai_client::{openai_responses_streaming, send_sse_event};
 use super::types::{
     AssistantChatErrorResponse, AssistantChatMessageRequest, AssistantChatRequest,
     AssistantModelSelectionRequest, AssistantModelsResponse, SystemPromptResponse,
@@ -199,7 +199,7 @@ async fn run_chat_streaming(
                 message_count = messages.len(),
                 model, "dispatching to OpenAI"
             );
-            openai_chat_streaming(&state, &messages, api_key, model, &tx).await;
+            openai_responses_streaming(&state, &messages, api_key, model, &tx).await;
         }
         _ => {
             if openai_api_key.is_some() {

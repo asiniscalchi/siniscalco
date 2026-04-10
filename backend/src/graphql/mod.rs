@@ -41,7 +41,7 @@ pub struct AppState {
     pub openai_api_key: Option<String>,
     pub assistant_models: SharedAssistantModelRegistry,
     pub assistant_chat_semaphore: SharedAssistantChatSemaphore,
-    pub openai_chat_url: String,
+    pub openai_responses_url: String,
     pub openai_models_url: String,
     pub mcp_client: Option<SharedMcpClient>,
 }
@@ -74,7 +74,7 @@ pub fn build_router(pool: SqlitePool) -> Router {
             None,
         ),
         assistant_chat_semaphore: crate::assistant::new_assistant_chat_semaphore(),
-        openai_chat_url: crate::assistant::openai_chat_url().to_string(),
+        openai_responses_url: crate::assistant::openai_responses_url().to_string(),
         openai_models_url: crate::assistant::openai_models_url().to_string(),
         mcp_client: None,
     })

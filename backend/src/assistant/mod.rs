@@ -18,7 +18,7 @@ pub use model_registry::{
     spawn_assistant_model_refresh_task,
 };
 
-pub use openai_client::openai_chat_url;
+pub use openai_client::openai_responses_url;
 
 pub use types::{
     AssistantChatErrorResponse, AssistantChatMessageRequest, AssistantChatRequest,
