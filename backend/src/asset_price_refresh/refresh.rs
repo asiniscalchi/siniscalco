@@ -16,7 +16,8 @@ pub async fn refresh_asset_prices(
     client: &Client,
     config: &AssetPriceRefreshConfig,
 ) -> Result<usize, AssetPriceRefreshError> {
-    let assets = list_assets(pool).await?;
+    let mut assets = list_assets(pool).await?;
+    assets.sort_by(|a, b| a.current_price_as_of.cmp(&b.current_price_as_of));
     let mut updated_count = 0usize;
 
     for asset in assets {
