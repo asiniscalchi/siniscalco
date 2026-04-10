@@ -140,7 +140,7 @@ fn build_app_with_fx_status(
         openai_api_key: None,
         assistant_models: new_shared_assistant_model_registry(None, None),
         assistant_chat_semaphore: new_assistant_chat_semaphore(),
-        openai_chat_url: crate::assistant::openai_chat_url().to_string(),
+        openai_responses_url: crate::assistant::openai_responses_url().to_string(),
         openai_models_url: crate::assistant::openai_models_url().to_string(),
         mcp_client: None,
     })
@@ -155,7 +155,7 @@ fn build_app_with_price_config(pool: sqlx::SqlitePool, config: AssetPriceRefresh
         openai_api_key: None,
         assistant_models: new_shared_assistant_model_registry(None, None),
         assistant_chat_semaphore: new_assistant_chat_semaphore(),
-        openai_chat_url: crate::assistant::openai_chat_url().to_string(),
+        openai_responses_url: crate::assistant::openai_responses_url().to_string(),
         openai_models_url: crate::assistant::openai_models_url().to_string(),
         mcp_client: None,
     })
@@ -164,13 +164,13 @@ fn build_app_with_price_config(pool: sqlx::SqlitePool, config: AssetPriceRefresh
 fn build_app_with_openai(
     pool: sqlx::SqlitePool,
     api_key: Option<&str>,
-    openai_chat_url: String,
+    openai_responses_url: String,
     openai_models_url: String,
 ) -> Router {
     build_app_with_openai_registry(
         pool,
         api_key,
-        openai_chat_url,
+        openai_responses_url,
         openai_models_url,
         new_shared_assistant_model_registry(api_key, None),
     )
@@ -179,7 +179,7 @@ fn build_app_with_openai(
 fn build_app_with_openai_registry(
     pool: sqlx::SqlitePool,
     api_key: Option<&str>,
-    openai_chat_url: String,
+    openai_responses_url: String,
     openai_models_url: String,
     assistant_models: crate::assistant::SharedAssistantModelRegistry,
 ) -> Router {
@@ -191,7 +191,7 @@ fn build_app_with_openai_registry(
         openai_api_key: api_key.map(str::to_string),
         assistant_models,
         assistant_chat_semaphore: new_assistant_chat_semaphore(),
-        openai_chat_url,
+        openai_responses_url,
         openai_models_url,
         mcp_client: None,
     })
@@ -310,7 +310,7 @@ async fn start_test_quote_server(payload: Value) -> String {
 
 async fn start_test_openai_error_server(status: StatusCode, payload: Value) -> String {
     let app = Router::new().route(
-        "/v1/chat/completions",
+        "/v1/responses",
         post(move || {
             let payload = payload.clone();
             async move { (status, Json(payload)) }
@@ -323,7 +323,7 @@ async fn start_test_openai_error_server(status: StatusCode, payload: Value) -> S
     tokio::spawn(async move {
         axum::serve(listener, app).await.expect("server should run");
     });
-    format!("http://{address}/v1/chat/completions")
+    format!("http://{address}/v1/responses")
 }
 
 async fn start_test_openai_models_server(payload: Value) -> String {
@@ -347,7 +347,7 @@ async fn start_test_openai_models_server(payload: Value) -> String {
 async fn start_test_openai_tool_server(recorded_requests: Arc<Mutex<Vec<Value>>>) -> String {
     let request_count = Arc::new(AtomicUsize::new(0));
     let app = Router::new().route(
-        "/v1/chat/completions",
+        "/v1/responses",
         post(move |Json(body): Json<Value>| {
             let recorded_requests = Arc::clone(&recorded_requests);
             let request_count = Arc::clone(&request_count);
@@ -355,44 +355,31 @@ async fn start_test_openai_tool_server(recorded_requests: Arc<Mutex<Vec<Value>>>
             async move {
                 recorded_requests.lock().await.push(body);
 
-                // Return SSE streaming format: each line is "data: <json>\n\n", ending with "data: [DONE]\n\n"
-                let sse_body = match request_count.fetch_add(1, Ordering::SeqCst) {
-                    0 => {
-                        // First call: trigger a tool call
-                        let chunk = json!({
-                            "choices": [{
-                                "delta": {
-                                    "tool_calls": [{
-                                        "index": 0,
-                                        "id": "call_1",
-                                        "type": "function",
-                                        "function": { "name": "list_accounts", "arguments": "{}" }
-                                    }]
-                                },
-                                "finish_reason": "tool_calls"
+                let payload = match request_count.fetch_add(1, Ordering::SeqCst) {
+                    0 => json!({
+                        "id": "resp_1",
+                        "output": [{
+                            "type": "function_call",
+                            "call_id": "call_1",
+                            "name": "list_accounts",
+                            "arguments": "{}"
+                        }],
+                        "output_text": ""
+                    }),
+                    _ => json!({
+                        "id": "resp_2",
+                        "output": [{
+                            "type": "message",
+                            "content": [{
+                                "type": "output_text",
+                                "text": "You have 1 account."
                             }]
-                        });
-                        format!("data: {}\n\ndata: [DONE]\n\n", chunk)
-                    }
-                    _ => {
-                        // Subsequent calls: return a text response
-                        let delta = json!({
-                            "choices": [{"delta": {"content": "You have 1 account."}, "finish_reason": null}]
-                        });
-                        let stop = json!({
-                            "choices": [{"delta": {}, "finish_reason": "stop"}]
-                        });
-                        format!(
-                            "data: {}\n\ndata: {}\n\ndata: [DONE]\n\n",
-                            delta, stop
-                        )
-                    }
+                        }],
+                        "output_text": "You have 1 account."
+                    }),
                 };
 
-                axum::response::Response::builder()
-                    .header("content-type", "text/event-stream")
-                    .body(axum::body::Body::from(sse_body))
-                    .unwrap()
+                Json(payload)
             }
         }),
     );
@@ -403,7 +390,7 @@ async fn start_test_openai_tool_server(recorded_requests: Arc<Mutex<Vec<Value>>>
     tokio::spawn(async move {
         axum::serve(listener, app).await.expect("server should run");
     });
-    format!("http://{address}/v1/chat/completions")
+    format!("http://{address}/v1/responses")
 }
 
 // ── health ────────────────────────────────────────────────────────────────────
@@ -522,7 +509,7 @@ async fn assistant_models_exposes_refreshed_openai_model_list() {
     let app = build_app_with_openai_registry(
         pool,
         Some("test-key"),
-        crate::assistant::openai_chat_url().to_string(),
+        crate::assistant::openai_responses_url().to_string(),
         models_url,
         assistant_models,
     );
@@ -548,7 +535,7 @@ async fn assistant_models_exposes_refreshed_openai_model_list() {
 async fn assistant_models_selection_updates_in_memory_model_used_by_chat() {
     let pool = test_pool().await;
     let recorded_requests = Arc::new(Mutex::new(Vec::new()));
-    let openai_chat_url = start_test_openai_tool_server(Arc::clone(&recorded_requests)).await;
+    let openai_responses_url = start_test_openai_tool_server(Arc::clone(&recorded_requests)).await;
     let models_url = start_test_openai_models_server(json!({
         "data": [
             { "id": "gpt-4.1-mini" },
@@ -569,7 +556,7 @@ async fn assistant_models_selection_updates_in_memory_model_used_by_chat() {
     let app = build_app_with_openai_registry(
         pool,
         Some("test-key"),
-        openai_chat_url,
+        openai_responses_url,
         models_url,
         assistant_models,
     );
@@ -626,7 +613,7 @@ async fn assistant_models_selection_is_persisted_and_restored() {
     let app = build_app_with_openai_registry(
         pool.clone(),
         Some("test-key"),
-        crate::assistant::openai_chat_url().to_string(),
+        crate::assistant::openai_responses_url().to_string(),
         models_url.clone(),
         assistant_models,
     );
@@ -660,7 +647,7 @@ async fn assistant_models_selection_is_persisted_and_restored() {
     let app = build_app_with_openai_registry(
         pool,
         Some("test-key"),
-        crate::assistant::openai_chat_url().to_string(),
+        crate::assistant::openai_responses_url().to_string(),
         models_url,
         restored_models,
     );
@@ -673,7 +660,7 @@ async fn assistant_models_selection_is_persisted_and_restored() {
 #[tokio::test]
 async fn assistant_chat_surfaces_openai_failures_as_bad_gateway() {
     let pool = test_pool().await;
-    let openai_chat_url = start_test_openai_error_server(
+    let openai_responses_url = start_test_openai_error_server(
         StatusCode::UNAUTHORIZED,
         json!({
             "error": {
@@ -685,7 +672,7 @@ async fn assistant_chat_surfaces_openai_failures_as_bad_gateway() {
     let app = build_app_with_openai(
         pool,
         Some("test-key"),
-        openai_chat_url,
+        openai_responses_url,
         crate::assistant::openai_models_url().to_string(),
     );
     let (status, events) = post_chat_sse(
@@ -726,11 +713,11 @@ async fn assistant_chat_completes_tool_call_round_trip_against_openai() {
     .expect("account insert should succeed");
 
     let recorded_requests = Arc::new(Mutex::new(Vec::new()));
-    let openai_chat_url = start_test_openai_tool_server(Arc::clone(&recorded_requests)).await;
+    let openai_responses_url = start_test_openai_tool_server(Arc::clone(&recorded_requests)).await;
     let app = build_app_with_openai(
         pool,
         Some("test-key"),
-        openai_chat_url,
+        openai_responses_url,
         crate::assistant::openai_models_url().to_string(),
     );
     let (status, events) = post_chat_sse(
@@ -767,20 +754,16 @@ async fn assistant_chat_completes_tool_call_round_trip_against_openai() {
     let recorded_requests = recorded_requests.lock().await;
     assert_eq!(recorded_requests.len(), 2);
 
-    let second_request_messages = recorded_requests[1]["messages"]
+    assert_eq!(recorded_requests[1]["previous_response_id"], "resp_1");
+    let second_request_input = recorded_requests[1]["input"]
         .as_array()
-        .expect("second OpenAI request should include messages");
-    assert!(second_request_messages.iter().any(|message| {
-        message["role"] == "assistant"
-            && message["tool_calls"][0]["id"] == "call_1"
-            && message["tool_calls"][0]["function"]["name"] == "list_accounts"
-    }));
-    assert!(second_request_messages.iter().any(|message| {
-        message["role"] == "tool"
-            && message["tool_call_id"] == "call_1"
-            && message["content"]
+        .expect("second OpenAI request should include input items");
+    assert!(second_request_input.iter().any(|item| {
+        item["type"] == "function_call_output"
+            && item["call_id"] == "call_1"
+            && item["output"]
                 .as_str()
-                .expect("tool message should be serialized as JSON text")
+                .expect("tool output should be serialized as JSON text")
                 .contains("\"count\":1")
     }));
 }
@@ -799,7 +782,7 @@ async fn assistant_chat_returns_too_many_requests_when_semaphore_is_exhausted() 
         openai_api_key: None,
         assistant_models: new_shared_assistant_model_registry(None, None),
         assistant_chat_semaphore: exhausted_semaphore,
-        openai_chat_url: crate::assistant::openai_chat_url().to_string(),
+        openai_responses_url: crate::assistant::openai_responses_url().to_string(),
         openai_models_url: crate::assistant::openai_models_url().to_string(),
         mcp_client: None,
     });
