@@ -39,14 +39,14 @@ describe("AssistantPage", () => {
     expect(screen.getByRole("textbox", { name: "Assistant message" })).toBeTruthy();
   });
 
-  it("replies to a submitted message through the backend assistant endpoint", async () => {
+  it("replies to a submitted message through the mock backend text event", async () => {
     vi.mocked(fetch).mockImplementation((url) => {
       if (String(url).includes("/assistant/threads")) {
         return threadsResponse();
       }
-      // Chat endpoint — SSE stream
+      // Chat endpoint — SSE stream (mock backend sends a single "text" event)
       const body =
-        'data: {"type":"text","text":"The portfolio area is where the app aggregates account totals, allocations, holdings, and FX context.","model":"gpt-4o-mini"}\n\n';
+        'data: {"type":"text","text":"The portfolio area is where the app aggregates account totals, allocations, holdings, and FX context.","model":"mock-backend"}\n\n';
       return Promise.resolve(
         new Response(body, {
           status: 200,
@@ -71,5 +71,34 @@ describe("AssistantPage", () => {
     );
     expect(screen.getByText("You")).toBeTruthy();
     expect(screen.getAllByText("Assistant").length).toBeGreaterThan(0);
+  });
+
+  it("replies to a submitted message through the streaming text_delta path", async () => {
+    vi.mocked(fetch).mockImplementation((url) => {
+      if (String(url).includes("/assistant/threads")) {
+        return threadsResponse();
+      }
+      // Chat endpoint — SSE stream (OpenAI path sends text_delta events)
+      const body = [
+        'data: {"type":"text_delta","delta":"Hello "}',
+        'data: {"type":"text_delta","delta":"from streaming."}',
+        "",
+      ].join("\n\n");
+      return Promise.resolve(
+        new Response(body, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        }),
+      );
+    });
+
+    render(<AssistantPage />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Assistant message" }), {
+      target: { value: "Hello" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText(/Hello from streaming\./)).toBeTruthy();
   });
 });

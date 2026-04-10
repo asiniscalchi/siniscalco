@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { AssistantChatPanel, AssistantRuntimeBoundary, ThreadList } from "@/components/assistant";
-import { ItemLabel } from "@/components/ItemLabel";
 import { Button } from "@/components/ui/button";
 import {
   getAssistantModelsApiUrl,
@@ -321,10 +320,30 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
           {/* Header */}
           <div className="flex items-center justify-between gap-4 border-b px-5 py-3">
             <div className="flex items-center gap-4">
-              <ItemLabel
-                primary="Assistant"
-                secondary={assistantModels?.selected_model}
-              />
+              <span className="text-sm font-semibold">Assistant</span>
+              <select
+                aria-label="Assistant model"
+                className="h-8 max-w-[10rem] truncate rounded-lg border border-input bg-transparent px-2 text-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={
+                  assistantModelsStatus === "loading" ||
+                  assistantModelsStatus === "saving" ||
+                  assistantModels === null
+                }
+                onChange={(event) => void handleAssistantModelChange(event.target.value)}
+                value={assistantModels?.selected_model ?? ""}
+              >
+                {assistantModels?.models.map((model) => (
+                  <option key={model} value={model}>
+                    {model}
+                  </option>
+                )) ?? (
+                  <option value="">
+                    {assistantModelsStatus === "loading"
+                      ? "Loading..."
+                      : "Unavailable"}
+                  </option>
+                )}
+              </select>
               <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
                 <button
                   className={cn(
@@ -402,43 +421,11 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
           {/* Settings tab */}
           {activeTab === "settings" && (
             <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-5 py-5">
-              <div className="space-y-1.5">
-                <label
-                  className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground"
-                  htmlFor="assistant-model"
-                >
-                  Model
-                </label>
-                <select
-                  aria-label="Assistant model"
-                  className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={
-                    assistantModelsStatus === "loading" ||
-                    assistantModelsStatus === "saving" ||
-                    assistantModels === null
-                  }
-                  id="assistant-model"
-                  onChange={(event) => void handleAssistantModelChange(event.target.value)}
-                  value={assistantModels?.selected_model ?? ""}
-                >
-                  {assistantModels?.models.map((model) => (
-                    <option key={model} value={model}>
-                      {model}
-                    </option>
-                  )) ?? (
-                    <option value="">
-                      {assistantModelsStatus === "loading"
-                        ? "Loading models..."
-                        : "Models unavailable"}
-                    </option>
-                  )}
-                </select>
-                {assistantModelsError || assistantModels?.refresh_error ? (
-                  <p className="text-xs text-destructive">
-                    {assistantModelsError || assistantModels?.refresh_error}
-                  </p>
-                ) : null}
-              </div>
+              {(assistantModelsError || assistantModels?.refresh_error) && (
+                <p className="text-xs text-destructive">
+                  {assistantModelsError || assistantModels?.refresh_error}
+                </p>
+              )}
 
               <div className="flex flex-1 flex-col gap-1.5">
                 <label

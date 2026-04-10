@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   AssistantRuntimeProvider,
@@ -107,6 +107,41 @@ function serializeMessages(messages: readonly ThreadMessageLike[]): AssistantCha
   });
 }
 
+const STREAM_READ_TIMEOUT_MS = 45_000;
+
+function readWithTimeout<T>(
+  reader: ReadableStreamDefaultReader<T>,
+  timeoutMs: number,
+  signal: AbortSignal,
+): Promise<ReadableStreamReadResult<T>> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reader.cancel().catch(() => {});
+      reject(new Error("assistant response timed out — no data received for 45 seconds"));
+    }, timeoutMs);
+
+    const onAbort = () => {
+      clearTimeout(timer);
+      reader.cancel().catch(() => {});
+      reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+
+    reader.read().then(
+      (result) => {
+        clearTimeout(timer);
+        signal.removeEventListener("abort", onAbort);
+        resolve(result);
+      },
+      (err) => {
+        clearTimeout(timer);
+        signal.removeEventListener("abort", onAbort);
+        reject(err);
+      },
+    );
+  });
+}
+
 const assistantModelAdapter: ChatModelAdapter = {
   async *run({ messages, abortSignal }) {
     if (abortSignal.aborted) return;
@@ -123,7 +158,9 @@ const assistantModelAdapter: ChatModelAdapter = {
       throw new Error(payload?.error ?? `assistant backend request failed with ${response.status}`);
     }
 
-    const reader = response.body!.getReader();
+    const body = response.body;
+    if (!body) throw new Error("assistant backend returned an empty response body");
+    const reader = body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
 
@@ -131,7 +168,7 @@ const assistantModelAdapter: ChatModelAdapter = {
     let accumulatedText = "";
 
     while (true) {
-      const { done, value } = await reader.read();
+      const { done, value } = await readWithTimeout(reader, STREAM_READ_TIMEOUT_MS, abortSignal);
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
@@ -140,7 +177,12 @@ const assistantModelAdapter: ChatModelAdapter = {
 
       for (const line of lines) {
         if (!line.startsWith("data: ")) continue;
-        const event = JSON.parse(line.slice(6)) as ChatStreamEvent;
+        let event: ChatStreamEvent;
+        try {
+          event = JSON.parse(line.slice(6)) as ChatStreamEvent;
+        } catch {
+          continue;
+        }
 
         if (event.type === "tool_call") {
           toolCalls.push({
@@ -308,11 +350,23 @@ function AssistantMessageText() {
 }
 
 function AssistantThinking() {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setElapsed((s) => s + 1), 1_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const remaining = Math.max(0, Math.ceil(STREAM_READ_TIMEOUT_MS / 1_000) - elapsed);
+
   return (
-    <div className="flex items-center gap-0.5 py-1">
-      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:-0.3s]" />
-      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:-0.15s]" />
-      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce" />
+    <div className="flex items-center gap-2 py-1">
+      <div className="flex items-center gap-0.5">
+        <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:-0.3s]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:-0.15s]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce" />
+      </div>
+      <span className="text-xs tabular-nums text-muted-foreground">{remaining}s</span>
     </div>
   );
 }
