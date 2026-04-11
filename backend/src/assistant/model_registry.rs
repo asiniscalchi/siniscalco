@@ -8,12 +8,16 @@ use tracing::{info, warn};
 use crate::current_utc_timestamp;
 use crate::storage::StorageError;
 
-use super::types::{AssistantModelRefreshError, AssistantModelsResponse, OpenAiModelsListResponse};
+use super::types::{
+    AssistantModelRefreshError, AssistantModelsResponse, OpenAiModelsListResponse, ReasoningEffort,
+};
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 pub const SETTING_SELECTED_MODEL: &str = "assistant.selected_model";
+pub const SETTING_REASONING_EFFORT: &str = "assistant.reasoning_effort";
 pub const SETTING_SYSTEM_PROMPT: &str = "assistant.system_prompt";
+pub const DEFAULT_REASONING_EFFORT: ReasoningEffort = ReasoningEffort::Medium;
 pub const DEFAULT_OPENAI_MODEL: &str = "gpt-4o-mini";
 pub const MOCK_BACKEND_MODEL: &str = "mock-backend";
 pub const MAX_CONCURRENT_CHAT_REQUESTS: usize = 5;
@@ -31,6 +35,7 @@ pub const fn openai_models_url() -> &'static str {
 pub struct AssistantModelRegistry {
     pub models: Vec<String>,
     pub selected_model: String,
+    pub reasoning_effort: ReasoningEffort,
     pub openai_enabled: bool,
     pub last_refreshed_at: Option<String>,
     pub refresh_error: Option<String>,
@@ -41,6 +46,7 @@ impl AssistantModelRegistry {
         Self {
             models: vec![MOCK_BACKEND_MODEL.to_string()],
             selected_model: MOCK_BACKEND_MODEL.to_string(),
+            reasoning_effort: DEFAULT_REASONING_EFFORT,
             openai_enabled: false,
             last_refreshed_at: None,
             refresh_error: None,
@@ -51,6 +57,7 @@ impl AssistantModelRegistry {
         Self {
             selected_model: DEFAULT_OPENAI_MODEL.to_string(),
             models: vec![DEFAULT_OPENAI_MODEL.to_string()],
+            reasoning_effort: DEFAULT_REASONING_EFFORT,
             openai_enabled: true,
             last_refreshed_at: None,
             refresh_error: None,
@@ -60,6 +67,8 @@ impl AssistantModelRegistry {
     pub fn to_response(&self) -> AssistantModelsResponse {
         AssistantModelsResponse {
             models: self.models.clone(),
+            reasoning: super::openai_client::is_reasoning_model(&self.selected_model),
+            reasoning_effort: self.reasoning_effort.clone(),
             selected_model: self.selected_model.clone(),
             openai_enabled: self.openai_enabled,
             last_refreshed_at: self.last_refreshed_at.clone(),
@@ -78,6 +87,7 @@ pub fn new_assistant_chat_semaphore() -> SharedAssistantChatSemaphore {
 pub fn new_shared_assistant_model_registry(
     openai_api_key: Option<&str>,
     persisted_model: Option<&str>,
+    persisted_reasoning_effort: Option<&str>,
 ) -> SharedAssistantModelRegistry {
     Arc::new(RwLock::new(
         if openai_api_key
@@ -87,6 +97,11 @@ pub fn new_shared_assistant_model_registry(
             let mut registry = AssistantModelRegistry::openai_defaults();
             if let Some(model) = persisted_model.map(str::trim).filter(|m| !m.is_empty()) {
                 registry.selected_model = model.to_string();
+            }
+            if let Some(effort) =
+                persisted_reasoning_effort.and_then(|e| e.parse::<ReasoningEffort>().ok())
+            {
+                registry.reasoning_effort = effort;
             }
             registry
         } else {
@@ -99,6 +114,12 @@ pub async fn load_selected_model_setting(
     pool: &SqlitePool,
 ) -> Result<Option<String>, StorageError> {
     crate::storage::settings::get_app_setting(pool, SETTING_SELECTED_MODEL).await
+}
+
+pub async fn load_reasoning_effort_setting(
+    pool: &SqlitePool,
+) -> Result<Option<String>, StorageError> {
+    crate::storage::settings::get_app_setting(pool, SETTING_REASONING_EFFORT).await
 }
 
 pub async fn spawn_assistant_model_refresh_task(
@@ -191,6 +212,7 @@ pub async fn refresh_assistant_model_registry(
     *assistant_models.write().await = AssistantModelRegistry {
         models: available_models,
         selected_model,
+        reasoning_effort: current_registry.reasoning_effort,
         openai_enabled: true,
         last_refreshed_at: Some(refreshed_at),
         refresh_error: None,
@@ -255,6 +277,7 @@ mod tests {
         let r = AssistantModelRegistry {
             models: vec!["gpt-4o".to_string()],
             selected_model: "gpt-4o".to_string(),
+            reasoning_effort: DEFAULT_REASONING_EFFORT,
             openai_enabled: true,
             last_refreshed_at: Some("2024-01-01T00:00:00Z".to_string()),
             refresh_error: None,
@@ -269,7 +292,7 @@ mod tests {
 
     #[test]
     fn new_shared_registry_with_no_api_key_is_mock() {
-        let registry = new_shared_assistant_model_registry(None, None);
+        let registry = new_shared_assistant_model_registry(None, None, None);
         let r = registry.try_read().expect("no contention");
         assert_eq!(r.selected_model, MOCK_BACKEND_MODEL);
         assert!(!r.openai_enabled);
@@ -277,7 +300,7 @@ mod tests {
 
     #[test]
     fn new_shared_registry_with_api_key_is_openai() {
-        let registry = new_shared_assistant_model_registry(Some("sk-test"), None);
+        let registry = new_shared_assistant_model_registry(Some("sk-test"), None, None);
         let r = registry.try_read().expect("no contention");
         assert_eq!(r.selected_model, DEFAULT_OPENAI_MODEL);
         assert!(r.openai_enabled);
@@ -285,14 +308,14 @@ mod tests {
 
     #[test]
     fn new_shared_registry_persisted_model_overrides_default() {
-        let registry = new_shared_assistant_model_registry(Some("sk-test"), Some("gpt-4o"));
+        let registry = new_shared_assistant_model_registry(Some("sk-test"), Some("gpt-4o"), None);
         let r = registry.try_read().expect("no contention");
         assert_eq!(r.selected_model, "gpt-4o");
     }
 
     #[tokio::test]
     async fn refresh_with_no_api_key_switches_to_mock() {
-        let registry = new_shared_assistant_model_registry(Some("sk-test"), None);
+        let registry = new_shared_assistant_model_registry(Some("sk-test"), None, None);
         let http_client = reqwest::Client::new();
         // passing no api key should immediately flip to mock
         let result =

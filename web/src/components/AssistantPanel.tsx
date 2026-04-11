@@ -5,6 +5,7 @@ import { AssistantChatPanel, AssistantRuntimeBoundary, ThreadList } from "@/comp
 import { Button } from "@/components/ui/button";
 import {
   getAssistantModelsApiUrl,
+  getAssistantReasoningEffortApiUrl,
   getAssistantSelectedModelApiUrl,
   getAssistantSystemPromptApiUrl,
 } from "@/lib/env";
@@ -27,10 +28,14 @@ function parseResponseError(
 type AssistantModelsResponse = {
   models: string[];
   selected_model: string;
+  reasoning: boolean;
+  reasoning_effort: string;
   openai_enabled: boolean;
   last_refreshed_at: string | null;
   refresh_error: string | null;
 };
+
+const REASONING_EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh"] as const;
 
 type SystemPromptResponse = {
   prompt: string;
@@ -234,6 +239,42 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
     }
   }
 
+  async function handleReasoningEffortChange(nextEffort: string) {
+    if (!assistantModels || nextEffort === assistantModels.reasoning_effort) return;
+
+    setAssistantModelsStatus("saving");
+    setAssistantModelsError(null);
+
+    try {
+      const response = await fetch(getAssistantReasoningEffortApiUrl(), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ effort: nextEffort }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | AssistantModelsResponse
+        | { error?: string }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(
+          parseResponseError(
+            payload as { error?: string } | null,
+            `reasoning effort update failed with ${response.status}`,
+          ),
+        );
+      }
+
+      setAssistantModels(payload as AssistantModelsResponse);
+      setAssistantModelsStatus("ready");
+    } catch (error) {
+      setAssistantModelsStatus("error");
+      setAssistantModelsError(
+        error instanceof Error ? error.message : "Failed to update reasoning effort",
+      );
+    }
+  }
+
   async function handleSaveSystemPrompt() {
     if (!systemPromptDraft.trim()) return;
 
@@ -344,6 +385,24 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                   </option>
                 )}
               </select>
+              {assistantModels?.reasoning && (
+                <select
+                  aria-label="Reasoning effort"
+                  className="h-8 rounded-lg border border-amber-300 bg-amber-50 px-2 text-xs text-amber-700 outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                  disabled={
+                    assistantModelsStatus === "loading" ||
+                    assistantModelsStatus === "saving"
+                  }
+                  onChange={(event) => void handleReasoningEffortChange(event.target.value)}
+                  value={assistantModels.reasoning_effort}
+                >
+                  {REASONING_EFFORTS.map((effort) => (
+                    <option key={effort} value={effort}>
+                      {effort}
+                    </option>
+                  ))}
+                </select>
+              )}
               <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
                 <button
                   className={cn(

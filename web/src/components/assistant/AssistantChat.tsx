@@ -51,8 +51,18 @@ type ChatStreamEvent =
   | { type: "tool_call"; id: string; name: string; args: Record<string, unknown> }
   | { type: "tool_result"; id: string; result: unknown }
   | { type: "text_delta"; delta: string }
+  | { type: "reasoning_delta"; delta: string }
   | { type: "text"; text: string; model: string }
   | { type: "error"; error: string };
+
+function formatWithReasoning(reasoning: string, text: string): string {
+  if (!reasoning) return text;
+  const quoted = reasoning
+    .split("\n")
+    .map((line) => "> " + line)
+    .join("\n");
+  return "**Reasoning**\n" + quoted + "\n\n" + text;
+}
 
 function extractMessageText(message: ThreadMessageLike): string {
   if (typeof message.content === "string") return message.content.trim();
@@ -165,6 +175,7 @@ const assistantModelAdapter: ChatModelAdapter = {
     let buffer = "";
 
     const toolCalls: ToolCallMessagePart[] = [];
+    let accumulatedReasoning = "";
     let accumulatedText = "";
 
     while (true) {
@@ -199,9 +210,12 @@ const assistantModelAdapter: ChatModelAdapter = {
             toolCalls[idx] = { ...toolCalls[idx], result: event.result };
             yield { content: [...toolCalls] };
           }
+        } else if (event.type === "reasoning_delta") {
+          accumulatedReasoning += event.delta;
+          yield { content: [...toolCalls, { type: "text" as const, text: formatWithReasoning(accumulatedReasoning, accumulatedText) }] };
         } else if (event.type === "text_delta") {
           accumulatedText += event.delta;
-          yield { content: [...toolCalls, { type: "text" as const, text: accumulatedText }] };
+          yield { content: [...toolCalls, { type: "text" as const, text: formatWithReasoning(accumulatedReasoning, accumulatedText) }] };
         } else if (event.type === "text") {
           yield { content: [...toolCalls, { type: "text" as const, text: event.text }] };
         } else if (event.type === "error") {

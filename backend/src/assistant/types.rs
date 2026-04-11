@@ -48,9 +48,64 @@ pub struct AssistantModelSelectionRequest {
 pub struct AssistantModelsResponse {
     pub models: Vec<String>,
     pub selected_model: String,
+    pub reasoning: bool,
+    pub reasoning_effort: ReasoningEffort,
     pub openai_enabled: bool,
     pub last_refreshed_at: Option<String>,
     pub refresh_error: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ReasoningEffort {
+    None,
+    Minimal,
+    Low,
+    Medium,
+    High,
+    Xhigh,
+}
+
+impl ReasoningEffort {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Minimal => "minimal",
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+            Self::Xhigh => "xhigh",
+        }
+    }
+}
+
+impl fmt::Display for ReasoningEffort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl std::str::FromStr for ReasoningEffort {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_lowercase().as_str() {
+            "none" => Ok(Self::None),
+            "minimal" => Ok(Self::Minimal),
+            "low" => Ok(Self::Low),
+            "medium" => Ok(Self::Medium),
+            "high" => Ok(Self::High),
+            "xhigh" => Ok(Self::Xhigh),
+            other => Err(format!(
+                "invalid reasoning effort: {other}. Valid values: none, minimal, low, medium, high, xhigh"
+            )),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReasoningEffortRequest {
+    pub effort: String,
 }
 
 #[derive(Debug, Serialize)]

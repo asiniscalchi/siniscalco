@@ -138,7 +138,7 @@ fn build_app_with_fx_status(
         asset_price_refresh_config: no_price_config(),
         http_client: reqwest::Client::new(),
         openai_api_key: None,
-        assistant_models: new_shared_assistant_model_registry(None, None),
+        assistant_models: new_shared_assistant_model_registry(None, None, None),
         assistant_chat_semaphore: new_assistant_chat_semaphore(),
         openai_responses_url: crate::assistant::openai_responses_url().to_string(),
         openai_models_url: crate::assistant::openai_models_url().to_string(),
@@ -153,7 +153,7 @@ fn build_app_with_price_config(pool: sqlx::SqlitePool, config: AssetPriceRefresh
         asset_price_refresh_config: config,
         http_client: reqwest::Client::new(),
         openai_api_key: None,
-        assistant_models: new_shared_assistant_model_registry(None, None),
+        assistant_models: new_shared_assistant_model_registry(None, None, None),
         assistant_chat_semaphore: new_assistant_chat_semaphore(),
         openai_responses_url: crate::assistant::openai_responses_url().to_string(),
         openai_models_url: crate::assistant::openai_models_url().to_string(),
@@ -172,7 +172,7 @@ fn build_app_with_openai(
         api_key,
         openai_responses_url,
         openai_models_url,
-        new_shared_assistant_model_registry(api_key, None),
+        new_shared_assistant_model_registry(api_key, None, None),
     )
 }
 
@@ -313,7 +313,13 @@ async fn start_test_openai_error_server(status: StatusCode, payload: Value) -> S
         "/v1/responses",
         post(move || {
             let payload = payload.clone();
-            async move { (status, Json(payload)) }
+            async move {
+                axum::response::Response::builder()
+                    .status(status)
+                    .header("content-type", "application/json")
+                    .body(axum::body::Body::from(payload.to_string()))
+                    .unwrap()
+            }
         }),
     );
     let listener = TcpListener::bind("127.0.0.1:0")
@@ -355,31 +361,69 @@ async fn start_test_openai_tool_server(recorded_requests: Arc<Mutex<Vec<Value>>>
             async move {
                 recorded_requests.lock().await.push(body);
 
-                let payload = match request_count.fetch_add(1, Ordering::SeqCst) {
-                    0 => json!({
-                        "id": "resp_1",
-                        "output": [{
-                            "type": "function_call",
-                            "call_id": "call_1",
-                            "name": "list_accounts",
-                            "arguments": "{}"
-                        }],
-                        "output_text": ""
-                    }),
-                    _ => json!({
-                        "id": "resp_2",
-                        "output": [{
-                            "type": "message",
-                            "content": [{
-                                "type": "output_text",
-                                "text": "You have 1 account."
-                            }]
-                        }],
-                        "output_text": "You have 1 account."
-                    }),
+                let sse_body = match request_count.fetch_add(1, Ordering::SeqCst) {
+                    0 => {
+                        let created = json!({"type": "response.created", "response": {"id": "resp_1"}});
+                        let func_done = json!({"type": "response.function_call_arguments.done", "call_id": "call_1", "name": "list_accounts", "arguments": "{}"});
+                        let completed = json!({"type": "response.completed", "response": {"id": "resp_1"}});
+                        format!(
+                            "data: {}\n\ndata: {}\n\ndata: {}\n\ndata: [DONE]\n\n",
+                            created, func_done, completed
+                        )
+                    }
+                    _ => {
+                        let created = json!({"type": "response.created", "response": {"id": "resp_2"}});
+                        let delta1 = json!({"type": "response.output_text.delta", "delta": "You have "});
+                        let delta2 = json!({"type": "response.output_text.delta", "delta": "1 account."});
+                        let completed = json!({"type": "response.completed", "response": {"id": "resp_2"}});
+                        format!(
+                            "data: {}\n\ndata: {}\n\ndata: {}\n\ndata: {}\n\ndata: [DONE]\n\n",
+                            created, delta1, delta2, completed
+                        )
+                    }
                 };
 
-                Json(payload)
+                axum::response::Response::builder()
+                    .header("content-type", "text/event-stream")
+                    .body(axum::body::Body::from(sse_body))
+                    .unwrap()
+            }
+        }),
+    );
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("listener should bind");
+    let address = listener.local_addr().expect("listener should expose addr");
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("server should run");
+    });
+    format!("http://{address}/v1/responses")
+}
+
+async fn start_test_openai_reasoning_server(recorded_requests: Arc<Mutex<Vec<Value>>>) -> String {
+    let app = Router::new().route(
+        "/v1/responses",
+        post(move |Json(body): Json<Value>| {
+            let recorded_requests = Arc::clone(&recorded_requests);
+
+            async move {
+                recorded_requests.lock().await.push(body);
+
+                let created = json!({"type": "response.created", "response": {"id": "resp_r1"}});
+                let reasoning1 = json!({"type": "response.reasoning_summary_text.delta", "delta": "Let me think"});
+                let reasoning2 = json!({"type": "response.reasoning_summary_text.delta", "delta": " about this."});
+                let text1 = json!({"type": "response.output_text.delta", "delta": "The answer "});
+                let text2 = json!({"type": "response.output_text.delta", "delta": "is 42."});
+                let completed = json!({"type": "response.completed", "response": {"id": "resp_r1"}});
+                let sse_body = format!(
+                    "data: {}\n\ndata: {}\n\ndata: {}\n\ndata: {}\n\ndata: {}\n\ndata: {}\n\ndata: [DONE]\n\n",
+                    created, reasoning1, reasoning2, text1, text2, completed
+                );
+
+                axum::response::Response::builder()
+                    .header("content-type", "text/event-stream")
+                    .body(axum::body::Body::from(sse_body))
+                    .unwrap()
             }
         }),
     );
@@ -496,7 +540,7 @@ async fn assistant_models_exposes_refreshed_openai_model_list() {
         ]
     }))
     .await;
-    let assistant_models = new_shared_assistant_model_registry(Some("test-key"), None);
+    let assistant_models = new_shared_assistant_model_registry(Some("test-key"), None, None);
     refresh_assistant_model_registry(
         &assistant_models,
         &reqwest::Client::new(),
@@ -543,7 +587,7 @@ async fn assistant_models_selection_updates_in_memory_model_used_by_chat() {
         ]
     }))
     .await;
-    let assistant_models = new_shared_assistant_model_registry(Some("test-key"), None);
+    let assistant_models = new_shared_assistant_model_registry(Some("test-key"), None, None);
     refresh_assistant_model_registry(
         &assistant_models,
         &reqwest::Client::new(),
@@ -600,7 +644,7 @@ async fn assistant_models_selection_is_persisted_and_restored() {
         ]
     }))
     .await;
-    let assistant_models = new_shared_assistant_model_registry(Some("test-key"), None);
+    let assistant_models = new_shared_assistant_model_registry(Some("test-key"), None, None);
     refresh_assistant_model_registry(
         &assistant_models,
         &reqwest::Client::new(),
@@ -634,7 +678,7 @@ async fn assistant_models_selection_is_persisted_and_restored() {
     assert_eq!(persisted_model.as_deref(), Some("gpt-4.1-mini"));
 
     let restored_models =
-        new_shared_assistant_model_registry(Some("test-key"), persisted_model.as_deref());
+        new_shared_assistant_model_registry(Some("test-key"), persisted_model.as_deref(), None);
     refresh_assistant_model_registry(
         &restored_models,
         &reqwest::Client::new(),
@@ -745,11 +789,12 @@ async fn assistant_chat_completes_tool_call_round_trip_against_openai() {
             .to_string()
             .contains("\"count\":1")
     );
-    let text_delta_event = events
+    let full_text: String = events
         .iter()
-        .find(|e| e["type"] == "text_delta")
-        .expect("should have a text_delta event");
-    assert_eq!(text_delta_event["delta"], "You have 1 account.");
+        .filter(|e| e["type"] == "text_delta")
+        .filter_map(|e| e["delta"].as_str())
+        .collect();
+    assert_eq!(full_text, "You have 1 account.");
 
     let recorded_requests = recorded_requests.lock().await;
     assert_eq!(recorded_requests.len(), 2);
@@ -769,6 +814,75 @@ async fn assistant_chat_completes_tool_call_round_trip_against_openai() {
 }
 
 #[tokio::test]
+async fn assistant_chat_streams_reasoning_and_text_for_reasoning_model() {
+    let pool = test_pool().await;
+    let recorded_requests = Arc::new(Mutex::new(Vec::new()));
+    let openai_responses_url =
+        start_test_openai_reasoning_server(Arc::clone(&recorded_requests)).await;
+    let models_url = start_test_openai_models_server(json!({
+        "data": [{ "id": "o4-mini" }]
+    }))
+    .await;
+    let assistant_models = new_shared_assistant_model_registry(Some("test-key"), None, None);
+    refresh_assistant_model_registry(
+        &assistant_models,
+        &reqwest::Client::new(),
+        Some("test-key"),
+        &models_url,
+    )
+    .await
+    .expect("assistant models should refresh");
+
+    let app = build_app_with_openai_registry(
+        pool,
+        Some("test-key"),
+        openai_responses_url,
+        models_url,
+        assistant_models,
+    );
+
+    let (status, _) = put_json(
+        app.clone(),
+        "/assistant/models/selected",
+        json!({ "model": "o4-mini" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, events) = post_chat_sse(
+        app,
+        json!({
+            "messages": [
+                { "role": "user", "content": "What is the meaning of life?" }
+            ]
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+
+    let full_reasoning: String = events
+        .iter()
+        .filter(|e| e["type"] == "reasoning_delta")
+        .filter_map(|e| e["delta"].as_str())
+        .collect();
+    assert_eq!(full_reasoning, "Let me think about this.");
+
+    let full_text: String = events
+        .iter()
+        .filter(|e| e["type"] == "text_delta")
+        .filter_map(|e| e["delta"].as_str())
+        .collect();
+    assert_eq!(full_text, "The answer is 42.");
+
+    let recorded_requests = recorded_requests.lock().await;
+    assert_eq!(recorded_requests.len(), 1);
+    assert_eq!(recorded_requests[0]["reasoning"]["effort"], "medium");
+    assert_eq!(recorded_requests[0]["reasoning"]["summary"], "detailed");
+    assert_eq!(recorded_requests[0]["model"], "o4-mini");
+}
+
+#[tokio::test]
 async fn assistant_chat_returns_too_many_requests_when_semaphore_is_exhausted() {
     use tokio::sync::Semaphore;
 
@@ -780,7 +894,7 @@ async fn assistant_chat_returns_too_many_requests_when_semaphore_is_exhausted() 
         asset_price_refresh_config: no_price_config(),
         http_client: reqwest::Client::new(),
         openai_api_key: None,
-        assistant_models: new_shared_assistant_model_registry(None, None),
+        assistant_models: new_shared_assistant_model_registry(None, None, None),
         assistant_chat_semaphore: exhausted_semaphore,
         openai_responses_url: crate::assistant::openai_responses_url().to_string(),
         openai_models_url: crate::assistant::openai_models_url().to_string(),

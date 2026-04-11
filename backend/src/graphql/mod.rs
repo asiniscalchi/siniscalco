@@ -72,6 +72,7 @@ pub fn build_router(pool: SqlitePool) -> Router {
         assistant_models: crate::assistant::new_shared_assistant_model_registry(
             config.openai_api_key.as_deref(),
             None,
+            None,
         ),
         assistant_chat_semaphore: crate::assistant::new_assistant_chat_semaphore(),
         openai_responses_url: crate::assistant::openai_responses_url().to_string(),
@@ -100,6 +101,10 @@ pub fn build_router_with_state(state: AppState) -> Router {
         .route(
             "/assistant/models/selected",
             put(crate::assistant::select_model),
+        )
+        .route(
+            "/assistant/models/reasoning-effort",
+            put(crate::assistant::set_reasoning_effort),
         )
         .route(
             "/assistant/system-prompt",

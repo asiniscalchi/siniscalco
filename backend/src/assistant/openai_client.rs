@@ -1,5 +1,6 @@
-use std::convert::Infallible;
+use std::{convert::Infallible, time::Duration};
 
+use futures_util::StreamExt;
 use serde_json::{Value, json};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
@@ -14,6 +15,7 @@ use super::types::AssistantChatMessageRequest;
 const OPENAI_RESPONSES_URL: &str = "https://api.openai.com/v1/responses";
 const MAX_TOOL_ROUNDS: usize = 5;
 const MAX_INPUT_SIZE_BYTES: usize = 256 * 1024;
+const STREAM_CHUNK_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub const DEFAULT_SYSTEM_PROMPT: &str = "\
 You are a helpful portfolio assistant for the Siniscalco app. \
@@ -42,6 +44,7 @@ pub async fn openai_responses_streaming(
     incoming: &[AssistantChatMessageRequest],
     api_key: &str,
     model: &str,
+    reasoning_effort: &str,
     tx: &mpsc::Sender<Result<Event, Infallible>>,
 ) {
     let stored_prompt = crate::storage::settings::get_app_setting(
@@ -92,6 +95,7 @@ pub async fn openai_responses_streaming(
             &instructions,
             &input,
             &all_tools,
+            reasoning_effort,
             previous_response_id.as_deref(),
         );
 
@@ -123,26 +127,95 @@ pub async fn openai_responses_streaming(
             return;
         }
 
-        let payload = match response.json::<Value>().await {
-            Ok(payload) => payload,
-            Err(error) => {
-                error!(error = %error, "failed to decode Responses payload");
-                send_sse_event(tx, json!({"type": "error", "error": format!("failed to build assistant response: api error: {error}")})).await;
-                return;
+        let mut stream = response.bytes_stream();
+        let mut buffer = String::new();
+        let mut response_id: Option<String> = None;
+        let mut tool_calls: Vec<ToolCall> = Vec::new();
+
+        loop {
+            let next = tokio::time::timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await;
+            let chunk_result = match next {
+                Ok(Some(r)) => r,
+                Ok(None) => break,
+                Err(_) => {
+                    warn!(
+                        "OpenAI stream chunk timeout after {}s",
+                        STREAM_CHUNK_TIMEOUT.as_secs()
+                    );
+                    send_sse_event(tx, json!({"type": "error", "error": "failed to build assistant response: api error: stream timed out"})).await;
+                    return;
+                }
+            };
+            let chunk = match chunk_result {
+                Ok(bytes) => bytes,
+                Err(e) => {
+                    error!(error = %e, "error reading OpenAI stream chunk");
+                    send_sse_event(tx, json!({"type": "error", "error": format!("failed to build assistant response: api error: {e}")})).await;
+                    return;
+                }
+            };
+
+            buffer.push_str(&String::from_utf8_lossy(&chunk));
+
+            while let Some(newline_pos) = buffer.find('\n') {
+                let line = buffer[..newline_pos].trim().to_string();
+                buffer = buffer[newline_pos + 1..].to_string();
+
+                if line.is_empty() {
+                    continue;
+                }
+
+                let Some(data) = line.strip_prefix("data: ") else {
+                    continue;
+                };
+                let data = data.trim();
+
+                if data == "[DONE]" {
+                    debug!("OpenAI Responses stream done");
+                    continue;
+                }
+
+                let Ok(event) = serde_json::from_str::<Value>(data) else {
+                    continue;
+                };
+
+                let event_type = event["type"].as_str().unwrap_or("");
+
+                match event_type {
+                    "response.created" | "response.completed" => {
+                        if let Some(id) = event["response"]["id"].as_str() {
+                            response_id = Some(id.to_string());
+                        }
+                    }
+                    "response.output_text.delta" => {
+                        if let Some(delta) = event["delta"].as_str() {
+                            if !delta.is_empty() {
+                                send_sse_event(tx, json!({"type": "text_delta", "delta": delta}))
+                                    .await;
+                            }
+                        }
+                    }
+                    "response.reasoning_summary_text.delta" => {
+                        if let Some(delta) = event["delta"].as_str() {
+                            if !delta.is_empty() {
+                                send_sse_event(
+                                    tx,
+                                    json!({"type": "reasoning_delta", "delta": delta}),
+                                )
+                                .await;
+                            }
+                        }
+                    }
+                    "response.function_call_arguments.done" => {
+                        tool_calls.push(ToolCall {
+                            id: event["call_id"].as_str().unwrap_or_default().to_string(),
+                            name: event["name"].as_str().unwrap_or_default().to_string(),
+                            arguments: event["arguments"].as_str().unwrap_or("{}").to_string(),
+                        });
+                    }
+                    _ => {}
+                }
             }
-        };
-
-        debug!(response = %payload, "OpenAI Responses payload");
-
-        let response_id = payload
-            .get("id")
-            .and_then(Value::as_str)
-            .map(str::to_string);
-        let output_text = extract_response_output_text(&payload);
-        let tool_calls = extract_response_tool_calls(&payload);
-
-        if !output_text.is_empty() {
-            send_sse_event(tx, json!({"type": "text_delta", "delta": output_text})).await;
         }
 
         if tool_calls.is_empty() {
@@ -214,24 +287,43 @@ pub async fn openai_responses_streaming(
     .await;
 }
 
+/// Known reasoning-capable model families. OpenAI's `/v1/models` endpoint does
+/// not expose a capability flag, so we match on known prefixes. Update this
+/// list when new reasoning models are released.
+pub fn is_reasoning_model(model: &str) -> bool {
+    model.starts_with("o1")
+        || model.starts_with("o3")
+        || model.starts_with("o4")
+        || model.starts_with("o5")
+        || model.starts_with("gpt-5")
+}
+
 fn build_responses_request_body(
     model: &str,
     instructions: &str,
     input: &Value,
     tools: &[Value],
+    reasoning_effort: &str,
     previous_response_id: Option<&str>,
 ) -> Value {
     let mut body = json!({
         "model": model,
+        "instructions": instructions,
         "input": input,
         "tools": tools,
-        "store": true,
+        "stream": true,
+        "store": false,
     });
+
+    if is_reasoning_model(model) {
+        body["reasoning"] = json!({
+            "effort": reasoning_effort,
+            "summary": "detailed",
+        });
+    }
 
     if let Some(previous_response_id) = previous_response_id {
         body["previous_response_id"] = json!(previous_response_id);
-    } else {
-        body["instructions"] = json!(instructions);
     }
 
     body
@@ -332,10 +424,7 @@ fn extract_message_text(content: &Value) -> String {
                 return None;
             }
 
-            part["text"]
-                .as_str()
-                .or_else(|| part["text"]["value"].as_str())
-                .map(str::to_string)
+            part["text"].as_str().map(str::to_string)
         })
         .collect::<Vec<_>>()
         .join("")
@@ -361,16 +450,11 @@ fn extract_response_output_text(payload: &Value) -> String {
         .filter(|item| item["type"].as_str() == Some("message"))
         .flat_map(|item| item["content"].as_array().into_iter().flatten())
         .filter_map(|part| {
-            let part_type = part["type"].as_str();
-            if !matches!(part_type, Some("output_text") | Some("text")) {
+            if part["type"].as_str() != Some("output_text") {
                 return None;
             }
 
-            part["text"]
-                .as_str()
-                .or_else(|| part["text"]["value"].as_str())
-                .or_else(|| part["value"].as_str())
-                .map(str::to_string)
+            part["text"].as_str().map(str::to_string)
         })
         .collect::<Vec<_>>()
         .join("")
@@ -484,13 +568,77 @@ mod tests {
     }
 
     #[test]
+    fn is_reasoning_model_matches_known_families() {
+        assert!(is_reasoning_model("o3"));
+        assert!(is_reasoning_model("o3-mini"));
+        assert!(is_reasoning_model("o4-mini"));
+        assert!(is_reasoning_model("o1-preview"));
+        assert!(is_reasoning_model("o5"));
+        assert!(is_reasoning_model("gpt-5.4"));
+        assert!(is_reasoning_model("gpt-5.4-mini"));
+        assert!(is_reasoning_model("gpt-5.4-nano"));
+    }
+
+    #[test]
+    fn is_reasoning_model_rejects_non_reasoning() {
+        assert!(!is_reasoning_model("gpt-4.1"));
+        assert!(!is_reasoning_model("gpt-4.1-mini"));
+        assert!(!is_reasoning_model("gpt-4o"));
+        assert!(!is_reasoning_model("gpt-4o-mini"));
+    }
+
+    #[test]
+    fn build_body_includes_reasoning_for_reasoning_model() {
+        let body = build_responses_request_body(
+            "o4-mini",
+            "You are helpful.",
+            &json!([]),
+            &[],
+            "high",
+            None,
+        );
+        assert_eq!(body["reasoning"]["effort"], "high");
+        assert_eq!(body["reasoning"]["summary"], "detailed");
+        assert_eq!(body["store"], false);
+        assert_eq!(body["stream"], true);
+        assert_eq!(body["instructions"], "You are helpful.");
+    }
+
+    #[test]
+    fn build_body_omits_reasoning_for_non_reasoning_model() {
+        let body = build_responses_request_body(
+            "gpt-4.1-mini",
+            "You are helpful.",
+            &json!([]),
+            &[],
+            "medium",
+            None,
+        );
+        assert!(body.get("reasoning").is_none());
+    }
+
+    #[test]
+    fn build_body_includes_previous_response_id_when_provided() {
+        let body = build_responses_request_body(
+            "gpt-4.1",
+            "instructions",
+            &json!([]),
+            &[],
+            "medium",
+            Some("resp_abc"),
+        );
+        assert_eq!(body["previous_response_id"], "resp_abc");
+        assert_eq!(body["instructions"], "instructions");
+    }
+
+    #[test]
     fn extract_response_output_text_reads_message_content() {
         let payload = json!({
             "output": [{
                 "type": "message",
                 "content": [
                     { "type": "output_text", "text": "Hello " },
-                    { "type": "output_text", "text": { "value": "world" } }
+                    { "type": "output_text", "text": "world" }
                 ]
             }]
         });

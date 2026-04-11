@@ -18,6 +18,10 @@ export function getAssistantSelectedModelApiUrl() {
   return `${getApiBaseUrl()}/assistant/models/selected`;
 }
 
+export function getAssistantReasoningEffortApiUrl() {
+  return `${getApiBaseUrl()}/assistant/models/reasoning-effort`;
+}
+
 export function getAssistantSystemPromptApiUrl() {
   return `${getApiBaseUrl()}/assistant/system-prompt`;
 }
