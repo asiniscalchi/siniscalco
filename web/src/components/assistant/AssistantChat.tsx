@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   AssistantRuntimeProvider,
@@ -11,6 +11,9 @@ import {
   useLocalRuntime,
   useRemoteThreadListRuntime,
   type ChatModelAdapter,
+  type ReasoningMessagePart,
+  type ReasoningMessagePartProps,
+  type TextMessagePart,
   type ThreadMessageLike,
   type ToolCallMessagePart,
   type ToolCallMessagePartProps,
@@ -55,13 +58,17 @@ type ChatStreamEvent =
   | { type: "text"; text: string; model: string }
   | { type: "error"; error: string };
 
-function formatWithReasoning(reasoning: string, text: string): string {
-  if (!reasoning) return text;
-  const quoted = reasoning
-    .split("\n")
-    .map((line) => "> " + line)
-    .join("\n");
-  return "**Reasoning**\n" + quoted + "\n\n" + text;
+type AssistantContentPart = ToolCallMessagePart | ReasoningMessagePart | TextMessagePart;
+
+function buildAssistantContent(
+  toolCalls: ToolCallMessagePart[],
+  reasoning: string,
+  text: string,
+): AssistantContentPart[] {
+  const content: AssistantContentPart[] = [...toolCalls];
+  if (reasoning) content.push({ type: "reasoning", text: reasoning });
+  if (text) content.push({ type: "text", text });
+  return content;
 }
 
 function extractMessageText(message: ThreadMessageLike): string {
@@ -212,12 +219,13 @@ const assistantModelAdapter: ChatModelAdapter = {
           }
         } else if (event.type === "reasoning_delta") {
           accumulatedReasoning += event.delta;
-          yield { content: [...toolCalls, { type: "text" as const, text: formatWithReasoning(accumulatedReasoning, accumulatedText) }] };
+          yield { content: buildAssistantContent(toolCalls, accumulatedReasoning, accumulatedText) };
         } else if (event.type === "text_delta") {
           accumulatedText += event.delta;
-          yield { content: [...toolCalls, { type: "text" as const, text: formatWithReasoning(accumulatedReasoning, accumulatedText) }] };
+          yield { content: buildAssistantContent(toolCalls, accumulatedReasoning, accumulatedText) };
         } else if (event.type === "text") {
-          yield { content: [...toolCalls, { type: "text" as const, text: event.text }] };
+          accumulatedText = event.text;
+          yield { content: buildAssistantContent(toolCalls, accumulatedReasoning, accumulatedText) };
         } else if (event.type === "error") {
           throw new Error(event.error);
         }
@@ -399,6 +407,35 @@ function ToolCallDisplay({ toolName, result }: ToolCallMessagePartProps) {
   );
 }
 
+function ReasoningDisplay({ text, status }: ReasoningMessagePartProps) {
+  const [open, setOpen] = useState(false);
+  const bodyId = useId();
+  const isRunning = status.type === "running";
+
+  return (
+    <div className="overflow-hidden rounded-lg border bg-muted/40 text-xs text-muted-foreground">
+      <button
+        aria-controls={bodyId}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left"
+        onClick={() => setOpen((value) => !value)}
+        type="button"
+      >
+        <span className="font-medium text-foreground">Reasoning</span>
+        <span>{isRunning ? "thinking..." : open ? "hide" : "show"}</span>
+      </button>
+      {open && (
+        <div
+          className="border-t bg-background/70 px-3 py-2 text-xs leading-5 whitespace-pre-wrap text-foreground"
+          id={bodyId}
+        >
+          {text || "Reasoning is still streaming."}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AssistantMessage() {
   return (
     <MessagePrimitive.Root className="flex flex-col items-start gap-2">
@@ -409,6 +446,7 @@ function AssistantMessage() {
         <MessagePrimitive.Parts
           components={{
             Empty: AssistantThinking,
+            Reasoning: ReasoningDisplay,
             Text: AssistantMessageText,
             tools: { Fallback: ToolCallDisplay },
           }}

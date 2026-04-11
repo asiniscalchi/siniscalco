@@ -101,4 +101,39 @@ describe("AssistantPage", () => {
 
     expect(await screen.findByText(/Hello from streaming\./)).toBeTruthy();
   });
+
+  it("renders reasoning as an expandable message part", async () => {
+    vi.mocked(fetch).mockImplementation((url) => {
+      if (String(url).includes("/assistant/threads")) {
+        return threadsResponse();
+      }
+      const body = [
+        'data: {"type":"reasoning_delta","delta":"Checking portfolio accounts."}',
+        'data: {"type":"text_delta","delta":"Your portfolio is empty."}',
+        "",
+      ].join("\n\n");
+      return Promise.resolve(
+        new Response(body, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        }),
+      );
+    });
+
+    render(<AssistantPage />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Assistant message" }), {
+      target: { value: "What about my portfolio?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText("Your portfolio is empty.")).toBeTruthy();
+    const reasoningToggle = await screen.findByRole("button", { name: /reasoning/i });
+    expect(reasoningToggle.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(reasoningToggle);
+
+    expect(reasoningToggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText("Checking portfolio accounts.")).toBeTruthy();
+  });
 });
