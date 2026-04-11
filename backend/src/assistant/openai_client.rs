@@ -131,6 +131,8 @@ pub async fn openai_responses_streaming(
         let mut buffer = String::new();
         let mut response_id: Option<String> = None;
         let mut tool_calls: Vec<ToolCall> = Vec::new();
+        let mut pending_tool_calls: std::collections::HashMap<String, ToolCall> =
+            std::collections::HashMap::new();
 
         loop {
             let next = tokio::time::timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await;
@@ -206,12 +208,37 @@ pub async fn openai_responses_streaming(
                             }
                         }
                     }
+                    "response.output_item.added" => {
+                        let item = &event["item"];
+                        if item["type"].as_str() == Some("function_call") {
+                            let item_id = item["id"].as_str().unwrap_or_default().to_string();
+                            if !item_id.is_empty() {
+                                pending_tool_calls.insert(
+                                    item_id,
+                                    ToolCall {
+                                        id: item["call_id"]
+                                            .as_str()
+                                            .unwrap_or_default()
+                                            .to_string(),
+                                        name: item["name"].as_str().unwrap_or_default().to_string(),
+                                        arguments: String::new(),
+                                    },
+                                );
+                            }
+                        }
+                    }
                     "response.function_call_arguments.done" => {
-                        tool_calls.push(ToolCall {
-                            id: event["call_id"].as_str().unwrap_or_default().to_string(),
-                            name: event["name"].as_str().unwrap_or_default().to_string(),
-                            arguments: event["arguments"].as_str().unwrap_or("{}").to_string(),
-                        });
+                        let item_id = event["item_id"].as_str().unwrap_or_default().to_string();
+                        let arguments = event["arguments"].as_str().unwrap_or("{}").to_string();
+                        if let Some(mut tc) = pending_tool_calls.remove(&item_id) {
+                            tc.arguments = arguments;
+                            tool_calls.push(tc);
+                        } else {
+                            warn!(
+                                item_id = %item_id,
+                                "received function_call_arguments.done without matching output_item.added"
+                            );
+                        }
                     }
                     _ => {}
                 }

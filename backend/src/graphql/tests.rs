@@ -364,11 +364,12 @@ async fn start_test_openai_tool_server(recorded_requests: Arc<Mutex<Vec<Value>>>
                 let sse_body = match request_count.fetch_add(1, Ordering::SeqCst) {
                     0 => {
                         let created = json!({"type": "response.created", "response": {"id": "resp_1"}});
-                        let func_done = json!({"type": "response.function_call_arguments.done", "call_id": "call_1", "name": "list_accounts", "arguments": "{}"});
+                        let output_item_added = json!({"type": "response.output_item.added", "output_index": 0, "item": {"type": "function_call", "id": "fc_1", "call_id": "call_1", "name": "list_accounts", "arguments": ""}});
+                        let func_done = json!({"type": "response.function_call_arguments.done", "item_id": "fc_1", "output_index": 0, "arguments": "{}"});
                         let completed = json!({"type": "response.completed", "response": {"id": "resp_1"}});
                         format!(
-                            "data: {}\n\ndata: {}\n\ndata: {}\n\ndata: [DONE]\n\n",
-                            created, func_done, completed
+                            "data: {}\n\ndata: {}\n\ndata: {}\n\ndata: {}\n\ndata: [DONE]\n\n",
+                            created, output_item_added, func_done, completed
                         )
                     }
                     _ => {
