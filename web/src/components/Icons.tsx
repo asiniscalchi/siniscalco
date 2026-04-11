@@ -279,6 +279,26 @@ export function HistoryIcon({ className }: IconProps) {
   );
 }
 
+export function SidebarToggleIcon({ className }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className || "size-4"}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect height="16" rx="2" width="18" x="3" y="4" />
+      <path d="M9 4v16" />
+      <path d="M14 9l3 3-3 3" />
+    </svg>
+  );
+}
+
 export function SettingsIcon({ className }: IconProps) {
   return (
     <svg

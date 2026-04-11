@@ -9,7 +9,7 @@ import {
   getAssistantSelectedModelApiUrl,
   getAssistantSystemPromptApiUrl,
 } from "@/lib/env";
-import { ChatBubbleIcon, CloseIcon, HistoryIcon, SettingsIcon } from "@/components/Icons";
+import { CloseIcon, SettingsIcon, SidebarToggleIcon } from "@/components/Icons";
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 import { cn } from "@/lib/utils";
 
@@ -361,7 +361,24 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
           {/* Header */}
           <div className="flex items-center justify-between gap-2 border-b px-3 py-3 sm:gap-4 sm:px-5">
             <div className="flex min-w-0 items-center gap-2 sm:gap-4">
-              <ChatBubbleIcon className="size-5 shrink-0 text-muted-foreground" />
+              <Button
+                aria-label={historyOpen ? "Hide chat history" : "Show chat history"}
+                aria-pressed={historyOpen}
+                className={cn(
+                  "size-9 shrink-0 rounded-full",
+                  historyOpen && activeTab === "chat" && "bg-muted text-foreground",
+                )}
+                onClick={() => {
+                  setActiveTab("chat");
+                  setHistoryOpen((v) => (activeTab === "chat" ? !v : true));
+                }}
+                size="icon"
+                title={historyOpen ? "Hide chat history" : "Show chat history"}
+                type="button"
+                variant="ghost"
+              >
+                <SidebarToggleIcon />
+              </Button>
               <select
                 aria-label="Assistant model"
                 className="h-8 min-w-0 max-w-[10rem] truncate rounded-lg border border-input bg-transparent px-2 text-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
@@ -419,24 +436,6 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                 variant="ghost"
               >
                 <SettingsIcon />
-              </Button>
-              <Button
-                aria-label={historyOpen ? "Hide chat history" : "Show chat history"}
-                aria-pressed={historyOpen}
-                className={cn(
-                  "size-9 rounded-full",
-                  historyOpen && activeTab === "chat" && "bg-muted text-foreground",
-                )}
-                onClick={() => {
-                  setActiveTab("chat");
-                  setHistoryOpen((v) => (activeTab === "chat" ? !v : true));
-                }}
-                size="icon"
-                title={historyOpen ? "Hide chat history" : "Show chat history"}
-                type="button"
-                variant="ghost"
-              >
-                <HistoryIcon />
               </Button>
               <Button
                 aria-label="Close assistant chat"
