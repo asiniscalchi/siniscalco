@@ -16,7 +16,7 @@ export function formatPrice(asset: AssetItem): string {
 
   return formatMoney(asset.currentPrice, asset.currentPriceCurrency, false, {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 6,
+    maximumFractionDigits: 2,
   }).text;
 }
 
