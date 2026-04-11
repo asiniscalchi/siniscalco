@@ -138,6 +138,7 @@ describe("AssetsPage", () => {
     expect(screen.getAllByText("STOCK").length).toBeGreaterThan(0);
     expect(screen.getAllByText("US0378331005").length).toBeGreaterThan(0);
     expect(screen.getAllByText("189.32 USD").length).toBeGreaterThan(0);
+    expect(screen.getByText("Updated 2026-03-24")).toBeTruthy();
     expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
 
     expect(screen.getAllByText("BTC").length).toBeGreaterThan(0);
