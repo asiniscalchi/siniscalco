@@ -15,7 +15,10 @@ use super::{
     },
     refresh_asset_prices,
 };
-use crate::{AssetType, CreateAssetInput, Currency, get_asset, init_db};
+use crate::{
+    AssetType, CreateAssetInput, Currency, UpsertAssetQuoteSourceInput, get_asset, init_db,
+    upsert_asset_quote_source,
+};
 
 async fn test_pool() -> sqlx::SqlitePool {
     let options = SqliteConnectOptions::from_str("sqlite::memory:")
@@ -636,6 +639,12 @@ async fn tries_all_openfigi_tickers_until_success() {
     assert_eq!(updated_count, 1);
     assert_eq!(asset.current_price.unwrap().to_string(), "22.5");
     assert_eq!(asset.current_price_currency, Some(Currency::Usd));
+    assert_eq!(asset.quote_source_symbol.as_deref(), Some("EIMI"));
+    assert_eq!(asset.quote_source_provider.as_deref(), Some("twelve_data"));
+    assert_eq!(
+        asset.quote_source_last_success_at.as_deref(),
+        Some("2026-03-25T00:00:00Z")
+    );
 }
 
 #[tokio::test]
@@ -715,6 +724,92 @@ async fn resolves_isin_via_openfigi_and_fetches_price() {
     assert_eq!(updated_count, 1);
     assert_eq!(asset.current_price.unwrap().to_string(), "188.5");
     assert_eq!(asset.current_price_currency, Some(Currency::Usd));
+    assert_eq!(asset.quote_source_symbol.as_deref(), Some("AAPL"));
+    assert_eq!(asset.quote_source_provider.as_deref(), Some("finnhub"));
+}
+
+#[tokio::test]
+async fn uses_cached_quote_source_before_openfigi_resolution() {
+    let pool = test_pool().await;
+    let asset_id = crate::create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: "Apple".try_into().unwrap(),
+            name: "Apple".try_into().unwrap(),
+            asset_type: AssetType::Stock,
+            quote_symbol: None,
+            isin: Some("US0378331005".to_string()),
+        },
+    )
+    .await
+    .expect("asset should be created");
+
+    upsert_asset_quote_source(
+        &pool,
+        UpsertAssetQuoteSourceInput {
+            asset_id,
+            quote_symbol: "AAPL".to_string(),
+            provider: "finnhub".to_string(),
+            last_success_at: "2026-03-24T12:00:00Z".to_string(),
+        },
+    )
+    .await
+    .expect("quote source should be cached");
+
+    let finnhub_base_url = start_test_server_at(
+        "/api/v1/quote",
+        json!({
+            "c": 189.75,
+            "t": 1742817600
+        }),
+    )
+    .await;
+
+    let updated_count = refresh_asset_prices(
+        &pool,
+        &Client::new(),
+        &AssetPriceRefreshConfig {
+            refresh_interval: Duration::from_secs(60),
+            coingecko_base_url: "http://127.0.0.1:1".to_string(),
+            coincap_base_url: "http://127.0.0.1:1".to_string(),
+            coincap_api_key: None,
+            openfigi_base_url: "http://127.0.0.1:1".to_string(),
+            openfigi_api_key: None,
+            yahoo_finance_base_url: "http://127.0.0.1:1".to_string(),
+            yahoo_finance_enabled: false,
+            twelve_data_base_url: "http://127.0.0.1:1".to_string(),
+            twelve_data_api_key: None,
+            finnhub_base_url,
+            finnhub_api_key: Some("test-key".to_string()),
+            alpha_vantage_base_url: "http://127.0.0.1:1".to_string(),
+            alpha_vantage_api_key: None,
+            polygon_base_url: "http://127.0.0.1:1".to_string(),
+            polygon_api_key: None,
+            fmp_base_url: "http://127.0.0.1:1".to_string(),
+            fmp_api_key: None,
+            eodhd_base_url: "http://127.0.0.1:1".to_string(),
+            eodhd_api_key: None,
+            tiingo_base_url: "http://127.0.0.1:1".to_string(),
+            tiingo_api_key: None,
+            marketstack_base_url: "http://127.0.0.1:1".to_string(),
+            marketstack_api_key: None,
+            fcsapi_base_url: "http://127.0.0.1:1".to_string(),
+            fcsapi_api_key: None,
+            itick_base_url: "http://127.0.0.1:1".to_string(),
+            itick_api_key: None,
+        },
+    )
+    .await
+    .expect("refresh should use cached source without OpenFIGI");
+
+    let asset = get_asset(&pool, asset_id)
+        .await
+        .expect("asset should load with price");
+
+    assert_eq!(updated_count, 1);
+    assert_eq!(asset.current_price.unwrap().to_string(), "189.75");
+    assert_eq!(asset.quote_source_symbol.as_deref(), Some("AAPL"));
+    assert_eq!(asset.quote_source_provider.as_deref(), Some("finnhub"));
 }
 
 #[tokio::test]

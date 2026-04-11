@@ -133,6 +133,9 @@ pub struct AssetRecord {
     pub asset_type: AssetType,
     pub quote_symbol: Option<String>,
     pub isin: Option<String>,
+    pub quote_source_symbol: Option<String>,
+    pub quote_source_provider: Option<String>,
+    pub quote_source_last_success_at: Option<String>,
     pub current_price: Option<AssetUnitPrice>,
     pub current_price_currency: Option<Currency>,
     pub current_price_as_of: Option<String>,
@@ -151,6 +154,14 @@ pub struct UpsertAssetPriceInput {
     pub price: AssetUnitPrice,
     pub currency: Currency,
     pub as_of: String,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct UpsertAssetQuoteSourceInput {
+    pub asset_id: AssetId,
+    pub quote_symbol: String,
+    pub provider: String,
+    pub last_success_at: String,
 }
 
 #[derive(Debug, Eq, PartialEq)]
