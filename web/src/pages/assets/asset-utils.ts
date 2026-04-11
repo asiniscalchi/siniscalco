@@ -9,6 +9,26 @@ export type GainResult = {
   positive: boolean;
 };
 
+const PROVIDER_LABELS: Record<string, string> = {
+  alpha_vantage: "Alpha Vantage",
+  coincap: "CoinCap",
+  coingecko: "CoinGecko",
+  eodhd: "EODHD",
+  fcsapi: "FCS API",
+  finnhub: "Finnhub",
+  fmp: "FMP",
+  itick: "iTick",
+  marketstack: "Marketstack",
+  polygon: "Polygon",
+  tiingo: "Tiingo",
+  twelve_data: "Twelve Data",
+  yahoo: "Yahoo",
+};
+
+export function formatProviderName(provider: string): string {
+  return PROVIDER_LABELS[provider] ?? provider;
+}
+
 export function formatPrice(asset: AssetItem): string {
   if (!asset.currentPrice || !asset.currentPriceCurrency) {
     return "Pending";
@@ -81,4 +101,41 @@ export function priceLabel(asset: AssetItem): string {
   }
 
   return asset.quoteSymbol || asset.symbol;
+}
+
+export function quoteSourceLabel(asset: AssetItem): string | null {
+  if (asset.quoteSourceSymbol && asset.quoteSourceProvider) {
+    return `${asset.quoteSourceSymbol} via ${formatProviderName(asset.quoteSourceProvider)}`;
+  }
+
+  if (asset.quoteSourceSymbol) {
+    return asset.quoteSourceSymbol;
+  }
+
+  if (asset.quoteSymbol) {
+    return `${asset.quoteSymbol} manual`;
+  }
+
+  return null;
+}
+
+export function quoteSourceUpdatedLabel(asset: AssetItem): string | null {
+  const timestamp = asset.quoteSourceLastSuccessAt ?? asset.currentPriceAsOf;
+  const isoDate = timestamp?.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+
+  return isoDate ? `Detected ${isoDate}` : null;
+}
+
+export function priceHealthLabel(assets: AssetItem[]): string {
+  const priced = assets.filter((asset) => asset.currentPrice && asset.currentPriceCurrency).length;
+  const pending = assets.length - priced;
+  const detectedSources = assets.filter(
+    (asset) => asset.quoteSourceSymbol || asset.quoteSourceProvider,
+  ).length;
+
+  const parts = [`${priced} priced`];
+  if (pending > 0) parts.push(`${pending} pending`);
+  if (detectedSources > 0) parts.push(`${detectedSources} detected source${detectedSources === 1 ? "" : "s"}`);
+
+  return `Prices: ${parts.join(" · ")}`;
 }

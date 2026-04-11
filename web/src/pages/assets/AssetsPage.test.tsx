@@ -95,6 +95,9 @@ describe("AssetsPage", () => {
                 assetType: "STOCK",
                 quoteSymbol: "AAPL",
                 isin: "US0378331005",
+                quoteSourceSymbol: "AAPL",
+                quoteSourceProvider: "yahoo",
+                quoteSourceLastSuccessAt: "2026-03-24T14:30:00Z",
                 currentPrice: "189.326789",
                 currentPriceCurrency: "USD",
                 currentPriceAsOf: "2026-03-24T14:30:00Z",
@@ -113,6 +116,9 @@ describe("AssetsPage", () => {
                 assetType: "CRYPTO",
                 quoteSymbol: "BTC/USD",
                 isin: null,
+                quoteSourceSymbol: null,
+                quoteSourceProvider: null,
+                quoteSourceLastSuccessAt: null,
                 currentPrice: null,
                 currentPriceCurrency: null,
                 currentPriceAsOf: null,
@@ -139,6 +145,10 @@ describe("AssetsPage", () => {
     expect(screen.getAllByText("US0378331005").length).toBeGreaterThan(0);
     expect(screen.getAllByText("189.33 USD").length).toBeGreaterThan(0);
     expect(screen.getByText("Updated 2026-03-24")).toBeTruthy();
+    expect(screen.getAllByText("AAPL via Yahoo").length).toBeGreaterThan(0);
+    expect(screen.getByTestId("asset-price-health").textContent).toBe(
+      "Prices: 1 priced · 1 pending · 1 detected source",
+    );
     expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
 
     expect(screen.getAllByText("BTC").length).toBeGreaterThan(0);
@@ -149,6 +159,50 @@ describe("AssetsPage", () => {
 
     // Check that Actions column is NOT present when locked
     expect(screen.queryByText("Actions")).toBeNull();
+  });
+
+  it("shows detected quote source details in the edit modal", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            assets: [
+              {
+                id: 1,
+                symbol: "AAPL",
+                name: "Apple Inc.",
+                assetType: "STOCK",
+                quoteSymbol: null,
+                isin: "US0378331005",
+                quoteSourceSymbol: "AAPL",
+                quoteSourceProvider: "twelve_data",
+                quoteSourceLastSuccessAt: "2026-03-24T14:30:00Z",
+                currentPrice: "189.326789",
+                currentPriceCurrency: "USD",
+                currentPriceAsOf: "2026-03-24T14:30:00Z",
+                totalQuantity: null,
+                convertedTotalValue: null,
+                convertedTotalValueCurrency: null,
+                avgCostBasis: null,
+                avgCostBasisCurrency: null,
+                previousClose: null,
+                previousCloseCurrency: null,
+              },
+            ],
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    renderAssetsPage();
+
+    await screen.findAllByText("AAPL");
+    await unlockEditMode();
+    fireEvent.click((await screen.findAllByTitle("Edit asset"))[0]);
+
+    expect(screen.getByText("Detected quote source")).toBeTruthy();
+    expect(screen.getByText("AAPL via Twelve Data · Detected 2026-03-24")).toBeTruthy();
   });
 
   it("shows empty state when no assets exist", async () => {
@@ -536,6 +590,9 @@ function makeAsset(overrides: Partial<{
   currentPriceCurrency: string | null;
   previousClose: string | null;
   previousCloseCurrency: string | null;
+  quoteSourceSymbol: string | null;
+  quoteSourceProvider: string | null;
+  quoteSourceLastSuccessAt: string | null;
 }> = {}) {
   return {
     id: overrides.id ?? 1,
@@ -544,6 +601,9 @@ function makeAsset(overrides: Partial<{
     assetType: "STOCK",
     quoteSymbol: null,
     isin: null,
+    quoteSourceSymbol: overrides.quoteSourceSymbol ?? null,
+    quoteSourceProvider: overrides.quoteSourceProvider ?? null,
+    quoteSourceLastSuccessAt: overrides.quoteSourceLastSuccessAt ?? null,
     currentPrice: overrides.currentPrice ?? null,
     currentPriceCurrency: overrides.currentPriceCurrency ?? null,
     currentPriceAsOf: null,
