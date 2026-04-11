@@ -9,7 +9,7 @@ import {
   getAssistantSelectedModelApiUrl,
   getAssistantSystemPromptApiUrl,
 } from "@/lib/env";
-import { CloseIcon, HistoryIcon } from "@/components/Icons";
+import { ChatBubbleIcon, CloseIcon, HistoryIcon, SettingsIcon } from "@/components/Icons";
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 import { cn } from "@/lib/utils";
 
@@ -359,12 +359,12 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
       <AssistantRuntimeBoundary>
         <div className="flex h-[min(46rem,100%)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl">
           {/* Header */}
-          <div className="flex items-center justify-between gap-4 border-b px-5 py-3">
-            <div className="flex items-center gap-4">
-              <span className="text-sm font-semibold">Assistant</span>
+          <div className="flex items-center justify-between gap-2 border-b px-3 py-3 sm:gap-4 sm:px-5">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+              <ChatBubbleIcon className="size-5 shrink-0 text-muted-foreground" />
               <select
                 aria-label="Assistant model"
-                className="h-8 max-w-[10rem] truncate rounded-lg border border-input bg-transparent px-2 text-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-8 min-w-0 max-w-[10rem] truncate rounded-lg border border-input bg-transparent px-2 text-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={
                   assistantModelsStatus === "loading" ||
                   assistantModelsStatus === "saving" ||
@@ -403,34 +403,23 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                   ))}
                 </select>
               )}
-              <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
-                <button
-                  className={cn(
-                    "rounded-md px-3 py-1 text-sm font-medium transition-colors",
-                    activeTab === "chat"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                  onClick={() => setActiveTab("chat")}
-                  type="button"
-                >
-                  Chat
-                </button>
-                <button
-                  className={cn(
-                    "rounded-md px-3 py-1 text-sm font-medium transition-colors",
-                    activeTab === "settings"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                  onClick={() => setActiveTab("settings")}
-                  type="button"
-                >
-                  Settings
-                </button>
-              </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              <Button
+                aria-label={activeTab === "settings" ? "Hide settings" : "Show settings"}
+                aria-pressed={activeTab === "settings"}
+                className={cn(
+                  "size-9 rounded-full",
+                  activeTab === "settings" && "bg-muted text-foreground",
+                )}
+                onClick={() => setActiveTab(activeTab === "settings" ? "chat" : "settings")}
+                size="icon"
+                title={activeTab === "settings" ? "Hide settings" : "Show settings"}
+                type="button"
+                variant="ghost"
+              >
+                <SettingsIcon />
+              </Button>
               <Button
                 aria-label={historyOpen ? "Hide chat history" : "Show chat history"}
                 aria-pressed={historyOpen}
