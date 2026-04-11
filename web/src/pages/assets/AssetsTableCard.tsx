@@ -17,7 +17,9 @@ import {
   formatGain,
   formatPrice,
   formatTotalValue,
+  priceHealthLabel,
   priceLabel,
+  quoteSourceLabel,
 } from "./asset-utils";
 
 const ftMarketsUrl = (isin: string) =>
@@ -39,6 +41,7 @@ export function AssetsTableCard() {
 
   const { data, loading, error, refetch } = useQuery<AssetsQuery>(ASSETS_QUERY, { fetchPolicy: "cache-and-network" });
   const assets = data?.assets ?? [];
+  const priceHealth = priceHealthLabel(assets);
 
   const [deleteAssetMutation] = useMutation(DELETE_ASSET_MUTATION, {
     refetchQueries: ["Assets"],
@@ -85,6 +88,11 @@ export function AssetsTableCard() {
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div className="space-y-1">
             <h1 className="text-2xl font-semibold tracking-tight">Assets</h1>
+            {assets.length > 0 && (
+              <p className="text-xs text-muted-foreground" data-testid="asset-price-health">
+                {priceHealth}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -145,6 +153,7 @@ export function AssetsTableCard() {
                   const daily = formatDailyGain(asset);
                   const gain = formatGain(asset);
                   const totalValue = formatTotalValue(asset);
+                  const source = quoteSourceLabel(asset);
 
                   return (
                     <div
@@ -157,6 +166,14 @@ export function AssetsTableCard() {
                         <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                           <span className="font-mono tabular-nums">{formatPrice(asset)}</span>
                         </div>
+                        {source && (
+                          <div
+                            className="mt-0.5 truncate text-[11px] text-muted-foreground"
+                            data-testid={`mobile-asset-source-${asset.id}`}
+                          >
+                            {source}
+                          </div>
+                        )}
                         {daily && (
                           <div className={`mt-0.5 font-mono tabular-nums text-[11px] ${daily.positive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                             Today: {daily.abs ? `${daily.abs} (${daily.pct})` : daily.pct}
@@ -256,7 +273,10 @@ export function AssetsTableCard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {assets.map((asset) => (
+                    {assets.map((asset) => {
+                      const source = quoteSourceLabel(asset);
+
+                      return (
                       <tr
                         className="group transition-colors hover:bg-muted/30"
                         key={asset.id}
@@ -276,6 +296,14 @@ export function AssetsTableCard() {
                           <div className="text-[11px] text-muted-foreground">
                             {priceLabel(asset)}
                           </div>
+                          {source && (
+                            <div
+                              className="text-[11px] text-muted-foreground"
+                              data-testid={`asset-source-${asset.id}`}
+                            >
+                              {source}
+                            </div>
+                          )}
                         </td>
                         <td className="py-3 pr-4 font-mono text-[11px] text-muted-foreground">
                           {asset.isin ? (
@@ -369,7 +397,8 @@ export function AssetsTableCard() {
                           </td>
                         )}
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

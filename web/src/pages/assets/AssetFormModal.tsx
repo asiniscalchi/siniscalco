@@ -9,6 +9,8 @@ import { extractGqlErrorMessage, extractGqlFieldErrors } from "@/lib/gql";
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 import { type AssetType, type AssetsQuery } from "@/gql/types";
 
+import { quoteSourceLabel, quoteSourceUpdatedLabel } from "./asset-utils";
+
 const CREATE_ASSET_MUTATION = gql`
   mutation CreateAsset($input: AssetInput!) {
     createAsset(input: $input) {
@@ -77,6 +79,8 @@ export function AssetFormModal({
     refetchQueries: ["Assets"],
   });
   const isSubmitting = creating || updating;
+  const quoteSource = editingAsset ? quoteSourceLabel(editingAsset) : null;
+  const quoteSourceUpdated = editingAsset ? quoteSourceUpdatedLabel(editingAsset) : null;
 
   useBodyScrollLock(open);
 
@@ -223,6 +227,15 @@ export function AssetFormModal({
                 />
               </FormField>
             </div>
+            {editingAsset && (
+              <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                <div className="font-medium">Detected quote source</div>
+                <div className="mt-1 text-muted-foreground">
+                  {quoteSource ?? "No detected source yet"}
+                  {quoteSourceUpdated ? ` · ${quoteSourceUpdated}` : ""}
+                </div>
+              </div>
+            )}
             {submitError ? (
               <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                 {submitError}

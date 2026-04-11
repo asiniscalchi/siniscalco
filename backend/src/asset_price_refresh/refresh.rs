@@ -3,13 +3,19 @@ use sqlx::SqlitePool;
 use tracing::{info, warn};
 
 use crate::{
-    AssetId, AssetRecord, AssetType, UpsertAssetPriceInput, get_asset, list_assets,
-    upsert_asset_price,
+    AssetId, AssetRecord, AssetType, UpsertAssetPriceInput, UpsertAssetQuoteSourceInput, get_asset,
+    list_assets, upsert_asset_price, upsert_asset_quote_source,
 };
 
 use super::config::AssetPriceRefreshConfig;
 use super::providers::{fetch_coincap_quote, fetch_coingecko_quote, fetch_openfigi_tickers};
 use super::types::{AssetPriceRefreshError, AssetQuote};
+
+struct ResolvedQuote {
+    quote: AssetQuote,
+    quote_symbol: String,
+    provider: String,
+}
 
 pub async fn refresh_asset_prices(
     pool: &SqlitePool,
@@ -73,7 +79,7 @@ pub async fn refresh_single_asset_price(
 ) -> Result<bool, AssetPriceRefreshError> {
     let asset = get_asset(pool, asset_id).await?;
 
-    let quote = if asset.asset_type == AssetType::Crypto {
+    let resolved = if asset.asset_type == AssetType::Crypto {
         fetch_crypto_quote(client, config, &asset).await?
     } else {
         match fetch_stock_quote(client, config, &asset).await? {
@@ -86,9 +92,20 @@ pub async fn refresh_single_asset_price(
         pool,
         UpsertAssetPriceInput {
             asset_id,
-            price: quote.price,
-            currency: quote.currency,
-            as_of: quote.as_of,
+            price: resolved.quote.price,
+            currency: resolved.quote.currency,
+            as_of: resolved.quote.as_of.clone(),
+        },
+    )
+    .await?;
+
+    upsert_asset_quote_source(
+        pool,
+        UpsertAssetQuoteSourceInput {
+            asset_id,
+            quote_symbol: resolved.quote_symbol,
+            provider: resolved.provider,
+            last_success_at: resolved.quote.as_of,
         },
     )
     .await?;
@@ -100,15 +117,20 @@ async fn fetch_crypto_quote(
     client: &Client,
     config: &AssetPriceRefreshConfig,
     asset: &AssetRecord,
-) -> Result<AssetQuote, AssetPriceRefreshError> {
+) -> Result<ResolvedQuote, AssetPriceRefreshError> {
     let coin_id = asset
         .quote_symbol
         .as_deref()
+        .or(asset.quote_source_symbol.as_deref())
         .unwrap_or(asset.symbol.as_str())
         .to_lowercase();
 
     match fetch_coingecko_quote(client, &config.coingecko_base_url, &coin_id).await {
-        Ok(quote) => Ok(quote),
+        Ok(quote) => Ok(ResolvedQuote {
+            quote,
+            quote_symbol: coin_id,
+            provider: "coingecko".to_string(),
+        }),
         Err(coingecko_err) => {
             if let Some(api_key) = config.coincap_api_key.as_deref() {
                 warn!(
@@ -116,10 +138,14 @@ async fn fetch_crypto_quote(
                     error = %coingecko_err,
                     "CoinGecko failed, falling back to CoinCap"
                 );
-                Ok(
+                let quote =
                     fetch_coincap_quote(client, &config.coincap_base_url, api_key, &coin_id)
-                        .await?,
-                )
+                        .await?;
+                Ok(ResolvedQuote {
+                    quote,
+                    quote_symbol: coin_id,
+                    provider: "coincap".to_string(),
+                })
             } else {
                 Err(coingecko_err)
             }
@@ -131,9 +157,18 @@ async fn fetch_stock_quote(
     client: &Client,
     config: &AssetPriceRefreshConfig,
     asset: &AssetRecord,
-) -> Result<Option<AssetQuote>, AssetPriceRefreshError> {
+) -> Result<Option<ResolvedQuote>, AssetPriceRefreshError> {
     let symbols = resolve_stock_symbols(client, config, asset).await;
-    let providers = config.stock_providers();
+    let mut providers = config.stock_providers();
+    if let Some(preferred_provider) = asset.quote_source_provider.as_deref() {
+        providers.sort_by_key(|provider| {
+            if provider.name() == preferred_provider {
+                0
+            } else {
+                1
+            }
+        });
+    }
     Ok(try_stock_providers(client, &providers, &symbols)
         .await
         .transpose()?)
@@ -144,7 +179,11 @@ async fn resolve_stock_symbols(
     config: &AssetPriceRefreshConfig,
     asset: &AssetRecord,
 ) -> Vec<String> {
-    if let Some(quote_symbol) = asset.quote_symbol.as_deref() {
+    if let Some(quote_symbol) = asset
+        .quote_symbol
+        .as_deref()
+        .or(asset.quote_source_symbol.as_deref())
+    {
         return vec![quote_symbol.to_string()];
     }
     if let Some(isin) = asset.isin.as_deref() {
@@ -169,7 +208,7 @@ async fn try_stock_providers(
     client: &Client,
     providers: &[Box<dyn super::providers::StockProvider>],
     symbols: &[String],
-) -> Option<Result<AssetQuote, AssetPriceRefreshError>> {
+) -> Option<Result<ResolvedQuote, AssetPriceRefreshError>> {
     let mut last_err = None;
 
     for symbol in symbols {
@@ -177,7 +216,11 @@ async fn try_stock_providers(
             match provider.fetch_quote(client, symbol).await {
                 Ok(quote) => {
                     info!(provider = provider.name(), symbol, "asset price fetched");
-                    return Some(Ok(quote));
+                    return Some(Ok(ResolvedQuote {
+                        quote,
+                        quote_symbol: symbol.clone(),
+                        provider: provider.name().to_string(),
+                    }));
                 }
                 Err(e) => {
                     warn!(provider = provider.name(), symbol, error = %e, "provider failed, trying next");

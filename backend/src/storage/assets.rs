@@ -40,6 +40,9 @@ pub async fn list_assets(pool: &SqlitePool) -> Result<Vec<AssetRecord>, StorageE
             assets.asset_type,
             assets.quote_symbol,
             assets.isin,
+            asset_quote_sources.quote_symbol as quote_source_symbol,
+            asset_quote_sources.provider as quote_source_provider,
+            asset_quote_sources.last_success_at as quote_source_last_success_at,
             asset_prices.price,
             asset_prices.currency_code,
             asset_prices.as_of,
@@ -75,6 +78,7 @@ pub async fn list_assets(pool: &SqlitePool) -> Result<Vec<AssetRecord>, StorageE
             assets.updated_at
         FROM assets
         LEFT JOIN asset_prices ON asset_prices.asset_id = assets.id
+        LEFT JOIN asset_quote_sources ON asset_quote_sources.asset_id = assets.id
         ORDER BY symbol, id
         "#,
     )
@@ -94,6 +98,9 @@ pub async fn get_asset(pool: &SqlitePool, asset_id: AssetId) -> Result<AssetReco
             assets.asset_type,
             assets.quote_symbol,
             assets.isin,
+            asset_quote_sources.quote_symbol as quote_source_symbol,
+            asset_quote_sources.provider as quote_source_provider,
+            asset_quote_sources.last_success_at as quote_source_last_success_at,
             asset_prices.price,
             asset_prices.currency_code,
             asset_prices.as_of,
@@ -129,6 +136,7 @@ pub async fn get_asset(pool: &SqlitePool, asset_id: AssetId) -> Result<AssetReco
             assets.updated_at
         FROM assets
         LEFT JOIN asset_prices ON asset_prices.asset_id = assets.id
+        LEFT JOIN asset_quote_sources ON asset_quote_sources.asset_id = assets.id
         WHERE assets.id = ?
         "#,
     )
@@ -206,6 +214,9 @@ fn map_asset_row(row: sqlx::sqlite::SqliteRow) -> Result<AssetRecord, StorageErr
         asset_type: AssetType::try_from(row.get::<&str, _>("asset_type"))?,
         quote_symbol: row.get::<Option<String>, _>("quote_symbol"),
         isin: row.get::<Option<String>, _>("isin"),
+        quote_source_symbol: row.get::<Option<String>, _>("quote_source_symbol"),
+        quote_source_provider: row.get::<Option<String>, _>("quote_source_provider"),
+        quote_source_last_success_at: row.get::<Option<String>, _>("quote_source_last_success_at"),
         current_price: row
             .get::<Option<i64>, _>("price")
             .map(AssetUnitPrice::from_scaled_i64)

@@ -87,6 +87,9 @@ pub(crate) fn to_asset(
         asset_type: asset.asset_type.into(),
         quote_symbol: asset.quote_symbol,
         isin: asset.isin,
+        quote_source_symbol: asset.quote_source_symbol,
+        quote_source_provider: asset.quote_source_provider,
+        quote_source_last_success_at: asset.quote_source_last_success_at,
         current_price: asset
             .current_price
             .map(|p| normalize_amount_output(&p.to_string())),
