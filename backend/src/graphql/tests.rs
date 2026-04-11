@@ -800,10 +800,22 @@ async fn assistant_chat_completes_tool_call_round_trip_against_openai() {
     let recorded_requests = recorded_requests.lock().await;
     assert_eq!(recorded_requests.len(), 2);
 
-    assert_eq!(recorded_requests[1]["previous_response_id"], "resp_1");
+    assert!(recorded_requests[1].get("previous_response_id").is_none());
     let second_request_input = recorded_requests[1]["input"]
         .as_array()
         .expect("second OpenAI request should include input items");
+    assert_eq!(
+        second_request_input
+            .first()
+            .expect("second request should retain original user input"),
+        &json!({ "role": "user", "content": "How many accounts do I have?" })
+    );
+    assert!(second_request_input.iter().any(|item| {
+        item["type"] == "function_call"
+            && item["call_id"] == "call_1"
+            && item["name"] == "list_accounts"
+            && item["arguments"] == "{}"
+    }));
     assert!(second_request_input.iter().any(|item| {
         item["type"] == "function_call_output"
             && item["call_id"] == "call_1"

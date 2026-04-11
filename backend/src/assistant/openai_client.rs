@@ -87,8 +87,6 @@ pub async fn openai_responses_streaming(
         tools
     };
 
-    let mut previous_response_id: Option<String> = None;
-
     for _ in 0..MAX_TOOL_ROUNDS {
         let body = build_responses_request_body(
             model,
@@ -96,7 +94,6 @@ pub async fn openai_responses_streaming(
             &input,
             &all_tools,
             reasoning_effort,
-            previous_response_id.as_deref(),
         );
 
         let response = match state
@@ -129,7 +126,6 @@ pub async fn openai_responses_streaming(
 
         let mut stream = response.bytes_stream();
         let mut buffer = String::new();
-        let mut response_id: Option<String> = None;
         let mut tool_calls: Vec<ToolCall> = Vec::new();
         let mut pending_tool_calls: std::collections::HashMap<String, ToolCall> =
             std::collections::HashMap::new();
@@ -184,11 +180,6 @@ pub async fn openai_responses_streaming(
                 let event_type = event["type"].as_str().unwrap_or("");
 
                 match event_type {
-                    "response.created" | "response.completed" => {
-                        if let Some(id) = event["response"]["id"].as_str() {
-                            response_id = Some(id.to_string());
-                        }
-                    }
                     "response.output_text.delta" => {
                         if let Some(delta) = event["delta"].as_str() {
                             if !delta.is_empty() {
@@ -249,16 +240,6 @@ pub async fn openai_responses_streaming(
             return;
         }
 
-        let Some(next_response_id) = response_id else {
-            warn!("Responses payload with tool calls had no response id");
-            send_sse_event(
-                tx,
-                json!({"type": "error", "error": "failed to build assistant response: api error: Responses payload missing response id"}),
-            )
-            .await;
-            return;
-        };
-
         let mut tool_outputs = Vec::with_capacity(tool_calls.len());
         for tool_call in &tool_calls {
             let args: Value = serde_json::from_str(&tool_call.arguments).unwrap_or(json!({}));
@@ -266,7 +247,7 @@ pub async fn openai_responses_streaming(
             info!(tool = %tool_call.name, "executing tool call");
             send_sse_event(
                 tx,
-                json!({"type": "tool_call", "id": tool_call.id, "name": tool_call.name, "args": args}),
+                json!({"type": "tool_call", "id": &tool_call.id, "name": &tool_call.name, "args": args}),
             )
             .await;
 
@@ -288,19 +269,18 @@ pub async fn openai_responses_streaming(
             debug!(tool = %tool_call.name, result = %result, "tool result");
             send_sse_event(
                 tx,
-                json!({"type": "tool_result", "id": tool_call.id, "result": result}),
+                json!({"type": "tool_result", "id": &tool_call.id, "result": result}),
             )
             .await;
 
             tool_outputs.push(json!({
                 "type": "function_call_output",
-                "call_id": tool_call.id,
+                "call_id": &tool_call.id,
                 "output": result.to_string(),
             }));
         }
 
-        previous_response_id = Some(next_response_id);
-        input = Value::Array(tool_outputs);
+        append_tool_results_to_input(&mut input, &tool_calls, tool_outputs);
     }
 
     warn!(
@@ -331,7 +311,6 @@ fn build_responses_request_body(
     input: &Value,
     tools: &[Value],
     reasoning_effort: &str,
-    previous_response_id: Option<&str>,
 ) -> Value {
     let mut body = json!({
         "model": model,
@@ -349,11 +328,22 @@ fn build_responses_request_body(
         });
     }
 
-    if let Some(previous_response_id) = previous_response_id {
-        body["previous_response_id"] = json!(previous_response_id);
-    }
-
     body
+}
+
+fn append_tool_results_to_input(
+    input: &mut Value,
+    tool_calls: &[ToolCall],
+    tool_outputs: Vec<Value>,
+) {
+    let items = input
+        .as_array_mut()
+        .expect("Responses input is built and maintained as an array");
+
+    for (tool_call, tool_output) in tool_calls.iter().zip(tool_outputs) {
+        items.push(tool_call_to_response_input_item(tool_call));
+        items.push(tool_output);
+    }
 }
 
 fn build_instructions(system_prompt: &str, incoming: &[AssistantChatMessageRequest]) -> String {
@@ -397,14 +387,11 @@ fn message_to_response_input_items(msg: &AssistantChatMessageRequest) -> Vec<Val
             if msg.role == "assistant"
                 && let Some(tool_calls) = msg.tool_calls.as_ref().and_then(Value::as_array)
             {
-                items.extend(tool_calls.iter().map(|tool_call| {
-                    json!({
-                        "type": "function_call",
-                        "call_id": tool_call["id"],
-                        "name": tool_call["function"]["name"],
-                        "arguments": tool_call["function"]["arguments"],
-                    })
-                }));
+                items.extend(
+                    tool_calls
+                        .iter()
+                        .map(tool_call_history_to_response_input_item),
+                );
             }
 
             items
@@ -422,6 +409,24 @@ fn message_to_response_input_items(msg: &AssistantChatMessageRequest) -> Vec<Val
             .unwrap_or_default(),
         _ => Vec::new(),
     }
+}
+
+fn tool_call_history_to_response_input_item(tool_call: &Value) -> Value {
+    json!({
+        "type": "function_call",
+        "call_id": tool_call["id"],
+        "name": tool_call["function"]["name"],
+        "arguments": tool_call["function"]["arguments"],
+    })
+}
+
+fn tool_call_to_response_input_item(tool_call: &ToolCall) -> Value {
+    json!({
+        "type": "function_call",
+        "call_id": &tool_call.id,
+        "name": &tool_call.name,
+        "arguments": &tool_call.arguments,
+    })
 }
 
 fn response_tool_definition(tool: &Value) -> Value {
@@ -616,14 +621,8 @@ mod tests {
 
     #[test]
     fn build_body_includes_reasoning_for_reasoning_model() {
-        let body = build_responses_request_body(
-            "o4-mini",
-            "You are helpful.",
-            &json!([]),
-            &[],
-            "high",
-            None,
-        );
+        let body =
+            build_responses_request_body("o4-mini", "You are helpful.", &json!([]), &[], "high");
         assert_eq!(body["reasoning"]["effort"], "high");
         assert_eq!(body["reasoning"]["summary"], "detailed");
         assert_eq!(body["store"], false);
@@ -639,23 +638,54 @@ mod tests {
             &json!([]),
             &[],
             "medium",
-            None,
         );
         assert!(body.get("reasoning").is_none());
     }
 
     #[test]
-    fn build_body_includes_previous_response_id_when_provided() {
-        let body = build_responses_request_body(
-            "gpt-4.1",
-            "instructions",
-            &json!([]),
-            &[],
-            "medium",
-            Some("resp_abc"),
-        );
-        assert_eq!(body["previous_response_id"], "resp_abc");
+    fn build_body_uses_manual_state_without_previous_response_id() {
+        let body =
+            build_responses_request_body("gpt-4.1", "instructions", &json!([]), &[], "medium");
+        assert!(body.get("previous_response_id").is_none());
+        assert_eq!(body["store"], false);
         assert_eq!(body["instructions"], "instructions");
+    }
+
+    #[test]
+    fn append_tool_results_keeps_original_input_and_adds_call_then_output() {
+        let mut input = json!([
+            { "role": "user", "content": "What is my portfolio worth?" }
+        ]);
+        let tool_calls = vec![ToolCall {
+            id: "call_1".to_string(),
+            name: "get_portfolio_summary".to_string(),
+            arguments: "{}".to_string(),
+        }];
+        let tool_outputs = vec![json!({
+            "type": "function_call_output",
+            "call_id": "call_1",
+            "output": "{\"total_value\":\"0 EUR\"}"
+        })];
+
+        append_tool_results_to_input(&mut input, &tool_calls, tool_outputs);
+
+        assert_eq!(
+            input,
+            json!([
+                { "role": "user", "content": "What is my portfolio worth?" },
+                {
+                    "type": "function_call",
+                    "call_id": "call_1",
+                    "name": "get_portfolio_summary",
+                    "arguments": "{}"
+                },
+                {
+                    "type": "function_call_output",
+                    "call_id": "call_1",
+                    "output": "{\"total_value\":\"0 EUR\"}"
+                }
+            ])
+        );
     }
 
     #[test]
