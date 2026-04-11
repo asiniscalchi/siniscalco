@@ -41,9 +41,18 @@ async fn main() {
                     None
                 }
             };
+            let persisted_reasoning_effort =
+                match backend::assistant::load_reasoning_effort_setting(&pool).await {
+                    Ok(value) => value,
+                    Err(error) => {
+                        tracing::warn!(error = %error, "failed to load persisted reasoning effort");
+                        None
+                    }
+                };
             let assistant_models = backend::assistant::new_shared_assistant_model_registry(
                 config.openai_api_key.as_deref(),
                 persisted_model.as_deref(),
+                persisted_reasoning_effort.as_deref(),
             );
             let mcp_client = spawn_mcp_client(config.searxng_url.as_deref()).await;
 
@@ -55,7 +64,7 @@ async fn main() {
                 openai_api_key: config.openai_api_key.clone(),
                 assistant_models: assistant_models.clone(),
                 assistant_chat_semaphore: backend::assistant::new_assistant_chat_semaphore(),
-                openai_chat_url: backend::assistant::openai_chat_url().to_string(),
+                openai_responses_url: backend::assistant::openai_responses_url().to_string(),
                 openai_models_url: backend::assistant::openai_models_url().to_string(),
                 mcp_client,
             });

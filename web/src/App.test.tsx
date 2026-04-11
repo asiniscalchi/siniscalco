@@ -213,7 +213,10 @@ describe("App shell", () => {
     expect(await screen.findByRole("dialog")).toBeTruthy();
     expect(screen.getByRole("textbox", { name: "Assistant message" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show chat history" }));
+    expect(await screen.findByText("Chats")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show settings" }));
     expect(await screen.findByRole("combobox", { name: "Assistant model" })).toBeTruthy();
   });
 
@@ -223,7 +226,7 @@ describe("App shell", () => {
     renderApp(["/accounts"]);
 
     fireEvent.click(await screen.findByRole("button", { name: "Open assistant chat" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Show settings" }));
 
     const modelSelect = await screen.findByRole("combobox", {
       name: "Assistant model",

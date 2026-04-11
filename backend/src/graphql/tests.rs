@@ -138,9 +138,9 @@ fn build_app_with_fx_status(
         asset_price_refresh_config: no_price_config(),
         http_client: reqwest::Client::new(),
         openai_api_key: None,
-        assistant_models: new_shared_assistant_model_registry(None, None),
+        assistant_models: new_shared_assistant_model_registry(None, None, None),
         assistant_chat_semaphore: new_assistant_chat_semaphore(),
-        openai_chat_url: crate::assistant::openai_chat_url().to_string(),
+        openai_responses_url: crate::assistant::openai_responses_url().to_string(),
         openai_models_url: crate::assistant::openai_models_url().to_string(),
         mcp_client: None,
     })
@@ -153,9 +153,9 @@ fn build_app_with_price_config(pool: sqlx::SqlitePool, config: AssetPriceRefresh
         asset_price_refresh_config: config,
         http_client: reqwest::Client::new(),
         openai_api_key: None,
-        assistant_models: new_shared_assistant_model_registry(None, None),
+        assistant_models: new_shared_assistant_model_registry(None, None, None),
         assistant_chat_semaphore: new_assistant_chat_semaphore(),
-        openai_chat_url: crate::assistant::openai_chat_url().to_string(),
+        openai_responses_url: crate::assistant::openai_responses_url().to_string(),
         openai_models_url: crate::assistant::openai_models_url().to_string(),
         mcp_client: None,
     })
@@ -164,22 +164,22 @@ fn build_app_with_price_config(pool: sqlx::SqlitePool, config: AssetPriceRefresh
 fn build_app_with_openai(
     pool: sqlx::SqlitePool,
     api_key: Option<&str>,
-    openai_chat_url: String,
+    openai_responses_url: String,
     openai_models_url: String,
 ) -> Router {
     build_app_with_openai_registry(
         pool,
         api_key,
-        openai_chat_url,
+        openai_responses_url,
         openai_models_url,
-        new_shared_assistant_model_registry(api_key, None),
+        new_shared_assistant_model_registry(api_key, None, None),
     )
 }
 
 fn build_app_with_openai_registry(
     pool: sqlx::SqlitePool,
     api_key: Option<&str>,
-    openai_chat_url: String,
+    openai_responses_url: String,
     openai_models_url: String,
     assistant_models: crate::assistant::SharedAssistantModelRegistry,
 ) -> Router {
@@ -191,7 +191,7 @@ fn build_app_with_openai_registry(
         openai_api_key: api_key.map(str::to_string),
         assistant_models,
         assistant_chat_semaphore: new_assistant_chat_semaphore(),
-        openai_chat_url,
+        openai_responses_url,
         openai_models_url,
         mcp_client: None,
     })
@@ -310,10 +310,16 @@ async fn start_test_quote_server(payload: Value) -> String {
 
 async fn start_test_openai_error_server(status: StatusCode, payload: Value) -> String {
     let app = Router::new().route(
-        "/v1/chat/completions",
+        "/v1/responses",
         post(move || {
             let payload = payload.clone();
-            async move { (status, Json(payload)) }
+            async move {
+                axum::response::Response::builder()
+                    .status(status)
+                    .header("content-type", "application/json")
+                    .body(axum::body::Body::from(payload.to_string()))
+                    .unwrap()
+            }
         }),
     );
     let listener = TcpListener::bind("127.0.0.1:0")
@@ -323,7 +329,7 @@ async fn start_test_openai_error_server(status: StatusCode, payload: Value) -> S
     tokio::spawn(async move {
         axum::serve(listener, app).await.expect("server should run");
     });
-    format!("http://{address}/v1/chat/completions")
+    format!("http://{address}/v1/responses")
 }
 
 async fn start_test_openai_models_server(payload: Value) -> String {
@@ -347,7 +353,7 @@ async fn start_test_openai_models_server(payload: Value) -> String {
 async fn start_test_openai_tool_server(recorded_requests: Arc<Mutex<Vec<Value>>>) -> String {
     let request_count = Arc::new(AtomicUsize::new(0));
     let app = Router::new().route(
-        "/v1/chat/completions",
+        "/v1/responses",
         post(move |Json(body): Json<Value>| {
             let recorded_requests = Arc::clone(&recorded_requests);
             let request_count = Arc::clone(&request_count);
@@ -355,36 +361,25 @@ async fn start_test_openai_tool_server(recorded_requests: Arc<Mutex<Vec<Value>>>
             async move {
                 recorded_requests.lock().await.push(body);
 
-                // Return SSE streaming format: each line is "data: <json>\n\n", ending with "data: [DONE]\n\n"
                 let sse_body = match request_count.fetch_add(1, Ordering::SeqCst) {
                     0 => {
-                        // First call: trigger a tool call
-                        let chunk = json!({
-                            "choices": [{
-                                "delta": {
-                                    "tool_calls": [{
-                                        "index": 0,
-                                        "id": "call_1",
-                                        "type": "function",
-                                        "function": { "name": "list_accounts", "arguments": "{}" }
-                                    }]
-                                },
-                                "finish_reason": "tool_calls"
-                            }]
-                        });
-                        format!("data: {}\n\ndata: [DONE]\n\n", chunk)
+                        let created = json!({"type": "response.created", "response": {"id": "resp_1"}});
+                        let output_item_added = json!({"type": "response.output_item.added", "output_index": 0, "item": {"type": "function_call", "id": "fc_1", "call_id": "call_1", "name": "list_accounts", "arguments": ""}});
+                        let func_done = json!({"type": "response.function_call_arguments.done", "item_id": "fc_1", "output_index": 0, "arguments": "{}"});
+                        let completed = json!({"type": "response.completed", "response": {"id": "resp_1"}});
+                        format!(
+                            "data: {}\n\ndata: {}\n\ndata: {}\n\ndata: {}\n\ndata: [DONE]\n\n",
+                            created, output_item_added, func_done, completed
+                        )
                     }
                     _ => {
-                        // Subsequent calls: return a text response
-                        let delta = json!({
-                            "choices": [{"delta": {"content": "You have 1 account."}, "finish_reason": null}]
-                        });
-                        let stop = json!({
-                            "choices": [{"delta": {}, "finish_reason": "stop"}]
-                        });
+                        let created = json!({"type": "response.created", "response": {"id": "resp_2"}});
+                        let delta1 = json!({"type": "response.output_text.delta", "delta": "You have "});
+                        let delta2 = json!({"type": "response.output_text.delta", "delta": "1 account."});
+                        let completed = json!({"type": "response.completed", "response": {"id": "resp_2"}});
                         format!(
-                            "data: {}\n\ndata: {}\n\ndata: [DONE]\n\n",
-                            delta, stop
+                            "data: {}\n\ndata: {}\n\ndata: {}\n\ndata: {}\n\ndata: [DONE]\n\n",
+                            created, delta1, delta2, completed
                         )
                     }
                 };
@@ -403,7 +398,44 @@ async fn start_test_openai_tool_server(recorded_requests: Arc<Mutex<Vec<Value>>>
     tokio::spawn(async move {
         axum::serve(listener, app).await.expect("server should run");
     });
-    format!("http://{address}/v1/chat/completions")
+    format!("http://{address}/v1/responses")
+}
+
+async fn start_test_openai_reasoning_server(recorded_requests: Arc<Mutex<Vec<Value>>>) -> String {
+    let app = Router::new().route(
+        "/v1/responses",
+        post(move |Json(body): Json<Value>| {
+            let recorded_requests = Arc::clone(&recorded_requests);
+
+            async move {
+                recorded_requests.lock().await.push(body);
+
+                let created = json!({"type": "response.created", "response": {"id": "resp_r1"}});
+                let reasoning1 = json!({"type": "response.reasoning_summary_text.delta", "delta": "Let me think"});
+                let reasoning2 = json!({"type": "response.reasoning_summary_text.delta", "delta": " about this."});
+                let text1 = json!({"type": "response.output_text.delta", "delta": "The answer "});
+                let text2 = json!({"type": "response.output_text.delta", "delta": "is 42."});
+                let completed = json!({"type": "response.completed", "response": {"id": "resp_r1"}});
+                let sse_body = format!(
+                    "data: {}\n\ndata: {}\n\ndata: {}\n\ndata: {}\n\ndata: {}\n\ndata: {}\n\ndata: [DONE]\n\n",
+                    created, reasoning1, reasoning2, text1, text2, completed
+                );
+
+                axum::response::Response::builder()
+                    .header("content-type", "text/event-stream")
+                    .body(axum::body::Body::from(sse_body))
+                    .unwrap()
+            }
+        }),
+    );
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("listener should bind");
+    let address = listener.local_addr().expect("listener should expose addr");
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("server should run");
+    });
+    format!("http://{address}/v1/responses")
 }
 
 // ── health ────────────────────────────────────────────────────────────────────
@@ -509,7 +541,7 @@ async fn assistant_models_exposes_refreshed_openai_model_list() {
         ]
     }))
     .await;
-    let assistant_models = new_shared_assistant_model_registry(Some("test-key"), None);
+    let assistant_models = new_shared_assistant_model_registry(Some("test-key"), None, None);
     refresh_assistant_model_registry(
         &assistant_models,
         &reqwest::Client::new(),
@@ -522,7 +554,7 @@ async fn assistant_models_exposes_refreshed_openai_model_list() {
     let app = build_app_with_openai_registry(
         pool,
         Some("test-key"),
-        crate::assistant::openai_chat_url().to_string(),
+        crate::assistant::openai_responses_url().to_string(),
         models_url,
         assistant_models,
     );
@@ -548,7 +580,7 @@ async fn assistant_models_exposes_refreshed_openai_model_list() {
 async fn assistant_models_selection_updates_in_memory_model_used_by_chat() {
     let pool = test_pool().await;
     let recorded_requests = Arc::new(Mutex::new(Vec::new()));
-    let openai_chat_url = start_test_openai_tool_server(Arc::clone(&recorded_requests)).await;
+    let openai_responses_url = start_test_openai_tool_server(Arc::clone(&recorded_requests)).await;
     let models_url = start_test_openai_models_server(json!({
         "data": [
             { "id": "gpt-4.1-mini" },
@@ -556,7 +588,7 @@ async fn assistant_models_selection_updates_in_memory_model_used_by_chat() {
         ]
     }))
     .await;
-    let assistant_models = new_shared_assistant_model_registry(Some("test-key"), None);
+    let assistant_models = new_shared_assistant_model_registry(Some("test-key"), None, None);
     refresh_assistant_model_registry(
         &assistant_models,
         &reqwest::Client::new(),
@@ -569,7 +601,7 @@ async fn assistant_models_selection_updates_in_memory_model_used_by_chat() {
     let app = build_app_with_openai_registry(
         pool,
         Some("test-key"),
-        openai_chat_url,
+        openai_responses_url,
         models_url,
         assistant_models,
     );
@@ -613,7 +645,7 @@ async fn assistant_models_selection_is_persisted_and_restored() {
         ]
     }))
     .await;
-    let assistant_models = new_shared_assistant_model_registry(Some("test-key"), None);
+    let assistant_models = new_shared_assistant_model_registry(Some("test-key"), None, None);
     refresh_assistant_model_registry(
         &assistant_models,
         &reqwest::Client::new(),
@@ -626,7 +658,7 @@ async fn assistant_models_selection_is_persisted_and_restored() {
     let app = build_app_with_openai_registry(
         pool.clone(),
         Some("test-key"),
-        crate::assistant::openai_chat_url().to_string(),
+        crate::assistant::openai_responses_url().to_string(),
         models_url.clone(),
         assistant_models,
     );
@@ -647,7 +679,7 @@ async fn assistant_models_selection_is_persisted_and_restored() {
     assert_eq!(persisted_model.as_deref(), Some("gpt-4.1-mini"));
 
     let restored_models =
-        new_shared_assistant_model_registry(Some("test-key"), persisted_model.as_deref());
+        new_shared_assistant_model_registry(Some("test-key"), persisted_model.as_deref(), None);
     refresh_assistant_model_registry(
         &restored_models,
         &reqwest::Client::new(),
@@ -660,7 +692,7 @@ async fn assistant_models_selection_is_persisted_and_restored() {
     let app = build_app_with_openai_registry(
         pool,
         Some("test-key"),
-        crate::assistant::openai_chat_url().to_string(),
+        crate::assistant::openai_responses_url().to_string(),
         models_url,
         restored_models,
     );
@@ -673,7 +705,7 @@ async fn assistant_models_selection_is_persisted_and_restored() {
 #[tokio::test]
 async fn assistant_chat_surfaces_openai_failures_as_bad_gateway() {
     let pool = test_pool().await;
-    let openai_chat_url = start_test_openai_error_server(
+    let openai_responses_url = start_test_openai_error_server(
         StatusCode::UNAUTHORIZED,
         json!({
             "error": {
@@ -685,7 +717,7 @@ async fn assistant_chat_surfaces_openai_failures_as_bad_gateway() {
     let app = build_app_with_openai(
         pool,
         Some("test-key"),
-        openai_chat_url,
+        openai_responses_url,
         crate::assistant::openai_models_url().to_string(),
     );
     let (status, events) = post_chat_sse(
@@ -726,11 +758,11 @@ async fn assistant_chat_completes_tool_call_round_trip_against_openai() {
     .expect("account insert should succeed");
 
     let recorded_requests = Arc::new(Mutex::new(Vec::new()));
-    let openai_chat_url = start_test_openai_tool_server(Arc::clone(&recorded_requests)).await;
+    let openai_responses_url = start_test_openai_tool_server(Arc::clone(&recorded_requests)).await;
     let app = build_app_with_openai(
         pool,
         Some("test-key"),
-        openai_chat_url,
+        openai_responses_url,
         crate::assistant::openai_models_url().to_string(),
     );
     let (status, events) = post_chat_sse(
@@ -758,31 +790,109 @@ async fn assistant_chat_completes_tool_call_round_trip_against_openai() {
             .to_string()
             .contains("\"count\":1")
     );
-    let text_delta_event = events
+    let full_text: String = events
         .iter()
-        .find(|e| e["type"] == "text_delta")
-        .expect("should have a text_delta event");
-    assert_eq!(text_delta_event["delta"], "You have 1 account.");
+        .filter(|e| e["type"] == "text_delta")
+        .filter_map(|e| e["delta"].as_str())
+        .collect();
+    assert_eq!(full_text, "You have 1 account.");
 
     let recorded_requests = recorded_requests.lock().await;
     assert_eq!(recorded_requests.len(), 2);
 
-    let second_request_messages = recorded_requests[1]["messages"]
+    assert!(recorded_requests[1].get("previous_response_id").is_none());
+    let second_request_input = recorded_requests[1]["input"]
         .as_array()
-        .expect("second OpenAI request should include messages");
-    assert!(second_request_messages.iter().any(|message| {
-        message["role"] == "assistant"
-            && message["tool_calls"][0]["id"] == "call_1"
-            && message["tool_calls"][0]["function"]["name"] == "list_accounts"
+        .expect("second OpenAI request should include input items");
+    assert_eq!(
+        second_request_input
+            .first()
+            .expect("second request should retain original user input"),
+        &json!({ "role": "user", "content": "How many accounts do I have?" })
+    );
+    assert!(second_request_input.iter().any(|item| {
+        item["type"] == "function_call"
+            && item["call_id"] == "call_1"
+            && item["name"] == "list_accounts"
+            && item["arguments"] == "{}"
     }));
-    assert!(second_request_messages.iter().any(|message| {
-        message["role"] == "tool"
-            && message["tool_call_id"] == "call_1"
-            && message["content"]
+    assert!(second_request_input.iter().any(|item| {
+        item["type"] == "function_call_output"
+            && item["call_id"] == "call_1"
+            && item["output"]
                 .as_str()
-                .expect("tool message should be serialized as JSON text")
+                .expect("tool output should be serialized as JSON text")
                 .contains("\"count\":1")
     }));
+}
+
+#[tokio::test]
+async fn assistant_chat_streams_reasoning_and_text_for_reasoning_model() {
+    let pool = test_pool().await;
+    let recorded_requests = Arc::new(Mutex::new(Vec::new()));
+    let openai_responses_url =
+        start_test_openai_reasoning_server(Arc::clone(&recorded_requests)).await;
+    let models_url = start_test_openai_models_server(json!({
+        "data": [{ "id": "o4-mini" }]
+    }))
+    .await;
+    let assistant_models = new_shared_assistant_model_registry(Some("test-key"), None, None);
+    refresh_assistant_model_registry(
+        &assistant_models,
+        &reqwest::Client::new(),
+        Some("test-key"),
+        &models_url,
+    )
+    .await
+    .expect("assistant models should refresh");
+
+    let app = build_app_with_openai_registry(
+        pool,
+        Some("test-key"),
+        openai_responses_url,
+        models_url,
+        assistant_models,
+    );
+
+    let (status, _) = put_json(
+        app.clone(),
+        "/assistant/models/selected",
+        json!({ "model": "o4-mini" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, events) = post_chat_sse(
+        app,
+        json!({
+            "messages": [
+                { "role": "user", "content": "What is the meaning of life?" }
+            ]
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+
+    let full_reasoning: String = events
+        .iter()
+        .filter(|e| e["type"] == "reasoning_delta")
+        .filter_map(|e| e["delta"].as_str())
+        .collect();
+    assert_eq!(full_reasoning, "Let me think about this.");
+
+    let full_text: String = events
+        .iter()
+        .filter(|e| e["type"] == "text_delta")
+        .filter_map(|e| e["delta"].as_str())
+        .collect();
+    assert_eq!(full_text, "The answer is 42.");
+
+    let recorded_requests = recorded_requests.lock().await;
+    assert_eq!(recorded_requests.len(), 1);
+    assert_eq!(recorded_requests[0]["reasoning"]["effort"], "medium");
+    assert_eq!(recorded_requests[0]["reasoning"]["summary"], "detailed");
+    assert_eq!(recorded_requests[0]["model"], "o4-mini");
 }
 
 #[tokio::test]
@@ -797,9 +907,9 @@ async fn assistant_chat_returns_too_many_requests_when_semaphore_is_exhausted() 
         asset_price_refresh_config: no_price_config(),
         http_client: reqwest::Client::new(),
         openai_api_key: None,
-        assistant_models: new_shared_assistant_model_registry(None, None),
+        assistant_models: new_shared_assistant_model_registry(None, None, None),
         assistant_chat_semaphore: exhausted_semaphore,
-        openai_chat_url: crate::assistant::openai_chat_url().to_string(),
+        openai_responses_url: crate::assistant::openai_responses_url().to_string(),
         openai_models_url: crate::assistant::openai_models_url().to_string(),
         mcp_client: None,
     });

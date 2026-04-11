@@ -18,13 +18,13 @@ use crate::AppState;
 
 use super::mock::{build_mock_reply, latest_user_prompt_from};
 use super::model_registry::SETTING_SYSTEM_PROMPT;
-use super::model_registry::{MOCK_BACKEND_MODEL, SETTING_SELECTED_MODEL};
+use super::model_registry::{MOCK_BACKEND_MODEL, SETTING_REASONING_EFFORT, SETTING_SELECTED_MODEL};
 use super::openai_client::DEFAULT_SYSTEM_PROMPT;
-use super::openai_client::{openai_chat_streaming, send_sse_event};
+use super::openai_client::{openai_responses_streaming, send_sse_event};
 use super::types::{
     AssistantChatErrorResponse, AssistantChatMessageRequest, AssistantChatRequest,
-    AssistantModelSelectionRequest, AssistantModelsResponse, SystemPromptResponse,
-    UpdateSystemPromptRequest,
+    AssistantModelSelectionRequest, AssistantModelsResponse, ReasoningEffort,
+    ReasoningEffortRequest, SystemPromptResponse, UpdateSystemPromptRequest,
 };
 
 pub async fn models(State(state): State<AppState>) -> impl IntoResponse {
@@ -71,6 +71,35 @@ pub async fn select_model(
     .await
     {
         tracing::warn!(error = %error, "failed to persist selected assistant model");
+    }
+
+    Ok(Json(response))
+}
+
+pub async fn set_reasoning_effort(
+    State(state): State<AppState>,
+    Json(request): Json<ReasoningEffortRequest>,
+) -> Result<Json<AssistantModelsResponse>, (StatusCode, Json<AssistantChatErrorResponse>)> {
+    let effort: ReasoningEffort = request.effort.parse().map_err(|error: String| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(AssistantChatErrorResponse { error }),
+        )
+    })?;
+
+    let mut registry = state.assistant_models.write().await;
+    registry.reasoning_effort = effort;
+    let response = registry.to_response();
+    drop(registry);
+
+    if let Err(error) = crate::storage::settings::set_app_setting(
+        &state.pool,
+        SETTING_REASONING_EFFORT,
+        effort.as_str(),
+    )
+    .await
+    {
+        tracing::warn!(error = %error, "failed to persist reasoning effort");
     }
 
     Ok(Json(response))
@@ -185,7 +214,10 @@ async fn run_chat_streaming(
     messages: Vec<AssistantChatMessageRequest>,
     tx: mpsc::Sender<Result<Event, Infallible>>,
 ) {
-    let selected_model = state.assistant_models.read().await.selected_model.clone();
+    let registry = state.assistant_models.read().await;
+    let selected_model = registry.selected_model.clone();
+    let reasoning_effort = registry.reasoning_effort;
+    drop(registry);
     let openai_api_key = state
         .openai_api_key
         .as_deref()
@@ -199,7 +231,15 @@ async fn run_chat_streaming(
                 message_count = messages.len(),
                 model, "dispatching to OpenAI"
             );
-            openai_chat_streaming(&state, &messages, api_key, model, &tx).await;
+            openai_responses_streaming(
+                &state,
+                &messages,
+                api_key,
+                model,
+                reasoning_effort.as_str(),
+                &tx,
+            )
+            .await;
         }
         _ => {
             if openai_api_key.is_some() {

@@ -5,10 +5,11 @@ import { AssistantChatPanel, AssistantRuntimeBoundary, ThreadList } from "@/comp
 import { Button } from "@/components/ui/button";
 import {
   getAssistantModelsApiUrl,
+  getAssistantReasoningEffortApiUrl,
   getAssistantSelectedModelApiUrl,
   getAssistantSystemPromptApiUrl,
 } from "@/lib/env";
-import { CloseIcon, HistoryIcon } from "@/components/Icons";
+import { CloseIcon, SettingsIcon, SidebarToggleIcon } from "@/components/Icons";
 import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 import { cn } from "@/lib/utils";
 
@@ -27,10 +28,14 @@ function parseResponseError(
 type AssistantModelsResponse = {
   models: string[];
   selected_model: string;
+  reasoning: boolean;
+  reasoning_effort: string;
   openai_enabled: boolean;
   last_refreshed_at: string | null;
   refresh_error: string | null;
 };
+
+const REASONING_EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh"] as const;
 
 type SystemPromptResponse = {
   prompt: string;
@@ -234,6 +239,42 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
     }
   }
 
+  async function handleReasoningEffortChange(nextEffort: string) {
+    if (!assistantModels || nextEffort === assistantModels.reasoning_effort) return;
+
+    setAssistantModelsStatus("saving");
+    setAssistantModelsError(null);
+
+    try {
+      const response = await fetch(getAssistantReasoningEffortApiUrl(), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ effort: nextEffort }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | AssistantModelsResponse
+        | { error?: string }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(
+          parseResponseError(
+            payload as { error?: string } | null,
+            `reasoning effort update failed with ${response.status}`,
+          ),
+        );
+      }
+
+      setAssistantModels(payload as AssistantModelsResponse);
+      setAssistantModelsStatus("ready");
+    } catch (error) {
+      setAssistantModelsStatus("error");
+      setAssistantModelsError(
+        error instanceof Error ? error.message : "Failed to update reasoning effort",
+      );
+    }
+  }
+
   async function handleSaveSystemPrompt() {
     if (!systemPromptDraft.trim()) return;
 
@@ -318,12 +359,29 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
       <AssistantRuntimeBoundary>
         <div className="flex h-[min(46rem,100%)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl">
           {/* Header */}
-          <div className="flex items-center justify-between gap-4 border-b px-5 py-3">
-            <div className="flex items-center gap-4">
-              <span className="text-sm font-semibold">Assistant</span>
+          <div className="flex items-center justify-between gap-2 border-b px-3 py-3 sm:gap-4 sm:px-5">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+              <Button
+                aria-label={historyOpen ? "Hide chat history" : "Show chat history"}
+                aria-pressed={historyOpen}
+                className={cn(
+                  "size-9 shrink-0 rounded-full",
+                  historyOpen && activeTab === "chat" && "bg-muted text-foreground",
+                )}
+                onClick={() => {
+                  setActiveTab("chat");
+                  setHistoryOpen((v) => (activeTab === "chat" ? !v : true));
+                }}
+                size="icon"
+                title={historyOpen ? "Hide chat history" : "Show chat history"}
+                type="button"
+                variant="ghost"
+              >
+                <SidebarToggleIcon />
+              </Button>
               <select
                 aria-label="Assistant model"
-                className="h-8 max-w-[10rem] truncate rounded-lg border border-input bg-transparent px-2 text-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-8 min-w-0 max-w-[10rem] truncate rounded-lg border border-input bg-transparent px-2 text-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={
                   assistantModelsStatus === "loading" ||
                   assistantModelsStatus === "saving" ||
@@ -344,51 +402,40 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                   </option>
                 )}
               </select>
-              <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
-                <button
-                  className={cn(
-                    "rounded-md px-3 py-1 text-sm font-medium transition-colors",
-                    activeTab === "chat"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                  onClick={() => setActiveTab("chat")}
-                  type="button"
+              {assistantModels?.reasoning && (
+                <select
+                  aria-label="Reasoning effort"
+                  className="h-8 rounded-lg border border-amber-300 bg-amber-50 px-2 text-xs text-amber-700 outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                  disabled={
+                    assistantModelsStatus === "loading" ||
+                    assistantModelsStatus === "saving"
+                  }
+                  onChange={(event) => void handleReasoningEffortChange(event.target.value)}
+                  value={assistantModels.reasoning_effort}
                 >
-                  Chat
-                </button>
-                <button
-                  className={cn(
-                    "rounded-md px-3 py-1 text-sm font-medium transition-colors",
-                    activeTab === "settings"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                  onClick={() => setActiveTab("settings")}
-                  type="button"
-                >
-                  Settings
-                </button>
-              </div>
+                  {REASONING_EFFORTS.map((effort) => (
+                    <option key={effort} value={effort}>
+                      {effort}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <Button
-                aria-label={historyOpen ? "Hide chat history" : "Show chat history"}
-                aria-pressed={historyOpen}
+                aria-label={activeTab === "settings" ? "Hide settings" : "Show settings"}
+                aria-pressed={activeTab === "settings"}
                 className={cn(
                   "size-9 rounded-full",
-                  historyOpen && activeTab === "chat" && "bg-muted text-foreground",
+                  activeTab === "settings" && "bg-muted text-foreground",
                 )}
-                onClick={() => {
-                  setActiveTab("chat");
-                  setHistoryOpen((v) => (activeTab === "chat" ? !v : true));
-                }}
+                onClick={() => setActiveTab(activeTab === "settings" ? "chat" : "settings")}
                 size="icon"
-                title={historyOpen ? "Hide chat history" : "Show chat history"}
+                title={activeTab === "settings" ? "Hide settings" : "Show settings"}
                 type="button"
                 variant="ghost"
               >
-                <HistoryIcon />
+                <SettingsIcon />
               </Button>
               <Button
                 aria-label="Close assistant chat"
