@@ -16,7 +16,7 @@ export function formatPrice(asset: AssetItem): string {
 
   return formatMoney(asset.currentPrice, asset.currentPriceCurrency, false, {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 6,
+    maximumFractionDigits: 2,
   }).text;
 }
 
@@ -74,9 +74,9 @@ export function formatDailyGain(asset: AssetItem): GainResult | null {
 
 export function priceLabel(asset: AssetItem): string {
   if (asset.currentPriceAsOf) {
-    const parsed = new Date(asset.currentPriceAsOf);
-    if (!Number.isNaN(parsed.getTime())) {
-      return `Updated ${parsed.toLocaleString()}`;
+    const isoDate = asset.currentPriceAsOf.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+    if (isoDate) {
+      return `Updated ${isoDate}`;
     }
   }
 

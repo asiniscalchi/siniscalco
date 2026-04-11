@@ -95,7 +95,7 @@ describe("AssetsPage", () => {
                 assetType: "STOCK",
                 quoteSymbol: "AAPL",
                 isin: "US0378331005",
-                currentPrice: "189.32",
+                currentPrice: "189.326789",
                 currentPriceCurrency: "USD",
                 currentPriceAsOf: "2026-03-24T14:30:00Z",
                 totalQuantity: "10.5",
@@ -137,7 +137,8 @@ describe("AssetsPage", () => {
     expect(screen.getAllByText("Apple Inc.").length).toBeGreaterThan(0);
     expect(screen.getAllByText("STOCK").length).toBeGreaterThan(0);
     expect(screen.getAllByText("US0378331005").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("189.32 USD").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("189.33 USD").length).toBeGreaterThan(0);
+    expect(screen.getByText("Updated 2026-03-24")).toBeTruthy();
     expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
 
     expect(screen.getAllByText("BTC").length).toBeGreaterThan(0);

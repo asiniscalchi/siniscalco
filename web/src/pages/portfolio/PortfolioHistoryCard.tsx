@@ -131,7 +131,6 @@ export function PortfolioHistoryCard() {
                 />
                 <XAxis
                   dataKey="date"
-                  tickFormatter={formatDate}
                   tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                   tickLine={false}
                   axisLine={false}
@@ -192,13 +191,6 @@ function ChartTooltip({
       </p>
     </div>
   );
-}
-
-function formatDate(dateStr: string): string {
-  const [year, month, day] = dateStr.split("-");
-  if (!year || !month || !day) return dateStr;
-  const date = new Date(Number(year), Number(month) - 1, Number(day));
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function formatCompact(value: number): string {
