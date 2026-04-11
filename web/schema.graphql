@@ -43,6 +43,9 @@ type Asset {
 	assetType: AssetType!
 	quoteSymbol: String
 	isin: String
+	quoteSourceSymbol: String
+	quoteSourceProvider: String
+	quoteSourceLastSuccessAt: String
 	currentPrice: String
 	currentPriceCurrency: String
 	currentPriceAsOf: String
