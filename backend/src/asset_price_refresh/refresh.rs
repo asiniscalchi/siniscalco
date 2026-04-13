@@ -8,7 +8,7 @@ use crate::{
 };
 
 use super::config::AssetPriceRefreshConfig;
-use super::providers::{fetch_coincap_quote, fetch_coingecko_quote, fetch_openfigi_tickers};
+use super::providers::fetch_openfigi_tickers;
 use super::types::{AssetPriceRefreshError, AssetQuote};
 
 struct ResolvedQuote {
@@ -125,32 +125,18 @@ async fn fetch_crypto_quote(
         .unwrap_or(asset.symbol.as_str())
         .to_lowercase();
 
-    match fetch_coingecko_quote(client, &config.coingecko_base_url, &coin_id).await {
-        Ok(quote) => Ok(ResolvedQuote {
-            quote,
-            quote_symbol: coin_id,
-            provider: "coingecko".to_string(),
-        }),
-        Err(coingecko_err) => {
-            if let Some(api_key) = config.coincap_api_key.as_deref() {
-                warn!(
-                    coin_id,
-                    error = %coingecko_err,
-                    "CoinGecko failed, falling back to CoinCap"
-                );
-                let quote =
-                    fetch_coincap_quote(client, &config.coincap_base_url, api_key, &coin_id)
-                        .await?;
-                Ok(ResolvedQuote {
-                    quote,
-                    quote_symbol: coin_id,
-                    provider: "coincap".to_string(),
-                })
-            } else {
-                Err(coingecko_err)
-            }
-        }
+    let mut providers = config.crypto_providers();
+    if let Some(preferred_provider) = asset.quote_source_provider.as_deref() {
+        providers.sort_by_key(|p| if p.name() == preferred_provider { 0 } else { 1 });
     }
+
+    try_providers(client, &providers, &[coin_id])
+        .await
+        .unwrap_or_else(|| {
+            Err(AssetPriceRefreshError::Provider(
+                "no crypto provider available".to_string(),
+            ))
+        })
 }
 
 async fn fetch_stock_quote(
@@ -169,7 +155,7 @@ async fn fetch_stock_quote(
             }
         });
     }
-    try_stock_providers(client, &providers, &symbols)
+    try_providers(client, &providers, &symbols)
         .await
         .transpose()
 }
@@ -204,7 +190,7 @@ async fn resolve_stock_symbols(
     vec![asset.symbol.as_str().to_string()]
 }
 
-async fn try_stock_providers(
+async fn try_providers(
     client: &Client,
     providers: &[Box<dyn super::providers::QuoteProvider>],
     symbols: &[String],

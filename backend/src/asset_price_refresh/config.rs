@@ -1,9 +1,9 @@
 use std::time::Duration;
 
 use super::providers::{
-    AlphaVantageProvider, EodhdProvider, FcsApiProvider, FinnhubProvider, FmpProvider,
-    ITickProvider, MarketstackProvider, PolygonProvider, QuoteProvider, TiingoProvider,
-    TwelveDataProvider, YahooFinanceProvider,
+    AlphaVantageProvider, CoinCapProvider, CoinGeckoProvider, EodhdProvider, FcsApiProvider,
+    FinnhubProvider, FmpProvider, ITickProvider, MarketstackProvider, PolygonProvider,
+    QuoteProvider, TiingoProvider, TwelveDataProvider, YahooFinanceProvider,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -103,6 +103,20 @@ impl AssetPriceRefreshConfig {
         if let Some(ref key) = self.itick_api_key {
             providers.push(Box::new(ITickProvider {
                 base_url: self.itick_base_url.clone(),
+                api_key: key.clone(),
+            }));
+        }
+        providers
+    }
+
+    pub fn crypto_providers(&self) -> Vec<Box<dyn QuoteProvider>> {
+        let mut providers: Vec<Box<dyn QuoteProvider>> = Vec::new();
+        providers.push(Box::new(CoinGeckoProvider {
+            base_url: self.coingecko_base_url.clone(),
+        }));
+        if let Some(ref key) = self.coincap_api_key {
+            providers.push(Box::new(CoinCapProvider {
+                base_url: self.coincap_base_url.clone(),
                 api_key: key.clone(),
             }));
         }
