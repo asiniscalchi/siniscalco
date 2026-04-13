@@ -18,7 +18,7 @@ pub struct TiingoProvider {
 }
 
 #[async_trait::async_trait]
-impl super::StockProvider for TiingoProvider {
+impl super::QuoteProvider for TiingoProvider {
     fn name(&self) -> &'static str {
         "tiingo"
     }

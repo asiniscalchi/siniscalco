@@ -27,7 +27,7 @@ pub struct ITickProvider {
 }
 
 #[async_trait::async_trait]
-impl super::StockProvider for ITickProvider {
+impl super::QuoteProvider for ITickProvider {
     fn name(&self) -> &'static str {
         "itick"
     }

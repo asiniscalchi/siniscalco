@@ -206,7 +206,7 @@ async fn resolve_stock_symbols(
 
 async fn try_stock_providers(
     client: &Client,
-    providers: &[Box<dyn super::providers::StockProvider>],
+    providers: &[Box<dyn super::providers::QuoteProvider>],
     symbols: &[String],
 ) -> Option<Result<ResolvedQuote, AssetPriceRefreshError>> {
     let mut last_err = None;

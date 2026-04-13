@@ -18,7 +18,7 @@ pub struct FmpProvider {
 }
 
 #[async_trait::async_trait]
-impl super::StockProvider for FmpProvider {
+impl super::QuoteProvider for FmpProvider {
     fn name(&self) -> &'static str {
         "fmp"
     }

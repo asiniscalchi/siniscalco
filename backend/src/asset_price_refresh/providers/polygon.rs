@@ -24,7 +24,7 @@ pub struct PolygonProvider {
 }
 
 #[async_trait::async_trait]
-impl super::StockProvider for PolygonProvider {
+impl super::QuoteProvider for PolygonProvider {
     fn name(&self) -> &'static str {
         "polygon"
     }

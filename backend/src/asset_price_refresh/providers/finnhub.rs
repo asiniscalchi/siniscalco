@@ -19,7 +19,7 @@ pub struct FinnhubProvider {
 }
 
 #[async_trait::async_trait]
-impl super::StockProvider for FinnhubProvider {
+impl super::QuoteProvider for FinnhubProvider {
     fn name(&self) -> &'static str {
         "finnhub"
     }
