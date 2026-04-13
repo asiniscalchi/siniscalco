@@ -169,9 +169,9 @@ async fn fetch_stock_quote(
             }
         });
     }
-    Ok(try_stock_providers(client, &providers, &symbols)
+    try_stock_providers(client, &providers, &symbols)
         .await
-        .transpose()?)
+        .transpose()
 }
 
 async fn resolve_stock_symbols(

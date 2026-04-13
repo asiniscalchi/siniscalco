@@ -181,22 +181,18 @@ pub async fn openai_responses_streaming(
 
                 match event_type {
                     "response.output_text.delta" => {
-                        if let Some(delta) = event["delta"].as_str() {
-                            if !delta.is_empty() {
-                                send_sse_event(tx, json!({"type": "text_delta", "delta": delta}))
-                                    .await;
-                            }
+                        if let Some(delta) = event["delta"].as_str()
+                            && !delta.is_empty()
+                        {
+                            send_sse_event(tx, json!({"type": "text_delta", "delta": delta})).await;
                         }
                     }
                     "response.reasoning_summary_text.delta" => {
-                        if let Some(delta) = event["delta"].as_str() {
-                            if !delta.is_empty() {
-                                send_sse_event(
-                                    tx,
-                                    json!({"type": "reasoning_delta", "delta": delta}),
-                                )
+                        if let Some(delta) = event["delta"].as_str()
+                            && !delta.is_empty()
+                        {
+                            send_sse_event(tx, json!({"type": "reasoning_delta", "delta": delta}))
                                 .await;
-                            }
                         }
                     }
                     "response.output_item.added" => {
@@ -470,46 +466,6 @@ fn stringify_message_content(content: &Value) -> String {
     }
 }
 
-fn extract_response_output_text(payload: &Value) -> String {
-    if let Some(text) = payload.get("output_text").and_then(Value::as_str) {
-        return text.to_string();
-    }
-
-    payload["output"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter(|item| item["type"].as_str() == Some("message"))
-        .flat_map(|item| item["content"].as_array().into_iter().flatten())
-        .filter_map(|part| {
-            if part["type"].as_str() != Some("output_text") {
-                return None;
-            }
-
-            part["text"].as_str().map(str::to_string)
-        })
-        .collect::<Vec<_>>()
-        .join("")
-}
-
-fn extract_response_tool_calls(payload: &Value) -> Vec<ToolCall> {
-    payload["output"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter(|item| item["type"].as_str() == Some("function_call"))
-        .map(|item| ToolCall {
-            id: item["call_id"]
-                .as_str()
-                .or_else(|| item["id"].as_str())
-                .unwrap_or_default()
-                .to_string(),
-            name: item["name"].as_str().unwrap_or_default().to_string(),
-            arguments: item["arguments"].as_str().unwrap_or("{}").to_string(),
-        })
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -685,42 +641,6 @@ mod tests {
                     "output": "{\"total_value\":\"0 EUR\"}"
                 }
             ])
-        );
-    }
-
-    #[test]
-    fn extract_response_output_text_reads_message_content() {
-        let payload = json!({
-            "output": [{
-                "type": "message",
-                "content": [
-                    { "type": "output_text", "text": "Hello " },
-                    { "type": "output_text", "text": "world" }
-                ]
-            }]
-        });
-
-        assert_eq!(extract_response_output_text(&payload), "Hello world");
-    }
-
-    #[test]
-    fn extract_response_tool_calls_reads_function_calls() {
-        let payload = json!({
-            "output": [{
-                "type": "function_call",
-                "call_id": "call_1",
-                "name": "list_accounts",
-                "arguments": "{}"
-            }]
-        });
-
-        assert_eq!(
-            extract_response_tool_calls(&payload),
-            vec![ToolCall {
-                id: "call_1".to_string(),
-                name: "list_accounts".to_string(),
-                arguments: "{}".to_string(),
-            }]
         );
     }
 }
