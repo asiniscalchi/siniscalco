@@ -104,6 +104,17 @@ impl std::str::FromStr for ReasoningEffort {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct GenerateTitleRequest {
+    #[serde(default)]
+    pub messages: Vec<AssistantChatMessageRequest>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GenerateTitleResponse {
+    pub title: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct ReasoningEffortRequest {
     pub effort: String,
 }

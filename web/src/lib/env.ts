@@ -26,6 +26,10 @@ export function getAssistantSystemPromptApiUrl() {
   return `${getApiBaseUrl()}/assistant/system-prompt`;
 }
 
+export function getAssistantGenerateTitleApiUrl() {
+  return `${getApiBaseUrl()}/assistant/generate-title`;
+}
+
 export function getAssistantThreadsApiUrl() {
   return `${getApiBaseUrl()}/assistant/threads`;
 }
