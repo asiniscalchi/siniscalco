@@ -19,7 +19,10 @@ pub use asset_price_refresh::{
 };
 pub use config::Config;
 pub use db::{connect_db, connect_db_file, init_db};
-pub use format::{compact_decimal_output, format_decimal_amount, normalize_amount_output};
+pub use format::{
+    compact_decimal_output, fmt_amount, fmt_opt_amount, format_decimal_amount,
+    normalize_amount_output,
+};
 pub use fx_refresh::{
     FxRefreshAvailability, FxRefreshConfig, FxRefreshStatus, PRODUCT_BASE_CURRENCY,
     SharedFxRefreshStatus, fetch_frankfurter_rates, new_shared_fx_refresh_status, refresh_fx_rates,
