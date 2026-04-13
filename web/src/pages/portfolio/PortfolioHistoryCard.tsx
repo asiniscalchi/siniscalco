@@ -66,6 +66,14 @@ export function PortfolioHistoryCard() {
       value: Number(s.totalValue),
     }));
 
+  const yDomain: [number, string] = (() => {
+    if (filtered.length < 2) return [0, "auto"];
+    const minValue = Math.min(...filtered.map((d) => d.value));
+    const maxValue = Math.max(...filtered.map((d) => d.value));
+    const padding = Math.max((maxValue - minValue) * 0.1, minValue * 0.02);
+    return [minValue - padding, "auto"];
+  })();
+
   return (
     <Card className="bg-background">
       <CardHeader className="border-b">
@@ -142,6 +150,7 @@ export function PortfolioHistoryCard() {
                   tickLine={false}
                   axisLine={false}
                   width={56}
+                  domain={yDomain}
                 />
                 <Tooltip
                   content={
