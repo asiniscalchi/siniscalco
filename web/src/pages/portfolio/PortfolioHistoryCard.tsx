@@ -41,7 +41,11 @@ const RANGE_DAYS: Record<Range, number | null> = {
 
 type DataPoint = { date: string; value: number };
 
-export function PortfolioHistoryCard() {
+export function PortfolioHistoryCard({
+  currentValue,
+}: {
+  currentValue?: number;
+}) {
   const { hideValues } = useUiState();
   const [range, setRange] = useState<Range>("1Y");
   const { data, loading } = useQuery<PortfolioHistoryQuery>(
@@ -59,12 +63,17 @@ export function PortfolioHistoryCard() {
       ? new Date(now.getTime() - rangeDays * 24 * 60 * 60 * 1000)
       : null;
 
+  const today = new Date().toISOString().slice(0, 10);
   const filtered: DataPoint[] = snapshots
     .filter((s) => !cutoff || new Date(s.recordedAt) >= cutoff)
     .map((s) => ({
       date: s.recordedAt.slice(0, 10),
       value: Number(s.totalValue),
     }));
+
+  if (currentValue != null && (filtered.length === 0 || filtered[filtered.length - 1].date !== today)) {
+    filtered.push({ date: today, value: currentValue });
+  }
 
   const yDomain: [number, string] = (() => {
     if (filtered.length < 2) return [0, "auto"];
