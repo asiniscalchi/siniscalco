@@ -8,11 +8,14 @@ COPY migrations ./migrations
 
 RUN cargo build --release
 
-FROM debian:bookworm-slim AS runtime
+FROM node:24-bookworm-slim AS runtime
 
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends ca-certificates libsqlite3-0 \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && node --version \
+    && npm --version \
+    && npx --version
 
 WORKDIR /app
 
