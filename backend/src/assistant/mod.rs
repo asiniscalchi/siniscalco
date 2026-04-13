@@ -8,8 +8,8 @@ mod types;
 // ── Public API surface (unchanged from the old assistant.rs) ──────────────────
 
 pub use handlers::{
-    chat, delete_system_prompt, get_system_prompt, models, select_model, set_reasoning_effort,
-    update_system_prompt,
+    chat, delete_system_prompt, generate_title, get_system_prompt, models, select_model,
+    set_reasoning_effort, update_system_prompt,
 };
 
 pub use model_registry::{
@@ -24,5 +24,6 @@ pub use openai_client::openai_responses_url;
 pub use types::{
     AssistantChatErrorResponse, AssistantChatMessageRequest, AssistantChatRequest,
     AssistantChatResponse, AssistantModelRefreshError, AssistantModelSelectionRequest,
-    AssistantModelsResponse, ReasoningEffort, SystemPromptResponse, UpdateSystemPromptRequest,
+    AssistantModelsResponse, GenerateTitleRequest, GenerateTitleResponse, ReasoningEffort,
+    SystemPromptResponse, UpdateSystemPromptRequest,
 };

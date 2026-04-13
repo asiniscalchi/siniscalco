@@ -23,8 +23,9 @@ use super::openai_client::DEFAULT_SYSTEM_PROMPT;
 use super::openai_client::{openai_responses_streaming, send_sse_event};
 use super::types::{
     AssistantChatErrorResponse, AssistantChatMessageRequest, AssistantChatRequest,
-    AssistantModelSelectionRequest, AssistantModelsResponse, ReasoningEffort,
-    ReasoningEffortRequest, SystemPromptResponse, UpdateSystemPromptRequest,
+    AssistantModelSelectionRequest, AssistantModelsResponse, GenerateTitleRequest,
+    GenerateTitleResponse, ReasoningEffort, ReasoningEffortRequest, SystemPromptResponse,
+    UpdateSystemPromptRequest,
 };
 
 pub async fn models(State(state): State<AppState>) -> impl IntoResponse {
@@ -130,6 +131,120 @@ pub async fn chat(
     });
 
     Sse::new(ReceiverStream::new(rx)).into_response()
+}
+
+pub async fn generate_title(
+    State(state): State<AppState>,
+    Json(request): Json<GenerateTitleRequest>,
+) -> Result<Json<GenerateTitleResponse>, (StatusCode, Json<AssistantChatErrorResponse>)> {
+    let registry = state.assistant_models.read().await;
+    let selected_model = registry.selected_model.clone();
+    drop(registry);
+
+    let openai_api_key = state
+        .openai_api_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|k| !k.is_empty());
+
+    let api_key = match (openai_api_key, selected_model.as_str()) {
+        (Some(key), model) if model != MOCK_BACKEND_MODEL => key,
+        _ => {
+            // Fall back to first-user-message truncation when no real model is available
+            let title = fallback_title(&request.messages);
+            return Ok(Json(GenerateTitleResponse { title }));
+        }
+    };
+
+    let user_text: Vec<&str> = request
+        .messages
+        .iter()
+        .filter(|m| m.role == "user")
+        .filter_map(|m| m.content.as_str())
+        .collect();
+
+    if user_text.is_empty() {
+        return Ok(Json(GenerateTitleResponse {
+            title: "New conversation".to_string(),
+        }));
+    }
+
+    let conversation_snippet = user_text.join("\n").chars().take(500).collect::<String>();
+
+    let body = serde_json::json!({
+        "model": selected_model,
+        "input": [{
+            "role": "user",
+            "content": format!(
+                "Generate a short title (max 60 characters) for a conversation that starts with:\n\n\"{conversation_snippet}\"\n\nRespond with ONLY the title, no quotes, no punctuation at the end."
+            ),
+        }],
+        "store": false,
+    });
+
+    let response = state
+        .http_client
+        .post(&state.openai_responses_url)
+        .bearer_auth(api_key)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| {
+            error!(error = %e, "title generation request failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(AssistantChatErrorResponse {
+                    error: "failed to generate title".to_string(),
+                }),
+            )
+        })?;
+
+    if !response.status().is_success() {
+        let title = fallback_title(&request.messages);
+        return Ok(Json(GenerateTitleResponse { title }));
+    }
+
+    let response_body: serde_json::Value = response.json().await.map_err(|e| {
+        error!(error = %e, "failed to parse title generation response");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(AssistantChatErrorResponse {
+                error: "failed to parse title response".to_string(),
+            }),
+        )
+    })?;
+
+    let title = response_body["output"]
+        .as_array()
+        .and_then(|outputs| {
+            outputs.iter().find_map(|item| {
+                item["content"].as_array().and_then(|parts| {
+                    parts
+                        .iter()
+                        .find_map(|part| part["text"].as_str().map(str::to_string))
+                })
+            })
+        })
+        .map(|t| {
+            let trimmed = t.trim().trim_matches('"');
+            if trimmed.len() > 60 {
+                format!("{}...", &trimmed[..57])
+            } else {
+                trimmed.to_string()
+            }
+        })
+        .unwrap_or_else(|| fallback_title(&request.messages));
+
+    Ok(Json(GenerateTitleResponse { title }))
+}
+
+fn fallback_title(messages: &[AssistantChatMessageRequest]) -> String {
+    let text = latest_user_prompt_from(messages).unwrap_or("New conversation");
+    if text.len() > 60 {
+        format!("{}...", &text[..57])
+    } else {
+        text.to_string()
+    }
 }
 
 pub async fn get_system_prompt(

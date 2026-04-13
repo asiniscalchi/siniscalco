@@ -22,7 +22,7 @@ import { MarkdownTextPrimitive } from "@assistant-ui/react-markdown";
 import type { ThreadHistoryAdapter } from "@assistant-ui/core";
 import { createAssistantStream } from "assistant-stream";
 
-import { getAssistantChatApiUrl } from "@/lib/env";
+import { getAssistantChatApiUrl, getAssistantGenerateTitleApiUrl } from "@/lib/env";
 import { cn } from "@/lib/utils";
 import {
   apiAppendMessage,
@@ -313,10 +313,27 @@ function useThreadListRuntime() {
       },
 
       async generateTitle(remoteId, messages) {
-        // Derive title from the first user message (truncated to 60 chars)
-        const firstUser = messages.find((m) => m.role === "user");
-        const text = firstUser ? extractMessageText(firstUser) : "";
-        const title = text.length > 60 ? `${text.slice(0, 57)}...` : text;
+        let title = "";
+        try {
+          const res = await fetch(getAssistantGenerateTitleApiUrl(), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ messages: serializeMessages(messages) }),
+          });
+          if (res.ok) {
+            const body = (await res.json()) as { title: string };
+            title = body.title;
+          }
+        } catch {
+          // fall through to fallback
+        }
+
+        if (!title) {
+          const firstUser = messages.find((m) => m.role === "user");
+          const text = firstUser ? extractMessageText(firstUser) : "";
+          title = text.length > 60 ? `${text.slice(0, 57)}...` : text;
+        }
+
         if (title) {
           await apiRenameThread(remoteId, title);
         }

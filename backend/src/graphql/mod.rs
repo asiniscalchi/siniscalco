@@ -97,6 +97,10 @@ pub fn build_router_with_state(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/assistant/chat", post(crate::assistant::chat))
+        .route(
+            "/assistant/generate-title",
+            post(crate::assistant::generate_title),
+        )
         .route("/assistant/models", get(crate::assistant::models))
         .route(
             "/assistant/models/selected",
