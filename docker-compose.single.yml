@@ -2,8 +2,6 @@ services:
   app:
     build:
       context: .
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
     image: ${APP_IMAGE:-siniscalco:${APP_TAG:-local}}
     env_file:
       - ./backend/.env.example

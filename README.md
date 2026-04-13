@@ -40,6 +40,8 @@ This repository now includes separate container images for the backend and front
 
 The root [`Dockerfile`](/home/asini/workspace/siniscalco/Dockerfile) builds the Rust backend and the Vite frontend into one image. At runtime the container starts the backend on an internal port and nginx on port 80. Browser requests to `/api/` are proxied by nginx to the in-container backend.
 
+The single-container image does not accept a frontend API URL build argument. It relies on the frontend default of `/api`, matching the nginx proxy in the same container.
+
 Build and run it with Compose:
 
 ```bash

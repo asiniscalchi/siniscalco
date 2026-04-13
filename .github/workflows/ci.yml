@@ -83,8 +83,6 @@ jobs:
         with:
           context: .
           push: false
-          build-args: |
-            VITE_API_BASE_URL=/api
 
   docker-backend:
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
