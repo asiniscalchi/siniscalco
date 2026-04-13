@@ -23,7 +23,13 @@ export function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) 
   return (
     <div className="flex flex-col gap-8">
       <PortfolioSummarySection summary={summary} hideValues={hideValues} />
-      <PortfolioHistoryCard />
+      <PortfolioHistoryCard
+        currentValue={
+          summary.totalValueStatus === "OK" && summary.totalValueAmount
+            ? Number(summary.totalValueAmount)
+            : undefined
+        }
+      />
       <div className="grid gap-8 lg:grid-cols-2">
         <PortfolioAccountBreakdown
           accountTotals={summary.accountTotals}
