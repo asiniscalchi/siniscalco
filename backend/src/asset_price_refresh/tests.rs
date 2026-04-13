@@ -1,6 +1,7 @@
 use std::{str::FromStr, time::Duration};
 
 use axum::{Json, Router, routing::any};
+use clap::Parser;
 use reqwest::Client;
 use serde_json::json;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
@@ -16,7 +17,7 @@ use super::{
     refresh_asset_prices,
 };
 use crate::{
-    AssetType, CreateAssetInput, Currency, UpsertAssetQuoteSourceInput, get_asset, init_db,
+    AssetType, Config, CreateAssetInput, Currency, UpsertAssetQuoteSourceInput, get_asset, init_db,
     upsert_asset_quote_source,
 };
 
@@ -582,7 +583,7 @@ async fn tries_all_openfigi_tickers_until_success() {
     let twelve_data_app = Router::new().route(
         "/quote",
         any(|Query(params): Query<HashMap<String, String>>| async move {
-            if params.get("symbol").map_or(false, |s| s == "EIMI") {
+            if params.get("symbol").is_some_and(|s| s == "EIMI") {
                 Json(json!({"close": "22.50", "currency": "USD", "datetime": "2026-03-25"}))
             } else {
                 Json(json!({"status": "error", "code": 404, "message": "symbol not found"}))
@@ -1582,22 +1583,46 @@ async fn refreshes_asset_prices_via_marketstack() {
 
 #[tokio::test]
 async fn fetches_yahoo_finance_quote() {
-    let base_url = start_test_server_at(
+    use axum::http::{HeaderMap, header::USER_AGENT};
+
+    let app = Router::new().route(
         "/v8/finance/chart/GRID.MI",
-        json!({
-            "chart": {
-                "result": [{
-                    "meta": {
-                        "regularMarketPrice": 51.19,
-                        "regularMarketTime": 1742817600,
-                        "currency": "EUR"
+        any(|headers: HeaderMap| async move {
+            let user_agent = headers
+                .get(USER_AGENT)
+                .and_then(|value| value.to_str().ok())
+                .unwrap_or_default();
+
+            if !user_agent.contains("Mozilla/5.0") {
+                return Json(json!({
+                    "chart": {
+                        "result": null,
+                        "error": {
+                            "description": format!("unexpected User-Agent: {user_agent}")
+                        }
                     }
-                }],
-                "error": null
+                }));
             }
+
+            Json(json!({
+                "chart": {
+                    "result": [{
+                        "meta": {
+                            "regularMarketPrice": 51.19,
+                            "regularMarketTime": 1742817600,
+                            "currency": "EUR"
+                        }
+                    }],
+                    "error": null
+                }
+            }))
         }),
-    )
-    .await;
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base_url = format!("http://{}", listener.local_addr().unwrap());
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
 
     let quote = fetch_yahoo_quote(&Client::new(), &base_url, "GRID.MI")
         .await
@@ -1737,4 +1762,101 @@ async fn refreshes_asset_prices_via_yahoo_finance() {
         asset.current_price_as_of,
         Some("2025-03-24T12:00:00Z".to_string())
     );
+}
+
+#[tokio::test]
+async fn refreshes_grid_mi_via_default_yahoo_finance_provider() {
+    let pool = test_pool().await;
+    let asset_id = crate::create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: "GRID".try_into().unwrap(),
+            name: "Smart Grid ETF".try_into().unwrap(),
+            asset_type: AssetType::Stock,
+            quote_symbol: Some("GRID.MI".to_string()),
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset should be created");
+
+    let base_url = start_test_server_at(
+        "/v8/finance/chart/GRID.MI",
+        json!({
+            "chart": {
+                "result": [{
+                    "meta": {
+                        "regularMarketPrice": 51.19,
+                        "regularMarketTime": 1742817600,
+                        "currency": "EUR"
+                    }
+                }],
+                "error": null
+            }
+        }),
+    )
+    .await;
+
+    let config = Config::parse_from([
+        "siniscalco",
+        "--yahoo-finance-base-url",
+        base_url.as_str(),
+        "--twelve-data-api-key",
+        "",
+        "--finnhub-api-key",
+        "",
+        "--alpha-vantage-api-key",
+        "",
+        "--polygon-api-key",
+        "",
+        "--fmp-api-key",
+        "",
+        "--eodhd-api-key",
+        "",
+        "--tiingo-api-key",
+        "",
+        "--marketstack-api-key",
+        "",
+        "--fcsapi-api-key",
+        "",
+        "--itick-api-key",
+        "",
+    ]);
+    let price_config = config.asset_price_refresh_config();
+    assert!(price_config.yahoo_finance_enabled);
+
+    let updated_count = refresh_asset_prices(&pool, &Client::new(), &price_config)
+        .await
+        .expect("refresh should succeed");
+
+    let asset = get_asset(&pool, asset_id)
+        .await
+        .expect("asset should load with price");
+
+    assert_eq!(updated_count, 1);
+    assert_eq!(asset.current_price.unwrap().to_string(), "51.19");
+    assert_eq!(asset.current_price_currency, Some(Currency::Eur));
+    assert_eq!(asset.quote_source_symbol.as_deref(), Some("GRID.MI"));
+    assert_eq!(asset.quote_source_provider.as_deref(), Some("yahoo"));
+}
+
+#[tokio::test]
+async fn fetches_twelve_data_quote_for_european_symbol() {
+    let base_url = start_test_server_at(
+        "/quote",
+        json!({
+            "close": "51.19",
+            "currency": "EUR",
+            "datetime": "2026-03-24 16:30:00"
+        }),
+    )
+    .await;
+
+    let quote = fetch_twelve_data_quote(&Client::new(), &base_url, "test-key", "GRID.MI")
+        .await
+        .expect("quote fetch should succeed");
+
+    assert_eq!(quote.price.to_string(), "51.19");
+    assert_eq!(quote.currency, Currency::Eur);
+    assert_eq!(quote.as_of, "2026-03-24T16:30:00Z");
 }

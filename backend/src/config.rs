@@ -66,7 +66,12 @@ pub struct Config {
     pub yahoo_finance_base_url: String,
 
     /// Enable Yahoo Finance as the stock price provider (no API key required)
-    #[arg(long, env = "YAHOO_FINANCE_ENABLED", default_value_t = false)]
+    #[arg(
+        long,
+        env = "YAHOO_FINANCE_ENABLED",
+        default_value_t = true,
+        action = clap::ArgAction::Set
+    )]
     pub yahoo_finance_enabled: bool,
 
     /// Twelve Data API base URL
@@ -237,4 +242,18 @@ fn non_empty(value: Option<&str>) -> Option<String> {
         .map(str::trim)
         .filter(|v| !v.is_empty())
         .map(str::to_string)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn yahoo_finance_is_enabled_by_default() {
+        let config = Config::parse_from(["siniscalco"]);
+        let price_config = config.asset_price_refresh_config();
+
+        assert!(price_config.yahoo_finance_enabled);
+        assert_eq!(price_config.stock_providers()[0].name(), "yahoo");
+    }
 }

@@ -1,10 +1,12 @@
-use reqwest::Client;
+use reqwest::{Client, header::USER_AGENT};
 use serde::Deserialize;
 
 use crate::{AssetUnitPrice, Currency};
 
 use super::super::{AssetPriceRefreshError, AssetQuote};
 use super::unix_timestamp_to_rfc3339;
+
+const YAHOO_FINANCE_USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 #[derive(Debug, Deserialize)]
 struct YahooChartResponse {
@@ -74,6 +76,7 @@ pub async fn fetch_yahoo_quote(
 
     let response = client
         .get(url)
+        .header(USER_AGENT, YAHOO_FINANCE_USER_AGENT)
         .query(&[("range", "1d"), ("interval", "1d")])
         .send()
         .await

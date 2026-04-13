@@ -44,6 +44,8 @@ The backend expects:
 
 `DB_PATH` should point to persistent storage. Do not rely on the container filesystem for SQLite durability.
 
+Stock price refresh uses Yahoo Finance by default, which requires no API key and supports Yahoo-style exchange suffixes such as `GRID.MI`. Paid providers such as Twelve Data are optional fallbacks; leave their API key variables empty to stay on the no-key path.
+
 ### Frontend runtime
 
 The frontend image is built with `VITE_API_BASE_URL` as a build argument. For Compose usage it should be set to `/api`, which sends browser requests through the nginx proxy in the web container. Nginx then forwards those requests to the backend service over the Compose network.
