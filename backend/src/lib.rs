@@ -9,7 +9,34 @@ mod graphql;
 mod logging;
 pub mod mcp;
 mod portfolio_snapshot_job;
-mod storage;
+pub mod storage;
+
+// ── Configuration & startup ──────────────────────────────────────────────────
+
+pub use config::Config;
+pub use db::{connect_db, connect_db_file, init_db};
+pub use logging::{default_log_filter, init_tracing};
+
+// ── HTTP / GraphQL ───────────────────────────────────────────────────────────
+
+pub use graphql::{AppState, build_router, build_router_with_state, schema_sdl};
+
+// ── Formatting helpers ───────────────────────────────────────────────────────
+
+pub use format::{
+    compact_decimal_output, fmt_amount, fmt_opt_amount, format_decimal_amount,
+    normalize_amount_output,
+};
+
+// ── FX refresh ───────────────────────────────────────────────────────────────
+
+pub use fx_refresh::{
+    FxRefreshAvailability, FxRefreshConfig, FxRefreshStatus, PRODUCT_BASE_CURRENCY,
+    SharedFxRefreshStatus, fetch_frankfurter_rates, new_shared_fx_refresh_status, refresh_fx_rates,
+    spawn_fx_refresh_task,
+};
+
+// ── Asset price refresh ──────────────────────────────────────────────────────
 
 pub use asset_price_refresh::{
     AssetPriceRefreshConfig, fetch_alpha_vantage_quote, fetch_coingecko_quote, fetch_eodhd_quote,
@@ -17,32 +44,44 @@ pub use asset_price_refresh::{
     fetch_polygon_quote, fetch_tiingo_quote, fetch_twelve_data_quote, refresh_asset_prices,
     refresh_single_asset_price, spawn_asset_price_refresh_task,
 };
-pub use config::Config;
-pub use db::{connect_db, connect_db_file, init_db};
-pub use format::{
-    compact_decimal_output, fmt_amount, fmt_opt_amount, format_decimal_amount,
-    normalize_amount_output,
-};
-pub use fx_refresh::{
-    FxRefreshAvailability, FxRefreshConfig, FxRefreshStatus, PRODUCT_BASE_CURRENCY,
-    SharedFxRefreshStatus, fetch_frankfurter_rates, new_shared_fx_refresh_status, refresh_fx_rates,
-    spawn_fx_refresh_task,
-};
-pub use graphql::{AppState, build_router, build_router_with_state, schema_sdl};
-pub use logging::{default_log_filter, init_tracing};
-pub use mcp::SharedMcpClient;
+
+// ── Portfolio snapshots ──────────────────────────────────────────────────────
+
 pub use portfolio_snapshot_job::spawn_portfolio_snapshot_task;
+
+// ── MCP ──────────────────────────────────────────────────────────────────────
+
+pub use mcp::SharedMcpClient;
+
+// ── Storage: domain types ────────────────────────────────────────────────────
+
 pub use storage::{
-    AccountBalanceRecord, AccountId, AccountName, AccountRecord, AccountSummaryRecord,
-    AccountSummaryStatus, AccountType, AccountValueSummaryRecord, Amount, AssetId, AssetName,
-    AssetPosition, AssetPositionRecord, AssetQuantity, AssetRecord, AssetSymbol,
-    AssetTransactionRecord, AssetTransactionType, AssetType, AssetUnitPrice, CashMovementRecord,
+    AccountId, AccountName, AccountSummaryStatus, AccountType, Amount, AssetId, AssetName,
+    AssetPosition, AssetQuantity, AssetSymbol, AssetTransactionType, AssetType, AssetUnitPrice,
+    Currency, FxRate, TradeDate, TransferId,
+};
+
+// ── Storage: records ─────────────────────────────────────────────────────────
+
+pub use storage::{
+    AccountBalanceRecord, AccountRecord, AccountSummaryRecord, AccountValueSummaryRecord,
+    AssetPositionRecord, AssetRecord, AssetTransactionRecord, CashMovementRecord, CurrencyRecord,
+    FxRateDetailRecord, FxRateRecord, FxRateSummaryItemRecord, FxRateSummaryRecord,
+    PortfolioAccountTotalRecord, PortfolioAllocationSliceRecord, PortfolioCashByCurrencyRecord,
+    PortfolioHoldingRecord, PortfolioSnapshotRecord, PortfolioSummaryRecord, TransferRecord,
+};
+
+// ── Storage: input types ─────────────────────────────────────────────────────
+
+pub use storage::{
     CreateAccountInput, CreateAssetInput, CreateAssetTransactionInput, CreateCashMovementInput,
-    CreateTransferInput, Currency, CurrencyRecord, FxRate, FxRateDetailRecord, FxRateRecord,
-    FxRateSummaryItemRecord, FxRateSummaryRecord, PortfolioAccountTotalRecord,
-    PortfolioAllocationSliceRecord, PortfolioCashByCurrencyRecord, PortfolioHoldingRecord,
-    PortfolioSnapshotRecord, PortfolioSummaryRecord, TradeDate, TransferId, TransferRecord,
-    UpsertAssetPriceInput, UpsertAssetQuoteSourceInput, UpsertFxRateInput, UpsertOutcome,
+    CreateTransferInput, UpsertAssetPriceInput, UpsertAssetQuoteSourceInput, UpsertFxRateInput,
+    UpsertOutcome,
+};
+
+// ── Storage: operations ──────────────────────────────────────────────────────
+
+pub use storage::{
     convert_asset_total_value_in_currency, create_account, create_asset, create_asset_transaction,
     create_cash_movement, create_transfer, current_utc_timestamp, delete_account, delete_asset,
     delete_asset_transaction, delete_transfer, get_account, get_account_value_summary, get_asset,
