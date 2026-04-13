@@ -128,12 +128,14 @@ describe("AssistantPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     expect(await screen.findByText("Your portfolio is empty.")).toBeTruthy();
-    const reasoningToggle = await screen.findByRole("button", { name: /reasoning/i });
+    const reasoningToggle = await screen.findByRole("button", { name: /checking portfolio accounts/i });
     expect(reasoningToggle.getAttribute("aria-expanded")).toBe("false");
 
     fireEvent.click(reasoningToggle);
 
     expect(reasoningToggle.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByText("Checking portfolio accounts.")).toBeTruthy();
+    const expandedPanel = document.getElementById(reasoningToggle.getAttribute("aria-controls")!);
+    expect(expandedPanel).toBeTruthy();
+    expect(expandedPanel!.textContent).toContain("Checking portfolio accounts.");
   });
 });

@@ -412,21 +412,34 @@ function ReasoningDisplay({ text, status }: ReasoningMessagePartProps) {
   const bodyId = useId();
   const isRunning = status.type === "running";
 
+  const firstLine = text ? text.split("\n")[0] : "";
+
   return (
-    <div className="overflow-hidden rounded-lg border bg-muted/40 text-xs text-muted-foreground">
+    <div className="my-1 text-xs text-muted-foreground">
       <button
         aria-controls={bodyId}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left"
+        className="flex items-center gap-1.5 text-left"
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
-        <span className="font-medium text-foreground">Reasoning</span>
-        <span>{isRunning ? "thinking..." : open ? "hide" : "show"}</span>
+        <span
+          className={cn(
+            "inline-block transition-transform duration-200",
+            open ? "rotate-90" : "rotate-0",
+          )}
+        >
+          ▶
+        </span>
+        <span className="italic">
+          {isRunning && !firstLine
+            ? "thinking…"
+            : firstLine || "Reasoning"}
+        </span>
       </button>
       {open && (
         <div
-          className="border-t bg-background/70 px-3 py-2 text-xs leading-5 whitespace-pre-wrap text-foreground"
+          className="mt-1 ml-4 border-l-2 border-muted-foreground/25 pl-3 text-xs leading-5 whitespace-pre-wrap"
           id={bodyId}
         >
           {text || "Reasoning is still streaming."}
