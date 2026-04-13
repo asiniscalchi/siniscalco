@@ -1,3 +1,4 @@
+#![allow(clippy::explicit_auto_deref)]
 use std::collections::BTreeMap;
 
 use rust_decimal::Decimal;

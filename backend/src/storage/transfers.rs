@@ -1,3 +1,4 @@
+#![allow(clippy::explicit_auto_deref)]
 use sqlx::{Row, SqlitePool};
 
 use crate::storage::records::*;

@@ -15,6 +15,7 @@ use super::balances::{CashEntrySource, insert_cash_entry_on_connection};
 ///
 /// Returns the FX rate that was used so the caller can persist it on the
 /// transaction row for correct future reversals.
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn apply_cash_impact(
     connection: &mut SqliteConnection,
     account_id: AccountId,
@@ -46,6 +47,7 @@ pub(super) async fn apply_cash_impact(
 /// Used when updating a transaction whose currency has not changed: the
 /// correction should preserve the original trade's FX conditions so that
 /// only the price/quantity delta affects the balance, not FX drift.
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn apply_cash_impact_at_rate(
     connection: &mut SqliteConnection,
     account_id: AccountId,
@@ -76,6 +78,7 @@ pub(super) async fn apply_cash_impact_at_rate(
 /// The caller must pass `locked_rate` from the stored `fx_rate` column on
 /// the original transaction row. The live `fx_rates` table is not consulted,
 /// so FX drift between trade date and the reversal date has no effect.
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn reverse_cash_impact(
     connection: &mut SqliteConnection,
     account_id: AccountId,

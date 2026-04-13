@@ -124,7 +124,6 @@ pub struct UpdateSystemPromptRequest {
 #[derive(Debug)]
 pub enum AssistantError {
     Storage(StorageError),
-    Api(String),
     Mcp(McpError),
 }
 
@@ -132,7 +131,6 @@ impl fmt::Display for AssistantError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             AssistantError::Storage(e) => write!(f, "storage error: {e}"),
-            AssistantError::Api(msg) => write!(f, "api error: {msg}"),
             AssistantError::Mcp(e) => write!(f, "mcp error: {e}"),
         }
     }
@@ -185,12 +183,6 @@ mod tests {
     fn assistant_error_display_storage() {
         let e = AssistantError::Storage(StorageError::Internal("thing"));
         assert!(e.to_string().starts_with("storage error:"));
-    }
-
-    #[test]
-    fn assistant_error_display_api() {
-        let e = AssistantError::Api("boom".to_string());
-        assert_eq!(e.to_string(), "api error: boom");
     }
 
     #[test]
