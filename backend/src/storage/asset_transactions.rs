@@ -9,7 +9,9 @@ use crate::storage::{
     Currency, FxRate, StorageError, TradeDate, current_utc_timestamp,
 };
 
-use super::transaction_cash::{apply_cash_impact, apply_cash_impact_at_rate, reverse_cash_impact};
+use super::transaction_cash::{
+    CashImpactContext, apply_cash_impact, apply_cash_impact_at_rate, reverse_cash_impact,
+};
 
 pub async fn create_asset_transaction(
     pool: &SqlitePool,
@@ -71,13 +73,15 @@ pub async fn create_asset_transaction(
     // FX rate used so we can persist it for correct future reversals.
     let fx_rate = apply_cash_impact(
         &mut tx,
-        input.account_id,
-        input.transaction_type,
-        input.quantity,
-        input.unit_price,
+        &CashImpactContext {
+            account_id: input.account_id,
+            transaction_type: input.transaction_type,
+            quantity: input.quantity,
+            unit_price: input.unit_price,
+            transaction_id,
+            created_at: &timestamp,
+        },
         input.currency_code,
-        transaction_id,
-        &timestamp,
     )
     .await?;
 
@@ -166,13 +170,15 @@ pub async fn update_asset_transaction(
     // Reverse the original cash impact using the rate stored at trade time.
     reverse_cash_impact(
         &mut tx,
-        existing_transaction.account_id,
-        existing_transaction.transaction_type,
-        existing_transaction.quantity,
-        existing_transaction.unit_price,
+        &CashImpactContext {
+            account_id: existing_transaction.account_id,
+            transaction_type: existing_transaction.transaction_type,
+            quantity: existing_transaction.quantity,
+            unit_price: existing_transaction.unit_price,
+            transaction_id,
+            created_at: &updated_at,
+        },
         existing_transaction.fx_rate,
-        transaction_id,
-        &updated_at,
     )
     .await?;
 
@@ -190,26 +196,30 @@ pub async fn update_asset_transaction(
     let new_fx_rate = if can_reuse_locked_rate {
         apply_cash_impact_at_rate(
             &mut tx,
-            input.account_id,
-            input.transaction_type,
-            input.quantity,
-            input.unit_price,
+            &CashImpactContext {
+                account_id: input.account_id,
+                transaction_type: input.transaction_type,
+                quantity: input.quantity,
+                unit_price: input.unit_price,
+                transaction_id,
+                created_at: &updated_at,
+            },
             existing_transaction.fx_rate,
-            transaction_id,
-            &updated_at,
         )
         .await?;
         existing_transaction.fx_rate
     } else {
         apply_cash_impact(
             &mut tx,
-            input.account_id,
-            input.transaction_type,
-            input.quantity,
-            input.unit_price,
+            &CashImpactContext {
+                account_id: input.account_id,
+                transaction_type: input.transaction_type,
+                quantity: input.quantity,
+                unit_price: input.unit_price,
+                transaction_id,
+                created_at: &updated_at,
+            },
             input.currency_code,
-            transaction_id,
-            &updated_at,
         )
         .await?
     };
@@ -267,13 +277,15 @@ pub async fn delete_asset_transaction(
     // Reverse the cash impact using the rate that was locked in at trade time.
     reverse_cash_impact(
         &mut tx,
-        existing_transaction.account_id,
-        existing_transaction.transaction_type,
-        existing_transaction.quantity,
-        existing_transaction.unit_price,
+        &CashImpactContext {
+            account_id: existing_transaction.account_id,
+            transaction_type: existing_transaction.transaction_type,
+            quantity: existing_transaction.quantity,
+            unit_price: existing_transaction.unit_price,
+            transaction_id,
+            created_at: &updated_at,
+        },
         existing_transaction.fx_rate,
-        transaction_id,
-        &updated_at,
     )
     .await?;
 
