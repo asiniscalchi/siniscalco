@@ -48,7 +48,10 @@ impl McpClient {
     /// Spawn `npx -y mcp-searxng` with the given SearXNG URL, perform the MCP
     /// handshake, and discover available tools.
     pub async fn spawn(searxng_url: &str) -> Result<Self, McpError> {
-        info!(command = "npx -y mcp-searxng", searxng_url, "spawning MCP server");
+        info!(
+            command = "npx -y mcp-searxng",
+            searxng_url, "spawning MCP server"
+        );
 
         let mut child = Command::new("npx")
             .args(["-y", "mcp-searxng"])
