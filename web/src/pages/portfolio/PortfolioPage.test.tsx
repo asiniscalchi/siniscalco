@@ -429,4 +429,41 @@ describe("PortfolioPage", () => {
     expect(screen.queryByText("66.7%")).toBeNull();
     expect(screen.getAllByText("•••%").length).toBeGreaterThan(0);
   });
+
+  it("renders top holdings as a donut with grouped remaining holdings", async () => {
+    mockPortfolioRequest({
+      displayCurrency: "EUR",
+      totalValueStatus: "OK",
+      totalValueAmount: "350.00000000",
+      accountTotals: [],
+      cashByCurrency: [
+        { currency: "EUR", amount: "50.00000000", convertedAmount: "50.00000000" },
+      ],
+      fxLastUpdated: null,
+      fxRefreshStatus: "AVAILABLE",
+      fxRefreshError: null,
+      allocationTotals: [{ label: "Stock", amount: "300.00000000" }],
+      allocationIsPartial: false,
+      holdings: [
+        { assetId: 1, symbol: "VWCE", name: "Vanguard FTSE All-World", value: "120.00000000" },
+        { assetId: 2, symbol: "BTC", name: "Bitcoin", value: "80.00000000" },
+        { assetId: 3, symbol: "AAPL", name: "Apple", value: "50.00000000" },
+        { assetId: 4, symbol: "MSFT", name: "Microsoft", value: "30.00000000" },
+        { assetId: 5, symbol: "NVDA", name: "Nvidia", value: "20.00000000" },
+        { assetId: 6, symbol: "ETH", name: "Ethereum", value: "10.00000000" },
+      ],
+      holdingsIsPartial: false,
+    });
+
+    renderPortfolioPage();
+
+    expect(await screen.findByRole("img", { name: "Top holdings donut chart" })).toBeTruthy();
+    expect(screen.getByText("VWCE")).toBeTruthy();
+    expect(screen.getByText("Vanguard FTSE All-World")).toBeTruthy();
+    expect(screen.getByText("Other")).toBeTruthy();
+    expect(screen.getByText("1 other holding")).toBeTruthy();
+    expect(screen.getByText("120.00 EUR")).toBeTruthy();
+    expect(screen.getByText("38.7%")).toBeTruthy();
+    expect(screen.getByText("3.2%")).toBeTruthy();
+  });
 });
