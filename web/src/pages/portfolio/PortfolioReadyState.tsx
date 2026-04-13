@@ -35,12 +35,14 @@ export function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) 
           displayCurrency={summary.displayCurrency}
           hideValues={hideValues}
         />
-        <TopHoldingsCard
-          holdings={summary.holdings}
-          isPartial={summary.holdingsIsPartial}
-          displayCurrency={summary.displayCurrency}
-          hideValues={hideValues}
-        />
+        <div className="lg:col-span-2">
+          <TopHoldingsCard
+            holdings={summary.holdings}
+            isPartial={summary.holdingsIsPartial}
+            displayCurrency={summary.displayCurrency}
+            hideValues={hideValues}
+          />
+        </div>
       </div>
     </div>
   );
