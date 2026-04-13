@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 use tokio::sync::Mutex;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 const MCP_TOOL_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -48,6 +48,8 @@ impl McpClient {
     /// Spawn `npx -y mcp-searxng` with the given SearXNG URL, perform the MCP
     /// handshake, and discover available tools.
     pub async fn spawn(searxng_url: &str) -> Result<Self, McpError> {
+        info!(command = "npx -y mcp-searxng", searxng_url, "spawning MCP server");
+
         let mut child = Command::new("npx")
             .args(["-y", "mcp-searxng"])
             .env("SEARXNG_URL", searxng_url)
@@ -55,7 +57,12 @@ impl McpClient {
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::inherit())
             .spawn()
-            .map_err(|e| McpError::Spawn(e.to_string()))?;
+            .map_err(|e| {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    warn!("MCP server command not found: `npx` must be installed and on PATH");
+                }
+                McpError::Spawn(e.to_string())
+            })?;
 
         let stdin = child.stdin.take().expect("stdin should be piped");
         let stdout = child.stdout.take().expect("stdout should be piped");
