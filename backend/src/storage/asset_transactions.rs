@@ -1,4 +1,3 @@
-#![allow(clippy::explicit_auto_deref)]
 use std::collections::BTreeMap;
 
 use rust_decimal::Decimal;
@@ -20,7 +19,7 @@ pub async fn create_asset_transaction(
 
     if input.transaction_type == AssetTransactionType::Sell {
         let current_quantity =
-            load_current_quantity(&mut *tx, input.account_id, input.asset_id).await?;
+            load_current_quantity(&mut tx, input.account_id, input.asset_id).await?;
 
         if current_quantity < input.quantity.as_decimal() {
             return Err(StorageError::Validation(
@@ -71,7 +70,7 @@ pub async fn create_asset_transaction(
     // Apply the cash impact now that we have the transaction_id, capturing the
     // FX rate used so we can persist it for correct future reversals.
     let fx_rate = apply_cash_impact(
-        &mut *tx,
+        &mut tx,
         input.account_id,
         input.transaction_type,
         input.quantity,
@@ -146,7 +145,7 @@ pub async fn get_transaction(
     transaction_id: i64,
 ) -> Result<AssetTransactionRecord, StorageError> {
     let mut connection = pool.acquire().await?;
-    get_asset_transaction(&mut *connection, transaction_id).await
+    get_asset_transaction(&mut connection, transaction_id).await
 }
 
 pub async fn update_asset_transaction(
@@ -156,18 +155,17 @@ pub async fn update_asset_transaction(
 ) -> Result<AssetTransactionRecord, StorageError> {
     let mut tx = pool.begin().await?;
 
-    let existing_transaction = get_asset_transaction(&mut *tx, transaction_id).await?;
-    validate_position_change_for_transaction_update(&mut *tx, &existing_transaction, &input)
-        .await?;
+    let existing_transaction = get_asset_transaction(&mut tx, transaction_id).await?;
+    validate_position_change_for_transaction_update(&mut tx, &existing_transaction, &input).await?;
     let existing_base_currency =
-        load_account_base_currency(&mut *tx, existing_transaction.account_id).await?;
-    let updated_base_currency = load_account_base_currency(&mut *tx, input.account_id).await?;
+        load_account_base_currency(&mut tx, existing_transaction.account_id).await?;
+    let updated_base_currency = load_account_base_currency(&mut tx, input.account_id).await?;
 
     let updated_at = current_utc_timestamp()?;
 
     // Reverse the original cash impact using the rate stored at trade time.
     reverse_cash_impact(
-        &mut *tx,
+        &mut tx,
         existing_transaction.account_id,
         existing_transaction.transaction_type,
         existing_transaction.quantity,
@@ -191,7 +189,7 @@ pub async fn update_asset_transaction(
 
     let new_fx_rate = if can_reuse_locked_rate {
         apply_cash_impact_at_rate(
-            &mut *tx,
+            &mut tx,
             input.account_id,
             input.transaction_type,
             input.quantity,
@@ -204,7 +202,7 @@ pub async fn update_asset_transaction(
         existing_transaction.fx_rate
     } else {
         apply_cash_impact(
-            &mut *tx,
+            &mut tx,
             input.account_id,
             input.transaction_type,
             input.quantity,
@@ -250,7 +248,7 @@ pub async fn update_asset_transaction(
         return Err(StorageError::Database(sqlx::Error::RowNotFound));
     }
 
-    let transaction = get_asset_transaction(&mut *tx, transaction_id).await?;
+    let transaction = get_asset_transaction(&mut tx, transaction_id).await?;
     tx.commit().await?;
     Ok(transaction)
 }
@@ -261,14 +259,14 @@ pub async fn delete_asset_transaction(
 ) -> Result<(), StorageError> {
     let mut tx = pool.begin().await?;
 
-    let existing_transaction = get_asset_transaction(&mut *tx, transaction_id).await?;
-    validate_position_change_for_transaction_delete(&mut *tx, &existing_transaction).await?;
+    let existing_transaction = get_asset_transaction(&mut tx, transaction_id).await?;
+    validate_position_change_for_transaction_delete(&mut tx, &existing_transaction).await?;
 
     let updated_at = current_utc_timestamp()?;
 
     // Reverse the cash impact using the rate that was locked in at trade time.
     reverse_cash_impact(
-        &mut *tx,
+        &mut tx,
         existing_transaction.account_id,
         existing_transaction.transaction_type,
         existing_transaction.quantity,

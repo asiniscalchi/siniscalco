@@ -1,4 +1,3 @@
-#![allow(clippy::explicit_auto_deref)]
 use sqlx::{Row, SqlitePool};
 
 use crate::storage::records::*;
@@ -49,7 +48,7 @@ pub async fn create_transfer(
 
     // Debit the source account.
     insert_cash_entry_on_connection(
-        &mut *tx,
+        &mut tx,
         input.from_account_id,
         input.from_currency,
         -input.from_amount.as_decimal(),
@@ -61,7 +60,7 @@ pub async fn create_transfer(
 
     // Credit the destination account.
     insert_cash_entry_on_connection(
-        &mut *tx,
+        &mut tx,
         input.to_account_id,
         input.to_currency,
         input.to_amount.as_decimal(),
@@ -114,7 +113,7 @@ pub async fn delete_transfer(
 
     // Reverse: credit the source account back.
     insert_cash_entry_on_connection(
-        &mut *tx,
+        &mut tx,
         transfer.from_account_id,
         transfer.from_currency,
         transfer.from_amount.as_decimal(),
@@ -126,7 +125,7 @@ pub async fn delete_transfer(
 
     // Reverse: debit the destination account.
     insert_cash_entry_on_connection(
-        &mut *tx,
+        &mut tx,
         transfer.to_account_id,
         transfer.to_currency,
         -transfer.to_amount.as_decimal(),
