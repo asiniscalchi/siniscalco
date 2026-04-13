@@ -29,6 +29,10 @@ impl super::StockProvider for PolygonProvider {
         "polygon"
     }
 
+    fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
     async fn fetch_quote(
         &self,
         client: &Client,

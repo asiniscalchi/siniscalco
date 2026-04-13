@@ -179,66 +179,22 @@ fn log_asset_price_refresh_configuration(config: &AssetPriceRefreshConfig) {
         "ISIN resolution configuration"
     );
 
-    let stock_providers: &[(&str, bool, &str)] = &[
-        (
-            "twelve_data",
-            config.twelve_data_api_key.is_some(),
-            &config.twelve_data_base_url,
-        ),
-        (
-            "finnhub",
-            config.finnhub_api_key.is_some(),
-            &config.finnhub_base_url,
-        ),
-        (
-            "alpha_vantage",
-            config.alpha_vantage_api_key.is_some(),
-            &config.alpha_vantage_base_url,
-        ),
-        (
-            "polygon",
-            config.polygon_api_key.is_some(),
-            &config.polygon_base_url,
-        ),
-        ("fmp", config.fmp_api_key.is_some(), &config.fmp_base_url),
-        (
-            "eodhd",
-            config.eodhd_api_key.is_some(),
-            &config.eodhd_base_url,
-        ),
-        (
-            "tiingo",
-            config.tiingo_api_key.is_some(),
-            &config.tiingo_base_url,
-        ),
-        (
-            "marketstack",
-            config.marketstack_api_key.is_some(),
-            &config.marketstack_base_url,
-        ),
-    ];
+    let stock_providers = config.stock_providers();
 
-    let enabled_count = stock_providers
-        .iter()
-        .filter(|(_, enabled, _)| *enabled)
-        .count();
-
-    if enabled_count == 0 {
+    if stock_providers.is_empty() {
         info!(
             enabled = false,
-            "stock asset price refresh disabled: no provider API keys configured"
+            "stock asset price refresh disabled: no provider configured"
         );
         return;
     }
 
-    for (provider, enabled, endpoint) in stock_providers {
-        if *enabled {
-            info!(
-                provider,
-                refresh_interval_seconds = config.refresh_interval.as_secs(),
-                endpoint,
-                "stock asset price provider enabled"
-            );
-        }
+    for provider in &stock_providers {
+        info!(
+            provider = provider.name(),
+            refresh_interval_seconds = config.refresh_interval.as_secs(),
+            endpoint = provider.base_url(),
+            "stock asset price provider enabled"
+        );
     }
 }

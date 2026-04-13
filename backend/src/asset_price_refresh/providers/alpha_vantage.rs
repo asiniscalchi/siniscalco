@@ -33,6 +33,10 @@ impl super::StockProvider for AlphaVantageProvider {
         "alpha_vantage"
     }
 
+    fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
     async fn fetch_quote(
         &self,
         client: &Client,

@@ -23,6 +23,10 @@ impl super::StockProvider for FmpProvider {
         "fmp"
     }
 
+    fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
     async fn fetch_quote(
         &self,
         client: &Client,
