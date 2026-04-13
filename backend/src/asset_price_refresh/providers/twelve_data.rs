@@ -27,6 +27,10 @@ impl super::StockProvider for TwelveDataProvider {
         "twelve_data"
     }
 
+    fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
     async fn fetch_quote(
         &self,
         client: &Client,

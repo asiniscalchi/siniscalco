@@ -35,6 +35,10 @@ impl super::StockProvider for FcsApiProvider {
         "fcsapi"
     }
 
+    fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
     async fn fetch_quote(
         &self,
         client: &Client,

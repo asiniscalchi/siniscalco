@@ -24,6 +24,10 @@ impl super::StockProvider for FinnhubProvider {
         "finnhub"
     }
 
+    fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
     async fn fetch_quote(
         &self,
         client: &Client,

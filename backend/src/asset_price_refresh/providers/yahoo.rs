@@ -45,6 +45,10 @@ impl super::StockProvider for YahooFinanceProvider {
         "yahoo"
     }
 
+    fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
     async fn fetch_quote(
         &self,
         client: &Client,

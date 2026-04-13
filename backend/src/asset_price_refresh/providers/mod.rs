@@ -57,6 +57,7 @@ pub(super) async fn fetch_json<T: DeserializeOwned>(
 #[async_trait::async_trait]
 pub trait StockProvider: Send + Sync {
     fn name(&self) -> &'static str;
+    fn base_url(&self) -> &str;
     async fn fetch_quote(
         &self,
         client: &Client,
