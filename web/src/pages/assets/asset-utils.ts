@@ -112,10 +112,6 @@ export function quoteSourceLabel(asset: AssetItem): string | null {
     return asset.quoteSourceSymbol;
   }
 
-  if (asset.quoteSymbol) {
-    return `${asset.quoteSymbol} manual`;
-  }
-
   return null;
 }
 
