@@ -149,4 +149,4 @@ The CI workflow builds and pushes the web image with `VITE_API_BASE_URL=/api`, w
 
 - backend tests
 - frontend lint, typecheck, tests, and build
-- Docker image builds for both services
+- Docker image builds for the backend, frontend, and single-container app
