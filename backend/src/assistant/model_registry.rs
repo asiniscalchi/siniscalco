@@ -68,7 +68,7 @@ impl AssistantModelRegistry {
         AssistantModelsResponse {
             models: self.models.clone(),
             reasoning: super::openai_client::is_reasoning_model(&self.selected_model),
-            reasoning_effort: self.reasoning_effort.clone(),
+            reasoning_effort: self.reasoning_effort,
             selected_model: self.selected_model.clone(),
             openai_enabled: self.openai_enabled,
             last_refreshed_at: self.last_refreshed_at.clone(),

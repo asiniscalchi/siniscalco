@@ -11,31 +11,35 @@ use crate::storage::{
 
 use super::balances::{CashEntrySource, insert_cash_entry_on_connection};
 
+pub(super) struct CashImpactContext<'a> {
+    pub account_id: AccountId,
+    pub transaction_type: AssetTransactionType,
+    pub quantity: AssetQuantity,
+    pub unit_price: AssetUnitPrice,
+    pub transaction_id: i64,
+    pub created_at: &'a str,
+}
+
 /// Apply the cash impact of a transaction to the account balance.
 ///
 /// Returns the FX rate that was used so the caller can persist it on the
 /// transaction row for correct future reversals.
 pub(super) async fn apply_cash_impact(
     connection: &mut SqliteConnection,
-    account_id: AccountId,
-    transaction_type: AssetTransactionType,
-    quantity: AssetQuantity,
-    unit_price: AssetUnitPrice,
+    ctx: &CashImpactContext<'_>,
     currency: Currency,
-    transaction_id: i64,
-    created_at: &str,
 ) -> Result<FxRate, StorageError> {
-    let base_currency = load_account_base_currency(connection, account_id).await?;
+    let base_currency = load_account_base_currency(connection, ctx.account_id).await?;
     let rate = resolve_fx_rate(connection, currency, base_currency).await?;
-    let delta = compute_delta(transaction_type, quantity, unit_price, rate);
+    let delta = compute_delta(ctx.transaction_type, ctx.quantity, ctx.unit_price, rate);
     insert_cash_entry_on_connection(
         connection,
-        account_id,
+        ctx.account_id,
         base_currency,
         delta,
         CashEntrySource::AssetTransaction,
-        Some(transaction_id),
-        created_at,
+        Some(ctx.transaction_id),
+        ctx.created_at,
     )
     .await?;
     Ok(rate)
@@ -48,24 +52,24 @@ pub(super) async fn apply_cash_impact(
 /// only the price/quantity delta affects the balance, not FX drift.
 pub(super) async fn apply_cash_impact_at_rate(
     connection: &mut SqliteConnection,
-    account_id: AccountId,
-    transaction_type: AssetTransactionType,
-    quantity: AssetQuantity,
-    unit_price: AssetUnitPrice,
+    ctx: &CashImpactContext<'_>,
     locked_rate: FxRate,
-    transaction_id: i64,
-    created_at: &str,
 ) -> Result<(), StorageError> {
-    let base_currency = load_account_base_currency(connection, account_id).await?;
-    let delta = compute_delta(transaction_type, quantity, unit_price, locked_rate);
+    let base_currency = load_account_base_currency(connection, ctx.account_id).await?;
+    let delta = compute_delta(
+        ctx.transaction_type,
+        ctx.quantity,
+        ctx.unit_price,
+        locked_rate,
+    );
     insert_cash_entry_on_connection(
         connection,
-        account_id,
+        ctx.account_id,
         base_currency,
         delta,
         CashEntrySource::AssetTransaction,
-        Some(transaction_id),
-        created_at,
+        Some(ctx.transaction_id),
+        ctx.created_at,
     )
     .await
 }
@@ -78,28 +82,23 @@ pub(super) async fn apply_cash_impact_at_rate(
 /// so FX drift between trade date and the reversal date has no effect.
 pub(super) async fn reverse_cash_impact(
     connection: &mut SqliteConnection,
-    account_id: AccountId,
-    transaction_type: AssetTransactionType,
-    quantity: AssetQuantity,
-    unit_price: AssetUnitPrice,
+    ctx: &CashImpactContext<'_>,
     locked_rate: FxRate,
-    transaction_id: i64,
-    created_at: &str,
 ) -> Result<(), StorageError> {
-    let base_currency = load_account_base_currency(connection, account_id).await?;
-    let reversed_type = match transaction_type {
+    let base_currency = load_account_base_currency(connection, ctx.account_id).await?;
+    let reversed_type = match ctx.transaction_type {
         AssetTransactionType::Buy => AssetTransactionType::Sell,
         AssetTransactionType::Sell => AssetTransactionType::Buy,
     };
-    let delta = compute_delta(reversed_type, quantity, unit_price, locked_rate);
+    let delta = compute_delta(reversed_type, ctx.quantity, ctx.unit_price, locked_rate);
     insert_cash_entry_on_connection(
         connection,
-        account_id,
+        ctx.account_id,
         base_currency,
         delta,
         CashEntrySource::AssetTransaction,
-        Some(transaction_id),
-        created_at,
+        Some(ctx.transaction_id),
+        ctx.created_at,
     )
     .await
 }
