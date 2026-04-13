@@ -11,9 +11,6 @@ import { TopHoldingsCard } from "./TopHoldingsCard";
 export function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
   const { hideValues } = useUiState();
   const hasCashData = summary.cashByCurrency.length > 0;
-  const totalValue = summary.totalValueAmount
-    ? Number(summary.totalValueAmount)
-    : null;
 
   if (!hasCashData) {
     return (
@@ -43,7 +40,6 @@ export function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) 
           isPartial={summary.holdingsIsPartial}
           displayCurrency={summary.displayCurrency}
           hideValues={hideValues}
-          totalValue={totalValue}
         />
       </div>
     </div>
