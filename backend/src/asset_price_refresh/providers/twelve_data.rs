@@ -22,7 +22,7 @@ pub struct TwelveDataProvider {
 }
 
 #[async_trait::async_trait]
-impl super::StockProvider for TwelveDataProvider {
+impl super::QuoteProvider for TwelveDataProvider {
     fn name(&self) -> &'static str {
         "twelve_data"
     }

@@ -3,12 +3,12 @@ use sqlx::SqlitePool;
 
 use crate::{
     AccountId, AssetId, PRODUCT_BASE_CURRENCY, SharedFxRefreshStatus, compact_decimal_output,
-    convert_asset_total_value_in_currency, get_account, get_account_value_summary, get_asset,
-    get_portfolio_summary, get_transaction, list_account_balances, list_account_positions,
-    list_account_summaries, list_all_cash_movements, list_asset_transactions, list_assets,
-    list_cash_movements, list_currencies, list_fx_rate_summary, list_portfolio_snapshots,
-    list_transactions, list_transfers, list_transfers_by_account, normalize_amount_output,
-    storage::StorageError,
+    convert_asset_total_value_in_currency, fmt_amount, fmt_opt_amount, get_account,
+    get_account_value_summary, get_asset, get_portfolio_summary, get_transaction,
+    list_account_balances, list_account_positions, list_account_summaries, list_all_cash_movements,
+    list_asset_transactions, list_assets, list_cash_movements, list_currencies,
+    list_fx_rate_summary, list_portfolio_snapshots, list_transactions, list_transfers,
+    list_transfers_by_account, storage::StorageError,
 };
 
 use super::types::*;
@@ -52,15 +52,9 @@ pub(crate) fn to_account_detail(
         account_type: account.account_type.into(),
         base_currency: account.base_currency.as_str().to_string(),
         summary_status: value_summary.summary_status.into(),
-        cash_total_amount: value_summary
-            .cash_total_amount
-            .map(|a| normalize_amount_output(&a.to_string())),
-        asset_total_amount: value_summary
-            .asset_total_amount
-            .map(|a| normalize_amount_output(&a.to_string())),
-        total_amount: value_summary
-            .total_amount
-            .map(|a| normalize_amount_output(&a.to_string())),
+        cash_total_amount: fmt_opt_amount(value_summary.cash_total_amount.as_ref()),
+        asset_total_amount: fmt_opt_amount(value_summary.asset_total_amount.as_ref()),
+        total_amount: fmt_opt_amount(value_summary.total_amount.as_ref()),
         total_currency: value_summary.total_currency.map(|c| c.as_str().to_string()),
         created_at: account.created_at,
         balances: balances.into_iter().map(to_balance).collect(),
@@ -70,7 +64,7 @@ pub(crate) fn to_account_detail(
 pub(crate) fn to_balance(balance: crate::AccountBalanceRecord) -> Balance {
     Balance {
         currency: balance.currency.as_str().to_string(),
-        amount: normalize_amount_output(&balance.amount.to_string()),
+        amount: fmt_amount(&balance.amount),
         updated_at: balance.updated_at,
     }
 }
@@ -90,28 +84,19 @@ pub(crate) fn to_asset(
         quote_source_symbol: asset.quote_source_symbol,
         quote_source_provider: asset.quote_source_provider,
         quote_source_last_success_at: asset.quote_source_last_success_at,
-        current_price: asset
-            .current_price
-            .map(|p| normalize_amount_output(&p.to_string())),
+        current_price: fmt_opt_amount(asset.current_price.as_ref()),
         current_price_currency: asset.current_price_currency.map(|c| c.as_str().to_string()),
         current_price_as_of: asset.current_price_as_of,
-        total_quantity: asset
-            .total_quantity
-            .map(|q| normalize_amount_output(&q.to_string())),
-        avg_cost_basis: asset
-            .avg_cost_basis
-            .map(|p| normalize_amount_output(&p.to_string())),
+        total_quantity: fmt_opt_amount(asset.total_quantity.as_ref()),
+        avg_cost_basis: fmt_opt_amount(asset.avg_cost_basis.as_ref()),
         avg_cost_basis_currency: asset
             .avg_cost_basis_currency
             .map(|c| c.as_str().to_string()),
-        previous_close: asset
-            .previous_close
-            .map(|p| normalize_amount_output(&p.to_string())),
+        previous_close: fmt_opt_amount(asset.previous_close.as_ref()),
         previous_close_currency: asset
             .previous_close_currency
             .map(|c| c.as_str().to_string()),
-        converted_total_value: converted_total_value
-            .map(|amount| normalize_amount_output(&amount.to_string())),
+        converted_total_value: fmt_opt_amount(converted_total_value.as_ref()),
         converted_total_value_currency: converted_total_value_currency
             .map(|currency| currency.as_str().to_string()),
         created_at: asset.created_at,
@@ -138,7 +123,7 @@ pub(crate) fn to_cash_movement(record: crate::CashMovementRecord) -> CashMovemen
         id: record.id,
         account_id: record.account_id.as_i64(),
         currency: record.currency.as_str().to_string(),
-        amount: normalize_amount_output(&record.amount.to_string()),
+        amount: fmt_amount(&record.amount),
         date: record.date.to_string(),
         notes: record.notes,
         created_at: record.created_at,
@@ -152,8 +137,8 @@ pub(crate) fn to_transaction(tx: crate::AssetTransactionRecord) -> Transaction {
         asset_id: tx.asset_id.as_i64(),
         transaction_type: tx.transaction_type.into(),
         trade_date: tx.trade_date.to_string(),
-        quantity: normalize_amount_output(&tx.quantity.to_string()),
-        unit_price: normalize_amount_output(&tx.unit_price.to_string()),
+        quantity: fmt_amount(&tx.quantity),
+        unit_price: fmt_amount(&tx.unit_price),
         currency_code: tx.currency_code.as_str().to_string(),
         notes: tx.notes,
         created_at: tx.created_at,
@@ -174,7 +159,7 @@ impl QueryRoot {
         Ok(snapshots
             .into_iter()
             .map(|s| PortfolioSnapshot {
-                total_value: normalize_amount_output(&s.total_value.to_string()),
+                total_value: fmt_amount(&s.total_value),
                 currency: s.currency.as_str().to_string(),
                 recorded_at: s.recorded_at,
             })
@@ -227,7 +212,7 @@ impl QueryRoot {
             .map(|p| AssetPosition {
                 account_id: p.account_id.as_i64(),
                 asset_id: p.asset_id.as_i64(),
-                quantity: normalize_amount_output(&p.quantity.to_string()),
+                quantity: fmt_amount(&p.quantity),
             })
             .collect())
     }
@@ -348,15 +333,9 @@ fn to_account_summary(account: crate::AccountSummaryRecord) -> AccountSummary {
         account_type: account.account_type.into(),
         base_currency: account.base_currency.as_str().to_string(),
         summary_status: account.summary_status.into(),
-        cash_total_amount: account
-            .cash_total_amount
-            .map(|a| normalize_amount_output(&a.to_string())),
-        asset_total_amount: account
-            .asset_total_amount
-            .map(|a| normalize_amount_output(&a.to_string())),
-        total_amount: account
-            .total_amount
-            .map(|a| normalize_amount_output(&a.to_string())),
+        cash_total_amount: fmt_opt_amount(account.cash_total_amount.as_ref()),
+        asset_total_amount: fmt_opt_amount(account.asset_total_amount.as_ref()),
+        total_amount: fmt_opt_amount(account.total_amount.as_ref()),
         total_currency: account.total_currency.map(|c| c.as_str().to_string()),
     }
 }
@@ -390,9 +369,7 @@ fn to_portfolio_summary(
     PortfolioSummary {
         display_currency: summary.display_currency.as_str().to_string(),
         total_value_status: summary.total_value_status.into(),
-        total_value_amount: summary
-            .total_value_amount
-            .map(|a| normalize_amount_output(&a.to_string())),
+        total_value_amount: fmt_opt_amount(summary.total_value_amount.as_ref()),
         account_totals: summary
             .account_totals
             .into_iter()
@@ -401,15 +378,9 @@ fn to_portfolio_summary(
                 name: a.name.to_string(),
                 account_type: a.account_type.into(),
                 summary_status: a.summary_status.into(),
-                cash_total_amount: a
-                    .cash_total_amount
-                    .map(|x| normalize_amount_output(&x.to_string())),
-                asset_total_amount: a
-                    .asset_total_amount
-                    .map(|x| normalize_amount_output(&x.to_string())),
-                total_amount: a
-                    .total_amount
-                    .map(|x| normalize_amount_output(&x.to_string())),
+                cash_total_amount: fmt_opt_amount(a.cash_total_amount.as_ref()),
+                asset_total_amount: fmt_opt_amount(a.asset_total_amount.as_ref()),
+                total_amount: fmt_opt_amount(a.total_amount.as_ref()),
                 total_currency: a.total_currency.as_str().to_string(),
             })
             .collect(),
@@ -418,10 +389,8 @@ fn to_portfolio_summary(
             .into_iter()
             .map(|c| PortfolioCashByCurrency {
                 currency: c.currency.as_str().to_string(),
-                amount: normalize_amount_output(&c.amount.to_string()),
-                converted_amount: c
-                    .converted_amount
-                    .map(|a| normalize_amount_output(&a.to_string())),
+                amount: fmt_amount(&c.amount),
+                converted_amount: fmt_opt_amount(c.converted_amount.as_ref()),
             })
             .collect(),
         fx_last_updated: summary.fx_last_updated,
@@ -432,7 +401,7 @@ fn to_portfolio_summary(
             .into_iter()
             .map(|s| PortfolioAllocationSlice {
                 label: s.label,
-                amount: normalize_amount_output(&s.amount.to_string()),
+                amount: fmt_amount(&s.amount),
             })
             .collect(),
         allocation_is_partial: summary.allocation_is_partial,
@@ -443,7 +412,7 @@ fn to_portfolio_summary(
                 asset_id: h.asset_id.map(|id| id.as_i64()),
                 symbol: h.symbol,
                 name: h.name,
-                value: normalize_amount_output(&h.value.to_string()),
+                value: fmt_amount(&h.value),
             })
             .collect(),
         holdings_is_partial: summary.holdings_is_partial,

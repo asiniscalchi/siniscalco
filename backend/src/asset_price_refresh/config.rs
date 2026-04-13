@@ -1,9 +1,9 @@
 use std::time::Duration;
 
 use super::providers::{
-    AlphaVantageProvider, EodhdProvider, FcsApiProvider, FinnhubProvider, FmpProvider,
-    ITickProvider, MarketstackProvider, PolygonProvider, StockProvider, TiingoProvider,
-    TwelveDataProvider, YahooFinanceProvider,
+    AlphaVantageProvider, CoinCapProvider, CoinGeckoProvider, EodhdProvider, FcsApiProvider,
+    FinnhubProvider, FmpProvider, ITickProvider, MarketstackProvider, PolygonProvider,
+    QuoteProvider, TiingoProvider, TwelveDataProvider, YahooFinanceProvider,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -39,8 +39,8 @@ pub struct AssetPriceRefreshConfig {
 }
 
 impl AssetPriceRefreshConfig {
-    pub fn stock_providers(&self) -> Vec<Box<dyn StockProvider>> {
-        let mut providers: Vec<Box<dyn StockProvider>> = Vec::new();
+    pub fn stock_providers(&self) -> Vec<Box<dyn QuoteProvider>> {
+        let mut providers: Vec<Box<dyn QuoteProvider>> = Vec::new();
         if self.yahoo_finance_enabled {
             providers.push(Box::new(YahooFinanceProvider {
                 base_url: self.yahoo_finance_base_url.clone(),
@@ -103,6 +103,20 @@ impl AssetPriceRefreshConfig {
         if let Some(ref key) = self.itick_api_key {
             providers.push(Box::new(ITickProvider {
                 base_url: self.itick_base_url.clone(),
+                api_key: key.clone(),
+            }));
+        }
+        providers
+    }
+
+    pub fn crypto_providers(&self) -> Vec<Box<dyn QuoteProvider>> {
+        let mut providers: Vec<Box<dyn QuoteProvider>> = Vec::new();
+        providers.push(Box::new(CoinGeckoProvider {
+            base_url: self.coingecko_base_url.clone(),
+        }));
+        if let Some(ref key) = self.coincap_api_key {
+            providers.push(Box::new(CoinCapProvider {
+                base_url: self.coincap_base_url.clone(),
                 api_key: key.clone(),
             }));
         }

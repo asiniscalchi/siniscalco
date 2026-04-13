@@ -4,12 +4,36 @@ use serde::Deserialize;
 use crate::{AssetUnitPrice, Currency};
 
 use super::super::{AssetPriceRefreshError, AssetQuote};
-use super::{fetch_json, unix_timestamp_to_rfc3339};
+use super::{QuoteProvider, fetch_json, unix_timestamp_to_rfc3339};
 
 #[derive(Debug, Deserialize)]
 struct CoinCapPriceResponse {
     timestamp: i64,
     data: Vec<Option<String>>,
+}
+
+pub struct CoinCapProvider {
+    pub base_url: String,
+    pub api_key: String,
+}
+
+#[async_trait::async_trait]
+impl QuoteProvider for CoinCapProvider {
+    fn name(&self) -> &'static str {
+        "coincap"
+    }
+
+    fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
+    async fn fetch_quote(
+        &self,
+        client: &Client,
+        symbol: &str,
+    ) -> Result<AssetQuote, AssetPriceRefreshError> {
+        fetch_coincap_quote(client, &self.base_url, &self.api_key, symbol).await
+    }
 }
 
 pub async fn fetch_coincap_quote(

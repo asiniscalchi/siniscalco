@@ -27,82 +27,79 @@ async fn main() {
 
     let config = Config::parse();
 
-    match connect_db_file(&config.db_path).await {
-        Ok(pool) => {
-            let fx_refresh_status = new_shared_fx_refresh_status();
-            let fx_refresh_config = config.fx_refresh_config();
-            let asset_price_refresh_config = config.asset_price_refresh_config();
-            let http_client = reqwest::Client::new();
-            let persisted_model = match backend::assistant::load_selected_model_setting(&pool).await
-            {
-                Ok(value) => value,
-                Err(error) => {
-                    tracing::warn!(error = %error, "failed to load persisted assistant model");
-                    None
-                }
-            };
-            let persisted_reasoning_effort =
-                match backend::assistant::load_reasoning_effort_setting(&pool).await {
-                    Ok(value) => value,
-                    Err(error) => {
-                        tracing::warn!(error = %error, "failed to load persisted reasoning effort");
-                        None
-                    }
-                };
-            let assistant_models = backend::assistant::new_shared_assistant_model_registry(
-                config.openai_api_key.as_deref(),
-                persisted_model.as_deref(),
-                persisted_reasoning_effort.as_deref(),
-            );
-            let mcp_client = spawn_mcp_client(config.searxng_url.as_deref()).await;
-
-            let app = build_router_with_state(AppState {
-                pool: pool.clone(),
-                fx_refresh_status: fx_refresh_status.clone(),
-                asset_price_refresh_config: asset_price_refresh_config.clone(),
-                http_client: http_client.clone(),
-                openai_api_key: config.openai_api_key.clone(),
-                assistant_models: assistant_models.clone(),
-                assistant_chat_semaphore: backend::assistant::new_assistant_chat_semaphore(),
-                openai_responses_url: backend::assistant::openai_responses_url().to_string(),
-                openai_models_url: backend::assistant::openai_models_url().to_string(),
-                mcp_client,
-            });
-            let address = SocketAddr::from(([0, 0, 0, 0], config.port));
-
-            log_fx_refresh_configuration(&fx_refresh_config);
-            log_asset_price_refresh_configuration(&asset_price_refresh_config);
-
-            spawn_fx_refresh_task(pool.clone(), fx_refresh_status, fx_refresh_config).await;
-            spawn_asset_price_refresh_task(pool.clone(), asset_price_refresh_config).await;
-            spawn_portfolio_snapshot_task(pool.clone()).await;
-            backend::assistant::spawn_assistant_model_refresh_task(
-                assistant_models,
-                http_client,
-                config.openai_api_key.clone(),
-                backend::assistant::openai_models_url().to_string(),
-            )
-            .await;
-
-            log_listening_addresses(address);
-
-            match tokio::net::TcpListener::bind(address).await {
-                Ok(listener) => {
-                    if let Err(error) = axum::serve(listener, app).await {
-                        error!(error = %error, "backend server error");
-                        std::process::exit(1);
-                    }
-                }
-                Err(error) => {
-                    error!(error = %error, "failed to bind backend server");
-                    std::process::exit(1);
-                }
-            }
-        }
-        Err(error) => {
+    let pool = connect_db_file(&config.db_path)
+        .await
+        .unwrap_or_else(|error| {
             error!(error = %error, "failed to initialize backend database");
             std::process::exit(1);
+        });
+
+    let fx_refresh_status = new_shared_fx_refresh_status();
+    let fx_refresh_config = config.fx_refresh_config();
+    let asset_price_refresh_config = config.asset_price_refresh_config();
+    let http_client = reqwest::Client::new();
+    let persisted_model = match backend::assistant::load_selected_model_setting(&pool).await {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(error = %error, "failed to load persisted assistant model");
+            None
         }
+    };
+    let persisted_reasoning_effort =
+        match backend::assistant::load_reasoning_effort_setting(&pool).await {
+            Ok(value) => value,
+            Err(error) => {
+                tracing::warn!(error = %error, "failed to load persisted reasoning effort");
+                None
+            }
+        };
+    let assistant_models = backend::assistant::new_shared_assistant_model_registry(
+        config.openai_api_key.as_deref(),
+        persisted_model.as_deref(),
+        persisted_reasoning_effort.as_deref(),
+    );
+    let mcp_client = spawn_mcp_client(config.searxng_url.as_deref()).await;
+
+    let app = build_router_with_state(AppState {
+        pool: pool.clone(),
+        fx_refresh_status: fx_refresh_status.clone(),
+        asset_price_refresh_config: asset_price_refresh_config.clone(),
+        http_client: http_client.clone(),
+        openai_api_key: config.openai_api_key.clone(),
+        assistant_models: assistant_models.clone(),
+        assistant_chat_semaphore: backend::assistant::new_assistant_chat_semaphore(),
+        openai_responses_url: backend::assistant::openai_responses_url().to_string(),
+        openai_models_url: backend::assistant::openai_models_url().to_string(),
+        mcp_client,
+    });
+    let address = SocketAddr::from(([0, 0, 0, 0], config.port));
+
+    log_fx_refresh_configuration(&fx_refresh_config);
+    log_asset_price_refresh_configuration(&asset_price_refresh_config);
+
+    spawn_fx_refresh_task(pool.clone(), fx_refresh_status, fx_refresh_config).await;
+    spawn_asset_price_refresh_task(pool.clone(), asset_price_refresh_config).await;
+    spawn_portfolio_snapshot_task(pool.clone()).await;
+    backend::assistant::spawn_assistant_model_refresh_task(
+        assistant_models,
+        http_client,
+        config.openai_api_key.clone(),
+        backend::assistant::openai_models_url().to_string(),
+    )
+    .await;
+
+    log_listening_addresses(address);
+
+    let listener = tokio::net::TcpListener::bind(address)
+        .await
+        .unwrap_or_else(|error| {
+            error!(error = %error, "failed to bind backend server");
+            std::process::exit(1);
+        });
+
+    if let Err(error) = axum::serve(listener, app).await {
+        error!(error = %error, "backend server error");
+        std::process::exit(1);
     }
 }
 

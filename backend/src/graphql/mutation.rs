@@ -8,13 +8,15 @@ use crate::{
     AccountId, AccountName, Amount, AssetId, AssetName, AssetPriceRefreshConfig, AssetQuantity,
     AssetSymbol, AssetUnitPrice, CreateCashMovementInput, Currency, TradeDate, TransferId,
     create_cash_movement, create_transfer, delete_account, delete_asset, delete_asset_transaction,
-    delete_transfer, get_account, get_account_value_summary, get_asset, list_account_balances,
-    normalize_amount_output, refresh_single_asset_price, storage::StorageError, update_account,
+    delete_transfer, fmt_amount, get_account, get_account_value_summary, get_asset,
+    list_account_balances, refresh_single_asset_price, storage::StorageError, update_account,
     update_asset, update_asset_transaction,
 };
 
 use super::{
-    query::{not_found_or, storage_to_gql, to_account_detail, to_asset, to_transaction},
+    query::{
+        not_found_or, storage_to_gql, to_account_detail, to_asset, to_cash_movement, to_transaction,
+    },
     types::{
         AccountDetail, AccountInput, Asset, AssetInput, CashMovement, CashMovementInput,
         TransactionInput, Transfer, TransferInput,
@@ -131,15 +133,7 @@ impl MutationRoot {
         .await
         .map_err(storage_to_gql)?;
 
-        Ok(CashMovement {
-            id: record.id,
-            account_id: record.account_id.as_i64(),
-            currency: record.currency.as_str().to_string(),
-            amount: normalize_amount_output(&record.amount.to_string()),
-            date: record.date.as_str().to_string(),
-            notes: record.notes,
-            created_at: record.created_at,
-        })
+        Ok(to_cash_movement(record))
     }
 
     async fn create_asset(
@@ -414,9 +408,9 @@ pub fn to_transfer(t: crate::TransferRecord) -> Transfer {
         from_account_id: t.from_account_id.as_i64(),
         to_account_id: t.to_account_id.as_i64(),
         from_currency: t.from_currency.as_str().to_string(),
-        from_amount: normalize_amount_output(&t.from_amount.to_string()),
+        from_amount: fmt_amount(&t.from_amount),
         to_currency: t.to_currency.as_str().to_string(),
-        to_amount: normalize_amount_output(&t.to_amount.to_string()),
+        to_amount: fmt_amount(&t.to_amount),
         transfer_date: t.transfer_date.as_str().to_string(),
         notes: t.notes,
         created_at: t.created_at,

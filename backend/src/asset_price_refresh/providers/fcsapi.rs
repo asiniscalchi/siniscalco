@@ -30,7 +30,7 @@ pub struct FcsApiProvider {
 }
 
 #[async_trait::async_trait]
-impl super::StockProvider for FcsApiProvider {
+impl super::QuoteProvider for FcsApiProvider {
     fn name(&self) -> &'static str {
         "fcsapi"
     }

@@ -14,8 +14,8 @@ pub mod twelve_data;
 pub mod yahoo;
 
 pub use alpha_vantage::{AlphaVantageProvider, fetch_alpha_vantage_quote};
-pub use coincap::fetch_coincap_quote;
-pub use coingecko::fetch_coingecko_quote;
+pub use coincap::CoinCapProvider;
+pub use coingecko::{CoinGeckoProvider, fetch_coingecko_quote};
 pub use eodhd::{EodhdProvider, fetch_eodhd_quote};
 pub use fcsapi::FcsApiProvider;
 pub use finnhub::{FinnhubProvider, fetch_finnhub_quote};
@@ -55,7 +55,7 @@ pub(super) async fn fetch_json<T: DeserializeOwned>(
 }
 
 #[async_trait::async_trait]
-pub trait StockProvider: Send + Sync {
+pub trait QuoteProvider: Send + Sync {
     fn name(&self) -> &'static str;
     fn base_url(&self) -> &str;
     async fn fetch_quote(

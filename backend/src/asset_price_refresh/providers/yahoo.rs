@@ -42,7 +42,7 @@ pub struct YahooFinanceProvider {
 }
 
 #[async_trait::async_trait]
-impl super::StockProvider for YahooFinanceProvider {
+impl super::QuoteProvider for YahooFinanceProvider {
     fn name(&self) -> &'static str {
         "yahoo"
     }

@@ -23,7 +23,7 @@ pub struct MarketstackProvider {
 }
 
 #[async_trait::async_trait]
-impl super::StockProvider for MarketstackProvider {
+impl super::QuoteProvider for MarketstackProvider {
     fn name(&self) -> &'static str {
         "marketstack"
     }

@@ -52,6 +52,16 @@ pub fn format_decimal_amount(amount: Decimal) -> String {
     )
 }
 
+/// Shorthand: format any `Display` value through `normalize_amount_output`.
+pub fn fmt_amount(value: &impl std::fmt::Display) -> String {
+    normalize_amount_output(&value.to_string())
+}
+
+/// Shorthand: format an optional `Display` value through `normalize_amount_output`.
+pub fn fmt_opt_amount(value: Option<&impl std::fmt::Display>) -> Option<String> {
+    value.map(|v| normalize_amount_output(&v.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;

@@ -18,7 +18,7 @@ pub struct EodhdProvider {
 }
 
 #[async_trait::async_trait]
-impl super::StockProvider for EodhdProvider {
+impl super::QuoteProvider for EodhdProvider {
     fn name(&self) -> &'static str {
         "eodhd"
     }

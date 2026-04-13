@@ -28,7 +28,7 @@ pub struct AlphaVantageProvider {
 }
 
 #[async_trait::async_trait]
-impl super::StockProvider for AlphaVantageProvider {
+impl super::QuoteProvider for AlphaVantageProvider {
     fn name(&self) -> &'static str {
         "alpha_vantage"
     }
