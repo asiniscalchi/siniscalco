@@ -113,7 +113,7 @@ export function quoteSourceLabel(asset: AssetItem): string | null {
   }
 
   if (asset.quoteSymbol) {
-    return `${asset.quoteSymbol} manual`;
+    return null;
   }
 
   return null;
