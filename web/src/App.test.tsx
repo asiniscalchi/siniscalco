@@ -248,6 +248,27 @@ describe("App shell", () => {
               convertedTotalValue: "420.000000",
               convertedTotalValueCurrency: "EUR",
             },
+            {
+              id: 3,
+              symbol: "MSFT",
+              name: "Microsoft",
+              assetType: "STOCK",
+              quoteSymbol: "MSFT",
+              isin: "US5949181045",
+              quoteSourceSymbol: "MSFT",
+              quoteSourceProvider: "yahoo",
+              quoteSourceLastSuccessAt: "2026-03-24T14:30:00Z",
+              currentPrice: "300.000000",
+              currentPriceCurrency: "USD",
+              currentPriceAsOf: "2026-03-24T14:30:00Z",
+              totalQuantity: "1",
+              avgCostBasis: null,
+              avgCostBasisCurrency: null,
+              previousClose: "300.000000",
+              previousCloseCurrency: "USD",
+              convertedTotalValue: "300.000000",
+              convertedTotalValueCurrency: "EUR",
+            },
           ],
         });
       }
@@ -262,8 +283,14 @@ describe("App shell", () => {
     expect(screen.getAllByText("+5.18%").length).toBeGreaterThan(0);
     expect(screen.getAllByText("BTC").length).toBeGreaterThan(0);
     expect(screen.getAllByText("-10.00%").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("MSFT").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("0.00%").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("AAPL")[0].className).toContain("text-green");
     expect(screen.getAllByText("+5.18%")[0].className).toContain("text-green");
+    expect(screen.getAllByText("BTC")[0].className).toContain("text-red");
     expect(screen.getAllByText("-10.00%")[0].className).toContain("text-red");
+    expect(screen.getAllByText("MSFT")[0].className).toContain("text-muted");
+    expect(screen.getAllByText("0.00%")[0].className).toContain("text-muted");
 
     fireEvent.click(
       screen.getByRole("button", { name: "Hide financial values" }),
@@ -273,6 +300,7 @@ describe("App shell", () => {
       expect(screen.queryByText("+5.18%")).toBeNull();
     });
     expect(screen.queryByText("-10.00%")).toBeNull();
+    expect(screen.queryByText("0.00%")).toBeNull();
     expect(screen.getAllByText("••••%").length).toBeGreaterThan(0);
   });
 

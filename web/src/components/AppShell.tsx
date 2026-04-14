@@ -23,8 +23,14 @@ type AssetTickerItem = {
   id: number;
   symbol: string;
   pct: string;
-  positive: boolean;
+  tone: "positive" | "negative" | "neutral";
 };
+
+const assetTickerToneClass = {
+  positive: "text-green-500 dark:text-green-400",
+  negative: "text-red-500 dark:text-red-400",
+  neutral: "text-muted-foreground",
+} as const;
 
 function buildAssetTickerItems(
   assets: AssetsQuery["assets"],
@@ -39,15 +45,16 @@ function buildAssetTickerItems(
       if (Number.isNaN(price) || Number.isNaN(close) || close === 0) return null;
 
       const gainPct = ((price - close) / close) * 100;
-      const positive = gainPct >= 0;
-      const sign = positive ? "+" : "";
+      const tone =
+        gainPct > 0 ? "positive" : gainPct < 0 ? "negative" : "neutral";
+      const sign = gainPct > 0 ? "+" : "";
       const pct = hidden ? `${HIDDEN_MONEY_MASK}%` : `${sign}${gainPct.toFixed(2)}%`;
 
       return {
         id: asset.id,
         symbol: asset.symbol,
         pct,
-        positive,
+        tone,
       };
     })
     .filter((item): item is AssetTickerItem => item !== null)
@@ -86,14 +93,10 @@ function AssetValueTicker({ hidden }: { hidden: boolean }) {
                 className="inline-flex items-center gap-2 whitespace-nowrap font-mono text-xs font-semibold uppercase tabular-nums sm:text-sm"
                 key={`${copy}-${item.id}`}
               >
-                <span>{item.symbol}</span>
-                <span
-                  className={cn(
-                    item.positive
-                      ? "text-green-500 dark:text-green-400"
-                      : "text-red-500 dark:text-red-400",
-                  )}
-                >
+                <span className={assetTickerToneClass[item.tone]}>
+                  {item.symbol}
+                </span>
+                <span className={assetTickerToneClass[item.tone]}>
                   {item.pct}
                 </span>
               </span>
