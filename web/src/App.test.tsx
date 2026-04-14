@@ -201,7 +201,7 @@ describe("App shell", () => {
     expect(screen.queryByRole("link", { name: "Transfers" })).toBeNull();
   });
 
-  it("shows an asset value ticker below the header and masks it with hidden values", async () => {
+  it("shows an asset daily gain ticker below the header and masks it with hidden values", async () => {
     mockGqlAndHealth(200, (query) => {
       if (query.includes("assets {")) {
         return gqlResponse({
@@ -222,8 +222,8 @@ describe("App shell", () => {
               totalQuantity: "10.5",
               avgCostBasis: null,
               avgCostBasisCurrency: null,
-              previousClose: null,
-              previousCloseCurrency: null,
+              previousClose: "180.000000",
+              previousCloseCurrency: "USD",
               convertedTotalValue: "1250.500000",
               convertedTotalValueCurrency: "EUR",
             },
@@ -237,14 +237,14 @@ describe("App shell", () => {
               quoteSourceSymbol: null,
               quoteSourceProvider: null,
               quoteSourceLastSuccessAt: null,
-              currentPrice: null,
-              currentPriceCurrency: null,
+              currentPrice: "90.000000",
+              currentPriceCurrency: "USD",
               currentPriceAsOf: null,
               totalQuantity: null,
               avgCostBasis: null,
               avgCostBasisCurrency: null,
-              previousClose: null,
-              previousCloseCurrency: null,
+              previousClose: "100.000000",
+              previousCloseCurrency: "USD",
               convertedTotalValue: "420.000000",
               convertedTotalValueCurrency: "EUR",
             },
@@ -259,19 +259,21 @@ describe("App shell", () => {
 
     expect(await screen.findByTestId("asset-value-ticker")).toBeTruthy();
     expect(screen.getAllByText("AAPL").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("1,250.50 EUR").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("+5.18%").length).toBeGreaterThan(0);
     expect(screen.getAllByText("BTC").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("420.00 EUR").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("-10.00%").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("+5.18%")[0].className).toContain("text-green");
+    expect(screen.getAllByText("-10.00%")[0].className).toContain("text-red");
 
     fireEvent.click(
       screen.getByRole("button", { name: "Hide financial values" }),
     );
 
     await waitFor(() => {
-      expect(screen.queryByText("1,250.50 EUR")).toBeNull();
+      expect(screen.queryByText("+5.18%")).toBeNull();
     });
-    expect(screen.queryByText("420.00 EUR")).toBeNull();
-    expect(screen.getAllByText("•••• EUR").length).toBeGreaterThan(0);
+    expect(screen.queryByText("-10.00%")).toBeNull();
+    expect(screen.getAllByText("••••%").length).toBeGreaterThan(0);
   });
 
   it("opens the assistant popup from the shell header", async () => {
