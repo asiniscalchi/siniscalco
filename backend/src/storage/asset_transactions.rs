@@ -9,6 +9,7 @@ use crate::storage::{
     Currency, FxRate, StorageError, TradeDate, current_utc_timestamp,
 };
 
+use super::portfolio_snapshots::recalculate_snapshots_from_date;
 use super::transaction_cash::{
     CashImpactContext, apply_cash_impact, apply_cash_impact_at_rate, reverse_cash_impact,
 };
@@ -103,7 +104,16 @@ pub async fn create_asset_transaction(
     .await?;
 
     let record = map_transaction_row(row)?;
+    let trade_date = input.trade_date.as_str().to_owned();
     tx.commit().await?;
+
+    if let Err(error) =
+        recalculate_snapshots_from_date(pool, &trade_date, crate::fx_refresh::PRODUCT_BASE_CURRENCY)
+            .await
+    {
+        tracing::warn!(error = %error, "snapshot recalculation failed after transaction create");
+    }
+
     Ok(record)
 }
 
@@ -260,6 +270,22 @@ pub async fn update_asset_transaction(
 
     let transaction = get_asset_transaction(&mut tx, transaction_id).await?;
     tx.commit().await?;
+
+    // Recalculate snapshots from the earliest affected date.
+    let earliest_date = std::cmp::min(
+        existing_transaction.trade_date.as_str().to_owned(),
+        input.trade_date.as_str().to_owned(),
+    );
+    if let Err(error) = recalculate_snapshots_from_date(
+        pool,
+        &earliest_date,
+        crate::fx_refresh::PRODUCT_BASE_CURRENCY,
+    )
+    .await
+    {
+        tracing::warn!(error = %error, "snapshot recalculation failed after transaction update");
+    }
+
     Ok(transaction)
 }
 
@@ -298,7 +324,16 @@ pub async fn delete_asset_transaction(
         return Err(StorageError::Database(sqlx::Error::RowNotFound));
     }
 
+    let trade_date = existing_transaction.trade_date.as_str().to_owned();
     tx.commit().await?;
+
+    if let Err(error) =
+        recalculate_snapshots_from_date(pool, &trade_date, crate::fx_refresh::PRODUCT_BASE_CURRENCY)
+            .await
+    {
+        tracing::warn!(error = %error, "snapshot recalculation failed after transaction delete");
+    }
+
     Ok(())
 }
 
@@ -315,6 +350,52 @@ pub async fn list_account_positions(
         "#,
     )
     .bind(account_id.as_i64())
+    .fetch_all(pool)
+    .await?;
+
+    let mut positions_by_asset = BTreeMap::<AssetId, Decimal>::new();
+
+    for row in rows {
+        let asset_id = AssetId::try_from(row.get::<i64, _>("asset_id"))?;
+        let transaction_type =
+            AssetTransactionType::try_from(row.get::<&str, _>("transaction_type"))?;
+        let quantity = AssetQuantity::from_scaled_i64(row.get::<i64, _>("quantity"))?.as_decimal();
+        let signed_quantity = signed_quantity_delta(transaction_type, quantity);
+
+        positions_by_asset
+            .entry(asset_id)
+            .and_modify(|current_quantity| *current_quantity += signed_quantity)
+            .or_insert(signed_quantity);
+    }
+
+    positions_by_asset
+        .into_iter()
+        .filter(|(_, quantity)| *quantity > Decimal::ZERO)
+        .map(|(asset_id, quantity)| {
+            Ok(AssetPositionRecord {
+                account_id,
+                asset_id,
+                quantity: AssetPosition::try_from(quantity)?,
+            })
+        })
+        .collect()
+}
+
+pub(crate) async fn list_account_positions_as_of(
+    pool: &SqlitePool,
+    account_id: AccountId,
+    as_of: &str,
+) -> Result<Vec<AssetPositionRecord>, StorageError> {
+    let rows = sqlx::query(
+        r#"
+        SELECT asset_id, transaction_type, quantity
+        FROM asset_transactions
+        WHERE account_id = ? AND trade_date <= ?
+        ORDER BY asset_id
+        "#,
+    )
+    .bind(account_id.as_i64())
+    .bind(as_of)
     .fetch_all(pool)
     .await?;
 

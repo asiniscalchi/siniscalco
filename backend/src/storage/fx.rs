@@ -62,6 +62,16 @@ async fn upsert_fx_rate_at(
     .execute(&mut *transaction)
     .await?;
 
+    sqlx::query(
+        "INSERT INTO fx_rate_history (from_currency, to_currency, rate, recorded_at) VALUES (?, ?, ?, ?)",
+    )
+    .bind(input.from_currency.as_str())
+    .bind(input.to_currency.as_str())
+    .bind(input.rate.as_scaled_i64())
+    .bind(updated_at)
+    .execute(&mut *transaction)
+    .await?;
+
     transaction.commit().await?;
 
     if existed {
@@ -84,6 +94,16 @@ async fn upsert_fx_rate_in_transaction(
             rate = excluded.rate,
             updated_at = excluded.updated_at
         "#,
+    )
+    .bind(input.from_currency.as_str())
+    .bind(input.to_currency.as_str())
+    .bind(input.rate.as_scaled_i64())
+    .bind(updated_at)
+    .execute(&mut **transaction)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO fx_rate_history (from_currency, to_currency, rate, recorded_at) VALUES (?, ?, ?, ?)",
     )
     .bind(input.from_currency.as_str())
     .bind(input.to_currency.as_str())
@@ -235,6 +255,37 @@ pub(crate) async fn get_direct_fx_rate(
     .await?;
 
     rate.map(|value| FxRate::from_scaled_i64(value).map(|rate| rate.as_decimal()))
+        .transpose()
+}
+
+/// Returns the most recent FX rate from `fx_rate_history` at or before `as_of`.
+/// Returns `Some(Decimal::ONE)` when `from_currency == to_currency`.
+pub(crate) async fn get_historical_fx_rate(
+    pool: &SqlitePool,
+    from_currency: Currency,
+    to_currency: Currency,
+    as_of: &str,
+) -> Result<Option<Decimal>, StorageError> {
+    if from_currency == to_currency {
+        return Ok(Some(Decimal::ONE));
+    }
+
+    let rate = sqlx::query_scalar::<_, i64>(
+        r#"
+        SELECT rate
+        FROM fx_rate_history
+        WHERE from_currency = ? AND to_currency = ? AND date(recorded_at) <= date(?)
+        ORDER BY recorded_at DESC
+        LIMIT 1
+        "#,
+    )
+    .bind(from_currency.as_str())
+    .bind(to_currency.as_str())
+    .bind(as_of)
+    .fetch_optional(pool)
+    .await?;
+
+    rate.map(|value| FxRate::from_scaled_i64(value).map(|r| r.as_decimal()))
         .transpose()
 }
 

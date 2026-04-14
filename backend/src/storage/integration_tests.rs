@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -17,7 +18,7 @@ use super::{
     get_latest_fx_rate, insert_portfolio_snapshot_if_missing, list_account_balances,
     list_account_positions, list_account_summaries, list_accounts, list_asset_transactions,
     list_assets, list_currencies, list_fx_rate_summary, list_fx_rates, list_portfolio_snapshots,
-    update_account, upsert_asset_price, upsert_fx_rate,
+    recalculate_snapshots_from_date, update_account, upsert_asset_price, upsert_fx_rate,
 };
 use super::{create_transfer, delete_transfer, list_transfers};
 use crate::db::init_db;
@@ -112,6 +113,74 @@ async fn file_backed_pool() -> sqlx::SqlitePool {
 
     init_db(&pool).await.expect("schema should initialize");
     std::mem::forget(file);
+    pool
+}
+
+async fn legacy_v2_pool_with_fx_rate() -> sqlx::SqlitePool {
+    let options = SqliteConnectOptions::from_str("sqlite::memory:")
+        .expect("in-memory sqlite connect options should parse")
+        .foreign_keys(true);
+
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(options)
+        .await
+        .expect("in-memory sqlite pool should connect");
+
+    sqlx::raw_sql(include_str!("../../migrations/0001_schema.sql"))
+        .execute(&pool)
+        .await
+        .expect("schema migration should apply");
+    sqlx::raw_sql(include_str!(
+        "../../migrations/0002_asset_quote_sources.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("quote source migration should apply");
+
+    sqlx::query(
+        r#"
+        CREATE TABLE _sqlx_migrations (
+            version BIGINT PRIMARY KEY,
+            description TEXT NOT NULL,
+            installed_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            success BOOLEAN NOT NULL,
+            checksum BLOB NOT NULL,
+            execution_time BIGINT NOT NULL
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .expect("migration metadata table should be created");
+
+    let migrator = sqlx::migrate::Migrator::new(Path::new("./migrations"))
+        .await
+        .expect("runtime migrator should load");
+    for migration in migrator.iter().filter(|migration| migration.version <= 2) {
+        sqlx::query(
+            "INSERT INTO _sqlx_migrations (version, description, success, checksum, execution_time)
+             VALUES (?, ?, TRUE, ?, 0)",
+        )
+        .bind(migration.version)
+        .bind(migration.description.as_ref())
+        .bind(migration.checksum.as_ref())
+        .execute(&pool)
+        .await
+        .expect("migration metadata should insert");
+    }
+
+    sqlx::query(
+        "INSERT INTO fx_rates (from_currency, to_currency, rate, updated_at) VALUES (?, ?, ?, ?)",
+    )
+    .bind(Currency::Usd.as_str())
+    .bind(Currency::Eur.as_str())
+    .bind(fx_rate("0.500000").as_scaled_i64())
+    .bind("2025-01-01T00:00:00Z")
+    .execute(&pool)
+    .await
+    .expect("legacy fx rate should insert");
+
     pool
 }
 
@@ -3286,4 +3355,155 @@ async fn list_portfolio_snapshots_filters_by_currency() {
     assert_eq!(eur[0].total_value, amt("1000.000000"));
     assert_eq!(usd.len(), 1);
     assert_eq!(usd[0].total_value, amt("1100.000000"));
+}
+
+#[tokio::test]
+async fn recalculate_snapshots_removes_snapshot_when_recompute_cannot_price_position() {
+    let pool = test_pool().await;
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+    seed_balance(&pool, account_id, Currency::Eur, amt("100.000000")).await;
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("ACME"),
+            name: asset_name("Acme Corp"),
+            asset_type: AssetType::Stock,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2025-01-01"),
+            quantity: asset_quantity("1.000000"),
+            unit_price: asset_unit_price("10.000000"),
+            currency_code: Currency::Eur,
+            notes: None,
+        },
+    )
+    .await
+    .expect("transaction insert should succeed");
+    insert_portfolio_snapshot_if_missing(
+        &pool,
+        amt("100.000000"),
+        Currency::Eur,
+        "2025-01-02T10:00:00Z",
+    )
+    .await
+    .expect("snapshot insert should succeed");
+
+    recalculate_snapshots_from_date(&pool, "2025-01-01", Currency::Eur)
+        .await
+        .expect("recalculation should remove snapshot when replacement cannot be computed");
+
+    let snapshots = list_portfolio_snapshots(&pool, Currency::Eur)
+        .await
+        .expect("snapshot list should succeed");
+    assert_eq!(snapshots.len(), 0);
+}
+
+#[tokio::test]
+async fn create_asset_transaction_recalculates_existing_snapshots_from_trade_date() {
+    let pool = test_pool().await;
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("IBKR"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+    seed_balance(&pool, account_id, Currency::Eur, amt("200.000000")).await;
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("ACME"),
+            name: asset_name("Acme Corp"),
+            asset_type: AssetType::Stock,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+    upsert_asset_price(
+        &pool,
+        UpsertAssetPriceInput {
+            asset_id,
+            price: asset_unit_price("20.000000"),
+            currency: Currency::Eur,
+            as_of: "2025-01-01T00:00:00Z".to_string(),
+        },
+    )
+    .await
+    .expect("asset price insert should succeed");
+    insert_portfolio_snapshot_if_missing(
+        &pool,
+        amt("200.000000"),
+        Currency::Eur,
+        "2025-01-02T10:00:00Z",
+    )
+    .await
+    .expect("snapshot insert should succeed");
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2025-01-01"),
+            quantity: asset_quantity("10.000000"),
+            unit_price: asset_unit_price("10.000000"),
+            currency_code: Currency::Eur,
+            notes: None,
+        },
+    )
+    .await
+    .expect("transaction insert should succeed");
+
+    let snapshots = list_portfolio_snapshots(&pool, Currency::Eur)
+        .await
+        .expect("snapshot list should succeed");
+
+    assert_eq!(snapshots.len(), 1);
+    assert_eq!(snapshots[0].total_value, amt("300.000000"));
+}
+
+#[tokio::test]
+async fn fx_rate_history_migration_backfills_existing_fx_rates() {
+    let pool = legacy_v2_pool_with_fx_rate().await;
+
+    init_db(&pool)
+        .await
+        .expect("schema should migrate from v2 to latest");
+
+    let history_rate: Option<i64> = sqlx::query_scalar(
+        "SELECT rate FROM fx_rate_history WHERE from_currency = ? AND to_currency = ?",
+    )
+    .bind(Currency::Usd.as_str())
+    .bind(Currency::Eur.as_str())
+    .fetch_optional(&pool)
+    .await
+    .expect("history lookup should succeed");
+
+    assert_eq!(history_rate, Some(fx_rate("0.500000").as_scaled_i64()));
 }

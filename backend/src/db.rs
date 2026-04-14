@@ -4,6 +4,7 @@ use sqlx::{
     SqlitePool,
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
 };
+use tracing::info;
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
@@ -33,8 +34,51 @@ pub async fn connect_db_file(path: impl AsRef<Path>) -> Result<SqlitePool, sqlx:
 }
 
 pub async fn init_db(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    let migration_versions = MIGRATOR
+        .iter()
+        .map(|migration| migration.version)
+        .collect::<Vec<_>>();
+    let latest_available_version = migration_versions.last().copied();
+    let current_version = latest_applied_migration_version(pool).await?;
+
+    info!(
+        current_version = ?current_version,
+        latest_available_version = ?latest_available_version,
+        migration_count = migration_versions.len(),
+        migration_versions = ?migration_versions,
+        "database migration status"
+    );
+
     MIGRATOR.run(pool).await?;
+
+    let current_version = latest_applied_migration_version(pool).await?;
+    info!(
+        current_version = ?current_version,
+        latest_available_version = ?latest_available_version,
+        "database migrations initialized"
+    );
+
     Ok(())
+}
+
+async fn latest_applied_migration_version(pool: &SqlitePool) -> Result<Option<i64>, sqlx::Error> {
+    let migrations_table_exists: i64 = sqlx::query_scalar(
+        "SELECT EXISTS (
+            SELECT 1
+            FROM sqlite_master
+            WHERE type = 'table' AND name = '_sqlx_migrations'
+        )",
+    )
+    .fetch_one(pool)
+    .await?;
+
+    if migrations_table_exists == 0 {
+        return Ok(None);
+    }
+
+    sqlx::query_scalar("SELECT MAX(version) FROM _sqlx_migrations")
+        .fetch_one(pool)
+        .await
 }
 
 #[cfg(test)]
@@ -44,22 +88,26 @@ mod tests {
     use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
     use tempfile::NamedTempFile;
 
-    use super::{connect_db_file, init_db};
+    use super::{MIGRATOR, connect_db_file, init_db, latest_applied_migration_version};
     use crate::Currency;
 
     async fn test_pool() -> sqlx::SqlitePool {
+        let pool = uninitialized_test_pool().await;
+
+        init_db(&pool).await.expect("schema should initialize");
+        pool
+    }
+
+    async fn uninitialized_test_pool() -> sqlx::SqlitePool {
         let options = SqliteConnectOptions::from_str("sqlite::memory:")
             .expect("in-memory sqlite connect options should parse")
             .foreign_keys(true);
 
-        let pool = SqlitePoolOptions::new()
+        SqlitePoolOptions::new()
             .max_connections(1)
             .connect_with(options)
             .await
-            .expect("in-memory sqlite pool should connect");
-
-        init_db(&pool).await.expect("schema should initialize");
-        pool
+            .expect("in-memory sqlite pool should connect")
     }
 
     #[tokio::test]
@@ -97,12 +145,40 @@ mod tests {
     async fn migration_metadata_contains_all_migrations() {
         let pool = test_pool().await;
 
-        let versions: Vec<i64> = sqlx::query_scalar("SELECT version FROM _sqlx_migrations")
-            .fetch_all(&pool)
-            .await
-            .expect("migration metadata query should succeed");
+        let versions: Vec<i64> =
+            sqlx::query_scalar("SELECT version FROM _sqlx_migrations ORDER BY version")
+                .fetch_all(&pool)
+                .await
+                .expect("migration metadata query should succeed");
+        let expected_versions = MIGRATOR
+            .iter()
+            .map(|migration| migration.version)
+            .collect::<Vec<_>>();
 
-        assert_eq!(versions, vec![1, 2]);
+        assert_eq!(versions, expected_versions);
+    }
+
+    #[tokio::test]
+    async fn latest_applied_migration_version_returns_none_before_migrations() {
+        let pool = uninitialized_test_pool().await;
+
+        let version = latest_applied_migration_version(&pool)
+            .await
+            .expect("migration version lookup should succeed");
+
+        assert_eq!(version, None);
+    }
+
+    #[tokio::test]
+    async fn latest_applied_migration_version_returns_latest_migration_after_init() {
+        let pool = test_pool().await;
+
+        let version = latest_applied_migration_version(&pool)
+            .await
+            .expect("migration version lookup should succeed");
+        let expected_version = MIGRATOR.iter().map(|migration| migration.version).last();
+
+        assert_eq!(version, expected_version);
     }
 
     #[tokio::test]

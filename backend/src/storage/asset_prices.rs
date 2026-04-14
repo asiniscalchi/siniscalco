@@ -1,7 +1,7 @@
-use sqlx::SqlitePool;
+use sqlx::{Row, SqlitePool};
 
 use crate::storage::records::{UpsertAssetPriceInput, current_utc_timestamp};
-use crate::storage::{StorageError, UpsertOutcome};
+use crate::storage::{Amount, AssetId, Currency, StorageError, UpsertOutcome};
 
 pub async fn upsert_asset_price(
     pool: &SqlitePool,
@@ -54,4 +54,33 @@ pub async fn upsert_asset_price(
     } else {
         Ok(UpsertOutcome::Created)
     }
+}
+
+/// Returns the most recent asset price from `asset_price_history` at or before `as_of`.
+pub(crate) async fn get_historical_asset_price(
+    pool: &SqlitePool,
+    asset_id: AssetId,
+    as_of: &str,
+) -> Result<Option<(Amount, Currency)>, StorageError> {
+    let row = sqlx::query(
+        r#"
+        SELECT price, currency_code
+        FROM asset_price_history
+        WHERE asset_id = ? AND date(recorded_at) <= date(?)
+        ORDER BY recorded_at DESC
+        LIMIT 1
+        "#,
+    )
+    .bind(asset_id.as_i64())
+    .bind(as_of)
+    .fetch_optional(pool)
+    .await?;
+
+    row.map(|r| {
+        Ok((
+            Amount::from_scaled_i64(r.get::<i64, _>("price")),
+            Currency::try_from(r.get::<&str, _>("currency_code"))?,
+        ))
+    })
+    .transpose()
 }

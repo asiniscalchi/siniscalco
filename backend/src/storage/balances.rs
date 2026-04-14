@@ -38,6 +38,49 @@ pub async fn list_account_balances(
         .collect::<Result<Vec<_>, StorageError>>()
 }
 
+pub(crate) async fn list_account_balances_as_of(
+    pool: &SqlitePool,
+    account_id: AccountId,
+    as_of: &str,
+) -> Result<Vec<AccountBalanceRecord>, StorageError> {
+    let rows = sqlx::query(
+        r#"
+        SELECT
+            ce.currency,
+            SUM(ce.amount) AS amount
+        FROM cash_entries ce
+        LEFT JOIN asset_transactions at ON ce.source = 'asset_transaction' AND ce.source_id = at.id
+        LEFT JOIN account_transfers tr ON ce.source = 'transfer' AND ce.source_id = tr.id
+        WHERE ce.account_id = ?
+          AND (
+            (ce.source = 'deposit' AND ce.date <= ?) OR
+            (ce.source = 'asset_transaction' AND at.trade_date <= ?) OR
+            (ce.source = 'transfer' AND tr.transfer_date <= ?)
+          )
+        GROUP BY ce.currency
+        ORDER BY ce.currency
+        "#,
+    )
+    .bind(account_id.as_i64())
+    .bind(as_of)
+    .bind(as_of)
+    .bind(as_of)
+    .bind(as_of)
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter()
+        .map(|row| {
+            Ok(AccountBalanceRecord {
+                account_id,
+                currency: Currency::try_from(row.get::<&str, _>("currency"))?,
+                amount: Amount::from_scaled_i64(row.get::<i64, _>("amount")),
+                updated_at: String::new(),
+            })
+        })
+        .collect::<Result<Vec<_>, StorageError>>()
+}
+
 pub async fn create_cash_movement(
     pool: &SqlitePool,
     input: CreateCashMovementInput,

@@ -66,9 +66,13 @@ pub use fx::{
     upsert_fx_rate,
 };
 pub use fx_rate::FxRate;
-pub use portfolio::{convert_asset_total_value_in_currency, get_portfolio_summary};
+pub use portfolio::{
+    compute_portfolio_value_at, convert_asset_total_value_in_currency, get_portfolio_summary,
+};
 pub use portfolio_account_summaries::{get_account_value_summary, list_account_summaries};
-pub use portfolio_snapshots::{insert_portfolio_snapshot_if_missing, list_portfolio_snapshots};
+pub use portfolio_snapshots::{
+    insert_portfolio_snapshot_if_missing, list_portfolio_snapshots, recalculate_snapshots_from_date,
+};
 pub use records::{
     AccountBalanceRecord, AccountRecord, AccountSummaryRecord, AccountValueSummaryRecord,
     AssetPositionRecord, AssetRecord, AssetTransactionRecord, CashMovementRecord,
