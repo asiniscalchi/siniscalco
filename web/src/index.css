@@ -97,4 +97,36 @@
       display: none;
     }
   }
+
+  .asset-ticker-track {
+    display: flex;
+    width: max-content;
+    animation: asset-ticker-scroll 28s linear infinite;
+  }
+
+  .asset-ticker-set {
+    display: flex;
+    min-width: 100vw;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-around;
+    gap: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+@keyframes asset-ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .asset-ticker-track {
+    animation: none;
+  }
 }
