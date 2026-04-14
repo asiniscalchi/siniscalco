@@ -1,8 +1,10 @@
 use rust_decimal::Decimal;
 use sqlx::SqlitePool;
 
-use crate::storage::balances::list_account_balances;
-use crate::storage::fx::{get_direct_fx_rate, get_fx_rate_or_one};
+use crate::storage::asset_prices::get_historical_asset_price;
+use crate::storage::asset_transactions::list_account_positions_as_of;
+use crate::storage::balances::{list_account_balances, list_account_balances_as_of};
+use crate::storage::fx::{get_direct_fx_rate, get_fx_rate_or_one, get_historical_fx_rate};
 use crate::storage::portfolio_account_summaries::{
     load_assets_by_id, parse_decimal_amount, summarize_account_in_currency,
 };
@@ -135,6 +137,45 @@ pub async fn convert_asset_total_value_in_currency(
     };
 
     Ok(Some(parse_decimal_amount(total_value * rate)))
+}
+
+pub async fn compute_portfolio_value_at(
+    pool: &SqlitePool,
+    as_of: &str,
+    display_currency: Currency,
+) -> Result<Option<Amount>, StorageError> {
+    let accounts = crate::storage::accounts::list_accounts(pool).await?;
+    let mut total = Decimal::ZERO;
+
+    for account in &accounts {
+        let balances = list_account_balances_as_of(pool, account.id, as_of).await?;
+        for balance in &balances {
+            let Some(rate) =
+                get_historical_fx_rate(pool, balance.currency, display_currency, as_of).await?
+            else {
+                return Ok(None);
+            };
+            total += balance.amount.as_decimal() * rate;
+        }
+
+        let positions = list_account_positions_as_of(pool, account.id, as_of).await?;
+        for position in &positions {
+            let Some((price, price_currency)) =
+                get_historical_asset_price(pool, position.asset_id, as_of).await?
+            else {
+                return Ok(None);
+            };
+            let position_value = position.quantity.as_decimal() * price.as_decimal();
+            let Some(rate) =
+                get_historical_fx_rate(pool, price_currency, display_currency, as_of).await?
+            else {
+                return Ok(None);
+            };
+            total += position_value * rate;
+        }
+    }
+
+    Ok(Some(parse_decimal_amount(total)))
 }
 
 // ── Private helpers ───────────────────────────────────────────────────────────
