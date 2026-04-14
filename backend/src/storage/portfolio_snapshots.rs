@@ -53,25 +53,6 @@ pub async fn list_portfolio_snapshots(
         .collect()
 }
 
-pub async fn delete_snapshots_from_date(
-    pool: &SqlitePool,
-    from_date: &str,
-    currency: Currency,
-) -> Result<u64, StorageError> {
-    let result = sqlx::query(
-        r#"
-        DELETE FROM portfolio_snapshots
-        WHERE date(recorded_at) >= date(?) AND currency_code = ?
-        "#,
-    )
-    .bind(from_date)
-    .bind(currency.as_str())
-    .execute(pool)
-    .await?;
-
-    Ok(result.rows_affected())
-}
-
 pub async fn recalculate_snapshots_from_date(
     pool: &SqlitePool,
     from_date: &str,
@@ -94,30 +75,55 @@ pub async fn recalculate_snapshots_from_date(
         return Ok(());
     }
 
-    let deleted = delete_snapshots_from_date(pool, from_date, currency).await?;
-    tracing::info!(deleted, from_date, "deleted stale portfolio snapshots");
+    let mut replacements = Vec::new();
 
     for date in &dates {
         match compute_portfolio_value_at(pool, date, currency).await {
             Ok(Some(value)) => {
-                let recorded_at = format!("{date}T22:00:00Z");
-                if let Err(error) =
-                    insert_portfolio_snapshot_if_missing(pool, value, currency, &recorded_at).await
-                {
-                    warn!(error = %error, date, "failed to reinsert snapshot");
-                }
+                replacements.push((format!("{date}T22:00:00Z"), value));
             }
             Ok(None) => {
                 warn!(
                     date,
-                    "skipping snapshot recalculation: missing price or FX data"
+                    "removing snapshot: missing price or FX data for recalculation"
                 );
             }
             Err(error) => {
                 warn!(error = %error, date, "failed to compute historical portfolio value");
+                return Err(error);
             }
         }
     }
+
+    let mut tx = pool.begin().await?;
+    let deleted = sqlx::query(
+        r#"
+        DELETE FROM portfolio_snapshots
+        WHERE date(recorded_at) >= date(?) AND currency_code = ?
+        "#,
+    )
+    .bind(from_date)
+    .bind(currency.as_str())
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
+    tracing::info!(deleted, from_date, "deleted stale portfolio snapshots");
+
+    for (recorded_at, value) in replacements {
+        sqlx::query(
+            r#"
+            INSERT OR IGNORE INTO portfolio_snapshots (total_value, currency_code, recorded_at)
+            VALUES (?, ?, ?)
+            "#,
+        )
+        .bind(value.as_scaled_i64())
+        .bind(currency.as_str())
+        .bind(recorded_at)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
 
     Ok(())
 }

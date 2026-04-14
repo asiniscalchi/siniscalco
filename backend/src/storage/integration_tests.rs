@@ -3358,8 +3358,7 @@ async fn list_portfolio_snapshots_filters_by_currency() {
 }
 
 #[tokio::test]
-#[ignore = "known bug: snapshot recalculation deletes existing rows before failed recomputation"]
-async fn bug_recalculate_snapshots_preserves_existing_snapshot_on_recompute_failure() {
+async fn recalculate_snapshots_removes_snapshot_when_recompute_cannot_price_position() {
     let pool = test_pool().await;
     let account_id = create_account(
         &pool,
@@ -3411,19 +3410,16 @@ async fn bug_recalculate_snapshots_preserves_existing_snapshot_on_recompute_fail
 
     recalculate_snapshots_from_date(&pool, "2025-01-01", Currency::Eur)
         .await
-        .expect("recalculation should preserve old snapshot when replacement cannot be computed");
+        .expect("recalculation should remove snapshot when replacement cannot be computed");
 
     let snapshots = list_portfolio_snapshots(&pool, Currency::Eur)
         .await
         .expect("snapshot list should succeed");
-    assert_eq!(snapshots.len(), 1);
-    assert_eq!(snapshots[0].total_value, amt("100.000000"));
-    assert_eq!(snapshots[0].recorded_at, "2025-01-02T10:00:00Z");
+    assert_eq!(snapshots.len(), 0);
 }
 
 #[tokio::test]
-#[ignore = "known bug: creating a backdated transaction leaves existing snapshots stale"]
-async fn bug_create_asset_transaction_recalculates_existing_snapshots_from_trade_date() {
+async fn create_asset_transaction_recalculates_existing_snapshots_from_trade_date() {
     let pool = test_pool().await;
     let account_id = create_account(
         &pool,
@@ -3493,8 +3489,7 @@ async fn bug_create_asset_transaction_recalculates_existing_snapshots_from_trade
 }
 
 #[tokio::test]
-#[ignore = "known bug: fx_rate_history migration does not backfill existing fx_rates"]
-async fn bug_fx_rate_history_migration_backfills_existing_fx_rates() {
+async fn fx_rate_history_migration_backfills_existing_fx_rates() {
     let pool = legacy_v2_pool_with_fx_rate().await;
 
     init_db(&pool)

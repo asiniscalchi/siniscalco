@@ -104,7 +104,16 @@ pub async fn create_asset_transaction(
     .await?;
 
     let record = map_transaction_row(row)?;
+    let trade_date = input.trade_date.as_str().to_owned();
     tx.commit().await?;
+
+    if let Err(error) =
+        recalculate_snapshots_from_date(pool, &trade_date, crate::fx_refresh::PRODUCT_BASE_CURRENCY)
+            .await
+    {
+        tracing::warn!(error = %error, "snapshot recalculation failed after transaction create");
+    }
+
     Ok(record)
 }
 
