@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@apollo/client/react";
 import { NavLink, Outlet } from "react-router-dom";
 
 import { AssistantPanel } from "@/components/AssistantPanel";
@@ -6,7 +7,10 @@ import { Button } from "@/components/ui/button";
 import { getApiBaseUrl, getHealthApiUrl } from "@/lib/env";
 import { ChatBubbleIcon, EyeClosedIcon, EyeIcon, LogoIcon } from "@/components/Icons";
 import { useUiState } from "@/lib/ui-state";
+import { formatMoney } from "@/lib/format-money";
 import { cn } from "@/lib/utils";
+import { type AssetsQuery } from "@/gql/types";
+import { ASSETS_QUERY } from "@/pages/assets/assets-query";
 
 const primaryNavItems = [
   { label: "Portfolio", to: "/portfolio" },
@@ -14,6 +18,78 @@ const primaryNavItems = [
   { label: "Assets", to: "/assets" },
   { label: "Accounts", to: "/accounts" },
 ];
+
+type AssetTickerItem = {
+  id: number;
+  symbol: string;
+  value: string;
+};
+
+function buildAssetTickerItems(
+  assets: AssetsQuery["assets"],
+  hidden: boolean,
+): AssetTickerItem[] {
+  return [...assets]
+    .filter(
+      (asset) => asset.convertedTotalValue && asset.convertedTotalValueCurrency,
+    )
+    .sort(
+      (a, b) =>
+        Number(b.convertedTotalValue ?? 0) - Number(a.convertedTotalValue ?? 0),
+    )
+    .map((asset) => ({
+      id: asset.id,
+      symbol: asset.symbol,
+      value: formatMoney(
+        asset.convertedTotalValue ?? 0,
+        asset.convertedTotalValueCurrency ?? undefined,
+        hidden,
+      ).text,
+    }));
+}
+
+function AssetValueTicker({ hidden }: { hidden: boolean }) {
+  const { data, error, loading } = useQuery<AssetsQuery>(ASSETS_QUERY, {
+    fetchPolicy: "cache-and-network",
+  });
+
+  const items = useMemo(
+    () => buildAssetTickerItems(data?.assets ?? [], hidden),
+    [data?.assets, hidden],
+  );
+
+  if (error || (loading && items.length === 0) || items.length === 0) {
+    return null;
+  }
+
+  const tickerText = items
+    .map((item) => `${item.symbol} ${item.value}`)
+    .join(" | ");
+
+  return (
+    <div
+      aria-label={`Asset values: ${tickerText}`}
+      className="overflow-hidden border-t border-emerald-500/20 bg-black py-1 text-emerald-400"
+      data-testid="asset-value-ticker"
+    >
+      <div aria-hidden="true" className="asset-ticker-track">
+        {[0, 1].map((copy) => (
+          <div className="asset-ticker-set" key={copy}>
+            {items.map((item) => (
+              <span
+                className="inline-flex items-center gap-2 whitespace-nowrap font-mono text-xs font-semibold uppercase tabular-nums sm:text-sm"
+                key={`${copy}-${item.id}`}
+              >
+                <span>{item.symbol}</span>
+                <span>{item.value}</span>
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function AppShell() {
   const { hideValues, toggleHideValues } = useUiState();
@@ -128,6 +204,7 @@ export function AppShell() {
               )}
             </div>
           </div>
+          <AssetValueTicker hidden={hideValues} />
         </header>
         <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
           <Outlet />
