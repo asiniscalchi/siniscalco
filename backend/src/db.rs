@@ -44,7 +44,7 @@ mod tests {
     use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
     use tempfile::NamedTempFile;
 
-    use super::{connect_db_file, init_db};
+    use super::{connect_db_file, init_db, MIGRATOR};
     use crate::Currency;
 
     async fn test_pool() -> sqlx::SqlitePool {
@@ -97,12 +97,18 @@ mod tests {
     async fn migration_metadata_contains_all_migrations() {
         let pool = test_pool().await;
 
-        let versions: Vec<i64> = sqlx::query_scalar("SELECT version FROM _sqlx_migrations")
+        let versions: Vec<i64> = sqlx::query_scalar(
+            "SELECT version FROM _sqlx_migrations ORDER BY version",
+        )
             .fetch_all(&pool)
             .await
             .expect("migration metadata query should succeed");
+        let expected_versions = MIGRATOR
+            .iter()
+            .map(|migration| migration.version)
+            .collect::<Vec<_>>();
 
-        assert_eq!(versions, vec![1, 2]);
+        assert_eq!(versions, expected_versions);
     }
 
     #[tokio::test]
