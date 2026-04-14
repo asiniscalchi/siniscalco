@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { getApiBaseUrl, getHealthApiUrl } from "@/lib/env";
 import { ChatBubbleIcon, EyeClosedIcon, EyeIcon, LogoIcon } from "@/components/Icons";
 import { useUiState } from "@/lib/ui-state";
-import { formatMoney } from "@/lib/format-money";
+import { HIDDEN_MONEY_MASK } from "@/lib/format-money";
 import { cn } from "@/lib/utils";
 import { type AssetsQuery } from "@/gql/types";
 import { ASSETS_QUERY } from "@/pages/assets/assets-query";
@@ -22,7 +22,8 @@ const primaryNavItems = [
 type AssetTickerItem = {
   id: number;
   symbol: string;
-  value: string;
+  pct: string;
+  positive: boolean;
 };
 
 function buildAssetTickerItems(
@@ -30,22 +31,27 @@ function buildAssetTickerItems(
   hidden: boolean,
 ): AssetTickerItem[] {
   return [...assets]
-    .filter(
-      (asset) => asset.convertedTotalValue && asset.convertedTotalValueCurrency,
-    )
-    .sort(
-      (a, b) =>
-        Number(b.convertedTotalValue ?? 0) - Number(a.convertedTotalValue ?? 0),
-    )
-    .map((asset) => ({
-      id: asset.id,
-      symbol: asset.symbol,
-      value: formatMoney(
-        asset.convertedTotalValue ?? 0,
-        asset.convertedTotalValueCurrency ?? undefined,
-        hidden,
-      ).text,
-    }));
+    .map((asset) => {
+      if (!asset.currentPrice || !asset.previousClose) return null;
+
+      const price = Number(asset.currentPrice);
+      const close = Number(asset.previousClose);
+      if (Number.isNaN(price) || Number.isNaN(close) || close === 0) return null;
+
+      const gainPct = ((price - close) / close) * 100;
+      const positive = gainPct >= 0;
+      const sign = positive ? "+" : "";
+      const pct = hidden ? `${HIDDEN_MONEY_MASK}%` : `${sign}${gainPct.toFixed(2)}%`;
+
+      return {
+        id: asset.id,
+        symbol: asset.symbol,
+        pct,
+        positive,
+      };
+    })
+    .filter((item): item is AssetTickerItem => item !== null)
+    .sort((a, b) => a.symbol.localeCompare(b.symbol));
 }
 
 function AssetValueTicker({ hidden }: { hidden: boolean }) {
@@ -63,7 +69,7 @@ function AssetValueTicker({ hidden }: { hidden: boolean }) {
   }
 
   const tickerText = items
-    .map((item) => `${item.symbol} ${item.value}`)
+    .map((item) => `${item.symbol} ${item.pct}`)
     .join(" | ");
 
   return (
@@ -81,7 +87,15 @@ function AssetValueTicker({ hidden }: { hidden: boolean }) {
                 key={`${copy}-${item.id}`}
               >
                 <span>{item.symbol}</span>
-                <span>{item.value}</span>
+                <span
+                  className={cn(
+                    item.positive
+                      ? "text-green-500 dark:text-green-400"
+                      : "text-red-500 dark:text-red-400",
+                  )}
+                >
+                  {item.pct}
+                </span>
               </span>
             ))}
           </div>
