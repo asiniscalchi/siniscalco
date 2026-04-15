@@ -91,6 +91,8 @@ describe("PortfolioPage", () => {
       displayCurrency: "EUR",
       totalValueStatus: "OK",
       totalValueAmount: "153.70000000",
+      dailyGainAmount: "2.50000000",
+      totalGainAmount: "12.50000000",
       accountTotals: [
         {
           id: 1,
@@ -129,6 +131,14 @@ describe("PortfolioPage", () => {
     expect(screen.getAllByText("Cash").length).toBeGreaterThan(0);
     expect(screen.getByText("103.70 EUR")).toBeTruthy();
     expect(screen.getByText("50.00 EUR")).toBeTruthy();
+    expect(screen.getByText("Daily gain")).toBeTruthy();
+    expect(screen.getByText("Total gain")).toBeTruthy();
+    expect(
+      screen.getByText((_content, element) => element?.textContent === "+2.50 EUR"),
+    ).toBeTruthy();
+    expect(
+      screen.getByText((_content, element) => element?.textContent === "+12.50 EUR"),
+    ).toBeTruthy();
     expect(screen.getByText("Last FX update: 2026-03-22 11:30")).toBeTruthy();
   });
 
@@ -257,6 +267,8 @@ describe("PortfolioPage", () => {
       displayCurrency: "EUR",
       totalValueStatus: "OK",
       totalValueAmount: "153.70000000",
+      dailyGainAmount: "2.50000000",
+      totalGainAmount: "12.50000000",
       accountTotals: [
         {
           id: 1,
@@ -281,7 +293,9 @@ describe("PortfolioPage", () => {
 
     renderPortfolioPage();
 
-    expect(await screen.findAllByText("•••• EUR")).toHaveLength(3);
+    expect(await screen.findAllByText("•••• EUR")).toHaveLength(5);
+    expect(screen.queryByText("+2.50 EUR")).toBeNull();
+    expect(screen.queryByText("+12.50 EUR")).toBeNull();
   });
 
   it("handles missing currency conversion values without crashing", async () => {

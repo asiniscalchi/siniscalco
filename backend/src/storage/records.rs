@@ -232,6 +232,8 @@ pub struct PortfolioSummaryRecord {
     pub display_currency: Currency,
     pub total_value_status: AccountSummaryStatus,
     pub total_value_amount: Option<Amount>,
+    pub daily_gain_amount: Option<Amount>,
+    pub total_gain_amount: Option<Amount>,
     pub account_totals: Vec<PortfolioAccountTotalRecord>,
     pub cash_by_currency: Vec<PortfolioCashByCurrencyRecord>,
     pub fx_last_updated: Option<String>,

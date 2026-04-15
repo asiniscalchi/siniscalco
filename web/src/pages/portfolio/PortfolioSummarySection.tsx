@@ -53,8 +53,62 @@ export function PortfolioSummarySection({
             {summary.fxRefreshError}
           </div>
         ) : null}
+        <div className="grid w-full gap-3 pt-2 sm:grid-cols-2">
+          <GainMetric
+            amount={summary.dailyGainAmount}
+            currency={summary.displayCurrency}
+            hideValues={hideValues}
+            label="Daily gain"
+          />
+          <GainMetric
+            amount={summary.totalGainAmount}
+            currency={summary.displayCurrency}
+            hideValues={hideValues}
+            label="Total gain"
+          />
+        </div>
       </div>
     </section>
+  );
+}
+
+function GainMetric({
+  amount,
+  currency,
+  hideValues,
+  label,
+}: {
+  amount: string | null | undefined;
+  currency: string;
+  hideValues: boolean;
+  label: string;
+}) {
+  const numericAmount = amount ? Number(amount) : null;
+  const toneClass =
+    hideValues || numericAmount === null || numericAmount === 0
+      ? "text-muted-foreground"
+      : numericAmount > 0
+        ? "text-green-600 dark:text-green-400"
+        : "text-red-600 dark:text-red-400";
+  const sign = !hideValues && numericAmount !== null && numericAmount > 0 ? "+" : "";
+
+  return (
+    <div className="rounded-lg border bg-card px-3 py-2 text-right">
+      <div className="text-xs font-medium text-muted-foreground">{label}</div>
+      {amount ? (
+        <span className={toneClass}>
+          {sign}
+          <MoneyText
+            className="text-sm font-semibold"
+            currency={currency}
+            hidden={hideValues}
+            value={amount}
+          />
+        </span>
+      ) : (
+        <span className="text-sm font-medium text-muted-foreground">Unavailable</span>
+      )}
+    </div>
   );
 }
 

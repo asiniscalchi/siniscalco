@@ -2,7 +2,7 @@ use rust_decimal::Decimal;
 use sqlx::SqlitePool;
 
 use crate::storage::asset_prices::get_historical_asset_price;
-use crate::storage::asset_transactions::list_account_positions_as_of;
+use crate::storage::asset_transactions::{list_account_positions, list_account_positions_as_of};
 use crate::storage::balances::{list_account_balances, list_account_balances_as_of};
 use crate::storage::fx::{get_direct_fx_rate, get_fx_rate_or_one, get_historical_fx_rate};
 use crate::storage::portfolio_account_summaries::{
@@ -11,7 +11,9 @@ use crate::storage::portfolio_account_summaries::{
 use crate::storage::portfolio_allocation::compute_allocation_totals;
 use crate::storage::portfolio_holdings::compute_top_holdings;
 use crate::storage::records::*;
-use crate::storage::{AccountSummaryStatus, Amount, AssetRecord, Currency, StorageError};
+use crate::storage::{
+    AccountSummaryStatus, Amount, AssetRecord, AssetUnitPrice, Currency, StorageError,
+};
 
 pub async fn get_portfolio_summary(
     pool: &SqlitePool,
@@ -91,6 +93,8 @@ pub async fn get_portfolio_summary(
         &cash_by_currency,
     )
     .await?;
+    let (daily_gain_amount, total_gain_amount) =
+        compute_portfolio_gain_amounts(pool, &accounts, &assets_by_id, display_currency).await?;
 
     Ok(PortfolioSummaryRecord {
         display_currency,
@@ -102,6 +106,8 @@ pub async fn get_portfolio_summary(
         } else {
             None
         },
+        daily_gain_amount,
+        total_gain_amount,
         account_totals,
         cash_by_currency,
         fx_last_updated: fx_summary.last_updated,
@@ -110,6 +116,102 @@ pub async fn get_portfolio_summary(
         holdings,
         holdings_is_partial,
     })
+}
+
+async fn compute_portfolio_gain_amounts(
+    pool: &SqlitePool,
+    accounts: &[crate::storage::AccountRecord],
+    assets_by_id: &std::collections::BTreeMap<crate::storage::AssetId, AssetRecord>,
+    display_currency: Currency,
+) -> Result<(Option<Amount>, Option<Amount>), StorageError> {
+    let mut daily_gain_total = Decimal::ZERO;
+    let mut total_gain_total = Decimal::ZERO;
+    let mut daily_gain_complete = true;
+    let mut total_gain_complete = true;
+
+    for account in accounts {
+        let positions = list_account_positions(pool, account.id).await?;
+
+        for position in positions {
+            if position.quantity.as_decimal().is_zero() {
+                continue;
+            }
+
+            let asset = assets_by_id
+                .get(&position.asset_id)
+                .ok_or(StorageError::Validation(
+                    "asset referenced by position was not found",
+                ))?;
+
+            match converted_unit_delta(
+                pool,
+                asset.current_price,
+                asset.current_price_currency,
+                asset.previous_close,
+                asset.previous_close_currency,
+                display_currency,
+            )
+            .await?
+            {
+                Some(delta) => daily_gain_total += delta * position.quantity.as_decimal(),
+                None => daily_gain_complete = false,
+            }
+
+            match converted_unit_delta(
+                pool,
+                asset.current_price,
+                asset.current_price_currency,
+                asset.avg_cost_basis,
+                asset.avg_cost_basis_currency,
+                display_currency,
+            )
+            .await?
+            {
+                Some(delta) => total_gain_total += delta * position.quantity.as_decimal(),
+                None => total_gain_complete = false,
+            }
+        }
+    }
+
+    Ok((
+        daily_gain_complete.then(|| parse_decimal_amount(daily_gain_total)),
+        total_gain_complete.then(|| parse_decimal_amount(total_gain_total)),
+    ))
+}
+
+async fn converted_unit_delta(
+    pool: &SqlitePool,
+    current_amount: Option<AssetUnitPrice>,
+    current_currency: Option<Currency>,
+    baseline_amount: Option<AssetUnitPrice>,
+    baseline_currency: Option<Currency>,
+    display_currency: Currency,
+) -> Result<Option<Decimal>, StorageError> {
+    let Some(current_amount) = current_amount else {
+        return Ok(None);
+    };
+    let Some(current_currency) = current_currency else {
+        return Ok(None);
+    };
+    let Some(baseline_amount) = baseline_amount else {
+        return Ok(None);
+    };
+    let Some(baseline_currency) = baseline_currency else {
+        return Ok(None);
+    };
+
+    let Some(current_rate) = get_fx_rate_or_one(pool, current_currency, display_currency).await?
+    else {
+        return Ok(None);
+    };
+    let Some(baseline_rate) = get_fx_rate_or_one(pool, baseline_currency, display_currency).await?
+    else {
+        return Ok(None);
+    };
+
+    Ok(Some(
+        current_amount.as_decimal() * current_rate - baseline_amount.as_decimal() * baseline_rate,
+    ))
 }
 
 pub async fn convert_asset_total_value_in_currency(
