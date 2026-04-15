@@ -52,10 +52,12 @@ pub async fn list_assets(pool: &SqlitePool) -> Result<Vec<AssetRecord>, StorageE
                 WHERE asset_id = assets.id
             ) as total_quantity,
             (
-                SELECT CAST(
-                    SUM(CAST(quantity AS REAL) * CAST(unit_price AS REAL))
-                    / NULLIF(CAST(SUM(quantity) AS REAL), 0.0)
-                AS INTEGER)
+                SELECT CASE WHEN MIN(currency_code) = MAX(currency_code) THEN
+                    CAST(
+                        SUM(CAST(quantity AS REAL) * CAST(unit_price AS REAL))
+                        / NULLIF(CAST(SUM(quantity) AS REAL), 0.0)
+                    AS INTEGER)
+                ELSE NULL END
                 FROM asset_transactions
                 WHERE asset_id = assets.id AND transaction_type = 'BUY'
             ) as avg_cost_basis,
@@ -110,10 +112,12 @@ pub async fn get_asset(pool: &SqlitePool, asset_id: AssetId) -> Result<AssetReco
                 WHERE asset_id = assets.id
             ) as total_quantity,
             (
-                SELECT CAST(
-                    SUM(CAST(quantity AS REAL) * CAST(unit_price AS REAL))
-                    / NULLIF(CAST(SUM(quantity) AS REAL), 0.0)
-                AS INTEGER)
+                SELECT CASE WHEN MIN(currency_code) = MAX(currency_code) THEN
+                    CAST(
+                        SUM(CAST(quantity AS REAL) * CAST(unit_price AS REAL))
+                        / NULLIF(CAST(SUM(quantity) AS REAL), 0.0)
+                    AS INTEGER)
+                ELSE NULL END
                 FROM asset_transactions
                 WHERE asset_id = assets.id AND transaction_type = 'BUY'
             ) as avg_cost_basis,
