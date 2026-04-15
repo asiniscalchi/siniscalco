@@ -32,10 +32,10 @@ export function PortfolioSummarySection({
             </span>
           )}
           <GainMetric
-            amount={summary.dailyGainAmount}
+            amount={summary.gain24hAmount}
             currency={summary.displayCurrency}
             hideValues={hideValues}
-            label="Daily gain"
+            label="24h gain"
             testId="portfolio-daily-gain"
           />
           <GainMetric

@@ -91,7 +91,7 @@ describe("PortfolioPage", () => {
       displayCurrency: "EUR",
       totalValueStatus: "OK",
       totalValueAmount: "153.70000000",
-      dailyGainAmount: "2.50000000",
+      gain24hAmount: "2.50000000",
       totalGainAmount: "12.50000000",
       accountTotals: [
         {
@@ -133,7 +133,7 @@ describe("PortfolioPage", () => {
     expect(screen.getByText("50.00 EUR")).toBeTruthy();
     expect(screen.queryByText("Converted to EUR")).toBeNull();
     expect(screen.queryByText("Last FX update: 2026-03-22 11:30")).toBeNull();
-    expect(screen.getByText("Daily gain:")).toBeTruthy();
+    expect(screen.getByText("24h gain:")).toBeTruthy();
     expect(screen.getByText("Total gain:")).toBeTruthy();
     expect(
       screen.getByText((_content, element) => element?.textContent === "+2.50 EUR"),
@@ -148,7 +148,7 @@ describe("PortfolioPage", () => {
       displayCurrency: "EUR",
       totalValueStatus: "OK",
       totalValueAmount: "153.70000000",
-      dailyGainAmount: "0.00000000",
+      gain24hAmount: "0.00000000",
       totalGainAmount: "0.00000000",
       accountTotals: [],
       cashByCurrency: [
@@ -168,7 +168,7 @@ describe("PortfolioPage", () => {
     const dailyGain = await screen.findByTestId("portfolio-daily-gain");
     const totalGain = screen.getByTestId("portfolio-total-gain");
 
-    expect(dailyGain.textContent).toBe("Daily gain:0.00 EUR");
+    expect(dailyGain.textContent).toBe("24h gain:0.00 EUR");
     expect(totalGain.textContent).toBe("Total gain:0.00 EUR");
     expect(dailyGain.querySelector(".text-muted-foreground")).toBeTruthy();
     expect(totalGain.querySelector(".text-muted-foreground")).toBeTruthy();
@@ -299,7 +299,7 @@ describe("PortfolioPage", () => {
       displayCurrency: "EUR",
       totalValueStatus: "OK",
       totalValueAmount: "153.70000000",
-      dailyGainAmount: "2.50000000",
+      gain24hAmount: "2.50000000",
       totalGainAmount: "12.50000000",
       accountTotals: [
         {

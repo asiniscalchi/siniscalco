@@ -7,7 +7,7 @@ const PORTFOLIO_QUERY = gql`
   query Portfolio {
     portfolio {
       displayCurrency totalValueStatus totalValueAmount
-      dailyGainAmount totalGainAmount
+      gain24hAmount totalGainAmount
       fxLastUpdated fxRefreshStatus fxRefreshError
       allocationIsPartial holdingsIsPartial
       accountTotals {

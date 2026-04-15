@@ -176,7 +176,7 @@ export function AssetsTableCard() {
                         )}
                         {daily && (
                           <div className={`mt-0.5 font-mono tabular-nums text-[11px] ${daily.positive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                            Today: {daily.abs ? `${daily.abs} (${daily.pct})` : daily.pct}
+                            24h: {daily.abs ? `${daily.abs} (${daily.pct})` : daily.pct}
                           </div>
                         )}
                       </div>
@@ -267,7 +267,7 @@ export function AssetsTableCard() {
                       <th className="pb-3 pr-4">Price</th>
                       <th className="pb-3 pr-4">ISIN</th>
                       <th className="pb-3 pr-4">Holdings</th>
-                      <th className="pb-3 pr-4">Daily</th>
+                      <th className="pb-3 pr-4">24h</th>
                       <th className="pb-3 pr-4">Gain</th>
                       {!isLocked && <th className="pb-3 text-right">Actions</th>}
                     </tr>

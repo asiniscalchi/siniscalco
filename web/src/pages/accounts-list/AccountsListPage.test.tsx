@@ -43,7 +43,7 @@ const defaultPortfolio: PortfolioSummary = {
   displayCurrency: "EUR",
   totalValueStatus: "OK",
   totalValueAmount: "100.00000000",
-  dailyGainAmount: null,
+  gain24hAmount: null,
   totalGainAmount: null,
   accountTotals: [],
   cashByCurrency: [],
