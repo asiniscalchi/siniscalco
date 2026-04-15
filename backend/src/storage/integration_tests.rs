@@ -3034,6 +3034,95 @@ async fn allocation_totals_groups_asset_positions_by_type() {
 }
 
 #[tokio::test]
+async fn portfolio_summary_includes_daily_and_total_gain_amounts() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Broker"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .unwrap();
+
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    seed_balance(&pool, account_id, Currency::Usd, amt("1000.000000")).await;
+
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate("0.900000"),
+        },
+    )
+    .await
+    .unwrap();
+
+    upsert_asset_price(
+        &pool,
+        UpsertAssetPriceInput {
+            asset_id,
+            price: asset_unit_price("100.000000"),
+            currency: Currency::Usd,
+            as_of: "2020-01-01T00:00:00Z".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+
+    upsert_asset_price(
+        &pool,
+        UpsertAssetPriceInput {
+            asset_id,
+            price: asset_unit_price("120.000000"),
+            currency: Currency::Usd,
+            as_of: "2999-01-01T00:00:00Z".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2024-01-01"),
+            quantity: asset_quantity("10.000000"),
+            unit_price: asset_unit_price("90.000000"),
+            currency_code: Currency::Usd,
+            notes: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let summary = super::get_portfolio_summary(&pool, Currency::Eur)
+        .await
+        .unwrap();
+
+    assert_eq!(summary.daily_gain_amount, Some(amt("180.000000")));
+    assert_eq!(summary.total_gain_amount, Some(amt("270.000000")));
+}
+
+#[tokio::test]
 async fn allocation_totals_marks_partial_when_asset_has_no_price() {
     let pool = test_pool().await;
 

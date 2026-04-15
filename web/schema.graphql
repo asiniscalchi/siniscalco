@@ -173,6 +173,8 @@ type PortfolioSummary {
 	displayCurrency: String!
 	totalValueStatus: SummaryStatus!
 	totalValueAmount: String
+	dailyGainAmount: String
+	totalGainAmount: String
 	accountTotals: [PortfolioAccountTotal!]!
 	cashByCurrency: [PortfolioCashByCurrency!]!
 	fxLastUpdated: String

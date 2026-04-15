@@ -267,12 +267,14 @@ export type PortfolioSummary = {
   allocationIsPartial: Scalars['Boolean']['output'];
   allocationTotals: Array<PortfolioAllocationSlice>;
   cashByCurrency: Array<PortfolioCashByCurrency>;
+  dailyGainAmount: Maybe<Scalars['String']['output']>;
   displayCurrency: Scalars['String']['output'];
   fxLastUpdated: Maybe<Scalars['String']['output']>;
   fxRefreshError: Maybe<Scalars['String']['output']>;
   fxRefreshStatus: RefreshAvailability;
   holdings: Array<PortfolioHolding>;
   holdingsIsPartial: Scalars['Boolean']['output'];
+  totalGainAmount: Maybe<Scalars['String']['output']>;
   totalValueAmount: Maybe<Scalars['String']['output']>;
   totalValueStatus: SummaryStatus;
 };
@@ -558,7 +560,7 @@ export type PortfolioHistoryQuery = { __typename?: 'QueryRoot', portfolioHistory
 export type PortfolioQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type PortfolioQuery = { __typename?: 'QueryRoot', portfolio: { __typename?: 'PortfolioSummary', displayCurrency: string, totalValueStatus: SummaryStatus, totalValueAmount: string | null, fxLastUpdated: string | null, fxRefreshStatus: RefreshAvailability, fxRefreshError: string | null, allocationIsPartial: boolean, holdingsIsPartial: boolean, accountTotals: Array<{ __typename?: 'PortfolioAccountTotal', id: number, name: string, accountType: AccountType, summaryStatus: SummaryStatus, cashTotalAmount: string | null, assetTotalAmount: string | null, totalAmount: string | null, totalCurrency: string }>, cashByCurrency: Array<{ __typename?: 'PortfolioCashByCurrency', currency: string, amount: string, convertedAmount: string | null }>, allocationTotals: Array<{ __typename?: 'PortfolioAllocationSlice', label: string, amount: string }>, holdings: Array<{ __typename?: 'PortfolioHolding', assetId: number | null, symbol: string, name: string, value: string }> } };
+export type PortfolioQuery = { __typename?: 'QueryRoot', portfolio: { __typename?: 'PortfolioSummary', displayCurrency: string, totalValueStatus: SummaryStatus, totalValueAmount: string | null, dailyGainAmount: string | null, totalGainAmount: string | null, fxLastUpdated: string | null, fxRefreshStatus: RefreshAvailability, fxRefreshError: string | null, allocationIsPartial: boolean, holdingsIsPartial: boolean, accountTotals: Array<{ __typename?: 'PortfolioAccountTotal', id: number, name: string, accountType: AccountType, summaryStatus: SummaryStatus, cashTotalAmount: string | null, assetTotalAmount: string | null, totalAmount: string | null, totalCurrency: string }>, cashByCurrency: Array<{ __typename?: 'PortfolioCashByCurrency', currency: string, amount: string, convertedAmount: string | null }>, allocationTotals: Array<{ __typename?: 'PortfolioAllocationSlice', label: string, amount: string }>, holdings: Array<{ __typename?: 'PortfolioHolding', assetId: number | null, symbol: string, name: string, value: string }> } };
 
 export type CreateTransferMutationVariables = Exact<{
   input: TransferInput;

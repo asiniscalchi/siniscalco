@@ -25,20 +25,26 @@ export function PortfolioSummarySection({
             </span>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-end gap-3 text-xs text-muted-foreground">
           {summary.totalValueStatus === "CONVERSION_UNAVAILABLE" && (
             <span className="font-medium text-destructive">
               Conversion data unavailable
             </span>
           )}
-          {summary.totalValueStatus === "OK" && (
-            <span>Converted to {summary.displayCurrency}</span>
-          )}
-          <span>•</span>
-          <span>
-            Last FX update:{" "}
-            {summary.fxLastUpdated ? formatTimestamp(summary.fxLastUpdated) : "unavailable"}
-          </span>
+          <GainMetric
+            amount={summary.dailyGainAmount}
+            currency={summary.displayCurrency}
+            hideValues={hideValues}
+            label="Daily gain"
+            testId="portfolio-daily-gain"
+          />
+          <GainMetric
+            amount={summary.totalGainAmount}
+            currency={summary.displayCurrency}
+            hideValues={hideValues}
+            label="Total gain"
+            testId="portfolio-total-gain"
+          />
           {summary.fxRefreshStatus === "UNAVAILABLE" && (
             <>
               <span>•</span>
@@ -58,11 +64,44 @@ export function PortfolioSummarySection({
   );
 }
 
-function formatTimestamp(timestamp: string) {
-  const [date, time] = timestamp.split(" ");
-  if (!date || !time) {
-    return timestamp.slice(0, 16);
-  }
+function GainMetric({
+  amount,
+  currency,
+  hideValues,
+  label,
+  testId,
+}: {
+  amount: string | null | undefined;
+  currency: string;
+  hideValues: boolean;
+  label: string;
+  testId: string;
+}) {
+  const numericAmount = amount ? Number(amount) : null;
+  const toneClass =
+    hideValues || numericAmount === null || numericAmount === 0
+      ? "text-muted-foreground"
+      : numericAmount > 0
+        ? "text-green-600 dark:text-green-400"
+        : "text-red-600 dark:text-red-400";
+  const sign = !hideValues && numericAmount !== null && numericAmount > 0 ? "+" : "";
 
-  return `${date} ${time.slice(0, 5)}`;
+  return (
+    <span className="inline-flex items-center gap-1.5" data-testid={testId}>
+      <span>{label}:</span>
+      {amount ? (
+        <span className={toneClass}>
+          {sign}
+          <MoneyText
+            className="text-sm font-semibold"
+            currency={currency}
+            hidden={hideValues}
+            value={amount}
+          />
+        </span>
+      ) : (
+        <span className="font-medium text-muted-foreground">Unavailable</span>
+      )}
+    </span>
+  );
 }

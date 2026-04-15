@@ -370,6 +370,8 @@ fn to_portfolio_summary(
         display_currency: summary.display_currency.as_str().to_string(),
         total_value_status: summary.total_value_status.into(),
         total_value_amount: fmt_opt_amount(summary.total_value_amount.as_ref()),
+        daily_gain_amount: fmt_opt_amount(summary.daily_gain_amount.as_ref()),
+        total_gain_amount: fmt_opt_amount(summary.total_gain_amount.as_ref()),
         account_totals: summary
             .account_totals
             .into_iter()

@@ -11,6 +11,16 @@ import { TopHoldingsCard } from "./TopHoldingsCard";
 export function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
   const { hideValues } = useUiState();
   const hasCashData = summary.cashByCurrency.length > 0;
+  const currentValue =
+    summary.totalValueStatus === "OK" && summary.totalValueAmount
+      ? Number(summary.totalValueAmount)
+      : undefined;
+  const totalGain =
+    summary.totalValueStatus === "OK" && summary.totalGainAmount
+      ? Number(summary.totalGainAmount)
+      : undefined;
+  const baseValue =
+    currentValue != null && totalGain != null ? currentValue - totalGain : undefined;
 
   if (!hasCashData) {
     return (
@@ -24,11 +34,8 @@ export function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) 
     <div className="flex flex-col gap-8">
       <PortfolioSummarySection summary={summary} hideValues={hideValues} />
       <PortfolioHistoryCard
-        currentValue={
-          summary.totalValueStatus === "OK" && summary.totalValueAmount
-            ? Number(summary.totalValueAmount)
-            : undefined
-        }
+        baseValue={baseValue}
+        currentValue={currentValue}
       />
       <div className="grid gap-8 lg:grid-cols-2">
         <PortfolioAccountBreakdown

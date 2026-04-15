@@ -1514,6 +1514,95 @@ async fn returns_portfolio_summary() {
 }
 
 #[tokio::test]
+async fn returns_portfolio_gain_amounts() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Broker"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    seed_balance(&pool, account_id, Currency::Usd, amt("1000.000000")).await;
+
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate("0.900000"),
+        },
+    )
+    .await
+    .expect("fx rate insert should succeed");
+
+    upsert_asset_price(
+        &pool,
+        UpsertAssetPriceInput {
+            asset_id,
+            price: AssetUnitPrice::try_from("100.000000").unwrap(),
+            currency: Currency::Usd,
+            as_of: "2020-01-01T00:00:00Z".to_string(),
+        },
+    )
+    .await
+    .expect("previous price insert should succeed");
+
+    upsert_asset_price(
+        &pool,
+        UpsertAssetPriceInput {
+            asset_id,
+            price: AssetUnitPrice::try_from("120.000000").unwrap(),
+            currency: Currency::Usd,
+            as_of: "2999-01-01T00:00:00Z".to_string(),
+        },
+    )
+    .await
+    .expect("current price insert should succeed");
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2024-01-01"),
+            quantity: AssetQuantity::try_from("10.000000").unwrap(),
+            unit_price: AssetUnitPrice::try_from("90.000000").unwrap(),
+            currency_code: Currency::Usd,
+            notes: None,
+        },
+    )
+    .await
+    .expect("transaction insert should succeed");
+
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let json = gql(app, "{ portfolio { dailyGainAmount totalGainAmount } }").await;
+
+    let p = &json["data"]["portfolio"];
+    assert_eq!(p["dailyGainAmount"], "180.000000");
+    assert_eq!(p["totalGainAmount"], "270.000000");
+}
+
+#[tokio::test]
 async fn returns_empty_portfolio_summary_when_no_cash_exists() {
     let pool = test_pool().await;
     let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
