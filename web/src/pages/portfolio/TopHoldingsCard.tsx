@@ -105,7 +105,7 @@ export function TopHoldingsCard({
               }))}
             />
           </div>
-          <div className="w-full space-y-3">
+          <div className="min-w-0 w-full space-y-3">
             {chartData.map((item, index) => {
               const percentage =
                 holdingsTotal > 0 ? (item.value / holdingsTotal) * 100 : 0;
