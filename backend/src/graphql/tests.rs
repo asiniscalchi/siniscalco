@@ -1047,6 +1047,91 @@ async fn asset_avg_cost_basis_computed_from_buy_transactions() {
 }
 
 #[tokio::test]
+async fn asset_avg_cost_basis_is_null_when_bought_in_multiple_currencies() {
+    let pool = test_pool().await;
+
+    // EUR-base account: buys AAPL once in USD and once in EUR → mixed currencies
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Broker"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    seed_balance(&pool, account_id, Currency::Eur, amt("10000.000000")).await;
+
+    // USD→EUR rate needed for the first buy (transaction currency USD, account base EUR)
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::try_from("USD").unwrap(),
+            to_currency: Currency::Eur,
+            rate: FxRate::try_from("0.900000").unwrap(),
+        },
+    )
+    .await
+    .unwrap();
+
+    // First buy in USD
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2024-01-01"),
+            quantity: AssetQuantity::try_from("10").unwrap(),
+            unit_price: AssetUnitPrice::try_from("100").unwrap(),
+            currency_code: Currency::try_from("USD").unwrap(),
+            notes: None,
+        },
+    )
+    .await
+    .expect("transaction insert should succeed");
+
+    // Second buy in EUR — mixed currencies: avg_cost_basis must be null
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2024-06-01"),
+            quantity: AssetQuantity::try_from("5").unwrap(),
+            unit_price: AssetUnitPrice::try_from("95").unwrap(),
+            currency_code: Currency::Eur,
+            notes: None,
+        },
+    )
+    .await
+    .expect("transaction insert should succeed");
+
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let json = gql(app, "{ assets { avgCostBasis avgCostBasisCurrency } }").await;
+
+    let asset = &json["data"]["assets"][0];
+    assert!(asset["avgCostBasis"].is_null());
+    assert!(asset["avgCostBasisCurrency"].is_null());
+}
+
+#[tokio::test]
 async fn asset_query_returns_converted_total_value_in_eur() {
     let pool = test_pool().await;
 

@@ -201,7 +201,7 @@ describe("App shell", () => {
     expect(screen.queryByRole("link", { name: "Transfers" })).toBeNull();
   });
 
-  it("shows an asset daily gain ticker below the header and masks it with hidden values", async () => {
+  it("shows an asset daily gain ticker below the header and keeps percentages visible when values are hidden", async () => {
     mockGqlAndHealth(200, (query) => {
       if (query.includes("assets {")) {
         return gqlResponse({
@@ -296,12 +296,12 @@ describe("App shell", () => {
       screen.getByRole("button", { name: "Hide financial values" }),
     );
 
+    // Percentages are not sensitive — they must remain visible even when values are hidden
     await waitFor(() => {
-      expect(screen.queryByText("+5.18%")).toBeNull();
+      expect(screen.getAllByText("+5.18%").length).toBeGreaterThan(0);
     });
-    expect(screen.queryByText("-10.00%")).toBeNull();
-    expect(screen.queryByText("0.00%")).toBeNull();
-    expect(screen.getAllByText("••••%").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("-10.00%").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("0.00%").length).toBeGreaterThan(0);
   });
 
   it("opens the assistant popup from the shell header", async () => {
