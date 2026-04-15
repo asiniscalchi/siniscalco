@@ -5,6 +5,7 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -42,8 +43,10 @@ const RANGE_DAYS: Record<Range, number | null> = {
 type DataPoint = { date: string; value: number };
 
 export function PortfolioHistoryCard({
+  baseValue,
   currentValue,
 }: {
+  baseValue?: number;
   currentValue?: number;
 }) {
   const { hideValues } = useUiState();
@@ -75,13 +78,20 @@ export function PortfolioHistoryCard({
     filtered.push({ date: today, value: currentValue });
   }
 
-  const yDomain: [number, string] = (() => {
+  const yDomain: [number, number | "auto"] = (() => {
     if (filtered.length < 2) return [0, "auto"];
-    const minValue = Math.min(...filtered.map((d) => d.value));
-    const maxValue = Math.max(...filtered.map((d) => d.value));
-    const padding = Math.max((maxValue - minValue) * 0.1, minValue * 0.02);
-    return [minValue - padding, "auto"];
+    const domainValues = filtered.map((d) => d.value);
+
+    if (baseValue != null && !Number.isNaN(baseValue)) {
+      domainValues.push(baseValue);
+    }
+
+    const minValue = Math.min(...domainValues);
+    const maxValue = Math.max(...domainValues);
+    const padding = Math.max((maxValue - minValue) * 0.1, Math.abs(minValue) * 0.02);
+    return [minValue - padding, maxValue + padding];
   })();
+  const shouldShowBaseLine = baseValue != null && !Number.isNaN(baseValue);
 
   return (
     <Card className="bg-background">
@@ -167,6 +177,19 @@ export function PortfolioHistoryCard({
                     <ChartTooltip currency={currency} />
                   }
                 />
+                {shouldShowBaseLine ? (
+                  <ReferenceLine
+                    y={baseValue}
+                    stroke="var(--muted-foreground)"
+                    strokeDasharray="4 4"
+                    label={{
+                      value: "Base price",
+                      fill: "var(--muted-foreground)",
+                      fontSize: 11,
+                      position: "insideTopRight",
+                    }}
+                  />
+                ) : null}
                 <Area
                   type="monotone"
                   dataKey="value"
