@@ -1,5 +1,6 @@
 import { gql } from "@apollo/client/core";
 import { useQuery } from "@apollo/client/react";
+import { MARKET_DATA_POLL_INTERVAL } from "@/lib/apollo";
 
 import { type PortfolioQuery } from "@/gql/types";
 
@@ -27,7 +28,7 @@ import { PortfolioLoadingState } from "./PortfolioLoadingState";
 import { PortfolioReadyState } from "./PortfolioReadyState";
 
 export function PortfolioPage() {
-  const { data, loading, error, refetch } = useQuery<PortfolioQuery>(PORTFOLIO_QUERY, { fetchPolicy: "cache-and-network" });
+  const { data, loading, error, refetch } = useQuery<PortfolioQuery>(PORTFOLIO_QUERY, { fetchPolicy: "cache-and-network", pollInterval: MARKET_DATA_POLL_INTERVAL });
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">

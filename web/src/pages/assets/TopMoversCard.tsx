@@ -1,4 +1,5 @@
 import { useQuery } from "@apollo/client/react";
+import { MARKET_DATA_POLL_INTERVAL } from "@/lib/apollo";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/lib/format-money";
@@ -85,7 +86,7 @@ function MoverColumn({
 }
 
 export function TopMoversCard() {
-  const { data, loading } = useQuery<AssetsQuery>(ASSETS_QUERY, { fetchPolicy: "cache-and-network" });
+  const { data, loading } = useQuery<AssetsQuery>(ASSETS_QUERY, { fetchPolicy: "cache-and-network", pollInterval: MARKET_DATA_POLL_INTERVAL });
   const assets = data?.assets ?? [];
 
   if (loading && assets.length === 0) return null;

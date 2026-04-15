@@ -125,8 +125,22 @@
   }
 }
 
+/* r=16 in a 36×36 viewBox → circumference = 2π×16 ≈ 100.53 */
+@keyframes refresh-countdown {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: 100.53; }
+}
+
+.refresh-countdown-ring {
+  animation: refresh-countdown linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .asset-ticker-track {
+    animation: none;
+  }
+
+  .refresh-countdown-ring {
     animation: none;
   }
 }

@@ -1,5 +1,6 @@
 import { gql } from "@apollo/client/core";
 import { useQuery } from "@apollo/client/react";
+import { MARKET_DATA_POLL_INTERVAL } from "@/lib/apollo";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ItemLabel } from "@/components/ItemLabel";
@@ -81,8 +82,8 @@ export function AccountAssetsCard({ accountId, baseCurrency }: AccountAssetsCard
   const { hideValues } = useUiState();
 
   const { data: positionsData } = useQuery<AccountPositionsQuery>(ACCOUNT_POSITIONS_QUERY, { variables: { accountId } });
-  const { data: assetsData } = useQuery<AccountAssetsQuery>(ASSETS_QUERY);
-  const { data: fxData } = useQuery<AccountFxRatesQuery>(FX_RATES_QUERY);
+  const { data: assetsData } = useQuery<AccountAssetsQuery>(ASSETS_QUERY, { pollInterval: MARKET_DATA_POLL_INTERVAL });
+  const { data: fxData } = useQuery<AccountFxRatesQuery>(FX_RATES_QUERY, { pollInterval: MARKET_DATA_POLL_INTERVAL });
 
   const positions = positionsData?.accountPositions ?? [];
   const assets = assetsData?.assets ?? [];

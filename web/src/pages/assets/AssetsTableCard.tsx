@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { gql } from "@apollo/client/core";
 import { useMutation, useQuery } from "@apollo/client/react";
+import { MARKET_DATA_POLL_INTERVAL } from "@/lib/apollo";
 
 import { ItemLabel } from "@/components/ItemLabel";
 import { ExternalLinkIcon, LockIcon, PencilIcon, PlusIcon, TrashIcon, UnlockIcon } from "@/components/Icons";
@@ -39,7 +40,7 @@ export function AssetsTableCard() {
   const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
 
-  const { data, loading, error, refetch } = useQuery<AssetsQuery>(ASSETS_QUERY, { fetchPolicy: "cache-and-network" });
+  const { data, loading, error, refetch } = useQuery<AssetsQuery>(ASSETS_QUERY, { fetchPolicy: "cache-and-network", pollInterval: MARKET_DATA_POLL_INTERVAL });
   const assets = data?.assets ?? [];
   const priceHealth = priceHealthLabel(assets);
 

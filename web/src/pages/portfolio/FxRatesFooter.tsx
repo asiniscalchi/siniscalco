@@ -1,5 +1,6 @@
 import { gql } from "@apollo/client/core";
 import { useQuery } from "@apollo/client/react";
+import { MARKET_DATA_POLL_INTERVAL } from "@/lib/apollo";
 
 import { type FxRatesQuery } from "@/gql/types";
 
@@ -51,7 +52,7 @@ function FxRatesFooterContent({ summary }: { summary: FxRatesQuery["fxRates"] })
 }
 
 export function FxRatesFooter() {
-  const { data } = useQuery<FxRatesQuery>(FX_RATES_QUERY);
+  const { data } = useQuery<FxRatesQuery>(FX_RATES_QUERY, { pollInterval: MARKET_DATA_POLL_INTERVAL });
 
   if (!data) {
     return null;
