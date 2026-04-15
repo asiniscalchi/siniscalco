@@ -225,7 +225,7 @@ describe("AccountDetailPage", () => {
     expect(screen.getAllByText("Bitcoin").length).toBeGreaterThan(0);
     expect(screen.getAllByText("2.5").length).toBeGreaterThan(0);
     // value = 2.5 * 90000 * (0.92 / 1) = 207,000 EUR
-    expect(screen.getAllByText("207,000.00 EUR").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("€207,000.00").length).toBeGreaterThan(0);
   });
 
   it("renders account detail with empty balances", async () => {

@@ -127,20 +127,18 @@ describe("PortfolioPage", () => {
 
     renderPortfolioPage();
 
-    expect((await screen.findAllByText("153.70 EUR")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("€153.70")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Cash").length).toBeGreaterThan(0);
-    expect(screen.getByText("103.70 EUR")).toBeTruthy();
-    expect(screen.getByText("50.00 EUR")).toBeTruthy();
+    expect(screen.getByText("€103.70")).toBeTruthy();
+    expect(screen.getByText("€50.00")).toBeTruthy();
     expect(screen.queryByText("Converted to EUR")).toBeNull();
     expect(screen.queryByText("Last FX update: 2026-03-22 11:30")).toBeNull();
     expect(screen.getByText("24h gain:")).toBeTruthy();
     expect(screen.getByText("Total gain:")).toBeTruthy();
-    expect(
-      screen.getByText((_content, element) => element?.textContent === "+2.50 EUR"),
-    ).toBeTruthy();
-    expect(
-      screen.getByText((_content, element) => element?.textContent === "+12.50 EUR"),
-    ).toBeTruthy();
+    const dailyGainEl = screen.getByTestId("portfolio-daily-gain");
+    const totalGainEl = screen.getByTestId("portfolio-total-gain");
+    expect(dailyGainEl.textContent).toBe("24h gain:+€2.50(+1.65%)");
+    expect(totalGainEl.textContent).toBe("Total gain:+€12.50(+8.85%)");
   });
 
   it("renders zero gain values in the neutral tone", async () => {
@@ -168,8 +166,8 @@ describe("PortfolioPage", () => {
     const dailyGain = await screen.findByTestId("portfolio-daily-gain");
     const totalGain = screen.getByTestId("portfolio-total-gain");
 
-    expect(dailyGain.textContent).toBe("24h gain:0.00 EUR");
-    expect(totalGain.textContent).toBe("Total gain:0.00 EUR");
+    expect(dailyGain.textContent).toBe("24h gain:€0.00");
+    expect(totalGain.textContent).toBe("Total gain:€0.00");
     expect(dailyGain.querySelector(".text-muted-foreground")).toBeTruthy();
     expect(totalGain.querySelector(".text-muted-foreground")).toBeTruthy();
   });
@@ -288,7 +286,7 @@ describe("PortfolioPage", () => {
     fireEvent.click(screen.getByText("Retry"));
 
     await waitFor(() => {
-      expect(screen.getAllByText("1.00 EUR").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("€1.00").length).toBeGreaterThan(0);
     });
   });
 
@@ -325,9 +323,9 @@ describe("PortfolioPage", () => {
 
     renderPortfolioPage();
 
-    expect(await screen.findAllByText("•••• EUR")).toHaveLength(5);
-    expect(screen.queryByText("+2.50 EUR")).toBeNull();
-    expect(screen.queryByText("+12.50 EUR")).toBeNull();
+    expect(await screen.findAllByText("€••••")).toHaveLength(5);
+    expect(screen.queryByText("+€2.50")).toBeNull();
+    expect(screen.queryByText("+€12.50")).toBeNull();
   });
 
   it("handles missing currency conversion values without crashing", async () => {
@@ -389,8 +387,8 @@ describe("PortfolioPage", () => {
     expect(await screen.findByText("Allocation")).toBeTruthy();
     expect(screen.getByText("Stock")).toBeTruthy();
     expect(screen.getAllByText("Cash").length).toBeGreaterThan(0);
-    expect(screen.getByText("200.00 EUR")).toBeTruthy();
-    expect(screen.getByText("100.00 EUR")).toBeTruthy();
+    expect(screen.getByText("€200.00")).toBeTruthy();
+    expect(screen.getByText("€100.00")).toBeTruthy();
     expect(screen.getByText("66.7%")).toBeTruthy();
     expect(screen.getByText("33.3%")).toBeTruthy();
   });
@@ -471,7 +469,7 @@ describe("PortfolioPage", () => {
     renderPortfolioPage();
 
     await screen.findByText("Allocation");
-    expect(screen.queryByText("200.00 EUR")).toBeNull();
+    expect(screen.queryByText("€200.00")).toBeNull();
     expect(screen.queryByText("66.7%")).toBeNull();
     expect(screen.getAllByText("•••%").length).toBeGreaterThan(0);
   });
@@ -508,7 +506,7 @@ describe("PortfolioPage", () => {
     expect(screen.getByText("Vanguard FTSE All-World")).toBeTruthy();
     expect(screen.getByText("Other")).toBeTruthy();
     expect(screen.getByText("1 other holding")).toBeTruthy();
-    expect(screen.getByText("120.00 EUR")).toBeTruthy();
+    expect(screen.getByText("€120.00")).toBeTruthy();
     expect(screen.getByText("38.7%")).toBeTruthy();
     expect(screen.getByText("3.2%")).toBeTruthy();
   });

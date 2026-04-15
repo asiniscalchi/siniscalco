@@ -494,28 +494,28 @@ describe("App shell", () => {
 
     const view = renderApp(["/portfolio"]);
 
-    const totalAmounts = await screen.findAllByText("153.70 EUR");
+    const totalAmounts = await screen.findAllByText("€153.70");
     const totalAmount = totalAmounts[0];
     const initialWidth = totalAmount.getAttribute("style");
-    expect(screen.getByText("103.70 EUR")).toBeTruthy();
+    expect(screen.getByText("€103.70")).toBeTruthy();
 
     fireEvent.click(
       screen.getByRole("button", { name: "Hide financial values" }),
     );
 
-    expect(await screen.findAllByText("•••• EUR")).toHaveLength(3);
-    expect(screen.queryByText("153.70 EUR")).toBeNull();
-    expect(screen.queryByText("103.70 EUR")).toBeNull();
+    expect(await screen.findAllByText("€••••")).toHaveLength(3);
+    expect(screen.queryByText("€153.70")).toBeNull();
+    expect(screen.queryByText("€103.70")).toBeNull();
     expect(window.localStorage.getItem("ui.hide_values")).toBe("true");
-    expect(screen.getAllByText("•••• EUR")[0].getAttribute("style")).toBe(
+    expect(screen.getAllByText("€••••")[0].getAttribute("style")).toBe(
       initialWidth,
     );
 
     view.unmount();
     renderApp(["/portfolio"]);
 
-    expect(await screen.findAllByText("•••• EUR")).toHaveLength(3);
+    expect(await screen.findAllByText("€••••")).toHaveLength(3);
     expect(screen.getByRole("button", { name: "Show financial values" })).toBeTruthy();
-    expect(screen.queryByText("153.70 EUR")).toBeNull();
+    expect(screen.queryByText("€153.70")).toBeNull();
   });
 });

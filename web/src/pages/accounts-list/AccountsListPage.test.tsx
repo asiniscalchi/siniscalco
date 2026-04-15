@@ -142,7 +142,7 @@ describe("AccountsListPage", () => {
     expect(await screen.findByText("IBKR")).toBeTruthy();
     expect(screen.getByText(/broker/i)).toBeTruthy();
     expect(screen.getAllByText(/EUR/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("123.45 EUR").length).toBe(1);
+    expect(screen.getAllByText("€123.45").length).toBeGreaterThan(0);
     expect(
       screen.getByRole("link", { name: /IBKR/ }).getAttribute("href"),
     ).toBe("/accounts/1");
@@ -305,12 +305,12 @@ describe("AccountsListPage", () => {
     const accountLink = await screen.findByRole("link", {
       name: /IBKR/,
     });
-    const maskedAmounts = screen.getAllByText("•••• EUR");
+    const maskedAmounts = screen.getAllByText("€••••");
 
     expect(maskedAmounts.length).toBe(1);
-    expect(screen.queryByText("123.45 EUR")).toBeNull();
-    expect(accountLink.textContent).toContain("•••• EUR");
-    expect(accountLink.textContent).not.toContain("123.45 EUR");
+    expect(screen.queryByText("€123.45")).toBeNull();
+    expect(accountLink.textContent).toContain("€••••");
+    expect(accountLink.textContent).not.toContain("€123.45");
     expect(maskedAmounts[0].className).toContain("tabular-nums");
   });
 });

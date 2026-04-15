@@ -33,6 +33,7 @@ export function PortfolioSummarySection({
           )}
           <GainMetric
             amount={summary.gain24hAmount}
+            totalValue={summary.totalValueAmount}
             currency={summary.displayCurrency}
             hideValues={hideValues}
             label="24h gain"
@@ -40,6 +41,7 @@ export function PortfolioSummarySection({
           />
           <GainMetric
             amount={summary.totalGainAmount}
+            totalValue={summary.totalValueAmount}
             currency={summary.displayCurrency}
             hideValues={hideValues}
             label="Total gain"
@@ -66,12 +68,14 @@ export function PortfolioSummarySection({
 
 function GainMetric({
   amount,
+  totalValue,
   currency,
   hideValues,
   label,
   testId,
 }: {
   amount: string | null | undefined;
+  totalValue: string | null | undefined;
   currency: string;
   hideValues: boolean;
   label: string;
@@ -86,6 +90,19 @@ function GainMetric({
         : "text-red-600 dark:text-red-400";
   const sign = !hideValues && numericAmount !== null && numericAmount > 0 ? "+" : "";
 
+  const percentage = (() => {
+    if (!amount || !totalValue) return null;
+    const gain = Number(amount);
+    const basis = Number(totalValue) - gain;
+    if (basis === 0) return null;
+    return (gain / basis) * 100;
+  })();
+
+  const percentageText =
+    !hideValues && percentage !== null && numericAmount !== 0
+      ? `(${percentage >= 0 ? "+" : ""}${percentage.toFixed(2)}%)`
+      : null;
+
   return (
     <span className="inline-flex items-center gap-1.5" data-testid={testId}>
       <span>{label}:</span>
@@ -98,6 +115,9 @@ function GainMetric({
             hidden={hideValues}
             value={amount}
           />
+          {percentageText ? (
+            <span className="ml-1 font-semibold">{percentageText}</span>
+          ) : null}
         </span>
       ) : (
         <span className="font-medium text-muted-foreground">Unavailable</span>
