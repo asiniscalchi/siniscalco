@@ -199,21 +199,41 @@ export function AppShell() {
                 >
                   {hideValues ? <EyeClosedIcon /> : <EyeIcon />}
                 </Button>
-                <div
-                  aria-label="Siniscalco"
-                  aria-live="polite"
-                  className={cn(
-                    "flex size-9 items-center justify-center rounded-xl shadow-sm transition-colors",
-                    backendStatus === "connected" && "bg-emerald-600 text-white",
-                    backendStatus === "checking" && "bg-amber-500 text-white",
-                    backendStatus === "unavailable" &&
-                      "bg-destructive text-destructive-foreground",
-                  )}
-                  role="img"
-                  title={`Backend: ${backendStatus}`}
-                >
-                  <LogoIcon className="size-5" />
-                  <span className="sr-only">Backend {backendStatus}</span>
+                <div className="relative size-9">
+                  <div
+                    aria-label="Siniscalco"
+                    aria-live="polite"
+                    className={cn(
+                      "flex size-9 items-center justify-center rounded-full shadow-sm transition-colors",
+                      backendStatus === "connected" && "bg-emerald-600 text-white",
+                      backendStatus === "checking" && "bg-amber-500 text-white",
+                      backendStatus === "unavailable" &&
+                        "bg-destructive text-destructive-foreground",
+                    )}
+                    role="img"
+                    title={`Backend: ${backendStatus}`}
+                  >
+                    <LogoIcon className="size-5" />
+                    <span className="sr-only">Backend {backendStatus}</span>
+                  </div>
+                  <svg
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 -rotate-90"
+                    viewBox="0 0 36 36"
+                  >
+                    <circle
+                      className="refresh-countdown-ring"
+                      cx="18"
+                      cy="18"
+                      fill="none"
+                      r="16"
+                      stroke="white"
+                      strokeDasharray="100.53"
+                      strokeOpacity="0.5"
+                      strokeWidth="2"
+                      style={{ animationDuration: `${MARKET_DATA_POLL_INTERVAL}ms` }}
+                    />
+                  </svg>
                 </div>
               </div>
               {backendStatus === "unavailable" && (
