@@ -137,8 +137,8 @@ describe("PortfolioPage", () => {
     expect(screen.getByText("Total gain:")).toBeTruthy();
     const dailyGainEl = screen.getByTestId("portfolio-daily-gain");
     const totalGainEl = screen.getByTestId("portfolio-total-gain");
-    expect(dailyGainEl.textContent).toBe("24h gain:+€2.50+1.65%");
-    expect(totalGainEl.textContent).toBe("Total gain:+€12.50+8.85%");
+    expect(dailyGainEl.textContent).toBe("24h gain:+€2.50(+1.65%)");
+    expect(totalGainEl.textContent).toBe("Total gain:+€12.50(+8.85%)");
   });
 
   it("renders zero gain values in the neutral tone", async () => {

@@ -100,7 +100,7 @@ function GainMetric({
 
   const percentageText =
     !hideValues && percentage !== null && numericAmount !== 0
-      ? `${percentage >= 0 ? "+" : ""}${percentage.toFixed(2)}%`
+      ? `(${percentage >= 0 ? "+" : ""}${percentage.toFixed(2)}%)`
       : null;
 
   return (
