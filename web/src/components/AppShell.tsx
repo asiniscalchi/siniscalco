@@ -11,6 +11,7 @@ import { HIDDEN_MONEY_MASK } from "@/lib/format-money";
 import { cn } from "@/lib/utils";
 import { type AssetsQuery } from "@/gql/types";
 import { ASSETS_QUERY } from "@/pages/assets/assets-query";
+import { MARKET_DATA_POLL_INTERVAL } from "@/lib/apollo";
 
 const primaryNavItems = [
   { label: "Portfolio", to: "/portfolio" },
@@ -64,7 +65,7 @@ function buildAssetTickerItems(
 function AssetValueTicker({ hidden }: { hidden: boolean }) {
   const { data, error, loading } = useQuery<AssetsQuery>(ASSETS_QUERY, {
     fetchPolicy: "cache-and-network",
-    pollInterval: 5 * 60 * 1000,
+    pollInterval: MARKET_DATA_POLL_INTERVAL,
   });
 
   const items = useMemo(

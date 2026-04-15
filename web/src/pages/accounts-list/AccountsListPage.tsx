@@ -1,5 +1,6 @@
 import { gql } from "@apollo/client/core";
 import { useQuery } from "@apollo/client/react";
+import { MARKET_DATA_POLL_INTERVAL } from "@/lib/apollo";
 import { Link } from "react-router-dom";
 
 import { ItemLabel } from "@/components/ItemLabel";
@@ -39,7 +40,7 @@ import { cn } from "@/lib/utils";
 
 export function AccountsListPage() {
   const { data: accountsData, loading: accountsLoading, error: accountsError, refetch: refetchAccounts } = useQuery<AccountsListQuery>(ACCOUNTS_QUERY, { fetchPolicy: "cache-and-network" });
-  const { data: portfolioData, loading: portfolioLoading, error: portfolioError, refetch: refetchPortfolio } = useQuery<AccountsListPortfolioQuery>(PORTFOLIO_QUERY, { fetchPolicy: "cache-and-network", pollInterval: 5 * 60 * 1000 });
+  const { data: portfolioData, loading: portfolioLoading, error: portfolioError, refetch: refetchPortfolio } = useQuery<AccountsListPortfolioQuery>(PORTFOLIO_QUERY, { fetchPolicy: "cache-and-network", pollInterval: MARKET_DATA_POLL_INTERVAL });
 
   const loading = accountsLoading || portfolioLoading;
   const error = accountsError ?? portfolioError;
