@@ -66,12 +66,12 @@ pub async fn list_assets(pool: &SqlitePool) -> Result<Vec<AssetRecord>, StorageE
             ) as avg_cost_basis_currency,
             (
                 SELECT price FROM asset_price_history
-                WHERE asset_id = assets.id AND date(recorded_at) < date('now')
+                WHERE asset_id = assets.id AND recorded_at < datetime('now', '-24 hours')
                 ORDER BY recorded_at DESC LIMIT 1
             ) as previous_close,
             (
                 SELECT currency_code FROM asset_price_history
-                WHERE asset_id = assets.id AND date(recorded_at) < date('now')
+                WHERE asset_id = assets.id AND recorded_at < datetime('now', '-24 hours')
                 ORDER BY recorded_at DESC LIMIT 1
             ) as previous_close_currency,
             assets.created_at,
@@ -124,12 +124,12 @@ pub async fn get_asset(pool: &SqlitePool, asset_id: AssetId) -> Result<AssetReco
             ) as avg_cost_basis_currency,
             (
                 SELECT price FROM asset_price_history
-                WHERE asset_id = assets.id AND date(recorded_at) < date('now')
+                WHERE asset_id = assets.id AND recorded_at < datetime('now', '-24 hours')
                 ORDER BY recorded_at DESC LIMIT 1
             ) as previous_close,
             (
                 SELECT currency_code FROM asset_price_history
-                WHERE asset_id = assets.id AND date(recorded_at) < date('now')
+                WHERE asset_id = assets.id AND recorded_at < datetime('now', '-24 hours')
                 ORDER BY recorded_at DESC LIMIT 1
             ) as previous_close_currency,
             assets.created_at,

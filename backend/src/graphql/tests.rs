@@ -1595,10 +1595,10 @@ async fn returns_portfolio_gain_amounts() {
     .expect("transaction insert should succeed");
 
     let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
-    let json = gql(app, "{ portfolio { dailyGainAmount totalGainAmount } }").await;
+    let json = gql(app, "{ portfolio { gain24hAmount totalGainAmount } }").await;
 
     let p = &json["data"]["portfolio"];
-    assert_eq!(p["dailyGainAmount"], "180.000000");
+    assert_eq!(p["gain24hAmount"], "180.000000");
     assert_eq!(p["totalGainAmount"], "270.000000");
 }
 

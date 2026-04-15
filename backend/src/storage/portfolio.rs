@@ -93,7 +93,7 @@ pub async fn get_portfolio_summary(
         &cash_by_currency,
     )
     .await?;
-    let (daily_gain_amount, total_gain_amount) =
+    let (gain_24h_amount, total_gain_amount) =
         compute_portfolio_gain_amounts(pool, &accounts, &assets_by_id, display_currency).await?;
 
     Ok(PortfolioSummaryRecord {
@@ -106,7 +106,7 @@ pub async fn get_portfolio_summary(
         } else {
             None
         },
-        daily_gain_amount,
+        gain_24h_amount,
         total_gain_amount,
         account_totals,
         cash_by_currency,
@@ -124,9 +124,9 @@ async fn compute_portfolio_gain_amounts(
     assets_by_id: &std::collections::BTreeMap<crate::storage::AssetId, AssetRecord>,
     display_currency: Currency,
 ) -> Result<(Option<Amount>, Option<Amount>), StorageError> {
-    let mut daily_gain_total = Decimal::ZERO;
+    let mut gain_24h_total = Decimal::ZERO;
     let mut total_gain_total = Decimal::ZERO;
-    let mut daily_gain_complete = true;
+    let mut gain_24h_complete = true;
     let mut total_gain_complete = true;
 
     for account in accounts {
@@ -153,8 +153,8 @@ async fn compute_portfolio_gain_amounts(
             )
             .await?
             {
-                Some(delta) => daily_gain_total += delta * position.quantity.as_decimal(),
-                None => daily_gain_complete = false,
+                Some(delta) => gain_24h_total += delta * position.quantity.as_decimal(),
+                None => gain_24h_complete = false,
             }
 
             match converted_unit_delta(
@@ -174,7 +174,7 @@ async fn compute_portfolio_gain_amounts(
     }
 
     Ok((
-        daily_gain_complete.then(|| parse_decimal_amount(daily_gain_total)),
+        gain_24h_complete.then(|| parse_decimal_amount(gain_24h_total)),
         total_gain_complete.then(|| parse_decimal_amount(total_gain_total)),
     ))
 }

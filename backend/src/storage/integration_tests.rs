@@ -3118,7 +3118,7 @@ async fn portfolio_summary_includes_daily_and_total_gain_amounts() {
         .await
         .unwrap();
 
-    assert_eq!(summary.daily_gain_amount, Some(amt("180.000000")));
+    assert_eq!(summary.gain_24h_amount, Some(amt("180.000000")));
     assert_eq!(summary.total_gain_amount, Some(amt("270.000000")));
 }
 

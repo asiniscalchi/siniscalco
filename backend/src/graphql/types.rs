@@ -299,7 +299,8 @@ pub struct PortfolioSummary {
     pub display_currency: String,
     pub total_value_status: SummaryStatus,
     pub total_value_amount: Option<String>,
-    pub daily_gain_amount: Option<String>,
+    #[graphql(name = "gain24hAmount")]
+    pub gain_24h_amount: Option<String>,
     pub total_gain_amount: Option<String>,
     pub account_totals: Vec<PortfolioAccountTotal>,
     pub cash_by_currency: Vec<PortfolioCashByCurrency>,
