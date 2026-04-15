@@ -131,15 +131,47 @@ describe("PortfolioPage", () => {
     expect(screen.getAllByText("Cash").length).toBeGreaterThan(0);
     expect(screen.getByText("103.70 EUR")).toBeTruthy();
     expect(screen.getByText("50.00 EUR")).toBeTruthy();
-    expect(screen.getByText("Daily gain")).toBeTruthy();
-    expect(screen.getByText("Total gain")).toBeTruthy();
+    expect(screen.queryByText("Converted to EUR")).toBeNull();
+    expect(screen.queryByText("Last FX update: 2026-03-22 11:30")).toBeNull();
+    expect(screen.getByText("Daily gain:")).toBeTruthy();
+    expect(screen.getByText("Total gain:")).toBeTruthy();
     expect(
       screen.getByText((_content, element) => element?.textContent === "+2.50 EUR"),
     ).toBeTruthy();
     expect(
       screen.getByText((_content, element) => element?.textContent === "+12.50 EUR"),
     ).toBeTruthy();
-    expect(screen.getByText("Last FX update: 2026-03-22 11:30")).toBeTruthy();
+  });
+
+  it("renders zero gain values in the neutral tone", async () => {
+    mockPortfolioRequest({
+      displayCurrency: "EUR",
+      totalValueStatus: "OK",
+      totalValueAmount: "153.70000000",
+      dailyGainAmount: "0.00000000",
+      totalGainAmount: "0.00000000",
+      accountTotals: [],
+      cashByCurrency: [
+        { currency: "EUR", amount: "153.70000000", convertedAmount: "153.70000000" },
+      ],
+      fxLastUpdated: "2026-03-22 11:30:00",
+      fxRefreshStatus: "AVAILABLE",
+      fxRefreshError: null,
+      allocationTotals: [{ label: "Cash", amount: "153.70000000" }],
+      allocationIsPartial: false,
+      holdings: [],
+      holdingsIsPartial: false,
+    });
+
+    renderPortfolioPage();
+
+    const dailyGain = await screen.findByTestId("portfolio-daily-gain");
+    const totalGain = screen.getByTestId("portfolio-total-gain");
+
+    expect(dailyGain.textContent).toBe("Daily gain:0.00 EUR");
+    expect(totalGain.textContent).toBe("Total gain:0.00 EUR");
+    expect(dailyGain.querySelector(".text-muted-foreground")).toBeTruthy();
+    expect(totalGain.querySelector(".text-muted-foreground")).toBeTruthy();
   });
 
   it("renders the empty state when no cash balances exist", async () => {

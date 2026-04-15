@@ -25,20 +25,26 @@ export function PortfolioSummarySection({
             </span>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-end gap-3 text-xs text-muted-foreground">
           {summary.totalValueStatus === "CONVERSION_UNAVAILABLE" && (
             <span className="font-medium text-destructive">
               Conversion data unavailable
             </span>
           )}
-          {summary.totalValueStatus === "OK" && (
-            <span>Converted to {summary.displayCurrency}</span>
-          )}
-          <span>•</span>
-          <span>
-            Last FX update:{" "}
-            {summary.fxLastUpdated ? formatTimestamp(summary.fxLastUpdated) : "unavailable"}
-          </span>
+          <GainMetric
+            amount={summary.dailyGainAmount}
+            currency={summary.displayCurrency}
+            hideValues={hideValues}
+            label="Daily gain"
+            testId="portfolio-daily-gain"
+          />
+          <GainMetric
+            amount={summary.totalGainAmount}
+            currency={summary.displayCurrency}
+            hideValues={hideValues}
+            label="Total gain"
+            testId="portfolio-total-gain"
+          />
           {summary.fxRefreshStatus === "UNAVAILABLE" && (
             <>
               <span>•</span>
@@ -53,20 +59,6 @@ export function PortfolioSummarySection({
             {summary.fxRefreshError}
           </div>
         ) : null}
-        <div className="grid w-full gap-3 pt-2 sm:grid-cols-2">
-          <GainMetric
-            amount={summary.dailyGainAmount}
-            currency={summary.displayCurrency}
-            hideValues={hideValues}
-            label="Daily gain"
-          />
-          <GainMetric
-            amount={summary.totalGainAmount}
-            currency={summary.displayCurrency}
-            hideValues={hideValues}
-            label="Total gain"
-          />
-        </div>
       </div>
     </section>
   );
@@ -77,11 +69,13 @@ function GainMetric({
   currency,
   hideValues,
   label,
+  testId,
 }: {
   amount: string | null | undefined;
   currency: string;
   hideValues: boolean;
   label: string;
+  testId: string;
 }) {
   const numericAmount = amount ? Number(amount) : null;
   const toneClass =
@@ -93,8 +87,8 @@ function GainMetric({
   const sign = !hideValues && numericAmount !== null && numericAmount > 0 ? "+" : "";
 
   return (
-    <div className="rounded-lg border bg-card px-3 py-2 text-right">
-      <div className="text-xs font-medium text-muted-foreground">{label}</div>
+    <span className="inline-flex items-center gap-1.5" data-testid={testId}>
+      <span>{label}:</span>
       {amount ? (
         <span className={toneClass}>
           {sign}
@@ -106,17 +100,8 @@ function GainMetric({
           />
         </span>
       ) : (
-        <span className="text-sm font-medium text-muted-foreground">Unavailable</span>
+        <span className="font-medium text-muted-foreground">Unavailable</span>
       )}
-    </div>
+    </span>
   );
-}
-
-function formatTimestamp(timestamp: string) {
-  const [date, time] = timestamp.split(" ");
-  if (!date || !time) {
-    return timestamp.slice(0, 16);
-  }
-
-  return `${date} ${time.slice(0, 5)}`;
 }
