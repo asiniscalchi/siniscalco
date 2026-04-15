@@ -143,7 +143,7 @@ describe("AssetsPage", () => {
     expect(screen.getAllByText("Apple Inc.").length).toBeGreaterThan(0);
     expect(screen.getAllByText("STOCK").length).toBeGreaterThan(0);
     expect(screen.getAllByText("US0378331005").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("189.33 USD").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("$189.33").length).toBeGreaterThan(0);
     expect(screen.getByText("Updated 2026-03-24")).toBeTruthy();
     expect(screen.getAllByText("AAPL via Yahoo").length).toBeGreaterThan(0);
     expect(screen.getByTestId("asset-price-health").textContent).toBe(
@@ -155,7 +155,7 @@ describe("AssetsPage", () => {
     expect(screen.getAllByText("Bitcoin").length).toBeGreaterThan(0);
     expect(screen.getAllByText("CRYPTO").length).toBeGreaterThan(0);
     expect(screen.getAllByText("BTC/USD").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("1,840.00 EUR").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("€1,840.00").length).toBeGreaterThan(0);
 
     // Check that Actions column is NOT present when locked
     expect(screen.queryByText("Actions")).toBeNull();
@@ -232,6 +232,9 @@ describe("AssetsPage", () => {
                 assetType: "STOCK",
                 quoteSymbol: null,
                 isin: "US0378331005",
+                quoteSourceSymbol: null,
+                quoteSourceProvider: null,
+                quoteSourceLastSuccessAt: null,
                 currentPrice: null,
                 currentPriceCurrency: null,
                 currentPriceAsOf: null,
@@ -281,6 +284,9 @@ describe("AssetsPage", () => {
                 assetType: "STOCK",
                 quoteSymbol: null,
                 isin: "US0378331005",
+                quoteSourceSymbol: null,
+                quoteSourceProvider: null,
+                quoteSourceLastSuccessAt: null,
                 currentPrice: "150.00",
                 currentPriceCurrency: "USD",
                 currentPriceAsOf: null,
@@ -317,9 +323,9 @@ describe("AssetsPage", () => {
     expect(isin.className).toContain("mt-0.5");
     expect(isin.textContent).toContain("US0378331005");
     expect(totalValue.className).toContain("mt-0.5");
-    expect(totalValue.textContent).toBe("1,840.00 EUR");
+    expect(totalValue.textContent).toBe("€1,840.00");
     expect(gainStack.className).toContain("mt-auto");
-    expect(gainStack.textContent).toContain("Gain: +100.00 USD");
+    expect(gainStack.textContent).toContain("Gain: +$100.00");
     expect(gainPct.textContent).toBe("+50.00%");
   });
 
