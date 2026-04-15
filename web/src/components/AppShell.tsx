@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@apollo/client/react";
+import { useApolloClient, useQuery } from "@apollo/client/react";
 import { NavLink, Outlet } from "react-router-dom";
 
 import { AssistantPanel } from "@/components/AssistantPanel";
@@ -111,12 +111,19 @@ function AssetValueTicker({ hidden }: { hidden: boolean }) {
 }
 
 export function AppShell() {
+  const apolloClient = useApolloClient();
   const { hideValues, toggleHideValues } = useUiState();
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const [ringKey, setRingKey] = useState(0);
   const apiBaseUrl = getApiBaseUrl();
   const [backendStatus, setBackendStatus] = useState<
     "connected" | "checking" | "unavailable"
   >("checking");
+
+  function handleManualRefresh() {
+    void apolloClient.refetchQueries({ include: ["Assets", "Portfolio", "FxRates"] });
+    setRingKey((k) => k + 1);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -200,23 +207,24 @@ export function AppShell() {
                   {hideValues ? <EyeClosedIcon /> : <EyeIcon />}
                 </Button>
                 <div className="relative size-9">
-                  <div
+                  <button
                     aria-label="Siniscalco"
                     aria-live="polite"
                     className={cn(
-                      "flex size-9 items-center justify-center rounded-full shadow-sm transition-colors",
+                      "flex size-9 cursor-pointer items-center justify-center rounded-full shadow-sm transition-colors",
                       backendStatus === "connected" && "bg-emerald-600 text-white",
                       backendStatus === "checking" && "bg-amber-500 text-white",
                       backendStatus === "unavailable" &&
                         "bg-destructive text-destructive-foreground",
                     )}
-                    role="img"
+                    onClick={handleManualRefresh}
                     title={`Backend: ${backendStatus}`}
+                    type="button"
                   >
                     <LogoIcon className="size-5" />
-                    <span className="sr-only">Backend {backendStatus}</span>
-                  </div>
+                  </button>
                   <svg
+                    key={ringKey}
                     aria-hidden="true"
                     className="pointer-events-none absolute inset-0 -rotate-90"
                     viewBox="0 0 36 36"
