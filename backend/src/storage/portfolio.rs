@@ -1,5 +1,7 @@
+use std::collections::BTreeMap;
+
 use rust_decimal::Decimal;
-use sqlx::SqlitePool;
+use sqlx::{Row, SqlitePool};
 
 use crate::storage::asset_prices::get_historical_asset_price;
 use crate::storage::asset_transactions::{list_account_positions, list_account_positions_as_of};
@@ -12,7 +14,8 @@ use crate::storage::portfolio_allocation::compute_allocation_totals;
 use crate::storage::portfolio_holdings::compute_top_holdings;
 use crate::storage::records::*;
 use crate::storage::{
-    AccountSummaryStatus, Amount, AssetRecord, AssetUnitPrice, Currency, StorageError,
+    AccountId, AccountSummaryStatus, Amount, AssetId, AssetQuantity, AssetRecord, AssetUnitPrice,
+    Currency, FxRate, StorageError,
 };
 
 pub async fn get_portfolio_summary(
@@ -121,9 +124,10 @@ pub async fn get_portfolio_summary(
 async fn compute_portfolio_gain_amounts(
     pool: &SqlitePool,
     accounts: &[crate::storage::AccountRecord],
-    assets_by_id: &std::collections::BTreeMap<crate::storage::AssetId, AssetRecord>,
+    assets_by_id: &BTreeMap<AssetId, AssetRecord>,
     display_currency: Currency,
 ) -> Result<(Option<Amount>, Option<Amount>), StorageError> {
+    let avg_cost_by_account_asset = load_per_account_avg_cost_basis(pool).await?;
     let mut gain_24h_total = Decimal::ZERO;
     let mut total_gain_total = Decimal::ZERO;
     let mut gain_24h_complete = true;
@@ -157,12 +161,15 @@ async fn compute_portfolio_gain_amounts(
                 None => gain_24h_complete = false,
             }
 
+            let avg_cost = avg_cost_by_account_asset
+                .get(&(account.id, position.asset_id))
+                .copied();
             match converted_unit_delta(
                 pool,
                 asset.current_price,
                 asset.current_price_currency,
-                asset.avg_cost_basis,
-                asset.avg_cost_basis_currency,
+                avg_cost,
+                Some(account.base_currency),
                 display_currency,
             )
             .await?
@@ -177,6 +184,56 @@ async fn compute_portfolio_gain_amounts(
         gain_24h_complete.then(|| parse_decimal_amount(gain_24h_total)),
         total_gain_complete.then(|| parse_decimal_amount(total_gain_total)),
     ))
+}
+
+/// Compute the weighted-average cost per share in each account's base currency,
+/// using the FX rate that was locked in at trade time. This gives a per-account,
+/// per-asset cost basis that is correct even when the same asset was purchased
+/// with different transaction currencies across accounts.
+async fn load_per_account_avg_cost_basis(
+    pool: &SqlitePool,
+) -> Result<BTreeMap<(AccountId, AssetId), AssetUnitPrice>, StorageError> {
+    let rows = sqlx::query(
+        r#"
+        SELECT account_id, asset_id, quantity, unit_price, fx_rate
+        FROM asset_transactions
+        WHERE transaction_type = 'BUY'
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    // Accumulate (total cost in account base currency, total quantity) per (account, asset).
+    let mut totals: BTreeMap<(AccountId, AssetId), (Decimal, Decimal)> = BTreeMap::new();
+
+    for row in rows {
+        let account_id = AccountId::try_from(row.get::<i64, _>("account_id"))?;
+        let asset_id = AssetId::try_from(row.get::<i64, _>("asset_id"))?;
+        let quantity = AssetQuantity::from_scaled_i64(row.get::<i64, _>("quantity"))?.as_decimal();
+        let unit_price =
+            AssetUnitPrice::from_scaled_i64(row.get::<i64, _>("unit_price"))?.as_decimal();
+        let fx_rate = FxRate::from_scaled_i64(row.get::<i64, _>("fx_rate"))?.as_decimal();
+
+        let entry = totals
+            .entry((account_id, asset_id))
+            .or_insert((Decimal::ZERO, Decimal::ZERO));
+        entry.0 += quantity * unit_price * fx_rate;
+        entry.1 += quantity;
+    }
+
+    let mut result = BTreeMap::new();
+    for ((account_id, asset_id), (total_cost, total_quantity)) in totals {
+        if total_quantity.is_zero() {
+            continue;
+        }
+        let avg_cost_decimal = total_cost / total_quantity;
+        let amount = parse_decimal_amount(avg_cost_decimal);
+        if let Ok(price) = AssetUnitPrice::try_from(amount) {
+            result.insert((account_id, asset_id), price);
+        }
+    }
+
+    Ok(result)
 }
 
 async fn converted_unit_delta(

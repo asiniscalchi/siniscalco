@@ -3123,6 +3123,135 @@ async fn portfolio_summary_includes_daily_and_total_gain_amounts() {
 }
 
 #[tokio::test]
+async fn total_gain_is_available_when_same_asset_bought_in_different_currencies_across_accounts() {
+    // Regression test: when the same asset is purchased with different transaction currencies
+    // across accounts (e.g. USD in one, EUR in another), the global avg_cost_basis_currency
+    // used to be NULL, causing total_gain_amount to return None ("Unavailable"). This test
+    // verifies it is computed correctly using the per-account, per-transaction fx_rate instead.
+    let pool = test_pool().await;
+
+    let account_a = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("USD Broker"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .unwrap();
+
+    let account_b = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("EUR Broker"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .unwrap();
+
+    let asset_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AAPL"),
+            name: asset_name("Apple Inc."),
+            asset_type: AssetType::Stock,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    seed_balance(&pool, account_a, Currency::Usd, amt("10000.000000")).await;
+    seed_balance(&pool, account_b, Currency::Eur, amt("10000.000000")).await;
+
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate("0.900000"),
+        },
+    )
+    .await
+    .unwrap();
+
+    // Previous close price (more than 24 hours old)
+    upsert_asset_price(
+        &pool,
+        UpsertAssetPriceInput {
+            asset_id,
+            price: asset_unit_price("100.000000"),
+            currency: Currency::Usd,
+            as_of: "2020-01-01T00:00:00Z".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+
+    // Current price
+    upsert_asset_price(
+        &pool,
+        UpsertAssetPriceInput {
+            asset_id,
+            price: asset_unit_price("120.000000"),
+            currency: Currency::Usd,
+            as_of: "2999-01-01T00:00:00Z".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+
+    // Account A (USD base) buys 10 AAPL @ $90 USD — fx_rate stored as 1.0 (USD→USD)
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id: account_a,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2024-01-01"),
+            quantity: asset_quantity("10.000000"),
+            unit_price: asset_unit_price("90.000000"),
+            currency_code: Currency::Usd,
+            notes: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    // Account B (EUR base) buys 5 AAPL @ €95 EUR — fx_rate stored as 1.0 (EUR→EUR)
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id: account_b,
+            asset_id,
+            transaction_type: AssetTransactionType::Buy,
+            trade_date: trade_date("2024-01-01"),
+            quantity: asset_quantity("5.000000"),
+            unit_price: asset_unit_price("95.000000"),
+            currency_code: Currency::Eur,
+            notes: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let summary = super::get_portfolio_summary(&pool, Currency::Eur)
+        .await
+        .unwrap();
+
+    // Account A: gain/share = (120 * 0.90) − (90 * 0.90) = 27 EUR → 270 EUR for 10 shares
+    // Account B: gain/share = (120 * 0.90) − (95 * 1.00) = 13 EUR → 65 EUR for 5 shares
+    // Total = 335 EUR
+    assert_eq!(summary.total_gain_amount, Some(amt("335.000000")));
+    // 24h gain: (120 − 100) * 0.90 * 15 = 270 EUR
+    assert_eq!(summary.gain_24h_amount, Some(amt("270.000000")));
+}
+
+#[tokio::test]
 async fn allocation_totals_marks_partial_when_asset_has_no_price() {
     let pool = test_pool().await;
 
