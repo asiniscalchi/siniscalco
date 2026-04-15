@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { getApiBaseUrl, getHealthApiUrl } from "@/lib/env";
 import { ChatBubbleIcon, EyeClosedIcon, EyeIcon, LogoIcon } from "@/components/Icons";
 import { useUiState } from "@/lib/ui-state";
-import { HIDDEN_MONEY_MASK } from "@/lib/format-money";
 import { cn } from "@/lib/utils";
 import { type AssetsQuery } from "@/gql/types";
 import { ASSETS_QUERY } from "@/pages/assets/assets-query";
@@ -35,7 +34,6 @@ const assetTickerToneClass = {
 
 function buildAssetTickerItems(
   assets: AssetsQuery["assets"],
-  hidden: boolean,
 ): AssetTickerItem[] {
   return [...assets]
     .map((asset) => {
@@ -49,7 +47,7 @@ function buildAssetTickerItems(
       const tone =
         gainPct > 0 ? "positive" : gainPct < 0 ? "negative" : "neutral";
       const sign = gainPct > 0 ? "+" : "";
-      const pct = hidden ? `${HIDDEN_MONEY_MASK}%` : `${sign}${gainPct.toFixed(2)}%`;
+      const pct = `${sign}${gainPct.toFixed(2)}%`;
 
       return {
         id: asset.id,
@@ -62,15 +60,15 @@ function buildAssetTickerItems(
     .sort((a, b) => a.symbol.localeCompare(b.symbol));
 }
 
-function AssetValueTicker({ hidden }: { hidden: boolean }) {
+function AssetValueTicker() {
   const { data, error, loading } = useQuery<AssetsQuery>(ASSETS_QUERY, {
     fetchPolicy: "cache-and-network",
     pollInterval: MARKET_DATA_POLL_INTERVAL,
   });
 
   const items = useMemo(
-    () => buildAssetTickerItems(data?.assets ?? [], hidden),
-    [data?.assets, hidden],
+    () => buildAssetTickerItems(data?.assets ?? []),
+    [data?.assets],
   );
 
   if (error || (loading && items.length === 0) || items.length === 0) {
@@ -251,7 +249,7 @@ export function AppShell() {
               )}
             </div>
           </div>
-          <AssetValueTicker hidden={hideValues} />
+          <AssetValueTicker />
         </header>
         <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
           <Outlet />
