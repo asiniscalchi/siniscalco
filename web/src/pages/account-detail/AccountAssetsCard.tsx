@@ -81,8 +81,8 @@ export function AccountAssetsCard({ accountId, baseCurrency }: AccountAssetsCard
   const { hideValues } = useUiState();
 
   const { data: positionsData } = useQuery<AccountPositionsQuery>(ACCOUNT_POSITIONS_QUERY, { variables: { accountId } });
-  const { data: assetsData } = useQuery<AccountAssetsQuery>(ASSETS_QUERY);
-  const { data: fxData } = useQuery<AccountFxRatesQuery>(FX_RATES_QUERY);
+  const { data: assetsData } = useQuery<AccountAssetsQuery>(ASSETS_QUERY, { pollInterval: 5 * 60 * 1000 });
+  const { data: fxData } = useQuery<AccountFxRatesQuery>(FX_RATES_QUERY, { pollInterval: 5 * 60 * 1000 });
 
   const positions = positionsData?.accountPositions ?? [];
   const assets = assetsData?.assets ?? [];

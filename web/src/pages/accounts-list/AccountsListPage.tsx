@@ -39,7 +39,7 @@ import { cn } from "@/lib/utils";
 
 export function AccountsListPage() {
   const { data: accountsData, loading: accountsLoading, error: accountsError, refetch: refetchAccounts } = useQuery<AccountsListQuery>(ACCOUNTS_QUERY, { fetchPolicy: "cache-and-network" });
-  const { data: portfolioData, loading: portfolioLoading, error: portfolioError, refetch: refetchPortfolio } = useQuery<AccountsListPortfolioQuery>(PORTFOLIO_QUERY, { fetchPolicy: "cache-and-network" });
+  const { data: portfolioData, loading: portfolioLoading, error: portfolioError, refetch: refetchPortfolio } = useQuery<AccountsListPortfolioQuery>(PORTFOLIO_QUERY, { fetchPolicy: "cache-and-network", pollInterval: 5 * 60 * 1000 });
 
   const loading = accountsLoading || portfolioLoading;
   const error = accountsError ?? portfolioError;

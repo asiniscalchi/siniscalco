@@ -64,6 +64,7 @@ function buildAssetTickerItems(
 function AssetValueTicker({ hidden }: { hidden: boolean }) {
   const { data, error, loading } = useQuery<AssetsQuery>(ASSETS_QUERY, {
     fetchPolicy: "cache-and-network",
+    pollInterval: 5 * 60 * 1000,
   });
 
   const items = useMemo(

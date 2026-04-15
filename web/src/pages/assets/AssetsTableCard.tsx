@@ -39,7 +39,7 @@ export function AssetsTableCard() {
   const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
 
-  const { data, loading, error, refetch } = useQuery<AssetsQuery>(ASSETS_QUERY, { fetchPolicy: "cache-and-network" });
+  const { data, loading, error, refetch } = useQuery<AssetsQuery>(ASSETS_QUERY, { fetchPolicy: "cache-and-network", pollInterval: 5 * 60 * 1000 });
   const assets = data?.assets ?? [];
   const priceHealth = priceHealthLabel(assets);
 

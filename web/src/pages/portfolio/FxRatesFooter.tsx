@@ -51,7 +51,7 @@ function FxRatesFooterContent({ summary }: { summary: FxRatesQuery["fxRates"] })
 }
 
 export function FxRatesFooter() {
-  const { data } = useQuery<FxRatesQuery>(FX_RATES_QUERY);
+  const { data } = useQuery<FxRatesQuery>(FX_RATES_QUERY, { pollInterval: 5 * 60 * 1000 });
 
   if (!data) {
     return null;

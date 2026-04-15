@@ -85,7 +85,7 @@ function MoverColumn({
 }
 
 export function TopMoversCard() {
-  const { data, loading } = useQuery<AssetsQuery>(ASSETS_QUERY, { fetchPolicy: "cache-and-network" });
+  const { data, loading } = useQuery<AssetsQuery>(ASSETS_QUERY, { fetchPolicy: "cache-and-network", pollInterval: 5 * 60 * 1000 });
   const assets = data?.assets ?? [];
 
   if (loading && assets.length === 0) return null;
