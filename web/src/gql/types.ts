@@ -267,11 +267,11 @@ export type PortfolioSummary = {
   allocationIsPartial: Scalars['Boolean']['output'];
   allocationTotals: Array<PortfolioAllocationSlice>;
   cashByCurrency: Array<PortfolioCashByCurrency>;
-  gain24hAmount: Maybe<Scalars['String']['output']>;
   displayCurrency: Scalars['String']['output'];
   fxLastUpdated: Maybe<Scalars['String']['output']>;
   fxRefreshError: Maybe<Scalars['String']['output']>;
   fxRefreshStatus: RefreshAvailability;
+  gain24hAmount: Maybe<Scalars['String']['output']>;
   holdings: Array<PortfolioHolding>;
   holdingsIsPartial: Scalars['Boolean']['output'];
   totalGainAmount: Maybe<Scalars['String']['output']>;
