@@ -135,12 +135,10 @@ describe("PortfolioPage", () => {
     expect(screen.queryByText("Last FX update: 2026-03-22 11:30")).toBeNull();
     expect(screen.getByText("24h gain:")).toBeTruthy();
     expect(screen.getByText("Total gain:")).toBeTruthy();
-    expect(
-      screen.getByText((_content, element) => element?.textContent === "+2.50 EUR"),
-    ).toBeTruthy();
-    expect(
-      screen.getByText((_content, element) => element?.textContent === "+12.50 EUR"),
-    ).toBeTruthy();
+    const dailyGainEl = screen.getByTestId("portfolio-daily-gain");
+    const totalGainEl = screen.getByTestId("portfolio-total-gain");
+    expect(dailyGainEl.textContent).toBe("24h gain:+2.50 EUR+1.65%");
+    expect(totalGainEl.textContent).toBe("Total gain:+12.50 EUR+8.85%");
   });
 
   it("renders zero gain values in the neutral tone", async () => {
