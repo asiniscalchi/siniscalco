@@ -10,7 +10,17 @@ import { PortfolioHistoryCard } from "./PortfolioHistoryCard";
 
 vi.mock("recharts", () => ({
   Area: () => null,
-  AreaChart: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  AreaChart: ({
+    children,
+    margin,
+  }: {
+    children: ReactNode;
+    margin?: { left?: number };
+  }) => (
+    <div data-left-margin={margin?.left} data-testid="portfolio-area-chart">
+      {children}
+    </div>
+  ),
   CartesianGrid: () => null,
   ResponsiveContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Tooltip: () => null,
@@ -28,7 +38,19 @@ vi.mock("recharts", () => ({
       </div>
     );
   },
-  YAxis: () => null,
+  YAxis: ({
+    tickMargin,
+    width,
+  }: {
+    tickMargin?: number;
+    width?: number;
+  }) => (
+    <div
+      data-testid="portfolio-y-axis"
+      data-tick-margin={tickMargin}
+      data-width={width}
+    />
+  ),
 }));
 
 function createTestClient() {
@@ -101,5 +123,47 @@ describe("PortfolioHistoryCard", () => {
       "2026-03-23",
     );
     expect(screen.queryByText("Mar 23")).toBeNull();
+  });
+
+  it("keeps the chart left gutter compact", async () => {
+    vi.mocked(fetch).mockImplementation((_input, init) => {
+      const body = init?.body
+        ? JSON.parse(String(init.body)) as { query: string }
+        : null;
+      const query = body?.query ?? "";
+
+      if (query.includes("portfolioHistory")) {
+        return gqlResponse({
+          portfolioHistory: [
+            {
+              totalValue: "100.00000000",
+              currency: "EUR",
+              recordedAt: "2026-03-22 00:00:00",
+            },
+            {
+              totalValue: "110.00000000",
+              currency: "EUR",
+              recordedAt: "2026-03-23 00:00:00",
+            },
+          ],
+        });
+      }
+
+      return Promise.reject(new Error(`Unhandled GQL query: ${query}`));
+    });
+
+    renderCard();
+
+    expect(
+      (await screen.findByTestId("portfolio-area-chart")).getAttribute(
+        "data-left-margin",
+      ),
+    ).toBe("0");
+    expect(screen.getByTestId("portfolio-y-axis").getAttribute("data-width")).toBe(
+      "36",
+    );
+    expect(
+      screen.getByTestId("portfolio-y-axis").getAttribute("data-tick-margin"),
+    ).toBe("4");
   });
 });

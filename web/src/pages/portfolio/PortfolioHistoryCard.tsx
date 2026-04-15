@@ -119,7 +119,7 @@ export function PortfolioHistoryCard({
             <ResponsiveContainer width="100%" height={240}>
               <AreaChart
                 data={filtered}
-                margin={{ top: 4, right: 4, left: 8, bottom: 0 }}
+                margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
               >
                 <defs>
                   <linearGradient
@@ -156,9 +156,10 @@ export function PortfolioHistoryCard({
                 <YAxis
                   tickFormatter={formatCompact}
                   tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                  tickMargin={4}
                   tickLine={false}
                   axisLine={false}
-                  width={56}
+                  width={36}
                   domain={yDomain}
                 />
                 <Tooltip
