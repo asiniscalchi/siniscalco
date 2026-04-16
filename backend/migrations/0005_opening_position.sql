@@ -1,10 +1,8 @@
 -- Extend asset_transactions to support OPENING transaction type.
 -- SQLite does not support ALTER TABLE to modify CHECK constraints, so we
 -- recreate the table with the updated constraint.
-
-PRAGMA foreign_keys = OFF;
-
-BEGIN;
+-- Note: sqlx wraps this migration in a transaction, so no explicit BEGIN/COMMIT
+-- or PRAGMA foreign_keys needed here.
 
 CREATE TABLE asset_transactions_new (
     id INTEGER PRIMARY KEY,
@@ -38,7 +36,3 @@ ON asset_transactions(account_id, trade_date DESC, id DESC);
 
 CREATE INDEX asset_transactions_account_asset_idx
 ON asset_transactions(account_id, asset_id);
-
-COMMIT;
-
-PRAGMA foreign_keys = ON;
