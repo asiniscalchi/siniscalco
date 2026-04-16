@@ -41,7 +41,7 @@ type TransactionFormModalProps = {
 
 type FormState = {
   assetId: string;
-  type: "BUY" | "SELL";
+  type: "BUY" | "SELL" | "OPENING";
   tradeDate: string;
   quantity: string;
   unitPrice: string;
@@ -197,13 +197,19 @@ export function TransactionFormModal({
                 className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
                 id="type-select"
                 onChange={(event) =>
-                  updateField("type", event.target.value as "BUY" | "SELL")
+                  updateField("type", event.target.value as "BUY" | "SELL" | "OPENING")
                 }
                 value={formState.type}
               >
                 <option value="BUY">BUY</option>
                 <option value="SELL">SELL</option>
+                <option value="OPENING">OPENING POSITION</option>
               </select>
+              {formState.type === "OPENING" && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Records an existing holding without affecting the cash balance. Use this when setting up your portfolio for the first time.
+                </p>
+              )}
             </FormField>
             <FormField htmlFor="trade-date-input" label="Trade Date *">
               <input

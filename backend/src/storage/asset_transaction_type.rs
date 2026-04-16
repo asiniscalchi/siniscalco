@@ -4,6 +4,7 @@ use super::storage_error::StorageError;
 pub enum AssetTransactionType {
     Buy,
     Sell,
+    Opening,
 }
 
 impl AssetTransactionType {
@@ -11,7 +12,12 @@ impl AssetTransactionType {
         match self {
             Self::Buy => "BUY",
             Self::Sell => "SELL",
+            Self::Opening => "OPENING",
         }
+    }
+
+    pub fn has_cash_impact(self) -> bool {
+        matches!(self, Self::Buy | Self::Sell)
     }
 }
 
@@ -22,8 +28,9 @@ impl TryFrom<&str> for AssetTransactionType {
         match value {
             "BUY" => Ok(Self::Buy),
             "SELL" => Ok(Self::Sell),
+            "OPENING" => Ok(Self::Opening),
             _ => Err(StorageError::Validation(
-                "transaction_type must be one of: BUY, SELL",
+                "transaction_type must be one of: BUY, SELL, OPENING",
             )),
         }
     }

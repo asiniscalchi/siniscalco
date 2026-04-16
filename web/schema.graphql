@@ -240,6 +240,7 @@ input TransactionInput {
 enum TransactionType {
 	BUY
 	SELL
+	OPENING
 }
 
 type Transfer {

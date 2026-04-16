@@ -89,6 +89,7 @@ pub(super) async fn reverse_cash_impact(
     let reversed_type = match ctx.transaction_type {
         AssetTransactionType::Buy => AssetTransactionType::Sell,
         AssetTransactionType::Sell => AssetTransactionType::Buy,
+        AssetTransactionType::Opening => AssetTransactionType::Opening,
     };
     let delta = compute_delta(reversed_type, ctx.quantity, ctx.unit_price, locked_rate);
     insert_cash_entry_on_connection(
@@ -115,6 +116,7 @@ fn compute_delta(
     match transaction_type {
         AssetTransactionType::Buy => -amount,
         AssetTransactionType::Sell => amount,
+        AssetTransactionType::Opening => Decimal::ZERO,
     }
 }
 
