@@ -132,46 +132,20 @@ pub struct UpdateSystemPromptRequest {
 
 // ── Error types ───────────────────────────────────────────────────────────────
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum AssistantError {
-    Storage(StorageError),
-    Mcp(McpError),
+    #[error("storage error: {0}")]
+    Storage(#[from] StorageError),
+    #[error("mcp error: {0}")]
+    Mcp(#[from] McpError),
 }
 
-impl fmt::Display for AssistantError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AssistantError::Storage(e) => write!(f, "storage error: {e}"),
-            AssistantError::Mcp(e) => write!(f, "mcp error: {e}"),
-        }
-    }
-}
-
-impl From<StorageError> for AssistantError {
-    fn from(e: StorageError) -> Self {
-        AssistantError::Storage(e)
-    }
-}
-
-impl From<McpError> for AssistantError {
-    fn from(e: McpError) -> Self {
-        AssistantError::Mcp(e)
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum AssistantModelRefreshError {
+    #[error("{0}")]
     Config(&'static str),
+    #[error("{0}")]
     Provider(String),
-}
-
-impl fmt::Display for AssistantModelRefreshError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AssistantModelRefreshError::Config(message) => f.write_str(message),
-            AssistantModelRefreshError::Provider(message) => f.write_str(message),
-        }
-    }
 }
 
 // ── OpenAI internal response shapes ──────────────────────────────────────────

@@ -60,26 +60,14 @@ pub struct FxRefreshConfig {
     pub base_url: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum FxRefreshError {
+    #[error("{0}")]
     Config(String),
+    #[error("{0}")]
     Provider(String),
-    Storage(StorageError),
-}
-
-impl std::fmt::Display for FxRefreshError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Config(message) | Self::Provider(message) => f.write_str(message),
-            Self::Storage(error) => error.fmt(f),
-        }
-    }
-}
-
-impl From<StorageError> for FxRefreshError {
-    fn from(value: StorageError) -> Self {
-        Self::Storage(value)
-    }
+    #[error("{0}")]
+    Storage(#[from] StorageError),
 }
 
 #[derive(Deserialize)]

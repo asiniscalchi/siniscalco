@@ -7,23 +7,10 @@ pub struct AssetQuote {
     pub as_of: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum AssetPriceRefreshError {
+    #[error("{0}")]
     Provider(String),
-    Storage(crate::storage::StorageError),
-}
-
-impl std::fmt::Display for AssetPriceRefreshError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Provider(message) => f.write_str(message),
-            Self::Storage(error) => error.fmt(f),
-        }
-    }
-}
-
-impl From<crate::storage::StorageError> for AssetPriceRefreshError {
-    fn from(value: crate::storage::StorageError) -> Self {
-        Self::Storage(value)
-    }
+    #[error("{0}")]
+    Storage(#[from] crate::storage::StorageError),
 }
