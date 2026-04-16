@@ -22,7 +22,7 @@ RUN npm run build
 FROM node:24-bookworm-slim AS runtime
 
 RUN apt-get update \
-    && apt-get install --yes --no-install-recommends bash ca-certificates gettext-base libsqlite3-0 nginx \
+    && apt-get install --yes --no-install-recommends bash ca-certificates libsqlite3-0 nginx \
     && rm -rf /var/lib/apt/lists/* \
     && node --version \
     && npm --version \
@@ -34,14 +34,15 @@ WORKDIR /app
 COPY --from=backend-builder /app/backend/target/release/backend /usr/local/bin/backend
 COPY backend/migrations ./migrations
 COPY --from=web-builder /app/web/dist /usr/share/nginx/html
-COPY docker/single-container/nginx.conf /etc/nginx/nginx.conf.template
+COPY docker/single-container/nginx.conf /etc/nginx/nginx.conf
 COPY docker/single-container/entrypoint.sh /usr/local/bin/siniscalco-entrypoint
 
 RUN chmod +x /usr/local/bin/siniscalco-entrypoint \
     && mkdir -p /app/data /run/nginx
 
+ENV PORT=3000
 ENV DB_PATH=/app/data/app.db
 
-EXPOSE 80 10000
+EXPOSE 80
 
 ENTRYPOINT ["siniscalco-entrypoint"]
