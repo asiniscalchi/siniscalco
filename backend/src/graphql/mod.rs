@@ -33,17 +33,22 @@ pub fn schema_sdl() -> String {
 }
 
 #[derive(Clone)]
+pub struct AssistantState {
+    pub openai_api_key: Option<String>,
+    pub models: SharedAssistantModelRegistry,
+    pub chat_semaphore: SharedAssistantChatSemaphore,
+    pub openai_responses_url: String,
+    pub openai_models_url: String,
+    pub mcp_client: Option<SharedMcpClient>,
+}
+
+#[derive(Clone)]
 pub struct AppState {
     pub pool: SqlitePool,
     pub fx_refresh_status: SharedFxRefreshStatus,
     pub asset_price_refresh_config: AssetPriceRefreshConfig,
     pub http_client: reqwest::Client,
-    pub openai_api_key: Option<String>,
-    pub assistant_models: SharedAssistantModelRegistry,
-    pub assistant_chat_semaphore: SharedAssistantChatSemaphore,
-    pub openai_responses_url: String,
-    pub openai_models_url: String,
-    pub mcp_client: Option<SharedMcpClient>,
+    pub assistant: AssistantState,
 }
 
 pub fn build_schema(
@@ -68,16 +73,18 @@ pub fn build_router(pool: SqlitePool) -> Router {
         fx_refresh_status: crate::new_shared_fx_refresh_status(),
         asset_price_refresh_config: config.asset_price_refresh_config(),
         http_client: reqwest::Client::new(),
-        openai_api_key: config.openai_api_key.clone(),
-        assistant_models: crate::assistant::new_shared_assistant_model_registry(
-            config.openai_api_key.as_deref(),
-            None,
-            None,
-        ),
-        assistant_chat_semaphore: crate::assistant::new_assistant_chat_semaphore(),
-        openai_responses_url: crate::assistant::openai_responses_url().to_string(),
-        openai_models_url: crate::assistant::openai_models_url().to_string(),
-        mcp_client: None,
+        assistant: AssistantState {
+            openai_api_key: config.openai_api_key.clone(),
+            models: crate::assistant::new_shared_assistant_model_registry(
+                config.openai_api_key.as_deref(),
+                None,
+                None,
+            ),
+            chat_semaphore: crate::assistant::new_assistant_chat_semaphore(),
+            openai_responses_url: crate::assistant::openai_responses_url().to_string(),
+            openai_models_url: crate::assistant::openai_models_url().to_string(),
+            mcp_client: None,
+        },
     })
 }
 

@@ -31,8 +31,41 @@ This repository now includes separate container images for the backend and front
 
 - [`backend/Dockerfile`](/home/asini/workspace/siniscalco/backend/Dockerfile) builds the Rust API service
 - [`web/Dockerfile`](/home/asini/workspace/siniscalco/web/Dockerfile) builds and serves the static Vite app with nginx
+- [`Dockerfile`](/home/asini/workspace/siniscalco/Dockerfile) builds a single image containing both the backend and frontend
 - [`docker-compose.yml`](/home/asini/workspace/siniscalco/docker-compose.yml) deploys prebuilt tagged images
 - [`docker-compose.build.yml`](/home/asini/workspace/siniscalco/docker-compose.build.yml) adds local build support on top of the base compose file
+- [`docker-compose.single.yml`](/home/asini/workspace/siniscalco/docker-compose.single.yml) builds and runs the single-container image locally
+
+### Single-container build
+
+The root [`Dockerfile`](/home/asini/workspace/siniscalco/Dockerfile) builds the Rust backend and the Vite frontend into one image. At runtime the container starts the backend on an internal port and nginx on port 80. Browser requests to `/api/` are proxied by nginx to the in-container backend.
+
+The single-container image does not accept a frontend API URL build argument. It relies on the frontend default of `/api`, matching the nginx proxy in the same container.
+
+Build and run it with Compose:
+
+```bash
+docker compose -f docker-compose.single.yml up --build
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8080
+```
+
+Or build and run it directly:
+
+```bash
+docker build -t siniscalco:local .
+docker run --rm \
+  --env-file backend/.env.example \
+  -p 8080:80 \
+  -v siniscalco_data:/app/data \
+  siniscalco:local
+```
+
+The single-container image exposes only nginx on port 80. The backend still listens on port 3000 inside the container. SQLite data is stored at `/app/data/app.db`, so mount `/app/data` or use the Compose volume for persistence.
 
 ### Backend runtime
 
@@ -118,4 +151,4 @@ The CI workflow builds and pushes the web image with `VITE_API_BASE_URL=/api`, w
 
 - backend tests
 - frontend lint, typecheck, tests, and build
-- Docker image builds for both services
+- Docker image builds for the backend, frontend, and single-container app

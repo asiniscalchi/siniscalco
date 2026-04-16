@@ -15,20 +15,24 @@ pub async fn set_app_setting(
     key: &str,
     value: &str,
 ) -> Result<(), StorageError> {
+    let mut tx = pool.begin().await?;
     sqlx::query(
         "INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
     )
     .bind(key)
     .bind(value)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    tx.commit().await?;
     Ok(())
 }
 
 pub async fn delete_app_setting(pool: &SqlitePool, key: &str) -> Result<(), StorageError> {
+    let mut tx = pool.begin().await?;
     sqlx::query("DELETE FROM app_settings WHERE key = ?")
         .bind(key)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+    tx.commit().await?;
     Ok(())
 }
