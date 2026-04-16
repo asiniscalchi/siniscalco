@@ -11,6 +11,8 @@ pub async fn insert_portfolio_snapshot_if_missing(
     currency: Currency,
     recorded_at: &str,
 ) -> Result<(), StorageError> {
+    let mut tx = pool.begin().await?;
+
     sqlx::query(
         r#"
         INSERT OR IGNORE INTO portfolio_snapshots (total_value, currency_code, recorded_at)
@@ -20,9 +22,10 @@ pub async fn insert_portfolio_snapshot_if_missing(
     .bind(total_value.as_scaled_i64())
     .bind(currency.as_str())
     .bind(recorded_at)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
 
+    tx.commit().await?;
     Ok(())
 }
 
