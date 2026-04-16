@@ -40,7 +40,6 @@ COPY docker/single-container/entrypoint.sh /usr/local/bin/siniscalco-entrypoint
 RUN chmod +x /usr/local/bin/siniscalco-entrypoint \
     && mkdir -p /app/data /run/nginx
 
-ENV PORT=3000
 ENV DB_PATH=/app/data/app.db
 
 EXPOSE 80
