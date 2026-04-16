@@ -12,7 +12,7 @@ Minimal portfolio app.
 
 The frontend reads the backend base URL from `VITE_API_BASE_URL`.
 
-1. Copy [web/.env.example](/home/asini/workspace/siniscalco/web/.env.example) to `web/.env.local`.
+1. Copy [`web/.env.example`](web/.env.example) to `web/.env.local`.
 2. Set `VITE_API_BASE_URL` to the backend URL you want the frontend to use.
 3. Start the frontend with `npm run dev` from `web/`.
 
@@ -29,16 +29,16 @@ For local Vite development, set `VITE_API_BASE_URL` explicitly. If it is not set
 
 This repository now includes separate container images for the backend and frontend:
 
-- [`backend/Dockerfile`](/home/asini/workspace/siniscalco/backend/Dockerfile) builds the Rust API service
-- [`web/Dockerfile`](/home/asini/workspace/siniscalco/web/Dockerfile) builds and serves the static Vite app with nginx
-- [`Dockerfile`](/home/asini/workspace/siniscalco/Dockerfile) builds a single image containing both the backend and frontend
-- [`docker-compose.yml`](/home/asini/workspace/siniscalco/docker-compose.yml) deploys prebuilt tagged images
-- [`docker-compose.build.yml`](/home/asini/workspace/siniscalco/docker-compose.build.yml) adds local build support on top of the base compose file
-- [`docker-compose.single.yml`](/home/asini/workspace/siniscalco/docker-compose.single.yml) builds and runs the single-container image locally
+- [`backend/Dockerfile`](backend/Dockerfile) builds the Rust API service
+- [`web/Dockerfile`](web/Dockerfile) builds and serves the static Vite app with nginx
+- [`Dockerfile`](Dockerfile) builds a single image containing both the backend and frontend
+- [`docker-compose.yml`](docker-compose.yml) deploys prebuilt tagged images
+- [`docker-compose.build.yml`](docker-compose.build.yml) adds local build support on top of the base compose file
+- [`docker-compose.single.yml`](docker-compose.single.yml) builds and runs the single-container image locally
 
 ### Single-container build
 
-The root [`Dockerfile`](/home/asini/workspace/siniscalco/Dockerfile) builds the Rust backend and the Vite frontend into one image. At runtime the container starts the backend on an internal port and nginx on port 80. Browser requests to `/api/` are proxied by nginx to the in-container backend.
+The root [`Dockerfile`](Dockerfile) builds the Rust backend and the Vite frontend into one image. At runtime the container starts the backend on an internal port and nginx on port 80. Browser requests to `/api/` are proxied by nginx to the in-container backend.
 
 The single-container image does not accept a frontend API URL build argument. It relies on the frontend default of `/api`, matching the nginx proxy in the same container.
 
@@ -73,7 +73,7 @@ The backend expects:
 
 - `PORT`
 - `DB_PATH`
-- optional market data provider keys from [`backend/.env.example`](/home/asini/workspace/siniscalco/backend/.env.example)
+- optional market data provider keys from [`backend/.env.example`](backend/.env.example)
 
 `DB_PATH` should point to persistent storage. Do not rely on the container filesystem for SQLite durability.
 
@@ -101,10 +101,10 @@ docker build \
 
 ### Tagged image deploy with Compose
 
-The CI workflow publishes tagged images to GHCR on every git tag push:
+The CI workflow publishes tagged images to GHCR on every git tag push. The default Compose configuration pulls images from the `asiniscalchi` namespace unless `GHCR_OWNER`, `BACKEND_IMAGE`, or `WEB_IMAGE` is set.
 
-- `ghcr.io/asiniscalchi/siniscalco-backend:<tag>`
-- `ghcr.io/asiniscalchi/siniscalco-web:<tag>`
+- `ghcr.io/<owner>/siniscalco-backend:<tag>`
+- `ghcr.io/<owner>/siniscalco-web:<tag>`
 
 Deploy a release tag by setting a shared `APP_TAG`:
 
@@ -147,8 +147,12 @@ The CI workflow builds and pushes the web image with `VITE_API_BASE_URL=/api`, w
 
 ### CI
 
-[`/.github/workflows/ci.yml`](/home/asini/workspace/siniscalco/.github/workflows/ci.yml) runs on every push and pull request. It validates:
+[`/.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request. It validates:
 
 - backend tests
 - frontend lint, typecheck, tests, and build
 - Docker image builds for the backend, frontend, and single-container app
+
+## License
+
+This project is licensed under the Apache License 2.0. See [`LICENSE`](LICENSE).

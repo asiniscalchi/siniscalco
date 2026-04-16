@@ -1,6 +1,6 @@
 services:
   backend:
-    image: ${BACKEND_IMAGE:-ghcr.io/asiniscalchi/siniscalco-backend:${APP_TAG:-latest}}
+    image: ${BACKEND_IMAGE:-ghcr.io/${GHCR_OWNER:-asiniscalchi}/siniscalco-backend:${APP_TAG:-latest}}
     env_file:
       - ./backend/.env.example
     ports:
@@ -9,7 +9,7 @@ services:
       - backend_data:/app/data
 
   web:
-    image: ${WEB_IMAGE:-ghcr.io/asiniscalchi/siniscalco-web:${APP_TAG:-latest}}
+    image: ${WEB_IMAGE:-ghcr.io/${GHCR_OWNER:-asiniscalchi}/siniscalco-web:${APP_TAG:-latest}}
     depends_on:
       - backend
     environment:
