@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::{fmt, time::Duration};
+use std::time::Duration;
 
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
@@ -11,23 +11,16 @@ const MCP_TOOL_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub type SharedMcpClient = Arc<McpClient>;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum McpError {
+    #[error("failed to spawn MCP process: {0}")]
     Spawn(String),
+    #[error("MCP I/O error: {0}")]
     Io(String),
+    #[error("MCP protocol error: {0}")]
     Protocol(String),
+    #[error("MCP tool error: {0}")]
     Tool(String),
-}
-
-impl fmt::Display for McpError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            McpError::Spawn(e) => write!(f, "failed to spawn MCP process: {e}"),
-            McpError::Io(e) => write!(f, "MCP I/O error: {e}"),
-            McpError::Protocol(e) => write!(f, "MCP protocol error: {e}"),
-            McpError::Tool(e) => write!(f, "MCP tool error: {e}"),
-        }
-    }
 }
 
 pub struct McpClient {

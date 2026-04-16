@@ -176,7 +176,10 @@ mod tests {
         let version = latest_applied_migration_version(&pool)
             .await
             .expect("migration version lookup should succeed");
-        let expected_version = MIGRATOR.iter().map(|migration| migration.version).last();
+        let expected_version = MIGRATOR
+            .iter()
+            .map(|migration| migration.version)
+            .next_back();
 
         assert_eq!(version, expected_version);
     }
