@@ -49,6 +49,7 @@ pub async fn create_chat_thread(
     pool: &SqlitePool,
     id: &str,
 ) -> Result<ChatThreadRecord, StorageError> {
+    let mut tx = pool.begin().await?;
     let now = crate::current_utc_timestamp()?;
     sqlx::query(
         "INSERT INTO chat_threads (id, created_at, updated_at)
@@ -57,14 +58,24 @@ pub async fn create_chat_thread(
     .bind(id)
     .bind(&now)
     .bind(&now)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
 
-    get_chat_thread(pool, id).await
+    let record = get_chat_thread_on_connection(&mut tx, id).await?;
+    tx.commit().await?;
+    Ok(record)
 }
 
 pub async fn get_chat_thread(
     pool: &SqlitePool,
+    id: &str,
+) -> Result<ChatThreadRecord, StorageError> {
+    let mut connection = pool.acquire().await?;
+    get_chat_thread_on_connection(&mut connection, id).await
+}
+
+async fn get_chat_thread_on_connection(
+    connection: &mut sqlx::sqlite::SqliteConnection,
     id: &str,
 ) -> Result<ChatThreadRecord, StorageError> {
     let row = sqlx::query(
@@ -72,7 +83,7 @@ pub async fn get_chat_thread(
          FROM chat_threads WHERE id = ?",
     )
     .bind(id)
-    .fetch_one(pool)
+    .fetch_one(&mut *connection)
     .await?;
 
     Ok(ChatThreadRecord {
@@ -89,13 +100,15 @@ pub async fn rename_chat_thread(
     id: &str,
     title: &str,
 ) -> Result<(), StorageError> {
+    let mut tx = pool.begin().await?;
     let now = crate::current_utc_timestamp()?;
     sqlx::query("UPDATE chat_threads SET title = ?, updated_at = ? WHERE id = ?")
         .bind(title)
         .bind(&now)
         .bind(id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+    tx.commit().await?;
     Ok(())
 }
 
@@ -104,21 +117,25 @@ pub async fn update_chat_thread_status(
     id: &str,
     status: &str,
 ) -> Result<(), StorageError> {
+    let mut tx = pool.begin().await?;
     let now = crate::current_utc_timestamp()?;
     sqlx::query("UPDATE chat_threads SET status = ?, updated_at = ? WHERE id = ?")
         .bind(status)
         .bind(&now)
         .bind(id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+    tx.commit().await?;
     Ok(())
 }
 
 pub async fn delete_chat_thread(pool: &SqlitePool, id: &str) -> Result<(), StorageError> {
+    let mut tx = pool.begin().await?;
     sqlx::query("DELETE FROM chat_threads WHERE id = ?")
         .bind(id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+    tx.commit().await?;
     Ok(())
 }
 
@@ -176,6 +193,8 @@ pub async fn append_chat_message(
         .transpose()
         .map_err(|_| StorageError::Validation("failed to serialize run_config_json"))?;
 
+    let mut tx = pool.begin().await?;
+
     // Upsert: update if exists (handles retries / edits)
     sqlx::query(
         "INSERT INTO chat_messages (id, thread_id, parent_id, content_json, run_config_json)
@@ -190,7 +209,7 @@ pub async fn append_chat_message(
     .bind(parent_id)
     .bind(&content_str)
     .bind(run_config_str.as_deref())
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
 
     // Touch thread updated_at so list ordering reflects activity
@@ -198,8 +217,9 @@ pub async fn append_chat_message(
     sqlx::query("UPDATE chat_threads SET updated_at = ? WHERE id = ?")
         .bind(&now)
         .bind(thread_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
 
+    tx.commit().await?;
     Ok(())
 }
