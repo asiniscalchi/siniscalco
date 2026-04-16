@@ -5,6 +5,8 @@ services:
     image: ${APP_IMAGE:-siniscalco:${APP_TAG:-local}}
     env_file:
       - ./backend/.env.example
+    environment:
+      NGINX_PORT: 80
     ports:
       - "8080:80"
     volumes:
