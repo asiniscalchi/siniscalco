@@ -5,7 +5,7 @@ use if_addrs::get_if_addrs;
 use tracing::{error, info};
 
 use backend::{
-    AppState, AssetPriceRefreshConfig, Config, FxRefreshConfig, SharedMcpClient,
+    AppState, AssetPriceRefreshConfig, AssistantState, Config, FxRefreshConfig, SharedMcpClient,
     build_router_with_state, connect_db_file, init_tracing, mcp::McpClient,
     new_shared_fx_refresh_status, spawn_asset_price_refresh_task, spawn_fx_refresh_task,
     spawn_portfolio_snapshot_task,
@@ -65,12 +65,14 @@ async fn main() {
         fx_refresh_status: fx_refresh_status.clone(),
         asset_price_refresh_config: asset_price_refresh_config.clone(),
         http_client: http_client.clone(),
-        openai_api_key: config.openai_api_key.clone(),
-        assistant_models: assistant_models.clone(),
-        assistant_chat_semaphore: backend::assistant::new_assistant_chat_semaphore(),
-        openai_responses_url: backend::assistant::openai_responses_url().to_string(),
-        openai_models_url: backend::assistant::openai_models_url().to_string(),
-        mcp_client,
+        assistant: AssistantState {
+            openai_api_key: config.openai_api_key.clone(),
+            models: assistant_models.clone(),
+            chat_semaphore: backend::assistant::new_assistant_chat_semaphore(),
+            openai_responses_url: backend::assistant::openai_responses_url().to_string(),
+            openai_models_url: backend::assistant::openai_models_url().to_string(),
+            mcp_client,
+        },
     });
     let address = SocketAddr::from(([0, 0, 0, 0], config.port));
 

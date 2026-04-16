@@ -19,7 +19,7 @@ use tokio::net::TcpListener;
 use tokio::sync::{Mutex, RwLock};
 use tower::ServiceExt;
 
-use super::{AppState, build_router, build_router_with_state};
+use super::{AppState, AssistantState, build_router, build_router_with_state};
 use crate::{
     AccountName, AccountType, Amount, AssetName, AssetPriceRefreshConfig, AssetQuantity,
     AssetSymbol, AssetTransactionType, AssetType, AssetUnitPrice, CreateAccountInput,
@@ -137,12 +137,14 @@ fn build_app_with_fx_status(
         })),
         asset_price_refresh_config: no_price_config(),
         http_client: reqwest::Client::new(),
-        openai_api_key: None,
-        assistant_models: new_shared_assistant_model_registry(None, None, None),
-        assistant_chat_semaphore: new_assistant_chat_semaphore(),
-        openai_responses_url: crate::assistant::openai_responses_url().to_string(),
-        openai_models_url: crate::assistant::openai_models_url().to_string(),
-        mcp_client: None,
+        assistant: AssistantState {
+            openai_api_key: None,
+            models: new_shared_assistant_model_registry(None, None, None),
+            chat_semaphore: new_assistant_chat_semaphore(),
+            openai_responses_url: crate::assistant::openai_responses_url().to_string(),
+            openai_models_url: crate::assistant::openai_models_url().to_string(),
+            mcp_client: None,
+        },
     })
 }
 
@@ -152,12 +154,14 @@ fn build_app_with_price_config(pool: sqlx::SqlitePool, config: AssetPriceRefresh
         fx_refresh_status: std::sync::Arc::new(RwLock::new(FxRefreshStatus::available())),
         asset_price_refresh_config: config,
         http_client: reqwest::Client::new(),
-        openai_api_key: None,
-        assistant_models: new_shared_assistant_model_registry(None, None, None),
-        assistant_chat_semaphore: new_assistant_chat_semaphore(),
-        openai_responses_url: crate::assistant::openai_responses_url().to_string(),
-        openai_models_url: crate::assistant::openai_models_url().to_string(),
-        mcp_client: None,
+        assistant: AssistantState {
+            openai_api_key: None,
+            models: new_shared_assistant_model_registry(None, None, None),
+            chat_semaphore: new_assistant_chat_semaphore(),
+            openai_responses_url: crate::assistant::openai_responses_url().to_string(),
+            openai_models_url: crate::assistant::openai_models_url().to_string(),
+            mcp_client: None,
+        },
     })
 }
 
@@ -188,12 +192,14 @@ fn build_app_with_openai_registry(
         fx_refresh_status: std::sync::Arc::new(RwLock::new(FxRefreshStatus::available())),
         asset_price_refresh_config: no_price_config(),
         http_client: reqwest::Client::new(),
-        openai_api_key: api_key.map(str::to_string),
-        assistant_models,
-        assistant_chat_semaphore: new_assistant_chat_semaphore(),
-        openai_responses_url,
-        openai_models_url,
-        mcp_client: None,
+        assistant: AssistantState {
+            openai_api_key: api_key.map(str::to_string),
+            models: assistant_models,
+            chat_semaphore: new_assistant_chat_semaphore(),
+            openai_responses_url,
+            openai_models_url,
+            mcp_client: None,
+        },
     })
 }
 
@@ -906,12 +912,14 @@ async fn assistant_chat_returns_too_many_requests_when_semaphore_is_exhausted() 
         fx_refresh_status: std::sync::Arc::new(RwLock::new(FxRefreshStatus::available())),
         asset_price_refresh_config: no_price_config(),
         http_client: reqwest::Client::new(),
-        openai_api_key: None,
-        assistant_models: new_shared_assistant_model_registry(None, None, None),
-        assistant_chat_semaphore: exhausted_semaphore,
-        openai_responses_url: crate::assistant::openai_responses_url().to_string(),
-        openai_models_url: crate::assistant::openai_models_url().to_string(),
-        mcp_client: None,
+        assistant: AssistantState {
+            openai_api_key: None,
+            models: new_shared_assistant_model_registry(None, None, None),
+            chat_semaphore: exhausted_semaphore,
+            openai_responses_url: crate::assistant::openai_responses_url().to_string(),
+            openai_models_url: crate::assistant::openai_models_url().to_string(),
+            mcp_client: None,
+        },
     });
     let (status, json) = post_json(
         app,

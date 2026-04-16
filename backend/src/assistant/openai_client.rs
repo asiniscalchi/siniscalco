@@ -81,7 +81,7 @@ pub async fn openai_responses_streaming(
             .iter()
             .map(response_tool_definition)
             .collect::<Vec<_>>();
-        if let Some(mcp) = &state.mcp_client {
+        if let Some(mcp) = &state.assistant.mcp_client {
             tools.extend(mcp.tools.iter().map(response_tool_definition));
         }
         tools
@@ -98,7 +98,7 @@ pub async fn openai_responses_streaming(
 
         let response = match state
             .http_client
-            .post(&state.openai_responses_url)
+            .post(&state.assistant.openai_responses_url)
             .bearer_auth(api_key)
             .json(&body)
             .send()
@@ -249,7 +249,7 @@ pub async fn openai_responses_streaming(
 
             let result = match execute_tool(
                 &state.pool,
-                state.mcp_client.as_deref(),
+                state.assistant.mcp_client.as_deref(),
                 &tool_call.name,
                 &args,
             )

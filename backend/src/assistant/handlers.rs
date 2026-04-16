@@ -29,7 +29,7 @@ use super::types::{
 };
 
 pub async fn models(State(state): State<AppState>) -> impl IntoResponse {
-    let response = state.assistant_models.read().await.to_response();
+    let response = state.assistant.models.read().await.to_response();
     (
         [(header::CACHE_CONTROL, "public, max-age=300")],
         Json(response),
@@ -50,7 +50,7 @@ pub async fn select_model(
         ));
     }
 
-    let mut registry = state.assistant_models.write().await;
+    let mut registry = state.assistant.models.write().await;
     if !registry.models.iter().any(|model| model == requested_model) {
         return Err((
             StatusCode::BAD_REQUEST,
@@ -88,7 +88,7 @@ pub async fn set_reasoning_effort(
         )
     })?;
 
-    let mut registry = state.assistant_models.write().await;
+    let mut registry = state.assistant.models.write().await;
     registry.reasoning_effort = effort;
     let response = registry.to_response();
     drop(registry);
@@ -110,7 +110,7 @@ pub async fn chat(
     State(state): State<AppState>,
     Json(request): Json<AssistantChatRequest>,
 ) -> impl IntoResponse {
-    let permit = match state.assistant_chat_semaphore.clone().try_acquire_owned() {
+    let permit = match state.assistant.chat_semaphore.clone().try_acquire_owned() {
         Ok(p) => p,
         Err(_) => {
             return (
@@ -137,11 +137,12 @@ pub async fn generate_title(
     State(state): State<AppState>,
     Json(request): Json<GenerateTitleRequest>,
 ) -> Result<Json<GenerateTitleResponse>, (StatusCode, Json<AssistantChatErrorResponse>)> {
-    let registry = state.assistant_models.read().await;
+    let registry = state.assistant.models.read().await;
     let selected_model = registry.selected_model.clone();
     drop(registry);
 
     let openai_api_key = state
+        .assistant
         .openai_api_key
         .as_deref()
         .map(str::trim)
@@ -184,7 +185,7 @@ pub async fn generate_title(
 
     let response = state
         .http_client
-        .post(&state.openai_responses_url)
+        .post(&state.assistant.openai_responses_url)
         .bearer_auth(api_key)
         .json(&body)
         .send()
@@ -329,11 +330,12 @@ async fn run_chat_streaming(
     messages: Vec<AssistantChatMessageRequest>,
     tx: mpsc::Sender<Result<Event, Infallible>>,
 ) {
-    let registry = state.assistant_models.read().await;
+    let registry = state.assistant.models.read().await;
     let selected_model = registry.selected_model.clone();
     let reasoning_effort = registry.reasoning_effort;
     drop(registry);
     let openai_api_key = state
+        .assistant
         .openai_api_key
         .as_deref()
         .map(str::trim)
