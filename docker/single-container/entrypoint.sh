@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# Platforms like Render set PORT for the external listener.
+# Capture it for nginx, then reset PORT for the backend.
+LISTEN_PORT="${PORT:-80}"
+sed -i "s/listen 80/listen ${LISTEN_PORT}/" /etc/nginx/nginx.conf
+export PORT=3000
+
 backend &
 backend_pid=$!
 
