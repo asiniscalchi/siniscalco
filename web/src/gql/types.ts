@@ -367,8 +367,8 @@ export type TransactionInput = {
 
 export type TransactionType =
   | 'BUY'
-  | 'SELL'
-  | 'OPENING';
+  | 'OPENING'
+  | 'SELL';
 
 export type Transfer = {
   __typename?: 'Transfer';
