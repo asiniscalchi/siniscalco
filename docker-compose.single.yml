@@ -1,0 +1,14 @@
+services:
+  app:
+    build:
+      context: .
+    image: ${APP_IMAGE:-siniscalco:${APP_TAG:-local}}
+    env_file:
+      - ./backend/.env.example
+    ports:
+      - "8080:80"
+    volumes:
+      - app_data:/app/data
+
+volumes:
+  app_data:

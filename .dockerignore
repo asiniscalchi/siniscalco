@@ -1,0 +1,8 @@
+.git
+backend/.env
+backend/data
+backend/target
+web/.env
+web/.env.local
+web/dist
+web/node_modules

@@ -10,6 +10,7 @@ pub async fn create_asset(
     pool: &SqlitePool,
     input: CreateAssetInput,
 ) -> Result<AssetId, StorageError> {
+    let mut tx = pool.begin().await?;
     let timestamp = current_utc_timestamp()?;
     let result = sqlx::query(
         r#"
@@ -24,10 +25,12 @@ pub async fn create_asset(
     .bind(input.isin.as_deref())
     .bind(&timestamp)
     .bind(&timestamp)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
 
-    AssetId::try_from(result.last_insert_rowid())
+    let id = AssetId::try_from(result.last_insert_rowid())?;
+    tx.commit().await?;
+    Ok(id)
 }
 
 pub async fn list_assets(pool: &SqlitePool) -> Result<Vec<AssetRecord>, StorageError> {
@@ -156,6 +159,7 @@ pub async fn update_asset(
     asset_id: AssetId,
     input: CreateAssetInput,
 ) -> Result<AssetRecord, StorageError> {
+    let mut tx = pool.begin().await?;
     let timestamp = current_utc_timestamp()?;
     let result = sqlx::query(
         r#"
@@ -171,26 +175,30 @@ pub async fn update_asset(
     .bind(input.isin.as_deref())
     .bind(&timestamp)
     .bind(asset_id.as_i64())
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
 
     if result.rows_affected() == 0 {
         return Err(StorageError::Database(sqlx::Error::RowNotFound));
     }
 
+    tx.commit().await?;
     get_asset(pool, asset_id).await
 }
 
 pub async fn delete_asset(pool: &SqlitePool, asset_id: AssetId) -> Result<(), StorageError> {
+    let mut tx = pool.begin().await?;
+
     let result = sqlx::query("DELETE FROM assets WHERE id = ?")
         .bind(asset_id.as_i64())
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
 
     if result.rows_affected() == 0 {
         return Err(StorageError::Database(sqlx::Error::RowNotFound));
     }
 
+    tx.commit().await?;
     Ok(())
 }
 
