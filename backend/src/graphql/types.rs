@@ -80,6 +80,8 @@ pub enum TransactionType {
     Buy,
     #[graphql(name = "SELL")]
     Sell,
+    #[graphql(name = "OPENING")]
+    Opening,
 }
 
 impl From<crate::AssetTransactionType> for TransactionType {
@@ -87,6 +89,7 @@ impl From<crate::AssetTransactionType> for TransactionType {
         match t {
             crate::AssetTransactionType::Buy => Self::Buy,
             crate::AssetTransactionType::Sell => Self::Sell,
+            crate::AssetTransactionType::Opening => Self::Opening,
         }
     }
 }
@@ -96,6 +99,7 @@ impl From<TransactionType> for crate::AssetTransactionType {
         match t {
             TransactionType::Buy => Self::Buy,
             TransactionType::Sell => Self::Sell,
+            TransactionType::Opening => Self::Opening,
         }
     }
 }

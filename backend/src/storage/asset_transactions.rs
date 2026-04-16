@@ -31,6 +31,17 @@ pub async fn create_asset_transaction(
         }
     }
 
+    if input.transaction_type == AssetTransactionType::Opening {
+        let current_quantity =
+            load_current_quantity(&mut tx, input.account_id, input.asset_id).await?;
+
+        if current_quantity > rust_decimal::Decimal::ZERO {
+            return Err(StorageError::Validation(
+                "opening position can only be recorded when there is no existing position",
+            ));
+        }
+    }
+
     let timestamp = current_utc_timestamp()?;
 
     // Insert the row with a placeholder fx_rate of 1; we will update it once
@@ -70,27 +81,29 @@ pub async fn create_asset_transaction(
 
     let transaction_id = result.last_insert_rowid();
 
-    // Apply the cash impact now that we have the transaction_id, capturing the
-    // FX rate used so we can persist it for correct future reversals.
-    let fx_rate = apply_cash_impact(
-        &mut tx,
-        &CashImpactContext {
-            account_id: input.account_id,
-            transaction_type: input.transaction_type,
-            quantity: input.quantity,
-            unit_price: input.unit_price,
-            transaction_id,
-            created_at: &timestamp,
-        },
-        input.currency_code,
-    )
-    .await?;
-
-    sqlx::query("UPDATE asset_transactions SET fx_rate = ? WHERE id = ?")
-        .bind(fx_rate.as_scaled_i64())
-        .bind(transaction_id)
-        .execute(&mut *tx)
+    // Opening positions do not affect cash; skip the impact and leave the
+    // placeholder fx_rate of 1 in place.
+    if input.transaction_type.has_cash_impact() {
+        let fx_rate = apply_cash_impact(
+            &mut tx,
+            &CashImpactContext {
+                account_id: input.account_id,
+                transaction_type: input.transaction_type,
+                quantity: input.quantity,
+                unit_price: input.unit_price,
+                transaction_id,
+                created_at: &timestamp,
+            },
+            input.currency_code,
+        )
         .await?;
+
+        sqlx::query("UPDATE asset_transactions SET fx_rate = ? WHERE id = ?")
+            .bind(fx_rate.as_scaled_i64())
+            .bind(transaction_id)
+            .execute(&mut *tx)
+            .await?;
+    }
     let row = sqlx::query(
         r#"
         SELECT id, account_id, asset_id, transaction_type, trade_date, quantity, unit_price,
@@ -178,19 +191,22 @@ pub async fn update_asset_transaction(
     let updated_at = current_utc_timestamp()?;
 
     // Reverse the original cash impact using the rate stored at trade time.
-    reverse_cash_impact(
-        &mut tx,
-        &CashImpactContext {
-            account_id: existing_transaction.account_id,
-            transaction_type: existing_transaction.transaction_type,
-            quantity: existing_transaction.quantity,
-            unit_price: existing_transaction.unit_price,
-            transaction_id,
-            created_at: &updated_at,
-        },
-        existing_transaction.fx_rate,
-    )
-    .await?;
+    // Opening positions have no cash impact so nothing to reverse.
+    if existing_transaction.transaction_type.has_cash_impact() {
+        reverse_cash_impact(
+            &mut tx,
+            &CashImpactContext {
+                account_id: existing_transaction.account_id,
+                transaction_type: existing_transaction.transaction_type,
+                quantity: existing_transaction.quantity,
+                unit_price: existing_transaction.unit_price,
+                transaction_id,
+                created_at: &updated_at,
+            },
+            existing_transaction.fx_rate,
+        )
+        .await?;
+    }
 
     // Apply the new cash impact.
     //
@@ -200,38 +216,44 @@ pub async fn update_asset_transaction(
     // neutral and avoids injecting FX drift through data-entry corrections.
     //
     // If the currency changes, resolve the current live rate for the new pair.
-    let can_reuse_locked_rate = input.currency_code == existing_transaction.currency_code
-        && existing_base_currency == updated_base_currency;
-
-    let new_fx_rate = if can_reuse_locked_rate {
-        apply_cash_impact_at_rate(
-            &mut tx,
-            &CashImpactContext {
-                account_id: input.account_id,
-                transaction_type: input.transaction_type,
-                quantity: input.quantity,
-                unit_price: input.unit_price,
-                transaction_id,
-                created_at: &updated_at,
-            },
-            existing_transaction.fx_rate,
-        )
-        .await?;
-        existing_transaction.fx_rate
+    // Opening positions have no cash impact so the fx_rate stays as the placeholder.
+    let new_fx_rate = if !input.transaction_type.has_cash_impact() {
+        FxRate::from_scaled_i64(1_000_000).unwrap()
     } else {
-        apply_cash_impact(
-            &mut tx,
-            &CashImpactContext {
-                account_id: input.account_id,
-                transaction_type: input.transaction_type,
-                quantity: input.quantity,
-                unit_price: input.unit_price,
-                transaction_id,
-                created_at: &updated_at,
-            },
-            input.currency_code,
-        )
-        .await?
+        let can_reuse_locked_rate = input.currency_code == existing_transaction.currency_code
+            && existing_base_currency == updated_base_currency
+            && existing_transaction.transaction_type.has_cash_impact();
+
+        if can_reuse_locked_rate {
+            apply_cash_impact_at_rate(
+                &mut tx,
+                &CashImpactContext {
+                    account_id: input.account_id,
+                    transaction_type: input.transaction_type,
+                    quantity: input.quantity,
+                    unit_price: input.unit_price,
+                    transaction_id,
+                    created_at: &updated_at,
+                },
+                existing_transaction.fx_rate,
+            )
+            .await?;
+            existing_transaction.fx_rate
+        } else {
+            apply_cash_impact(
+                &mut tx,
+                &CashImpactContext {
+                    account_id: input.account_id,
+                    transaction_type: input.transaction_type,
+                    quantity: input.quantity,
+                    unit_price: input.unit_price,
+                    transaction_id,
+                    created_at: &updated_at,
+                },
+                input.currency_code,
+            )
+            .await?
+        }
     };
 
     let result = sqlx::query(
@@ -301,19 +323,22 @@ pub async fn delete_asset_transaction(
     let updated_at = current_utc_timestamp()?;
 
     // Reverse the cash impact using the rate that was locked in at trade time.
-    reverse_cash_impact(
-        &mut tx,
-        &CashImpactContext {
-            account_id: existing_transaction.account_id,
-            transaction_type: existing_transaction.transaction_type,
-            quantity: existing_transaction.quantity,
-            unit_price: existing_transaction.unit_price,
-            transaction_id,
-            created_at: &updated_at,
-        },
-        existing_transaction.fx_rate,
-    )
-    .await?;
+    // Opening positions have no cash impact so nothing to reverse.
+    if existing_transaction.transaction_type.has_cash_impact() {
+        reverse_cash_impact(
+            &mut tx,
+            &CashImpactContext {
+                account_id: existing_transaction.account_id,
+                transaction_type: existing_transaction.transaction_type,
+                quantity: existing_transaction.quantity,
+                unit_price: existing_transaction.unit_price,
+                transaction_id,
+                created_at: &updated_at,
+            },
+            existing_transaction.fx_rate,
+        )
+        .await?;
+    }
 
     let result = sqlx::query("DELETE FROM asset_transactions WHERE id = ?")
         .bind(transaction_id)
@@ -549,7 +574,7 @@ async fn validate_position_change_for_transaction_delete(
 
 fn signed_quantity_delta(transaction_type: AssetTransactionType, quantity: Decimal) -> Decimal {
     match transaction_type {
-        AssetTransactionType::Buy => quantity,
+        AssetTransactionType::Buy | AssetTransactionType::Opening => quantity,
         AssetTransactionType::Sell => -quantity,
     }
 }

@@ -11,13 +11,15 @@ export function getTransactionTotal(transaction: Transaction) {
 export function getTransactionTypeClassName(
   transactionType: Transaction["transactionType"],
 ) {
-  return transactionType === "BUY"
-    ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-    : "border border-amber-200 bg-amber-50 text-amber-700";
+  if (transactionType === "BUY") return "border border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (transactionType === "SELL") return "border border-amber-200 bg-amber-50 text-amber-700";
+  return "border border-sky-200 bg-sky-50 text-sky-700";
 }
 
 export function getActivityTypeLabel(item: ActivityItem): string {
-  if (item.kind === "trade") return item.data.transactionType;
+  if (item.kind === "trade") {
+    return item.data.transactionType === "OPENING" ? "OPENING" : item.data.transactionType;
+  }
   if (item.kind === "cash") return Number(item.data.amount) >= 0 ? "DEPOSIT" : "WITHDRAWAL";
   return "TRANSFER";
 }
