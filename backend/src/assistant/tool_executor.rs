@@ -3,8 +3,8 @@ use serde_json::{Value, json};
 use crate::mcp::McpClient;
 use crate::{
     AccountId, PRODUCT_BASE_CURRENCY, compact_decimal_output, format_decimal_amount,
-    get_portfolio_summary, list_accounts, list_asset_transactions, list_assets, list_transactions,
-    list_transfers, list_transfers_by_account,
+    get_portfolio_summary, list_accounts, list_asset_transactions, list_assets,
+    list_portfolio_snapshots, list_transactions, list_transfers, list_transfers_by_account,
 };
 
 use super::types::AssistantError;
@@ -89,6 +89,29 @@ pub fn tool_definitions() -> Value {
                         "account_id": {
                             "type": "integer",
                             "description": "Filter transfers involving this account ID"
+                        }
+                    },
+                    "required": []
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "list_portfolio_snapshots",
+                "description": "Returns daily portfolio total-value snapshots ordered by date ascending. \
+                                Use this to answer questions about historical performance, portfolio growth, \
+                                or value over time. Optionally filter by from_date and/or to_date (YYYY-MM-DD).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "from_date": {
+                            "type": "string",
+                            "description": "Include snapshots on or after this date (YYYY-MM-DD)"
+                        },
+                        "to_date": {
+                            "type": "string",
+                            "description": "Include snapshots on or before this date (YYYY-MM-DD)"
                         }
                     },
                     "required": []
@@ -290,6 +313,30 @@ pub async fn execute_tool(
             Ok(json!({ "count": items.len(), "transfers": items }))
         }
 
+        "list_portfolio_snapshots" => {
+            let snapshots = list_portfolio_snapshots(pool, PRODUCT_BASE_CURRENCY).await?;
+            let from_date = args["from_date"].as_str();
+            let to_date = args["to_date"].as_str();
+            let items: Vec<Value> = snapshots
+                .iter()
+                .filter(|s| {
+                    let date = &s.recorded_at[..10];
+                    from_date.map_or(true, |f| date >= f) && to_date.map_or(true, |t| date <= t)
+                })
+                .map(|s| {
+                    json!({
+                        "date": &s.recorded_at[..10],
+                        "total_value": format!(
+                            "{} {}",
+                            compact_decimal_output(&format_decimal_amount(s.total_value.as_decimal())),
+                            s.currency.as_str(),
+                        ),
+                    })
+                })
+                .collect();
+            Ok(json!({ "count": items.len(), "snapshots": items }))
+        }
+
         _ => {
             if let Some(client) = mcp {
                 let text = client.call_tool(name, args.clone()).await?;
@@ -306,10 +353,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn tool_definitions_is_array_of_five() {
+    fn tool_definitions_is_array_of_six() {
         let defs = tool_definitions();
         let arr = defs.as_array().expect("should be an array");
-        assert_eq!(arr.len(), 5);
+        assert_eq!(arr.len(), 6);
     }
 
     #[test]
@@ -329,6 +376,7 @@ mod tests {
                 "list_assets",
                 "list_transactions",
                 "list_transfers",
+                "list_portfolio_snapshots",
             ]
         );
     }
