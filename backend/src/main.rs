@@ -6,7 +6,7 @@ use tracing::{error, info};
 
 use backend::{
     AppState, AssetPriceRefreshConfig, AssistantState, Config, FxRefreshConfig, SharedMcpClient,
-    build_router_with_state, connect_db_file, init_tracing, mcp::McpClient,
+    build_full_router_with_state, connect_db_file, init_tracing, mcp::McpClient,
     new_shared_fx_refresh_status, spawn_asset_price_refresh_task, spawn_fx_refresh_task,
     spawn_portfolio_snapshot_task,
 };
@@ -60,20 +60,23 @@ async fn main() {
     );
     let mcp_client = spawn_mcp_client(config.searxng_url.as_deref()).await;
 
-    let app = build_router_with_state(AppState {
-        pool: pool.clone(),
-        fx_refresh_status: fx_refresh_status.clone(),
-        asset_price_refresh_config: asset_price_refresh_config.clone(),
-        http_client: http_client.clone(),
-        assistant: AssistantState {
-            openai_api_key: config.openai_api_key.clone(),
-            models: assistant_models.clone(),
-            chat_semaphore: backend::assistant::new_assistant_chat_semaphore(),
-            openai_responses_url: backend::assistant::openai_responses_url().to_string(),
-            openai_models_url: backend::assistant::openai_models_url().to_string(),
-            mcp_client,
+    let app = build_full_router_with_state(
+        AppState {
+            pool: pool.clone(),
+            fx_refresh_status: fx_refresh_status.clone(),
+            asset_price_refresh_config: asset_price_refresh_config.clone(),
+            http_client: http_client.clone(),
+            assistant: AssistantState {
+                openai_api_key: config.openai_api_key.clone(),
+                models: assistant_models.clone(),
+                chat_semaphore: backend::assistant::new_assistant_chat_semaphore(),
+                openai_responses_url: backend::assistant::openai_responses_url().to_string(),
+                openai_models_url: backend::assistant::openai_models_url().to_string(),
+                mcp_client,
+            },
         },
-    });
+        config.static_dir.as_deref(),
+    );
     let address = SocketAddr::from(([0, 0, 0, 0], config.port));
 
     log_fx_refresh_configuration(&fx_refresh_config);
