@@ -4,7 +4,7 @@ import { NavLink, Outlet } from "react-router-dom";
 
 import { AssistantPanel } from "@/components/AssistantPanel";
 import { Button } from "@/components/ui/button";
-import { getApiBaseUrl, getHealthApiUrl } from "@/lib/env";
+import { APP_VERSION, getApiBaseUrl, getHealthApiUrl, getVersionApiUrl } from "@/lib/env";
 import { ChatBubbleIcon, EyeClosedIcon, EyeIcon, LogoIcon } from "@/components/Icons";
 import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
@@ -117,6 +117,7 @@ export function AppShell() {
   const [backendStatus, setBackendStatus] = useState<
     "connected" | "checking" | "unavailable"
   >("checking");
+  const [backendVersion, setBackendVersion] = useState<string | null>(null);
 
   function handleManualRefresh() {
     void apolloClient.refetchQueries({ include: ["Assets", "Portfolio", "FxRates"] });
@@ -130,10 +131,17 @@ export function AppShell() {
       setBackendStatus("checking");
 
       try {
-        const response = await fetch(getHealthApiUrl());
+        const [healthResponse, versionResponse] = await Promise.all([
+          fetch(getHealthApiUrl()),
+          fetch(getVersionApiUrl()),
+        ]);
 
         if (!cancelled) {
-          setBackendStatus(response.ok ? "connected" : "unavailable");
+          setBackendStatus(healthResponse.ok ? "connected" : "unavailable");
+          if (versionResponse.ok) {
+            const data = (await versionResponse.json()) as { version: string };
+            setBackendVersion(data.version);
+          }
         }
       } catch {
         if (!cancelled) {
@@ -242,9 +250,15 @@ export function AppShell() {
                   </svg>
                 </div>
               </div>
-              {backendStatus === "unavailable" && (
+              {backendStatus === "unavailable" ? (
                 <span className="max-w-36 truncate text-[0.65rem] leading-none text-muted-foreground sm:max-w-56">
                   {apiBaseUrl}
+                </span>
+              ) : (
+                <span className="text-[0.65rem] leading-none text-muted-foreground tabular-nums">
+                  {backendVersion ? `api ${backendVersion}` : null}
+                  {backendVersion ? " · " : null}
+                  {`ui ${APP_VERSION}`}
                 </span>
               )}
             </div>

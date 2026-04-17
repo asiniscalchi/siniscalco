@@ -5,10 +5,11 @@ mod types;
 use async_graphql::{EmptySubscription, Schema};
 use async_graphql_axum::GraphQL;
 use axum::{
-    Router,
+    Json, Router,
     http::{Method, header::CONTENT_TYPE},
     routing::{get, post, put},
 };
+use serde::Serialize;
 use sqlx::SqlitePool;
 use tower_http::{
     cors::{Any, CorsLayer},
@@ -103,6 +104,7 @@ pub fn build_router_with_state(state: AppState) -> Router {
 
     Router::new()
         .route("/health", get(health))
+        .route("/version", get(version))
         .route("/assistant/chat", post(crate::assistant::chat))
         .route(
             "/assistant/generate-title",
@@ -151,6 +153,17 @@ pub fn build_router_with_state(state: AppState) -> Router {
 
 async fn health() -> &'static str {
     "ok"
+}
+
+#[derive(Serialize)]
+struct VersionResponse {
+    version: &'static str,
+}
+
+async fn version() -> Json<VersionResponse> {
+    Json(VersionResponse {
+        version: env!("GIT_VERSION"),
+    })
 }
 
 #[cfg(test)]
