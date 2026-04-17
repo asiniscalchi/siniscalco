@@ -91,7 +91,7 @@ pub(crate) async fn compute_top_holdings(
         }
     }
 
-    holdings.sort_by(|left, right| right.value.as_decimal().cmp(&left.value.as_decimal()));
+    holdings.sort_by_key(|h| std::cmp::Reverse(h.value.as_decimal()));
 
     Ok((holdings, is_partial))
 }

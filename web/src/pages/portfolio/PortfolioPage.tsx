@@ -32,11 +32,11 @@ export function PortfolioPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
-      {loading ? <PortfolioLoadingState /> : null}
-      {!loading && error ? (
+      {loading && !data ? <PortfolioLoadingState /> : null}
+      {!loading && error && !data ? (
         <PortfolioErrorState onRetry={() => void refetch()} />
       ) : null}
-      {!loading && !error && data ? (
+      {data ? (
         <>
           <PortfolioReadyState summary={data.portfolio} />
           <FxRatesFooter />
