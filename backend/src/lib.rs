@@ -19,7 +19,10 @@ pub use logging::{default_log_filter, init_tracing};
 
 // ── HTTP / GraphQL ───────────────────────────────────────────────────────────
 
-pub use graphql::{AppState, AssistantState, build_router, build_router_with_state, schema_sdl};
+pub use graphql::{
+    AppState, AssistantState, build_full_router_with_state, build_router, build_router_with_state,
+    schema_sdl,
+};
 
 // ── Formatting helpers ───────────────────────────────────────────────────────
 

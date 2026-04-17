@@ -3,7 +3,7 @@ services:
     name: siniscalco
     runtime: docker
     plan: free
-    healthCheckPath: /
+    healthCheckPath: /api/health
     disk:
       name: siniscalco-data
       mountPath: /app/data

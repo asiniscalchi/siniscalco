@@ -6,7 +6,7 @@ services:
     env_file:
       - ./backend/.env.example
     ports:
-      - "8080:80"
+      - "8080:8080"
     volumes:
       - app_data:/app/data
 

@@ -189,6 +189,10 @@ pub struct Config {
     /// SearXNG instance URL (enables web search via MCP for the AI assistant)
     #[arg(long, env = "SEARXNG_URL")]
     pub searxng_url: Option<String>,
+
+    /// Directory containing the pre-built frontend static files to serve
+    #[arg(long, env = "STATIC_DIR")]
+    pub static_dir: Option<String>,
 }
 
 impl Config {

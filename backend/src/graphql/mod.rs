@@ -12,6 +12,7 @@ use axum::{
 use sqlx::SqlitePool;
 use tower_http::{
     cors::{Any, CorsLayer},
+    services::{ServeDir, ServeFile},
     trace::TraceLayer,
 };
 
@@ -147,6 +148,16 @@ pub fn build_router_with_state(state: AppState) -> Router {
         .layer(TraceLayer::new_for_http())
         .layer(cors)
         .with_state(state)
+}
+
+pub fn build_full_router_with_state(state: AppState, static_dir: Option<&str>) -> Router {
+    let api = build_router_with_state(state);
+    let mut router = Router::new().nest("/api", api);
+    if let Some(dir) = static_dir {
+        let index = format!("{dir}/index.html");
+        router = router.fallback_service(ServeDir::new(dir).fallback(ServeFile::new(index)));
+    }
+    router
 }
 
 async fn health() -> &'static str {
