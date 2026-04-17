@@ -1,15 +1,30 @@
 import { ItemLabel } from "@/components/ItemLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DonutChart, SLICE_COLORS } from "@/components/ui/donut-chart";
+import { CASH_SLICE_COLORS } from "@/lib/colors";
 import { MoneyText } from "@/lib/money";
 import { type PortfolioHolding } from "@/lib/types";
 
-type ChartableHolding = {
-  assetId?: number | null;
-  symbol: string;
+type ChartItem = {
   name: string;
+  fullName: string;
   value: number;
+  assetId?: number | null;
+  color: string;
 };
+
+function assignColors(
+  items: Omit<ChartItem, "color">[],
+): ChartItem[] {
+  let cashIdx = 0;
+  let colorIdx = 0;
+  return items.map((item) => ({
+    ...item,
+    color: item.assetId === null
+      ? CASH_SLICE_COLORS[cashIdx++ % CASH_SLICE_COLORS.length]
+      : SLICE_COLORS[colorIdx++ % SLICE_COLORS.length],
+  }));
+}
 
 export function TopHoldingsCard({
   holdings,
@@ -39,7 +54,7 @@ export function TopHoldingsCard({
     );
   }
 
-  const chartableHoldings: ChartableHolding[] = holdingsList
+  const chartableHoldings = holdingsList
     .map((h) => ({ ...h, value: Number(h.value) }))
     .filter((h) => !Number.isNaN(h.value) && h.value > 0);
 
@@ -61,11 +76,12 @@ export function TopHoldingsCard({
   const top5 = chartableHoldings.slice(0, 5);
   const others = chartableHoldings.slice(5);
 
-  const chartData = [
+  const chartData = assignColors([
     ...top5.map((h) => ({
       name: h.symbol,
       fullName: h.name,
       value: h.value,
+      assetId: h.assetId,
     })),
     ...(others.length > 0
       ? [
@@ -75,10 +91,12 @@ export function TopHoldingsCard({
               others.length > 1 ? "s" : ""
             }`,
             value: others.reduce((sum, h) => sum + h.value, 0),
+            assetId: undefined,
           },
         ]
       : []),
-  ];
+  ]);
+
   const holdingsTotal = chartData.reduce((sum, item) => sum + item.value, 0);
 
   return (
@@ -99,14 +117,14 @@ export function TopHoldingsCard({
             role="img"
           >
             <DonutChart
-              slices={chartData.map((item, index) => ({
+              slices={chartData.map((item) => ({
                 value: item.value,
-                color: SLICE_COLORS[index % SLICE_COLORS.length],
+                color: item.color,
               }))}
             />
           </div>
           <div className="min-w-0 w-full space-y-3">
-            {chartData.map((item, index) => {
+            {chartData.map((item) => {
               const percentage =
                 holdingsTotal > 0 ? (item.value / holdingsTotal) * 100 : 0;
 
@@ -118,9 +136,7 @@ export function TopHoldingsCard({
                   <div className="flex min-w-0 items-center gap-2">
                     <span
                       className="inline-block h-3 w-3 shrink-0 rounded-full"
-                      style={{
-                        backgroundColor: SLICE_COLORS[index % SLICE_COLORS.length],
-                      }}
+                      style={{ backgroundColor: item.color }}
                     />
                     <ItemLabel primary={item.name} secondary={item.fullName} />
                   </div>
