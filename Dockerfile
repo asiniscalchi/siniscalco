@@ -1,6 +1,7 @@
 FROM rust:bookworm AS backend-builder
 
 ARG GIT_VERSION
+ENV GIT_VERSION=$GIT_VERSION
 WORKDIR /app/backend
 
 COPY backend/Cargo.toml backend/Cargo.lock ./
