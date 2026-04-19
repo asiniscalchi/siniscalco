@@ -162,7 +162,7 @@ struct VersionResponse {
 
 async fn version() -> Json<VersionResponse> {
     Json(VersionResponse {
-        version: env!("GIT_VERSION"),
+        version: option_env!("GIT_VERSION").unwrap_or("unknown"),
     })
 }
 

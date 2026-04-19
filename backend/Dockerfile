@@ -1,6 +1,6 @@
 FROM rust:bookworm AS builder
 
-ARG GIT_VERSION=unknown
+ARG GIT_VERSION
 ENV GIT_VERSION=$GIT_VERSION
 WORKDIR /app
 
