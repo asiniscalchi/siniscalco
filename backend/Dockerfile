@@ -1,5 +1,7 @@
 FROM rust:bookworm AS builder
 
+ARG GIT_VERSION=unknown
+ENV GIT_VERSION=$GIT_VERSION
 WORKDIR /app
 
 COPY Cargo.toml Cargo.lock ./
