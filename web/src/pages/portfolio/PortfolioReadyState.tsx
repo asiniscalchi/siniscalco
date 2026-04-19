@@ -1,3 +1,4 @@
+import { type AssetType } from "@/gql/types";
 import { type PortfolioSummary } from "@/lib/types";
 import { useUiState } from "@/lib/ui-state";
 
@@ -8,7 +9,7 @@ import { PortfolioHistoryCard } from "./PortfolioHistoryCard";
 import { PortfolioSummarySection } from "./PortfolioSummarySection";
 import { TopHoldingsCard } from "./TopHoldingsCard";
 
-export function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) {
+export function PortfolioReadyState({ summary, assetTypeById }: { summary: PortfolioSummary; assetTypeById: Map<number, AssetType> }) {
   const { hideValues } = useUiState();
   const hasCashData = summary.cashByCurrency.length > 0;
   const currentValue =
@@ -54,6 +55,7 @@ export function PortfolioReadyState({ summary }: { summary: PortfolioSummary }) 
             isPartial={summary.holdingsIsPartial}
             displayCurrency={summary.displayCurrency}
             hideValues={hideValues}
+            assetTypeById={assetTypeById}
           />
         </div>
       </div>

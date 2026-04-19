@@ -1,20 +1,25 @@
 import { ItemLabel } from "@/components/ItemLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DonutChart, SLICE_COLORS } from "@/components/ui/donut-chart";
-import { CASH_SLICE_COLORS } from "@/lib/colors";
+import { DonutChart } from "@/components/ui/donut-chart";
+import { BOND_COLORS, CASH_SLICE_COLORS, CRYPTO_COLORS, ETF_COLORS, OTHER_COLORS, STOCK_COLORS } from "@/lib/colors";
 import { formatMoney } from "@/lib/format-money";
 import { type PortfolioAllocationSlice } from "@/lib/types";
 
 type Slice = PortfolioAllocationSlice & { value: number; color: string };
 
+const LABEL_COLOR: Record<string, string> = {
+  Stock: STOCK_COLORS[0],
+  ETF: ETF_COLORS[0],
+  Crypto: CRYPTO_COLORS[0],
+  Bond: BOND_COLORS[0],
+  Cash: CASH_SLICE_COLORS[0],
+  Other: OTHER_COLORS[0],
+};
+
 function assignColors(slices: (PortfolioAllocationSlice & { value: number })[]): Slice[] {
-  let cashIdx = 0;
-  let colorIdx = 0;
   return slices.map((s) => ({
     ...s,
-    color: s.label === "Cash"
-      ? CASH_SLICE_COLORS[cashIdx++ % CASH_SLICE_COLORS.length]
-      : SLICE_COLORS[colorIdx++ % SLICE_COLORS.length],
+    color: LABEL_COLOR[s.label] ?? OTHER_COLORS[0],
   }));
 }
 
