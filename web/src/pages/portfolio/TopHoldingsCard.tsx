@@ -1,7 +1,8 @@
 import { ItemLabel } from "@/components/ItemLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DonutChart, SLICE_COLORS } from "@/components/ui/donut-chart";
-import { CASH_SLICE_COLORS } from "@/lib/colors";
+import { DonutChart } from "@/components/ui/donut-chart";
+import { type AssetType } from "@/gql/types";
+import { BOND_COLORS, CASH_SLICE_COLORS, CRYPTO_COLORS, ETF_COLORS, OTHER_COLORS, STOCK_COLORS } from "@/lib/colors";
 import { MoneyText } from "@/lib/money";
 import { type PortfolioHolding } from "@/lib/types";
 
@@ -13,17 +14,32 @@ type ChartItem = {
   color: string;
 };
 
+const TYPE_PALETTES: Record<AssetType, string[]> = {
+  STOCK: STOCK_COLORS,
+  ETF: ETF_COLORS,
+  CRYPTO: CRYPTO_COLORS,
+  BOND: BOND_COLORS,
+  CASH_EQUIVALENT: CASH_SLICE_COLORS,
+  OTHER: OTHER_COLORS,
+};
+
 function assignColors(
   items: Omit<ChartItem, "color">[],
+  assetTypeById: Map<number, AssetType>,
 ): ChartItem[] {
-  let cashIdx = 0;
-  let colorIdx = 0;
-  return items.map((item) => ({
-    ...item,
-    color: item.assetId === null
-      ? CASH_SLICE_COLORS[cashIdx++ % CASH_SLICE_COLORS.length]
-      : SLICE_COLORS[colorIdx++ % SLICE_COLORS.length],
-  }));
+  const typeIndexes = new Map<string, number>();
+  return items.map((item) => {
+    if (item.assetId === null) {
+      const idx = typeIndexes.get("CASH") ?? 0;
+      typeIndexes.set("CASH", idx + 1);
+      return { ...item, color: CASH_SLICE_COLORS[idx % CASH_SLICE_COLORS.length] };
+    }
+    const type = item.assetId != null ? (assetTypeById.get(item.assetId) ?? "OTHER") : "OTHER";
+    const palette = TYPE_PALETTES[type];
+    const idx = typeIndexes.get(type) ?? 0;
+    typeIndexes.set(type, idx + 1);
+    return { ...item, color: palette[idx % palette.length] };
+  });
 }
 
 export function TopHoldingsCard({
@@ -31,11 +47,13 @@ export function TopHoldingsCard({
   isPartial,
   displayCurrency,
   hideValues,
+  assetTypeById,
 }: {
   holdings: PortfolioHolding[];
   isPartial: boolean;
   displayCurrency: string;
   hideValues: boolean;
+  assetTypeById: Map<number, AssetType>;
 }) {
   const holdingsList = holdings ?? [];
 
@@ -95,7 +113,7 @@ export function TopHoldingsCard({
           },
         ]
       : []),
-  ]);
+  ], assetTypeById);
 
   const holdingsTotal = chartData.reduce((sum, item) => sum + item.value, 0);
 
