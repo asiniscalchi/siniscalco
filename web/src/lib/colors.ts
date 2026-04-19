@@ -47,5 +47,16 @@ export const OTHER_COLORS = [
   "#374151", // gray-700
 ];
 
+export const ACCOUNT_COLORS = [
+  "#3b82f6", // blue-500
+  "#10b981", // emerald-500
+  "#f59e0b", // amber-500
+  "#8b5cf6", // violet-500
+  "#ec4899", // pink-500
+  "#14b8a6", // teal-500
+  "#f97316", // orange-500
+  "#06b6d4", // cyan-500
+];
+
 // Kept for DonutChart re-export
 export const SLICE_COLORS = STOCK_COLORS;

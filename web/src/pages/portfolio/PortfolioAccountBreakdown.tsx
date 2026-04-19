@@ -1,6 +1,7 @@
 import { ItemLabel } from "@/components/ItemLabel";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { DonutChart, SLICE_COLORS } from "@/components/ui/donut-chart";
+import { DonutChart } from "@/components/ui/donut-chart";
+import { ACCOUNT_COLORS } from "@/lib/colors";
 import { type PortfolioSummary } from "@/lib/types";
 import { formatMoney } from "@/lib/format-money";
 
@@ -29,7 +30,7 @@ export function PortfolioAccountBreakdown({
     return (
       <Card className="self-start bg-background">
         <CardHeader className="border-b">
-          <CardTitle>Cash</CardTitle>
+          <CardTitle>Accounts</CardTitle>
         </CardHeader>
         <CardContent className="pb-6 pt-6">
           <p className="text-sm text-muted-foreground">
@@ -61,7 +62,7 @@ export function PortfolioAccountBreakdown({
               <DonutChart
                 slices={chartData.map((a, i) => ({
                   value: a.value,
-                  color: SLICE_COLORS[i % SLICE_COLORS.length],
+                  color: ACCOUNT_COLORS[i % ACCOUNT_COLORS.length],
                 }))}
               />
             </div>
@@ -78,7 +79,7 @@ export function PortfolioAccountBreakdown({
                         className="inline-block h-3 w-3 shrink-0 rounded-full"
                         style={{
                           backgroundColor:
-                            SLICE_COLORS[index % SLICE_COLORS.length],
+                            ACCOUNT_COLORS[index % ACCOUNT_COLORS.length],
                         }}
                       />
                       <ItemLabel
