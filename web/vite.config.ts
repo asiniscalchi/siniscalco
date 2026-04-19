@@ -6,6 +6,8 @@ import tailwindcss from "@tailwindcss/vite";
 import { execSync } from "node:child_process";
 
 function getGitVersion(): string {
+  const envVersion = process.env.GIT_VERSION?.trim();
+  if (envVersion) return envVersion;
   try {
     return execSync("git describe --tags --exact-match", { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }).trim();
   } catch {

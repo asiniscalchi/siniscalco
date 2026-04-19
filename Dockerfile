@@ -1,5 +1,6 @@
 FROM rust:bookworm AS backend-builder
 
+ARG GIT_VERSION
 WORKDIR /app/backend
 
 COPY backend/Cargo.toml backend/Cargo.lock ./
@@ -10,6 +11,7 @@ RUN cargo build --release
 
 FROM node:24-bookworm-slim AS web-builder
 
+ARG GIT_VERSION
 WORKDIR /app/web
 
 COPY web/package.json web/package-lock.json ./
