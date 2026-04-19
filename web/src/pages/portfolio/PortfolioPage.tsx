@@ -1,8 +1,14 @@
 import { gql } from "@apollo/client/core";
 import { useQuery } from "@apollo/client/react";
+import { useMemo } from "react";
 import { MARKET_DATA_POLL_INTERVAL } from "@/lib/apollo";
+import { type AssetsQuery, type AssetType, type PortfolioQuery } from "@/gql/types";
+import { ASSETS_QUERY } from "@/pages/assets/assets-query";
 
-import { type PortfolioQuery } from "@/gql/types";
+import { FxRatesFooter } from "./FxRatesFooter";
+import { PortfolioErrorState } from "./PortfolioErrorState";
+import { PortfolioLoadingState } from "./PortfolioLoadingState";
+import { PortfolioReadyState } from "./PortfolioReadyState";
 
 const PORTFOLIO_QUERY = gql`
   query Portfolio {
@@ -22,13 +28,17 @@ const PORTFOLIO_QUERY = gql`
   }
 `;
 
-import { FxRatesFooter } from "./FxRatesFooter";
-import { PortfolioErrorState } from "./PortfolioErrorState";
-import { PortfolioLoadingState } from "./PortfolioLoadingState";
-import { PortfolioReadyState } from "./PortfolioReadyState";
-
 export function PortfolioPage() {
   const { data, loading, error, refetch } = useQuery<PortfolioQuery>(PORTFOLIO_QUERY, { fetchPolicy: "cache-and-network", pollInterval: MARKET_DATA_POLL_INTERVAL });
+  const { data: assetsData } = useQuery<AssetsQuery>(ASSETS_QUERY, { fetchPolicy: "cache-only" });
+
+  const assetTypeById = useMemo<Map<number, AssetType>>(() => {
+    const map = new Map<number, AssetType>();
+    for (const asset of assetsData?.assets ?? []) {
+      map.set(asset.id, asset.assetType);
+    }
+    return map;
+  }, [assetsData]);
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
@@ -38,7 +48,7 @@ export function PortfolioPage() {
       ) : null}
       {data ? (
         <>
-          <PortfolioReadyState summary={data.portfolio} />
+          <PortfolioReadyState summary={data.portfolio} assetTypeById={assetTypeById} />
           <FxRatesFooter />
         </>
       ) : null}

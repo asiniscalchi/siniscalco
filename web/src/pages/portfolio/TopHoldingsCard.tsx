@@ -1,26 +1,59 @@
 import { ItemLabel } from "@/components/ItemLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DonutChart, SLICE_COLORS } from "@/components/ui/donut-chart";
+import { DonutChart } from "@/components/ui/donut-chart";
+import { type AssetType } from "@/gql/types";
+import { BOND_COLORS, CASH_SLICE_COLORS, CRYPTO_COLORS, ETF_COLORS, OTHER_COLORS, STOCK_COLORS } from "@/lib/colors";
 import { MoneyText } from "@/lib/money";
 import { type PortfolioHolding } from "@/lib/types";
 
-type ChartableHolding = {
-  assetId?: number | null;
-  symbol: string;
+type ChartItem = {
   name: string;
+  fullName: string;
   value: number;
+  assetId?: number | null;
+  color: string;
 };
+
+const TYPE_PALETTES: Record<AssetType, string[]> = {
+  STOCK: STOCK_COLORS,
+  ETF: ETF_COLORS,
+  CRYPTO: CRYPTO_COLORS,
+  BOND: BOND_COLORS,
+  CASH_EQUIVALENT: CASH_SLICE_COLORS,
+  OTHER: OTHER_COLORS,
+};
+
+function assignColors(
+  items: Omit<ChartItem, "color">[],
+  assetTypeById: Map<number, AssetType>,
+): ChartItem[] {
+  const typeIndexes = new Map<string, number>();
+  return items.map((item) => {
+    if (item.assetId === null) {
+      const idx = typeIndexes.get("CASH") ?? 0;
+      typeIndexes.set("CASH", idx + 1);
+      return { ...item, color: CASH_SLICE_COLORS[idx % CASH_SLICE_COLORS.length] };
+    }
+    const type = item.assetId != null ? (assetTypeById.get(item.assetId) ?? "OTHER") : "OTHER";
+    const palette = TYPE_PALETTES[type];
+    const idx = typeIndexes.get(type) ?? 0;
+    typeIndexes.set(type, idx + 1);
+    return { ...item, color: palette[idx % palette.length] };
+  });
+}
 
 export function TopHoldingsCard({
   holdings,
   isPartial,
   displayCurrency,
   hideValues,
+  assetTypeById,
 }: {
   holdings: PortfolioHolding[];
   isPartial: boolean;
   displayCurrency: string;
   hideValues: boolean;
+  assetTypeById: Map<number, AssetType>;
 }) {
   const holdingsList = holdings ?? [];
 
@@ -39,7 +72,7 @@ export function TopHoldingsCard({
     );
   }
 
-  const chartableHoldings: ChartableHolding[] = holdingsList
+  const chartableHoldings = holdingsList
     .map((h) => ({ ...h, value: Number(h.value) }))
     .filter((h) => !Number.isNaN(h.value) && h.value > 0);
 
@@ -61,11 +94,12 @@ export function TopHoldingsCard({
   const top5 = chartableHoldings.slice(0, 5);
   const others = chartableHoldings.slice(5);
 
-  const chartData = [
+  const chartData = assignColors([
     ...top5.map((h) => ({
       name: h.symbol,
       fullName: h.name,
       value: h.value,
+      assetId: h.assetId,
     })),
     ...(others.length > 0
       ? [
@@ -75,10 +109,12 @@ export function TopHoldingsCard({
               others.length > 1 ? "s" : ""
             }`,
             value: others.reduce((sum, h) => sum + h.value, 0),
+            assetId: undefined,
           },
         ]
       : []),
-  ];
+  ], assetTypeById);
+
   const holdingsTotal = chartData.reduce((sum, item) => sum + item.value, 0);
 
   return (
@@ -99,14 +135,14 @@ export function TopHoldingsCard({
             role="img"
           >
             <DonutChart
-              slices={chartData.map((item, index) => ({
+              slices={chartData.map((item) => ({
                 value: item.value,
-                color: SLICE_COLORS[index % SLICE_COLORS.length],
+                color: item.color,
               }))}
             />
           </div>
           <div className="min-w-0 w-full space-y-3">
-            {chartData.map((item, index) => {
+            {chartData.map((item) => {
               const percentage =
                 holdingsTotal > 0 ? (item.value / holdingsTotal) * 100 : 0;
 
@@ -118,9 +154,7 @@ export function TopHoldingsCard({
                   <div className="flex min-w-0 items-center gap-2">
                     <span
                       className="inline-block h-3 w-3 shrink-0 rounded-full"
-                      style={{
-                        backgroundColor: SLICE_COLORS[index % SLICE_COLORS.length],
-                      }}
+                      style={{ backgroundColor: item.color }}
                     />
                     <ItemLabel primary={item.name} secondary={item.fullName} />
                   </div>

@@ -1,10 +1,27 @@
 import { ItemLabel } from "@/components/ItemLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DonutChart, SLICE_COLORS } from "@/components/ui/donut-chart";
-import { type PortfolioAllocationSlice } from "@/lib/types";
+import { DonutChart } from "@/components/ui/donut-chart";
+import { BOND_COLORS, CASH_SLICE_COLORS, CRYPTO_COLORS, ETF_COLORS, OTHER_COLORS, STOCK_COLORS } from "@/lib/colors";
 import { formatMoney } from "@/lib/format-money";
+import { type PortfolioAllocationSlice } from "@/lib/types";
 
-type Slice = PortfolioAllocationSlice & { value: number };
+type Slice = PortfolioAllocationSlice & { value: number; color: string };
+
+const LABEL_COLOR: Record<string, string> = {
+  Stock: STOCK_COLORS[0],
+  ETF: ETF_COLORS[0],
+  Crypto: CRYPTO_COLORS[0],
+  Bond: BOND_COLORS[0],
+  Cash: CASH_SLICE_COLORS[0],
+  Other: OTHER_COLORS[0],
+};
+
+function assignColors(slices: (PortfolioAllocationSlice & { value: number })[]): Slice[] {
+  return slices.map((s) => ({
+    ...s,
+    color: LABEL_COLOR[s.label] ?? OTHER_COLORS[0],
+  }));
+}
 
 export function AllocationCard({
   allocations,
@@ -32,9 +49,11 @@ export function AllocationCard({
     );
   }
 
-  const slices: Slice[] = allocations
-    .map((a) => ({ ...a, value: Number(a.amount) }))
-    .sort((a, b) => b.value - a.value);
+  const slices = assignColors(
+    allocations
+      .map((a) => ({ ...a, value: Number(a.amount) }))
+      .sort((a, b) => b.value - a.value),
+  );
 
   const total = slices.reduce((sum, s) => sum + s.value, 0);
 
@@ -52,14 +71,11 @@ export function AllocationCard({
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center">
           <div className="shrink-0">
             <DonutChart
-              slices={slices.map((s, i) => ({
-                value: s.value,
-                color: SLICE_COLORS[i % SLICE_COLORS.length],
-              }))}
+              slices={slices.map((s) => ({ value: s.value, color: s.color }))}
             />
           </div>
           <div className="w-full space-y-3">
-            {slices.map((slice, index) => {
+            {slices.map((slice) => {
               const percentage =
                 total > 0 ? (slice.value / total) * 100 : 0;
               return (
@@ -70,10 +86,7 @@ export function AllocationCard({
                   <div className="flex items-center gap-2">
                     <span
                       className="inline-block h-3 w-3 shrink-0 rounded-full"
-                      style={{
-                        backgroundColor:
-                          SLICE_COLORS[index % SLICE_COLORS.length],
-                      }}
+                      style={{ backgroundColor: slice.color }}
                     />
                     <ItemLabel
                       primary={slice.label}

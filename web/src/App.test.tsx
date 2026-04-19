@@ -10,6 +10,7 @@ import {
   getAssistantModelsApiUrl,
   getAssistantSelectedModelApiUrl,
   getAssistantThreadsApiUrl,
+  getVersionApiUrl,
 } from "@/lib/env";
 import { UiStateProvider } from "@/lib/ui-state-provider";
 import { ResizeObserverMock } from "@/test/browser-mocks";
@@ -72,6 +73,15 @@ function mockGqlAndHealth(
 
     if (url.endsWith("/health")) {
       return Promise.resolve(new Response(null, { status: healthStatus }));
+    }
+
+    if (url === getVersionApiUrl()) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ version: "test-sha" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
     }
 
     if (url === getAssistantThreadsApiUrl()) {
