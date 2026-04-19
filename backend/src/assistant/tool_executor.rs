@@ -321,7 +321,7 @@ pub async fn execute_tool(
                 .iter()
                 .filter(|s| {
                     let date = &s.recorded_at[..10];
-                    from_date.map_or(true, |f| date >= f) && to_date.map_or(true, |t| date <= t)
+                    from_date.is_none_or(|f| date >= f) && to_date.is_none_or(|t| date <= t)
                 })
                 .map(|s| {
                     json!({
