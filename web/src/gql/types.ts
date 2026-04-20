@@ -521,6 +521,13 @@ export type UpdateTransactionMutationVariables = Exact<{
 
 export type UpdateTransactionMutation = { __typename?: 'MutationRoot', updateTransaction: { __typename?: 'Transaction', id: number, accountId: number, assetId: number, transactionType: TransactionType, tradeDate: string, quantity: string, unitPrice: string, currencyCode: string, notes: string | null } };
 
+export type AssetQueryVariables = Exact<{
+  id: Scalars['Int']['input'];
+}>;
+
+
+export type AssetQuery = { __typename?: 'QueryRoot', asset: { __typename?: 'Asset', id: number, symbol: string, name: string, assetType: AssetType, quoteSymbol: string | null, isin: string | null, quoteSourceSymbol: string | null, quoteSourceProvider: string | null, quoteSourceLastSuccessAt: string | null, currentPrice: string | null, currentPriceCurrency: string | null, currentPriceAsOf: string | null, totalQuantity: string | null, avgCostBasis: string | null, avgCostBasisCurrency: string | null, previousClose: string | null, previousCloseCurrency: string | null, convertedTotalValue: string | null, convertedTotalValueCurrency: string | null } };
+
 export type CreateAssetMutationVariables = Exact<{
   input: AssetInput;
 }>;

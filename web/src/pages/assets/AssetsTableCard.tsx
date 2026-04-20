@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { gql } from "@apollo/client/core";
 import { useMutation, useQuery } from "@apollo/client/react";
+import { useNavigate } from "react-router-dom";
 import { MARKET_DATA_POLL_INTERVAL } from "@/lib/apollo";
 
 import { ItemLabel } from "@/components/ItemLabel";
@@ -35,6 +36,7 @@ const DELETE_ASSET_MUTATION = gql`
 import { AssetFormModal } from "./AssetFormModal";
 
 export function AssetsTableCard() {
+  const navigate = useNavigate();
   const [isLocked, setIsLocked] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null);
@@ -158,9 +160,10 @@ export function AssetsTableCard() {
 
                   return (
                     <div
-                      className="flex items-start gap-3 rounded-lg border px-3 py-2 text-sm"
+                      className="flex items-start gap-3 rounded-lg border px-3 py-2 text-sm cursor-pointer hover:bg-muted/30 transition-colors"
                       data-testid={`mobile-asset-card-${asset.id}`}
                       key={asset.id}
+                      onClick={() => navigate(`/assets/${asset.id}`)}
                     >
                       <div className="min-w-0 flex-1">
                         <ItemLabel primary={asset.symbol} secondary={asset.name} />
@@ -213,7 +216,7 @@ export function AssetsTableCard() {
                           </div>
                         )}
                         {!isLocked && (
-                          <div className="mt-2 flex shrink-0 gap-0.5">
+                          <div className="mt-2 flex shrink-0 gap-0.5" onClick={(e) => e.stopPropagation()}>
                             <Button
                               disabled={isDeleting !== null}
                               onClick={() => {
@@ -279,8 +282,9 @@ export function AssetsTableCard() {
 
                       return (
                       <tr
-                        className="group transition-colors hover:bg-muted/30"
+                        className="group transition-colors hover:bg-muted/30 cursor-pointer"
                         key={asset.id}
+                        onClick={() => navigate(`/assets/${asset.id}`)}
                       >
                         <td className="py-3 pr-4">
                           <ItemLabel primary={asset.symbol} secondary={asset.name} />
@@ -364,7 +368,7 @@ export function AssetsTableCard() {
                           })()}
                         </td>
                         {!isLocked && (
-                          <td className="py-3 text-right">
+                          <td className="py-3 text-right" onClick={(e) => e.stopPropagation()}>
                             <div className="flex justify-end gap-1">
                               <Button
                                 disabled={isDeleting !== null}
