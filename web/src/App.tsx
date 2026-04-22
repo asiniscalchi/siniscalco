@@ -10,6 +10,7 @@ import {
   AssetDetailPage,
   AssetsPage,
   PortfolioPage,
+  SettingsPage,
 } from "./pages";
 
 function App() {
@@ -25,6 +26,7 @@ function App() {
         <Route path="/assets" element={<AssetsPage />} />
         <Route path="/assets/:assetId" element={<AssetDetailPage />} />
         <Route path="/activity" element={<ActivityPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Route>
     </Routes>
   );
