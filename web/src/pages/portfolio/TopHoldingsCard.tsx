@@ -92,8 +92,21 @@ export function TopHoldingsCard({
   }
 
   const total = chartableHoldings.reduce((sum, h) => sum + h.value, 0);
-  const top5 = chartableHoldings.filter((h) => total > 0 && h.value / total >= 0.01);
-  const others = chartableHoldings.filter((h) => total === 0 || h.value / total < 0.01);
+  const n = chartableHoldings.length;
+
+  let splitIdx = n;
+  if (n > 6) {
+    for (let i = 0; i < n; i++) {
+      const tailSum = chartableHoldings.slice(i).reduce((s, h) => s + h.value, 0);
+      if (total > 0 && tailSum / total <= 0.1) {
+        splitIdx = i;
+        break;
+      }
+    }
+  }
+
+  const top5 = chartableHoldings.slice(0, splitIdx);
+  const others = chartableHoldings.slice(splitIdx);
 
   const chartData = assignColors([
     ...top5.map((h) => ({
