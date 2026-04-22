@@ -5,7 +5,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { AssistantPanel } from "@/components/AssistantPanel";
 import { Button } from "@/components/ui/button";
 import { APP_VERSION, getApiBaseUrl, getHealthApiUrl, getVersionApiUrl } from "@/lib/env";
-import { ChatBubbleIcon, EyeClosedIcon, EyeIcon, LogoIcon } from "@/components/Icons";
+import { ChatBubbleIcon, EyeClosedIcon, EyeIcon, LogoIcon, SettingsIcon } from "@/components/Icons";
 import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
 import { type AssetsQuery } from "@/gql/types";
@@ -17,7 +17,6 @@ const primaryNavItems = [
   { label: "Activity", to: "/activity" },
   { label: "Assets", to: "/assets" },
   { label: "Accounts", to: "/accounts" },
-  { label: "Settings", to: "/settings" },
 ];
 
 type AssetTickerItem = {
@@ -189,18 +188,20 @@ export function AppShell() {
 
             <div className="flex shrink-0 flex-col items-end gap-1">
               <div className="flex items-center gap-2 sm:gap-3">
-                <Button
-                  aria-expanded={assistantOpen}
-                  aria-haspopup="dialog"
-                  aria-label="Open assistant chat"
-                  className="size-9 rounded-full"
-                  onClick={() => setAssistantOpen(true)}
-                  size="icon"
-                  type="button"
-                  variant="ghost"
+                <NavLink
+                  aria-label="Settings"
+                  className={({ isActive }) =>
+                    cn(
+                      "flex size-9 items-center justify-center rounded-full transition-colors",
+                      isActive
+                        ? "text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )
+                  }
+                  to="/settings"
                 >
-                  <ChatBubbleIcon />
-                </Button>
+                  <SettingsIcon className="size-4" />
+                </NavLink>
                 <Button
                   aria-label={
                     hideValues ? "Show financial values" : "Hide financial values"
@@ -270,6 +271,19 @@ export function AppShell() {
           <Outlet />
         </div>
       </div>
+      <button
+        aria-expanded={assistantOpen}
+        aria-haspopup="dialog"
+        aria-label="Open assistant chat"
+        className={cn(
+          "fixed bottom-6 right-6 z-50 flex size-14 items-center justify-center rounded-full bg-foreground text-background shadow-lg transition-all hover:scale-105 active:scale-95",
+          assistantOpen && "opacity-40 blur-[2px] hover:scale-100",
+        )}
+        onClick={() => setAssistantOpen((o) => !o)}
+        type="button"
+      >
+        <ChatBubbleIcon className="size-6" />
+      </button>
       <AssistantPanel open={assistantOpen} onClose={() => setAssistantOpen(false)} />
     </>
   );

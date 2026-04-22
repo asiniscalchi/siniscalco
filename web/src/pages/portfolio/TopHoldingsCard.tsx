@@ -127,7 +127,9 @@ export function TopHoldingsCard({
           },
         ]
       : []),
-  ], assetTypeById);
+  ], assetTypeById).map((item) =>
+    item.name === "Other" ? { ...item, color: "#f5f5f0" } : item
+  );
 
   const holdingsTotal = chartData.reduce((sum, item) => sum + item.value, 0);
 
