@@ -65,6 +65,7 @@ async fn main() {
         fx_refresh_status: fx_refresh_status.clone(),
         asset_price_refresh_config: asset_price_refresh_config.clone(),
         http_client: http_client.clone(),
+        config_markdown: config.to_markdown(),
         assistant: AssistantState {
             openai_api_key: config.openai_api_key.clone(),
             models: assistant_models.clone(),
