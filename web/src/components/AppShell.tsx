@@ -275,7 +275,10 @@ export function AppShell() {
         aria-expanded={assistantOpen}
         aria-haspopup="dialog"
         aria-label="Open assistant chat"
-        className="fixed bottom-6 right-6 z-50 flex size-14 items-center justify-center rounded-full bg-foreground text-background shadow-lg transition-transform hover:scale-105 active:scale-95"
+        className={cn(
+          "fixed bottom-6 right-6 z-50 flex size-14 items-center justify-center rounded-full bg-foreground text-background shadow-lg transition-all hover:scale-105 active:scale-95",
+          assistantOpen && "opacity-40 blur-[2px] hover:scale-100",
+        )}
         onClick={() => setAssistantOpen((o) => !o)}
         type="button"
       >
