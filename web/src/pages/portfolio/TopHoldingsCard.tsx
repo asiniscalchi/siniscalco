@@ -91,8 +91,9 @@ export function TopHoldingsCard({
     );
   }
 
-  const top5 = chartableHoldings.slice(0, 5);
-  const others = chartableHoldings.slice(5);
+  const total = chartableHoldings.reduce((sum, h) => sum + h.value, 0);
+  const top5 = chartableHoldings.filter((h) => total > 0 && h.value / total >= 0.01);
+  const others = chartableHoldings.filter((h) => total === 0 || h.value / total < 0.01);
 
   const chartData = assignColors([
     ...top5.map((h) => ({
