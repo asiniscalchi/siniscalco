@@ -162,18 +162,6 @@ export function AppShell() {
       <div className="min-h-svh bg-muted/30">
         <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:gap-6 sm:px-6 sm:py-4">
-            <Button
-                  aria-expanded={assistantOpen}
-                  aria-haspopup="dialog"
-                  aria-label="Open assistant chat"
-                  className="size-9 shrink-0 rounded-full"
-                  onClick={() => setAssistantOpen(true)}
-                  size="icon"
-                  type="button"
-                  variant="ghost"
-                >
-                  <ChatBubbleIcon />
-                </Button>
             <nav
               aria-label="Primary"
               className="scrollbar-hide flex-1 overflow-x-auto"
@@ -283,6 +271,16 @@ export function AppShell() {
           <Outlet />
         </div>
       </div>
+      <button
+        aria-expanded={assistantOpen}
+        aria-haspopup="dialog"
+        aria-label="Open assistant chat"
+        className="fixed bottom-6 right-6 z-50 flex size-14 items-center justify-center rounded-full bg-foreground text-background shadow-lg transition-transform hover:scale-105 active:scale-95"
+        onClick={() => setAssistantOpen(true)}
+        type="button"
+      >
+        <ChatBubbleIcon className="size-6" />
+      </button>
       <AssistantPanel open={assistantOpen} onClose={() => setAssistantOpen(false)} />
     </>
   );
