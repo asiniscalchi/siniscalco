@@ -93,11 +93,30 @@ export function PortfolioHistoryCard({
   })();
   const shouldShowBaseLine = baseValue != null && !Number.isNaN(baseValue);
 
+  const gainInfo = (() => {
+    if (filtered.length < 2) return null;
+    const first = filtered[0].value;
+    const last = filtered[filtered.length - 1].value;
+    if (first === 0) return null;
+    const amount = last - first;
+    const pct = (amount / first) * 100;
+    return { amount, pct, positive: amount >= 0 };
+  })();
+
   return (
     <Card className="bg-background">
       <CardHeader className="border-b">
         <div className="flex items-center justify-between">
-          <CardTitle>Portfolio Value</CardTitle>
+          <div className="flex items-baseline gap-3">
+            <CardTitle>Portfolio Value</CardTitle>
+            {gainInfo && (
+              <span
+                className={`font-mono text-sm tabular-nums ${gainInfo.positive ? "text-green-500" : "text-red-500"}`}
+              >
+                {hideValues ? "•••" : `${gainInfo.positive ? "+" : ""}${formatMoney(gainInfo.amount, currency, false).text} (${gainInfo.pct.toFixed(2)}%)`}
+              </span>
+            )}
+          </div>
           <div className="flex gap-1">
             {RANGES.map((r) => (
               <button
