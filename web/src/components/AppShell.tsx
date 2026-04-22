@@ -276,7 +276,7 @@ export function AppShell() {
         aria-haspopup="dialog"
         aria-label="Open assistant chat"
         className="fixed bottom-6 right-6 z-50 flex size-14 items-center justify-center rounded-full bg-foreground text-background shadow-lg transition-transform hover:scale-105 active:scale-95"
-        onClick={() => setAssistantOpen(true)}
+        onClick={() => setAssistantOpen((o) => !o)}
         type="button"
       >
         <ChatBubbleIcon className="size-6" />
