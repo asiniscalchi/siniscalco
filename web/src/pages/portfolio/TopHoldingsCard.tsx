@@ -92,19 +92,30 @@ export function TopHoldingsCard({
   }
 
   const total = chartableHoldings.reduce((sum, h) => sum + h.value, 0);
-  const othersTotal = (candidates: typeof chartableHoldings) =>
-    candidates.reduce((sum, h) => sum + h.value, 0);
-  // Find the split point where the remaining items total ≤ 10%; if they exceed 10%, show all individually
+  const tailTotal = (from: number) =>
+    chartableHoldings.slice(from).reduce((sum, h) => sum + h.value, 0);
+
+  // Find first split where tail ≤ 10% of total
+  const MIN_OTHERS = 6;
   let splitIdx = chartableHoldings.length;
   for (let i = 0; i < chartableHoldings.length; i++) {
-    const tail = chartableHoldings.slice(i);
-    if (total > 0 && othersTotal(tail) / total <= 0.1) {
+    if (total > 0 && tailTotal(i) / total <= 0.1) {
       splitIdx = i;
       break;
     }
   }
-  const top5 = chartableHoldings.slice(0, splitIdx === chartableHoldings.length ? chartableHoldings.length : splitIdx);
-  const others = splitIdx < chartableHoldings.length ? chartableHoldings.slice(splitIdx) : [];
+  // If Others would have fewer than MIN_OTHERS items, try pulling in enough items to reach MIN_OTHERS;
+  // only group if the resulting tail still fits within 10%, otherwise show all individually.
+  const othersCount = chartableHoldings.length - splitIdx;
+  if (othersCount > 0 && othersCount < MIN_OTHERS) {
+    const targetSplitIdx = Math.max(0, chartableHoldings.length - MIN_OTHERS);
+    splitIdx = total > 0 && tailTotal(targetSplitIdx) / total <= 0.1
+      ? targetSplitIdx
+      : chartableHoldings.length;
+  }
+
+  const top5 = chartableHoldings.slice(0, splitIdx);
+  const others = chartableHoldings.slice(splitIdx);
 
   const chartData = assignColors([
     ...top5.map((h) => ({

@@ -504,10 +504,10 @@ describe("PortfolioPage", () => {
     expect(await screen.findByRole("img", { name: "Top holdings donut chart" })).toBeTruthy();
     expect(screen.getByText("VWCE")).toBeTruthy();
     expect(screen.getByText("Vanguard FTSE All-World")).toBeTruthy();
-    // NVDA + ETH = 9.7% ≤ 10%, so they are grouped as Other
-    expect(screen.getByText("Other")).toBeTruthy();
-    expect(screen.getByText("2 other holdings")).toBeTruthy();
-    expect(screen.queryByText("ETH")).toBeNull();
+    // Only 6 holdings total; grouping 6 into Other would be 100% > 10%, so all shown individually
+    expect(screen.queryByText("Other")).toBeNull();
+    expect(screen.getByText("ETH")).toBeTruthy();
+    expect(screen.getByText("Ethereum")).toBeTruthy();
     expect(screen.getByText("€120.00")).toBeTruthy();
     expect(screen.getByText("38.7%")).toBeTruthy();
   });
