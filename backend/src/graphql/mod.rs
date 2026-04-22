@@ -50,6 +50,7 @@ pub struct AppState {
     pub asset_price_refresh_config: AssetPriceRefreshConfig,
     pub http_client: reqwest::Client,
     pub assistant: AssistantState,
+    pub config_markdown: String,
 }
 
 pub fn build_schema(
@@ -74,6 +75,7 @@ pub fn build_router(pool: SqlitePool) -> Router {
         fx_refresh_status: crate::new_shared_fx_refresh_status(),
         asset_price_refresh_config: config.asset_price_refresh_config(),
         http_client: reqwest::Client::new(),
+        config_markdown: config.to_markdown(),
         assistant: AssistantState {
             openai_api_key: config.openai_api_key.clone(),
             models: crate::assistant::new_shared_assistant_model_registry(
@@ -105,6 +107,7 @@ pub fn build_router_with_state(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/version", get(version))
+        .route("/config", get(config_summary))
         .route("/assistant/chat", post(crate::assistant::chat))
         .route(
             "/assistant/generate-title",
@@ -153,6 +156,19 @@ pub fn build_router_with_state(state: AppState) -> Router {
 
 async fn health() -> &'static str {
     "ok"
+}
+
+#[derive(Serialize)]
+struct ConfigResponse {
+    markdown: String,
+}
+
+async fn config_summary(
+    axum::extract::State(state): axum::extract::State<AppState>,
+) -> Json<ConfigResponse> {
+    Json(ConfigResponse {
+        markdown: state.config_markdown.clone(),
+    })
 }
 
 #[derive(Serialize)]

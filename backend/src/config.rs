@@ -192,6 +192,131 @@ pub struct Config {
 }
 
 impl Config {
+    pub fn to_markdown(&self) -> String {
+        let mut lines = vec!["# Configuration".to_string(), String::new()];
+
+        lines.push("## General".to_string());
+        lines.push(format!("- **Port:** {}", self.port));
+        lines.push(format!("- **Database:** `{}`", self.db_path));
+        lines.push(String::new());
+
+        lines.push("## FX Rates (Frankfurter)".to_string());
+        lines.push(format!("- **Base URL:** `{}`", self.fx_refresh_base_url));
+        lines.push(String::new());
+
+        lines.push("## Crypto Prices".to_string());
+        lines.push(format!(
+            "- **CoinGecko URL:** `{}`",
+            self.coingecko_base_url
+        ));
+        lines.push(format!("- **CoinCap URL:** `{}`", self.coincap_base_url));
+        lines.push(format!(
+            "- **CoinCap API key:** {}",
+            if self.coincap_api_key.is_some() {
+                "configured"
+            } else {
+                "not set"
+            }
+        ));
+        lines.push(String::new());
+
+        lines.push("## ISIN Resolution (OpenFIGI)".to_string());
+        lines.push(format!("- **Base URL:** `{}`", self.openfigi_base_url));
+        lines.push(format!(
+            "- **API key:** {}",
+            if self.openfigi_api_key.is_some() {
+                "configured"
+            } else {
+                "not set"
+            }
+        ));
+        lines.push(String::new());
+
+        lines.push("## Stock Price Providers".to_string());
+
+        let providers: &[(&str, &str, Option<&str>)] = &[
+            ("Yahoo Finance", &self.yahoo_finance_base_url, None),
+            (
+                "Twelve Data",
+                &self.twelve_data_base_url,
+                self.twelve_data_api_key.as_deref(),
+            ),
+            (
+                "Finnhub",
+                &self.finnhub_base_url,
+                self.finnhub_api_key.as_deref(),
+            ),
+            (
+                "Alpha Vantage",
+                &self.alpha_vantage_base_url,
+                self.alpha_vantage_api_key.as_deref(),
+            ),
+            (
+                "Polygon.io",
+                &self.polygon_base_url,
+                self.polygon_api_key.as_deref(),
+            ),
+            ("FMP", &self.fmp_base_url, self.fmp_api_key.as_deref()),
+            ("EODHD", &self.eodhd_base_url, self.eodhd_api_key.as_deref()),
+            (
+                "Tiingo",
+                &self.tiingo_base_url,
+                self.tiingo_api_key.as_deref(),
+            ),
+            (
+                "Marketstack",
+                &self.marketstack_base_url,
+                self.marketstack_api_key.as_deref(),
+            ),
+            (
+                "FCS API",
+                &self.fcsapi_base_url,
+                self.fcsapi_api_key.as_deref(),
+            ),
+            ("iTick", &self.itick_base_url, self.itick_api_key.as_deref()),
+        ];
+
+        for (name, url, key) in providers {
+            let enabled = match *name {
+                "Yahoo Finance" => self.yahoo_finance_enabled,
+                _ => key.is_some(),
+            };
+            let status = if enabled { "enabled" } else { "disabled" };
+            let key_info = match *name {
+                "Yahoo Finance" => String::new(),
+                _ => format!(
+                    ", API key: {}",
+                    if key.is_some() {
+                        "configured"
+                    } else {
+                        "not set"
+                    }
+                ),
+            };
+            lines.push(format!("- **{name}** ({status}): `{url}`{key_info}"));
+        }
+
+        lines.push(String::new());
+        lines.push("## AI Assistant".to_string());
+        lines.push(format!(
+            "- **OpenAI API key:** {}",
+            if self.openai_api_key.is_some() {
+                "configured"
+            } else {
+                "not set"
+            }
+        ));
+        lines.push(format!(
+            "- **SearXNG URL:** {}",
+            self.searxng_url
+                .as_deref()
+                .map(|u| format!("`{u}`"))
+                .unwrap_or_else(|| "not set".to_string())
+        ));
+
+        lines.join("\n")
+    }
+
     pub fn fx_refresh_config(&self) -> FxRefreshConfig {
         FxRefreshConfig {
             refresh_interval: Duration::from_secs(DEFAULT_REFRESH_INTERVAL_SECS),

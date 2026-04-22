@@ -137,6 +137,7 @@ fn build_app_with_fx_status(
         })),
         asset_price_refresh_config: no_price_config(),
         http_client: reqwest::Client::new(),
+        config_markdown: String::new(),
         assistant: AssistantState {
             openai_api_key: None,
             models: new_shared_assistant_model_registry(None, None, None),
@@ -154,6 +155,7 @@ fn build_app_with_price_config(pool: sqlx::SqlitePool, config: AssetPriceRefresh
         fx_refresh_status: std::sync::Arc::new(RwLock::new(FxRefreshStatus::available())),
         asset_price_refresh_config: config,
         http_client: reqwest::Client::new(),
+        config_markdown: String::new(),
         assistant: AssistantState {
             openai_api_key: None,
             models: new_shared_assistant_model_registry(None, None, None),
@@ -192,6 +194,7 @@ fn build_app_with_openai_registry(
         fx_refresh_status: std::sync::Arc::new(RwLock::new(FxRefreshStatus::available())),
         asset_price_refresh_config: no_price_config(),
         http_client: reqwest::Client::new(),
+        config_markdown: String::new(),
         assistant: AssistantState {
             openai_api_key: api_key.map(str::to_string),
             models: assistant_models,
@@ -912,6 +915,7 @@ async fn assistant_chat_returns_too_many_requests_when_semaphore_is_exhausted() 
         fx_refresh_status: std::sync::Arc::new(RwLock::new(FxRefreshStatus::available())),
         asset_price_refresh_config: no_price_config(),
         http_client: reqwest::Client::new(),
+        config_markdown: String::new(),
         assistant: AssistantState {
             openai_api_key: None,
             models: new_shared_assistant_model_registry(None, None, None),

@@ -17,6 +17,7 @@ const primaryNavItems = [
   { label: "Activity", to: "/activity" },
   { label: "Assets", to: "/assets" },
   { label: "Accounts", to: "/accounts" },
+  { label: "Settings", to: "/settings" },
 ];
 
 type AssetTickerItem = {

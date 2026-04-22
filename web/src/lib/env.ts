@@ -48,3 +48,7 @@ export function getAssistantThreadApiUrl(threadId: string) {
 export function getAssistantThreadMessagesApiUrl(threadId: string) {
   return `${getApiBaseUrl()}/assistant/threads/${encodeURIComponent(threadId)}/messages`;
 }
+
+export function getConfigApiUrl() {
+  return `${getApiBaseUrl()}/config`;
+}
