@@ -5,7 +5,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { AssistantPanel } from "@/components/AssistantPanel";
 import { Button } from "@/components/ui/button";
 import { APP_VERSION, getApiBaseUrl, getHealthApiUrl, getVersionApiUrl } from "@/lib/env";
-import { ChatBubbleIcon, EyeClosedIcon, EyeIcon, LogoIcon } from "@/components/Icons";
+import { ChatBubbleIcon, EyeClosedIcon, EyeIcon, LogoIcon, SettingsIcon } from "@/components/Icons";
 import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
 import { type AssetsQuery } from "@/gql/types";
@@ -181,7 +181,7 @@ export function AppShell() {
                     }
                     to={item.to}
                   >
-                    {item.label}
+                    {item.to === "/settings" ? <SettingsIcon className="size-4" /> : item.label}
                   </NavLink>
                 ))}
               </div>
