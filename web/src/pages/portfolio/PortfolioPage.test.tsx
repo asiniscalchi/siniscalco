@@ -504,8 +504,9 @@ describe("PortfolioPage", () => {
     expect(await screen.findByRole("img", { name: "Top holdings donut chart" })).toBeTruthy();
     expect(screen.getByText("VWCE")).toBeTruthy();
     expect(screen.getByText("Vanguard FTSE All-World")).toBeTruthy();
-    expect(screen.getByText("Other")).toBeTruthy();
-    expect(screen.getByText("1 other holding")).toBeTruthy();
+    expect(screen.getByText("ETH")).toBeTruthy();
+    expect(screen.getByText("Ethereum")).toBeTruthy();
+    expect(screen.queryByText("Other")).toBeNull();
     expect(screen.getByText("€120.00")).toBeTruthy();
     expect(screen.getByText("38.7%")).toBeTruthy();
     expect(screen.getByText("3.2%")).toBeTruthy();
