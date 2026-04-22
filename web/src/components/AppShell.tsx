@@ -17,7 +17,6 @@ const primaryNavItems = [
   { label: "Activity", to: "/activity" },
   { label: "Assets", to: "/assets" },
   { label: "Accounts", to: "/accounts" },
-  { label: "Settings", to: "/settings" },
 ];
 
 type AssetTickerItem = {
@@ -181,7 +180,7 @@ export function AppShell() {
                     }
                     to={item.to}
                   >
-                    {item.to === "/settings" ? <SettingsIcon className="size-4" /> : item.label}
+                    {item.label}
                   </NavLink>
                 ))}
               </div>
@@ -189,6 +188,20 @@ export function AppShell() {
 
             <div className="flex shrink-0 flex-col items-end gap-1">
               <div className="flex items-center gap-2 sm:gap-3">
+                <NavLink
+                  aria-label="Settings"
+                  className={({ isActive }) =>
+                    cn(
+                      "flex size-9 items-center justify-center rounded-full transition-colors",
+                      isActive
+                        ? "text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )
+                  }
+                  to="/settings"
+                >
+                  <SettingsIcon className="size-4" />
+                </NavLink>
                 <Button
                   aria-expanded={assistantOpen}
                   aria-haspopup="dialog"
