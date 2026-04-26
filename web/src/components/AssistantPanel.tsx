@@ -358,7 +358,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
     >
       <AssistantRuntimeBoundary>
         <div
-          className="flex h-[min(56rem,calc(100dvh-1.5rem))] w-full flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl sm:h-[min(56rem,92dvh)] sm:w-[min(90vw,72rem)]"
+          className="flex h-[min(90dvh,calc(100dvh-1.5rem))] w-[min(90dvw,calc(100dvw-1.5rem))] flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl sm:h-[90dvh] sm:w-[90dvw]"
           data-testid="assistant-panel"
         >
           {/* Header */}

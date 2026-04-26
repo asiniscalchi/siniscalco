@@ -325,10 +325,10 @@ describe("App shell", () => {
 
     expect(await screen.findByRole("dialog")).toBeTruthy();
     expect(screen.getByTestId("assistant-panel").className).toContain(
-      "sm:w-[min(90vw,72rem)]",
+      "sm:w-[90dvw]",
     );
     expect(screen.getByTestId("assistant-panel").className).toContain(
-      "sm:h-[min(56rem,92dvh)]",
+      "sm:h-[90dvh]",
     );
     expect(screen.getByRole("textbox", { name: "Assistant message" })).toBeTruthy();
 
