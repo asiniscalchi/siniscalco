@@ -132,6 +132,9 @@ type MutationRoot {
 	deleteTransaction(id: Int!): Int!
 	createTransfer(input: TransferInput!): Transfer!
 	deleteTransfer(id: Int!): Int!
+	createTodo(input: TodoInput!): Todo!
+	updateTodoCompleted(id: Int!, completed: Boolean!): Todo!
+	deleteTodo(id: Int!): Int!
 }
 
 type PortfolioAccountTotal {
@@ -198,6 +201,7 @@ type QueryRoot {
 	transaction(id: Int!): Transaction!
 	cashMovements(accountId: Int): [CashMovement!]!
 	transfers(accountId: Int): [Transfer!]!
+	todos: [Todo!]!
 	currencies: [String!]!
 	fxRates: FxRateSummary!
 }
@@ -210,6 +214,22 @@ enum RefreshAvailability {
 enum SummaryStatus {
 	OK
 	CONVERSION_UNAVAILABLE
+}
+
+type Todo {
+	id: Int!
+	title: String!
+	dueDate: String!
+	symbol: String
+	completed: Boolean!
+	createdAt: String!
+	updatedAt: String!
+}
+
+input TodoInput {
+	title: String!
+	dueDate: String!
+	symbol: String
 }
 
 type Transaction {

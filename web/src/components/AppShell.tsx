@@ -14,6 +14,7 @@ import { MARKET_DATA_POLL_INTERVAL } from "@/lib/apollo";
 
 const primaryNavItems = [
   { label: "Portfolio", to: "/portfolio" },
+  { label: "Todos", to: "/todos" },
   { label: "Activity", to: "/activity" },
   { label: "Assets", to: "/assets" },
   { label: "Accounts", to: "/accounts" },
