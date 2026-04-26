@@ -331,7 +331,10 @@ export function TodoIcon({ className }: IconProps) {
       viewBox="0 0 24 24"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <path d="M5 12l4 4L19 6" />
+      <path d="M4 7l2 2 3-4" />
+      <path d="M4 15l2 2 3-4" />
+      <path d="M12 8h8" />
+      <path d="M12 16h8" />
     </svg>
   );
 }
