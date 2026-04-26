@@ -209,15 +209,17 @@ export function AppShell() {
                     to={item.to}
                   >
                     {item.to === "/todos" ? (
-                      <TodoIcon className="size-4" />
+                      <span className="relative inline-flex size-5 items-center justify-center">
+                        <TodoIcon className="size-4" />
+                        {pendingTodoCount > 0 ? (
+                          <span className="absolute -bottom-1 -right-1 inline-flex min-w-3.5 items-center justify-center rounded-full bg-foreground px-1 py-px text-[9px] font-semibold leading-none text-background tabular-nums ring-2 ring-background">
+                            {pendingTodoCount > 99 ? "99+" : pendingTodoCount}
+                          </span>
+                        ) : null}
+                      </span>
                     ) : (
                       <span>{item.label}</span>
                     )}
-                    {item.to === "/todos" && pendingTodoCount > 0 ? (
-                      <span className="ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-foreground px-1.5 py-0.5 text-[10px] font-semibold leading-none text-background tabular-nums">
-                        {pendingTodoCount > 99 ? "99+" : pendingTodoCount}
-                      </span>
-                    ) : null}
                   </NavLink>
                 ))}
               </div>
