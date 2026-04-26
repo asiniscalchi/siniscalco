@@ -318,6 +318,27 @@ export function SettingsIcon({ className }: IconProps) {
   );
 }
 
+export function TodoIcon({ className }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className || "size-4"}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M4 7l2 2 3-4" />
+      <path d="M4 15l2 2 3-4" />
+      <path d="M12 8h8" />
+      <path d="M12 16h8" />
+    </svg>
+  );
+}
+
 export function CloseIcon({ className }: IconProps) {
   return (
     <svg

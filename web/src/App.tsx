@@ -11,6 +11,7 @@ import {
   AssetsPage,
   PortfolioPage,
   SettingsPage,
+  TodosPage,
 } from "./pages";
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
       <Route element={<AppShell />}>
         <Route path="/assistant" element={<AssistantPage />} />
         <Route path="/portfolio" element={<PortfolioPage />} />
+        <Route path="/todos" element={<TodosPage />} />
         <Route path="/accounts" element={<AccountsListPage />} />
         <Route path="/accounts/new" element={<AccountNewPage />} />
         <Route path="/accounts/:accountId" element={<AccountDetailPage />} />

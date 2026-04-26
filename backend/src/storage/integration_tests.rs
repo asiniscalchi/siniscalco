@@ -11,14 +11,16 @@ use super::{
     AccountSummaryStatus, AccountType, Amount, AssetId, AssetName, AssetPositionRecord,
     AssetQuantity, AssetRecord, AssetSymbol, AssetTransactionType, AssetType, AssetUnitPrice,
     CreateAccountInput, CreateAssetInput, CreateAssetTransactionInput, CreateCashMovementInput,
-    CreateTransferInput, Currency, CurrencyRecord, FxRate, FxRateDetailRecord, FxRateRecord,
-    FxRateSummaryItemRecord, FxRateSummaryRecord, PortfolioSnapshotRecord, StorageError, TradeDate,
-    UpsertAssetPriceInput, UpsertFxRateInput, UpsertOutcome, create_account, create_asset,
-    create_asset_transaction, create_cash_movement, delete_account, get_account,
-    get_latest_fx_rate, insert_portfolio_snapshot_if_missing, list_account_balances,
-    list_account_positions, list_account_summaries, list_accounts, list_asset_transactions,
-    list_assets, list_currencies, list_fx_rate_summary, list_fx_rates, list_portfolio_snapshots,
-    recalculate_snapshots_from_date, update_account, upsert_asset_price, upsert_fx_rate,
+    CreateTodoInput, CreateTransferInput, Currency, CurrencyRecord, FxRate, FxRateDetailRecord,
+    FxRateRecord, FxRateSummaryItemRecord, FxRateSummaryRecord, PortfolioSnapshotRecord,
+    StorageError, TradeDate, UpsertAssetPriceInput, UpsertFxRateInput, UpsertOutcome,
+    create_account, create_asset, create_asset_transaction, create_cash_movement, create_todo,
+    delete_account, delete_todo, get_account, get_latest_fx_rate,
+    insert_portfolio_snapshot_if_missing, list_account_balances, list_account_positions,
+    list_account_summaries, list_accounts, list_asset_transactions, list_assets, list_currencies,
+    list_fx_rate_summary, list_fx_rates, list_portfolio_snapshots, list_todos,
+    recalculate_snapshots_from_date, update_account, update_todo_completed, upsert_asset_price,
+    upsert_fx_rate,
 };
 use super::{create_transfer, delete_transfer, list_transfers};
 use crate::db::init_db;
@@ -3724,4 +3726,54 @@ async fn fx_rate_history_migration_backfills_existing_fx_rates() {
     .expect("history lookup should succeed");
 
     assert_eq!(history_rate, Some(fx_rate("0.500000").as_scaled_i64()));
+}
+
+#[tokio::test]
+async fn todos_can_be_created_listed_completed_and_deleted() {
+    let pool = test_pool().await;
+
+    let later = create_todo(
+        &pool,
+        CreateTodoInput {
+            title: " Review ETF idea ".to_string(),
+        },
+    )
+    .await
+    .expect("todo insert should succeed");
+    let earlier = create_todo(
+        &pool,
+        CreateTodoInput {
+            title: "Check broker cash".to_string(),
+        },
+    )
+    .await
+    .expect("todo insert should succeed");
+
+    assert_eq!(later.title, "Review ETF idea");
+    assert!(!later.completed);
+
+    let todos = list_todos(&pool).await.expect("todo list should succeed");
+    assert_eq!(
+        todos.iter().map(|todo| todo.id).collect::<Vec<_>>(),
+        vec![later.id, earlier.id]
+    );
+
+    let completed = update_todo_completed(&pool, earlier.id, true)
+        .await
+        .expect("todo update should succeed");
+    assert!(completed.completed);
+
+    let todos = list_todos(&pool).await.expect("todo list should succeed");
+    assert_eq!(
+        todos.iter().map(|todo| todo.id).collect::<Vec<_>>(),
+        vec![later.id, earlier.id]
+    );
+
+    delete_todo(&pool, later.id)
+        .await
+        .expect("todo delete should succeed");
+
+    let todos = list_todos(&pool).await.expect("todo list should succeed");
+    assert_eq!(todos.len(), 1);
+    assert_eq!(todos[0].id, earlier.id);
 }

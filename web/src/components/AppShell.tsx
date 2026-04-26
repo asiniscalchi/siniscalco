@@ -1,14 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
+import { gql } from "@apollo/client/core";
 import { useApolloClient, useQuery } from "@apollo/client/react";
 import { NavLink, Outlet } from "react-router-dom";
 
 import { AssistantPanel } from "@/components/AssistantPanel";
 import { Button } from "@/components/ui/button";
 import { APP_VERSION, getApiBaseUrl, getHealthApiUrl, getVersionApiUrl } from "@/lib/env";
-import { ChatBubbleIcon, EyeClosedIcon, EyeIcon, LogoIcon, SettingsIcon } from "@/components/Icons";
+import {
+  ChatBubbleIcon,
+  EyeClosedIcon,
+  EyeIcon,
+  LogoIcon,
+  SettingsIcon,
+  TodoIcon,
+} from "@/components/Icons";
 import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
-import { type AssetsQuery } from "@/gql/types";
+import { type AssetsQuery, type TodosNavQuery } from "@/gql/types";
 import { ASSETS_QUERY } from "@/pages/assets/assets-query";
 import { MARKET_DATA_POLL_INTERVAL } from "@/lib/apollo";
 
@@ -18,6 +26,15 @@ const primaryNavItems = [
   { label: "Assets", to: "/assets" },
   { label: "Accounts", to: "/accounts" },
 ];
+
+const TODOS_NAV_QUERY = gql`
+  query TodosNav {
+    todos {
+      id
+      completed
+    }
+  }
+`;
 
 type AssetTickerItem = {
   id: number;
@@ -111,6 +128,9 @@ function AssetValueTicker() {
 export function AppShell() {
   const apolloClient = useApolloClient();
   const { hideValues, toggleHideValues } = useUiState();
+  const { data: todosNavData } = useQuery<TodosNavQuery>(TODOS_NAV_QUERY, {
+    fetchPolicy: "cache-and-network",
+  });
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [ringKey, setRingKey] = useState(0);
   const apiBaseUrl = getApiBaseUrl();
@@ -120,9 +140,14 @@ export function AppShell() {
   const [backendVersion, setBackendVersion] = useState<string | null>(null);
 
   function handleManualRefresh() {
-    void apolloClient.refetchQueries({ include: ["Assets", "Portfolio", "FxRates"] });
+    void apolloClient.refetchQueries({
+      include: ["Assets", "Portfolio", "FxRates", "Todos", "TodosNav"],
+    });
     setRingKey((k) => k + 1);
   }
+
+  const pendingTodoCount =
+    todosNavData?.todos.filter((todo) => !todo.completed).length ?? 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -175,12 +200,12 @@ export function AppShell() {
                         "inline-flex items-center whitespace-nowrap border-b-2 px-1 py-1 text-sm font-medium transition-colors",
                         isActive
                           ? "border-foreground text-foreground"
-                          : "border-transparent text-muted-foreground hover:text-foreground",
+                        : "border-transparent text-muted-foreground hover:text-foreground",
                       )
                     }
                     to={item.to}
                   >
-                    {item.label}
+                    <span>{item.label}</span>
                   </NavLink>
                 ))}
               </div>
@@ -188,6 +213,28 @@ export function AppShell() {
 
             <div className="flex shrink-0 flex-col items-end gap-1">
               <div className="flex items-center gap-2 sm:gap-3">
+                <NavLink
+                  aria-label="Todos"
+                  className={({ isActive }) =>
+                    cn(
+                      "flex size-9 items-center justify-center rounded-full transition-colors",
+                      isActive
+                        ? "text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )
+                  }
+                  title="Todos"
+                  to="/todos"
+                >
+                  <span className="relative inline-flex size-5 items-center justify-center">
+                    <TodoIcon className="size-4" />
+                    {pendingTodoCount > 0 ? (
+                      <span className="absolute -right-2 -top-1 inline-flex min-w-3.5 items-center justify-center rounded-full bg-red-600 px-1 py-px text-[9px] font-semibold leading-none text-white tabular-nums ring-2 ring-background">
+                        {pendingTodoCount > 99 ? "99+" : pendingTodoCount}
+                      </span>
+                    ) : null}
+                  </span>
+                </NavLink>
                 <NavLink
                   aria-label="Settings"
                   className={({ isActive }) =>

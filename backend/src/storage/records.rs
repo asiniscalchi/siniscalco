@@ -63,6 +63,10 @@ pub struct CreateCashMovementInput {
     pub notes: Option<String>,
 }
 
+pub struct CreateTodoInput {
+    pub title: String,
+}
+
 pub struct UpsertFxRateInput {
     pub from_currency: Currency,
     pub to_currency: Currency,
@@ -123,6 +127,15 @@ pub struct CashMovementRecord {
     pub date: TradeDate,
     pub notes: Option<String>,
     pub created_at: String,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct TodoRecord {
+    pub id: i64,
+    pub title: String,
+    pub completed: bool,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 #[derive(Debug, Eq, PartialEq)]

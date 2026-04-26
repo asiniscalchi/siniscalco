@@ -146,14 +146,17 @@ export type MutationRoot = {
   createAccount: AccountDetail;
   createAsset: Asset;
   createCashMovement: CashMovement;
+  createTodo: Todo;
   createTransaction: Transaction;
   createTransfer: Transfer;
   deleteAccount: Scalars['Int']['output'];
   deleteAsset: Scalars['Int']['output'];
+  deleteTodo: Scalars['Int']['output'];
   deleteTransaction: Scalars['Int']['output'];
   deleteTransfer: Scalars['Int']['output'];
   updateAccount: AccountDetail;
   updateAsset: Asset;
+  updateTodoCompleted: Todo;
   updateTransaction: Transaction;
 };
 
@@ -171,6 +174,11 @@ export type MutationRootCreateAssetArgs = {
 export type MutationRootCreateCashMovementArgs = {
   accountId: Scalars['Int']['input'];
   input: CashMovementInput;
+};
+
+
+export type MutationRootCreateTodoArgs = {
+  input: TodoInput;
 };
 
 
@@ -194,6 +202,11 @@ export type MutationRootDeleteAssetArgs = {
 };
 
 
+export type MutationRootDeleteTodoArgs = {
+  id: Scalars['Int']['input'];
+};
+
+
 export type MutationRootDeleteTransactionArgs = {
   id: Scalars['Int']['input'];
 };
@@ -213,6 +226,12 @@ export type MutationRootUpdateAccountArgs = {
 export type MutationRootUpdateAssetArgs = {
   id: Scalars['Int']['input'];
   input: AssetInput;
+};
+
+
+export type MutationRootUpdateTodoCompletedArgs = {
+  completed: Scalars['Boolean']['input'];
+  id: Scalars['Int']['input'];
 };
 
 
@@ -291,6 +310,7 @@ export type QueryRoot = {
   fxRates: FxRateSummary;
   portfolio: PortfolioSummary;
   portfolioHistory: Array<PortfolioSnapshot>;
+  todos: Array<Todo>;
   transaction: Transaction;
   transactions: Array<Transaction>;
   transfers: Array<Transfer>;
@@ -338,6 +358,19 @@ export type RefreshAvailability =
 export type SummaryStatus =
   | 'CONVERSION_UNAVAILABLE'
   | 'OK';
+
+export type Todo = {
+  __typename?: 'Todo';
+  completed: Scalars['Boolean']['output'];
+  createdAt: Scalars['String']['output'];
+  id: Scalars['Int']['output'];
+  title: Scalars['String']['output'];
+  updatedAt: Scalars['String']['output'];
+};
+
+export type TodoInput = {
+  title: Scalars['String']['input'];
+};
 
 export type Transaction = {
   __typename?: 'Transaction';
@@ -394,6 +427,11 @@ export type TransferInput = {
   toCurrency: Scalars['String']['input'];
   transferDate: Scalars['String']['input'];
 };
+
+export type TodosNavQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type TodosNavQuery = { __typename?: 'QueryRoot', todos: Array<{ __typename?: 'Todo', id: number, completed: boolean }> };
 
 export type AccountPositionsQueryVariables = Exact<{
   accountId: Scalars['Int']['input'];
@@ -569,6 +607,33 @@ export type PortfolioQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type PortfolioQuery = { __typename?: 'QueryRoot', portfolio: { __typename?: 'PortfolioSummary', displayCurrency: string, totalValueStatus: SummaryStatus, totalValueAmount: string | null, gain24hAmount: string | null, totalGainAmount: string | null, fxLastUpdated: string | null, fxRefreshStatus: RefreshAvailability, fxRefreshError: string | null, allocationIsPartial: boolean, holdingsIsPartial: boolean, accountTotals: Array<{ __typename?: 'PortfolioAccountTotal', id: number, name: string, accountType: AccountType, summaryStatus: SummaryStatus, cashTotalAmount: string | null, assetTotalAmount: string | null, totalAmount: string | null, totalCurrency: string }>, cashByCurrency: Array<{ __typename?: 'PortfolioCashByCurrency', currency: string, amount: string, convertedAmount: string | null }>, allocationTotals: Array<{ __typename?: 'PortfolioAllocationSlice', label: string, amount: string }>, holdings: Array<{ __typename?: 'PortfolioHolding', assetId: number | null, symbol: string, name: string, value: string }> } };
+
+export type TodosQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type TodosQuery = { __typename?: 'QueryRoot', todos: Array<{ __typename?: 'Todo', id: number, title: string, completed: boolean, createdAt: string, updatedAt: string }> };
+
+export type CreateTodoMutationVariables = Exact<{
+  input: TodoInput;
+}>;
+
+
+export type CreateTodoMutation = { __typename?: 'MutationRoot', createTodo: { __typename?: 'Todo', id: number, title: string, completed: boolean, createdAt: string, updatedAt: string } };
+
+export type UpdateTodoCompletedMutationVariables = Exact<{
+  id: Scalars['Int']['input'];
+  completed: Scalars['Boolean']['input'];
+}>;
+
+
+export type UpdateTodoCompletedMutation = { __typename?: 'MutationRoot', updateTodoCompleted: { __typename?: 'Todo', id: number, completed: boolean, updatedAt: string } };
+
+export type DeleteTodoMutationVariables = Exact<{
+  id: Scalars['Int']['input'];
+}>;
+
+
+export type DeleteTodoMutation = { __typename?: 'MutationRoot', deleteTodo: number };
 
 export type CreateTransferMutationVariables = Exact<{
   input: TransferInput;

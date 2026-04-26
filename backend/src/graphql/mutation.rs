@@ -6,20 +6,22 @@ use tracing::warn;
 
 use crate::{
     AccountId, AccountName, Amount, AssetId, AssetName, AssetPriceRefreshConfig, AssetQuantity,
-    AssetSymbol, AssetUnitPrice, CreateCashMovementInput, Currency, TradeDate, TransferId,
-    create_cash_movement, create_transfer, delete_account, delete_asset, delete_asset_transaction,
-    delete_transfer, fmt_amount, get_account, get_account_value_summary, get_asset,
-    list_account_balances, refresh_single_asset_price, storage::StorageError, update_account,
-    update_asset, update_asset_transaction,
+    AssetSymbol, AssetUnitPrice, CreateCashMovementInput, CreateTodoInput, Currency, TradeDate,
+    TransferId, create_cash_movement, create_todo, create_transfer, delete_account, delete_asset,
+    delete_asset_transaction, delete_todo, delete_transfer, fmt_amount, get_account,
+    get_account_value_summary, get_asset, list_account_balances, refresh_single_asset_price,
+    storage::StorageError, update_account, update_asset, update_asset_transaction,
+    update_todo_completed,
 };
 
 use super::{
     query::{
-        not_found_or, storage_to_gql, to_account_detail, to_asset, to_cash_movement, to_transaction,
+        not_found_or, storage_to_gql, to_account_detail, to_asset, to_cash_movement, to_todo,
+        to_transaction,
     },
     types::{
-        AccountDetail, AccountInput, Asset, AssetInput, CashMovement, CashMovementInput,
-        TransactionInput, Transfer, TransferInput,
+        AccountDetail, AccountInput, Asset, AssetInput, CashMovement, CashMovementInput, Todo,
+        TodoInput, TransactionInput, Transfer, TransferInput,
     },
 };
 
@@ -269,6 +271,39 @@ impl MutationRoot {
         delete_transfer(pool, transfer_id)
             .await
             .map_err(|e| not_found_or(e, "Transfer not found", storage_to_gql))?;
+        Ok(id)
+    }
+
+    async fn create_todo(
+        &self,
+        ctx: &Context<'_>,
+        input: TodoInput,
+    ) -> async_graphql::Result<Todo> {
+        let pool = ctx.data::<SqlitePool>()?;
+        let todo = create_todo(pool, CreateTodoInput { title: input.title })
+            .await
+            .map_err(storage_to_gql)?;
+        Ok(to_todo(todo))
+    }
+
+    async fn update_todo_completed(
+        &self,
+        ctx: &Context<'_>,
+        id: i64,
+        completed: bool,
+    ) -> async_graphql::Result<Todo> {
+        let pool = ctx.data::<SqlitePool>()?;
+        let todo = update_todo_completed(pool, id, completed)
+            .await
+            .map_err(|e| not_found_or(e, "Todo not found", storage_to_gql))?;
+        Ok(to_todo(todo))
+    }
+
+    async fn delete_todo(&self, ctx: &Context<'_>, id: i64) -> async_graphql::Result<i64> {
+        let pool = ctx.data::<SqlitePool>()?;
+        delete_todo(pool, id)
+            .await
+            .map_err(|e| not_found_or(e, "Todo not found", storage_to_gql))?;
         Ok(id)
     }
 }

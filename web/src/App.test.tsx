@@ -1,4 +1,11 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -149,6 +156,7 @@ function mockGqlAndHealth(
     if (query.includes("account(")) return gqlResponse({ account: null });
     if (query.includes("accountPositions")) return gqlResponse({ accountPositions: [] });
     if (query.includes("assets {")) return gqlResponse({ assets: [] });
+    if (query.includes("todos {")) return gqlResponse({ todos: [] });
     if (query.includes("transactions {")) return gqlResponse({ transactions: [] });
 
     throw new Error(`Unhandled GQL query: ${query}`);
@@ -209,6 +217,26 @@ describe("App shell", () => {
     expect(screen.getByRole("link", { name: "Portfolio" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Accounts" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Transfers" })).toBeNull();
+  });
+
+  it("shows the open todo count in the primary navigation", async () => {
+    mockGqlAndHealth(200, (query) => {
+      if (query.includes("todos {")) {
+        return gqlResponse({
+          todos: [
+            { id: 1, completed: false },
+            { id: 2, completed: true },
+            { id: 3, completed: false },
+          ],
+        });
+      }
+      return null;
+    });
+
+    renderApp(["/accounts"]);
+
+    const todosLink = await screen.findByRole("link", { name: /Todos/ });
+    expect(within(todosLink).getByText("2")).toBeTruthy();
   });
 
   it("shows an asset daily gain ticker below the header and keeps percentages visible when values are hidden", async () => {
