@@ -7,7 +7,7 @@ use crate::{
     get_account_value_summary, get_asset, get_portfolio_summary, get_transaction,
     list_account_balances, list_account_positions, list_account_summaries, list_all_cash_movements,
     list_asset_transactions, list_assets, list_cash_movements, list_currencies,
-    list_fx_rate_summary, list_portfolio_snapshots, list_transactions, list_transfers,
+    list_fx_rate_summary, list_portfolio_snapshots, list_todos, list_transactions, list_transfers,
     list_transfers_by_account, storage::StorageError,
 };
 
@@ -143,6 +143,18 @@ pub(crate) fn to_transaction(tx: crate::AssetTransactionRecord) -> Transaction {
         notes: tx.notes,
         created_at: tx.created_at,
         updated_at: tx.updated_at,
+    }
+}
+
+pub(crate) fn to_todo(todo: crate::TodoRecord) -> Todo {
+    Todo {
+        id: todo.id,
+        title: todo.title,
+        due_date: todo.due_date.to_string(),
+        symbol: todo.symbol,
+        completed: todo.completed,
+        created_at: todo.created_at,
+        updated_at: todo.updated_at,
     }
 }
 
@@ -304,6 +316,12 @@ impl QueryRoot {
             .into_iter()
             .map(super::mutation::to_transfer)
             .collect())
+    }
+
+    async fn todos(&self, ctx: &Context<'_>) -> async_graphql::Result<Vec<Todo>> {
+        let pool = ctx.data::<SqlitePool>()?;
+        let todos = list_todos(pool).await.map_err(storage_to_gql)?;
+        Ok(todos.into_iter().map(to_todo).collect())
     }
 
     async fn currencies(&self, ctx: &Context<'_>) -> async_graphql::Result<Vec<String>> {

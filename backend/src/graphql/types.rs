@@ -188,6 +188,13 @@ pub struct TransferInput {
     pub notes: Option<String>,
 }
 
+#[derive(InputObject)]
+pub struct TodoInput {
+    pub title: String,
+    pub due_date: String,
+    pub symbol: Option<String>,
+}
+
 // ── Output types ──────────────────────────────────────────────────────────────
 
 #[derive(SimpleObject)]
@@ -362,6 +369,17 @@ pub struct Transfer {
     pub transfer_date: String,
     pub notes: Option<String>,
     pub created_at: String,
+}
+
+#[derive(SimpleObject)]
+pub struct Todo {
+    pub id: i64,
+    pub title: String,
+    pub due_date: String,
+    pub symbol: Option<String>,
+    pub completed: bool,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 #[derive(SimpleObject)]

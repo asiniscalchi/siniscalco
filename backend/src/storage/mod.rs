@@ -31,6 +31,7 @@ mod portfolio_snapshots;
 mod records;
 pub mod settings;
 mod storage_error;
+mod todos;
 mod trade_date;
 mod transaction_cash;
 mod transfer_id;
@@ -77,13 +78,15 @@ pub use records::{
     AccountBalanceRecord, AccountRecord, AccountSummaryRecord, AccountValueSummaryRecord,
     AssetPositionRecord, AssetRecord, AssetTransactionRecord, CashMovementRecord,
     CreateAccountInput, CreateAssetInput, CreateAssetTransactionInput, CreateCashMovementInput,
-    CreateTransferInput, CurrencyRecord, FxRateDetailRecord, FxRateRecord, FxRateSummaryItemRecord,
-    FxRateSummaryRecord, PortfolioAccountTotalRecord, PortfolioAllocationSliceRecord,
-    PortfolioCashByCurrencyRecord, PortfolioHoldingRecord, PortfolioSnapshotRecord,
-    PortfolioSummaryRecord, TransferRecord, UpsertAssetPriceInput, UpsertAssetQuoteSourceInput,
-    UpsertFxRateInput, UpsertOutcome, current_utc_timestamp,
+    CreateTodoInput, CreateTransferInput, CurrencyRecord, FxRateDetailRecord, FxRateRecord,
+    FxRateSummaryItemRecord, FxRateSummaryRecord, PortfolioAccountTotalRecord,
+    PortfolioAllocationSliceRecord, PortfolioCashByCurrencyRecord, PortfolioHoldingRecord,
+    PortfolioSnapshotRecord, PortfolioSummaryRecord, TodoRecord, TransferRecord,
+    UpsertAssetPriceInput, UpsertAssetQuoteSourceInput, UpsertFxRateInput, UpsertOutcome,
+    current_utc_timestamp,
 };
 pub use storage_error::StorageError;
+pub use todos::{create_todo, delete_todo, list_todos, update_todo_completed};
 pub use trade_date::TradeDate;
 pub use transfer_id::TransferId;
 pub use transfers::{create_transfer, delete_transfer, list_transfers, list_transfers_by_account};
