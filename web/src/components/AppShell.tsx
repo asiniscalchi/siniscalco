@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { gql } from "@apollo/client/core";
 import { useApolloClient, useQuery } from "@apollo/client/react";
 import { NavLink, Outlet } from "react-router-dom";
 
@@ -8,7 +9,7 @@ import { APP_VERSION, getApiBaseUrl, getHealthApiUrl, getVersionApiUrl } from "@
 import { ChatBubbleIcon, EyeClosedIcon, EyeIcon, LogoIcon, SettingsIcon } from "@/components/Icons";
 import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
-import { type AssetsQuery } from "@/gql/types";
+import { type AssetsQuery, type TodosNavQuery } from "@/gql/types";
 import { ASSETS_QUERY } from "@/pages/assets/assets-query";
 import { MARKET_DATA_POLL_INTERVAL } from "@/lib/apollo";
 
@@ -19,6 +20,15 @@ const primaryNavItems = [
   { label: "Assets", to: "/assets" },
   { label: "Accounts", to: "/accounts" },
 ];
+
+const TODOS_NAV_QUERY = gql`
+  query TodosNav {
+    todos {
+      id
+      completed
+    }
+  }
+`;
 
 type AssetTickerItem = {
   id: number;
@@ -112,6 +122,9 @@ function AssetValueTicker() {
 export function AppShell() {
   const apolloClient = useApolloClient();
   const { hideValues, toggleHideValues } = useUiState();
+  const { data: todosNavData } = useQuery<TodosNavQuery>(TODOS_NAV_QUERY, {
+    fetchPolicy: "cache-and-network",
+  });
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [ringKey, setRingKey] = useState(0);
   const apiBaseUrl = getApiBaseUrl();
@@ -121,9 +134,14 @@ export function AppShell() {
   const [backendVersion, setBackendVersion] = useState<string | null>(null);
 
   function handleManualRefresh() {
-    void apolloClient.refetchQueries({ include: ["Assets", "Portfolio", "FxRates"] });
+    void apolloClient.refetchQueries({
+      include: ["Assets", "Portfolio", "FxRates", "Todos", "TodosNav"],
+    });
     setRingKey((k) => k + 1);
   }
+
+  const pendingTodoCount =
+    todosNavData?.todos.filter((todo) => !todo.completed).length ?? 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -181,7 +199,12 @@ export function AppShell() {
                     }
                     to={item.to}
                   >
-                    {item.label}
+                    <span>{item.label}</span>
+                    {item.to === "/todos" && pendingTodoCount > 0 ? (
+                      <span className="ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-foreground px-1.5 py-0.5 text-[10px] font-semibold leading-none text-background tabular-nums">
+                        {pendingTodoCount > 99 ? "99+" : pendingTodoCount}
+                      </span>
+                    ) : null}
                   </NavLink>
                 ))}
               </div>

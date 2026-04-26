@@ -432,6 +432,11 @@ export type TransferInput = {
   transferDate: Scalars['String']['input'];
 };
 
+export type TodosNavQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type TodosNavQuery = { __typename?: 'QueryRoot', todos: Array<{ __typename?: 'Todo', id: number, completed: boolean }> };
+
 export type AccountPositionsQueryVariables = Exact<{
   accountId: Scalars['Int']['input'];
 }>;
