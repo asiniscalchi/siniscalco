@@ -22,7 +22,6 @@ import { MARKET_DATA_POLL_INTERVAL } from "@/lib/apollo";
 
 const primaryNavItems = [
   { label: "Portfolio", to: "/portfolio" },
-  { label: "Todos", to: "/todos" },
   { label: "Activity", to: "/activity" },
   { label: "Assets", to: "/assets" },
   { label: "Accounts", to: "/accounts" },
@@ -195,31 +194,18 @@ export function AppShell() {
               <div className="flex items-center gap-4 sm:gap-6">
                 {primaryNavItems.map((item) => (
                   <NavLink
-                    aria-label={item.to === "/todos" ? "Todos" : undefined}
                     key={item.to}
                     className={({ isActive }) =>
                       cn(
                         "inline-flex items-center whitespace-nowrap border-b-2 px-1 py-1 text-sm font-medium transition-colors",
                         isActive
                           ? "border-foreground text-foreground"
-                          : "border-transparent text-muted-foreground hover:text-foreground",
+                        : "border-transparent text-muted-foreground hover:text-foreground",
                       )
                     }
-                    title={item.to === "/todos" ? "Todos" : undefined}
                     to={item.to}
                   >
-                    {item.to === "/todos" ? (
-                      <span className="relative inline-flex size-5 items-center justify-center">
-                        <TodoIcon className="size-4" />
-                        {pendingTodoCount > 0 ? (
-                          <span className="absolute -right-2 -top-1 inline-flex min-w-3.5 items-center justify-center rounded-full bg-red-600 px-1 py-px text-[9px] font-semibold leading-none text-white tabular-nums ring-2 ring-background">
-                            {pendingTodoCount > 99 ? "99+" : pendingTodoCount}
-                          </span>
-                        ) : null}
-                      </span>
-                    ) : (
-                      <span>{item.label}</span>
-                    )}
+                    <span>{item.label}</span>
                   </NavLink>
                 ))}
               </div>
@@ -227,6 +213,28 @@ export function AppShell() {
 
             <div className="flex shrink-0 flex-col items-end gap-1">
               <div className="flex items-center gap-2 sm:gap-3">
+                <NavLink
+                  aria-label="Todos"
+                  className={({ isActive }) =>
+                    cn(
+                      "flex size-9 items-center justify-center rounded-full transition-colors",
+                      isActive
+                        ? "text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )
+                  }
+                  title="Todos"
+                  to="/todos"
+                >
+                  <span className="relative inline-flex size-5 items-center justify-center">
+                    <TodoIcon className="size-4" />
+                    {pendingTodoCount > 0 ? (
+                      <span className="absolute -right-2 -top-1 inline-flex min-w-3.5 items-center justify-center rounded-full bg-red-600 px-1 py-px text-[9px] font-semibold leading-none text-white tabular-nums ring-2 ring-background">
+                        {pendingTodoCount > 99 ? "99+" : pendingTodoCount}
+                      </span>
+                    ) : null}
+                  </span>
+                </NavLink>
                 <NavLink
                   aria-label="Settings"
                   className={({ isActive }) =>
