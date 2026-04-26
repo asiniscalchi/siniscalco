@@ -6,3 +6,4 @@ export { AccountsListPage } from "./accounts-list";
 export { AssetsPage, AssetDetailPage } from "./assets";
 export { PortfolioPage } from "./portfolio";
 export { SettingsPage } from "./settings";
+export { TodosPage } from "./todos";

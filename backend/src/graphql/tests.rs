@@ -3633,3 +3633,57 @@ async fn bug_sequential_fx_changes_each_delete_uses_different_wrong_rate() {
     //      3000 EUR already remaining → balance = 3000+3100 = 6100 EUR.
     assert_eq!(balance, "6000.000000");
 }
+
+#[tokio::test]
+async fn todo_graphql_create_list_update_and_delete_round_trip() {
+    let pool = test_pool().await;
+    let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+
+    let json = gql(
+        app,
+        r#"mutation {
+            createTodo(input: { title: "Buy ROBO ETF" }) {
+                id title completed
+            }
+        }"#,
+    )
+    .await;
+
+    let todo = &json["data"]["createTodo"];
+    let todo_id = todo["id"].as_i64().expect("todo id should be returned");
+    assert_eq!(todo["title"], "Buy ROBO ETF");
+    assert_eq!(todo["completed"], false);
+
+    let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    let json = gql(
+        app,
+        &format!(
+            "mutation {{ updateTodoCompleted(id: {todo_id}, completed: true) {{ id completed }} }}"
+        ),
+    )
+    .await;
+    assert_eq!(json["data"]["updateTodoCompleted"]["completed"], true);
+
+    let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    let json = gql(app, "{ todos { id title completed } }").await;
+    let todos = json["data"]["todos"]
+        .as_array()
+        .expect("todos should be returned");
+    assert_eq!(todos.len(), 1);
+    assert_eq!(todos[0]["id"], todo_id);
+    assert_eq!(todos[0]["completed"], true);
+
+    let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
+    let json = gql(app, &format!("mutation {{ deleteTodo(id: {todo_id}) }}")).await;
+    assert_eq!(json["data"]["deleteTodo"], todo_id);
+
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let json = gql(app, "{ todos { id } }").await;
+    assert_eq!(
+        json["data"]["todos"]
+            .as_array()
+            .expect("todos should be returned")
+            .len(),
+        0
+    );
+}
