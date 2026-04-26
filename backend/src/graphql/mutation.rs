@@ -280,17 +280,9 @@ impl MutationRoot {
         input: TodoInput,
     ) -> async_graphql::Result<Todo> {
         let pool = ctx.data::<SqlitePool>()?;
-        let due_date = TradeDate::try_from(input.due_date.as_str()).map_err(storage_to_gql)?;
-        let todo = create_todo(
-            pool,
-            CreateTodoInput {
-                title: input.title,
-                due_date,
-                symbol: input.symbol,
-            },
-        )
-        .await
-        .map_err(storage_to_gql)?;
+        let todo = create_todo(pool, CreateTodoInput { title: input.title })
+            .await
+            .map_err(storage_to_gql)?;
         Ok(to_todo(todo))
     }
 

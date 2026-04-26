@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
 import { gql } from "@apollo/client/core";
 import { useMutation, useQuery } from "@apollo/client/react";
@@ -29,8 +29,6 @@ const TODOS_QUERY = gql`
     todos {
       id
       title
-      dueDate
-      symbol
       completed
       createdAt
       updatedAt
@@ -43,8 +41,6 @@ const CREATE_TODO_MUTATION = gql`
     createTodo(input: $input) {
       id
       title
-      dueDate
-      symbol
       completed
       createdAt
       updatedAt
@@ -68,36 +64,8 @@ const DELETE_TODO_MUTATION = gql`
   }
 `;
 
-function localDate(offsetDays = 0) {
-  const date = new Date();
-  date.setDate(date.getDate() + offsetDays);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function dueTone(dueDate: string, completed: boolean) {
-  if (completed) return "Done";
-  const today = localDate();
-  if (dueDate < today) return "Overdue";
-  if (dueDate === today) return "Due today";
-  return "Upcoming";
-}
-
-function formatDueDate(date: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  }).format(new Date(`${date}T00:00:00`));
-}
-
 export function TodosPage() {
-  const defaultDueDate = useMemo(() => localDate(1), []);
   const [title, setTitle] = useState("");
-  const [dueDate, setDueDate] = useState(defaultDueDate);
-  const [symbol, setSymbol] = useState("");
   const [busyTodoId, setBusyTodoId] = useState<number | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -142,14 +110,10 @@ export function TodosPage() {
         variables: {
           input: {
             title: normalizedTitle,
-            dueDate,
-            symbol: symbol.trim() || null,
           },
         },
       });
       setTitle("");
-      setSymbol("");
-      setDueDate(defaultDueDate);
     } catch (err) {
       setFormError(extractGqlErrorMessage(err, "Failed to create todo"));
     }
@@ -211,7 +175,7 @@ export function TodosPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <form className="grid gap-3 sm:grid-cols-[1fr_10rem_8rem_auto]" onSubmit={handleSubmit}>
+          <form className="grid gap-3 sm:grid-cols-[1fr_auto]" onSubmit={handleSubmit}>
             <div className="min-w-0">
               <label className="sr-only" htmlFor="todo-title">
                 Todo
@@ -222,30 +186,6 @@ export function TodosPage() {
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder="Buy ROBO ETF"
                 value={title}
-              />
-            </div>
-            <div>
-              <label className="sr-only" htmlFor="todo-due-date">
-                Due date
-              </label>
-              <input
-                className="h-10 w-full rounded-md border bg-background px-3 text-sm shadow-sm transition-colors focus:outline-hidden focus:ring-1 focus:ring-ring"
-                id="todo-due-date"
-                onChange={(event) => setDueDate(event.target.value)}
-                type="date"
-                value={dueDate}
-              />
-            </div>
-            <div>
-              <label className="sr-only" htmlFor="todo-symbol">
-                Symbol
-              </label>
-              <input
-                className="h-10 w-full rounded-md border bg-background px-3 font-mono text-sm uppercase shadow-sm transition-colors placeholder:font-sans placeholder:normal-case placeholder:text-muted-foreground focus:outline-hidden focus:ring-1 focus:ring-ring"
-                id="todo-symbol"
-                onChange={(event) => setSymbol(event.target.value)}
-                placeholder="Symbol"
-                value={symbol}
               />
             </div>
             <Button
@@ -317,7 +257,6 @@ function TodoList({
   return (
     <ul className="space-y-2">
       {todos.map((todo) => {
-        const tone = dueTone(todo.dueDate, todo.completed);
         const isBusy = busyTodoId === todo.id;
 
         return (
@@ -339,35 +278,14 @@ function TodoList({
               type="checkbox"
             />
             <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <span
-                  className={cn(
-                    "min-w-0 break-words text-sm font-medium",
-                    todo.completed && "line-through",
-                  )}
-                >
-                  {todo.title}
-                </span>
-                {todo.symbol ? (
-                  <span className="rounded-full border bg-muted/50 px-2 py-0.5 font-mono text-[11px] font-semibold uppercase text-muted-foreground">
-                    {todo.symbol}
-                  </span>
-                ) : null}
-              </div>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <span>{formatDueDate(todo.dueDate)}</span>
-                <span
-                  className={cn(
-                    "rounded-full px-2 py-0.5 font-medium",
-                    tone === "Overdue" && "bg-destructive/10 text-destructive",
-                    tone === "Due today" && "bg-amber-100 text-amber-900",
-                    tone === "Upcoming" && "bg-emerald-100 text-emerald-900",
-                    tone === "Done" && "bg-muted text-muted-foreground",
-                  )}
-                >
-                  {tone}
-                </span>
-              </div>
+              <span
+                className={cn(
+                  "min-w-0 break-words text-sm font-medium",
+                  todo.completed && "line-through",
+                )}
+              >
+                {todo.title}
+              </span>
             </div>
             <Button
               className="size-8 shrink-0 text-destructive hover:bg-destructive/10"

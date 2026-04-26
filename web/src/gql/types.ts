@@ -363,16 +363,12 @@ export type Todo = {
   __typename?: 'Todo';
   completed: Scalars['Boolean']['output'];
   createdAt: Scalars['String']['output'];
-  dueDate: Scalars['String']['output'];
   id: Scalars['Int']['output'];
-  symbol: Maybe<Scalars['String']['output']>;
   title: Scalars['String']['output'];
   updatedAt: Scalars['String']['output'];
 };
 
 export type TodoInput = {
-  dueDate: Scalars['String']['input'];
-  symbol?: InputMaybe<Scalars['String']['input']>;
   title: Scalars['String']['input'];
 };
 
@@ -615,14 +611,14 @@ export type PortfolioQuery = { __typename?: 'QueryRoot', portfolio: { __typename
 export type TodosQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type TodosQuery = { __typename?: 'QueryRoot', todos: Array<{ __typename?: 'Todo', id: number, title: string, dueDate: string, symbol: string | null, completed: boolean, createdAt: string, updatedAt: string }> };
+export type TodosQuery = { __typename?: 'QueryRoot', todos: Array<{ __typename?: 'Todo', id: number, title: string, completed: boolean, createdAt: string, updatedAt: string }> };
 
 export type CreateTodoMutationVariables = Exact<{
   input: TodoInput;
 }>;
 
 
-export type CreateTodoMutation = { __typename?: 'MutationRoot', createTodo: { __typename?: 'Todo', id: number, title: string, dueDate: string, symbol: string | null, completed: boolean, createdAt: string, updatedAt: string } };
+export type CreateTodoMutation = { __typename?: 'MutationRoot', createTodo: { __typename?: 'Todo', id: number, title: string, completed: boolean, createdAt: string, updatedAt: string } };
 
 export type UpdateTodoCompletedMutationVariables = Exact<{
   id: Scalars['Int']['input'];

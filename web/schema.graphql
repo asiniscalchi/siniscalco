@@ -219,8 +219,6 @@ enum SummaryStatus {
 type Todo {
 	id: Int!
 	title: String!
-	dueDate: String!
-	symbol: String
 	completed: Boolean!
 	createdAt: String!
 	updatedAt: String!
@@ -228,8 +226,6 @@ type Todo {
 
 input TodoInput {
 	title: String!
-	dueDate: String!
-	symbol: String
 }
 
 type Transaction {

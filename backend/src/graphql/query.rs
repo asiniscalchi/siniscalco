@@ -150,8 +150,6 @@ pub(crate) fn to_todo(todo: crate::TodoRecord) -> Todo {
     Todo {
         id: todo.id,
         title: todo.title,
-        due_date: todo.due_date.to_string(),
-        symbol: todo.symbol,
         completed: todo.completed,
         created_at: todo.created_at,
         updated_at: todo.updated_at,

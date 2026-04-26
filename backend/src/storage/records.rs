@@ -65,8 +65,6 @@ pub struct CreateCashMovementInput {
 
 pub struct CreateTodoInput {
     pub title: String,
-    pub due_date: TradeDate,
-    pub symbol: Option<String>,
 }
 
 pub struct UpsertFxRateInput {
@@ -135,8 +133,6 @@ pub struct CashMovementRecord {
 pub struct TodoRecord {
     pub id: i64,
     pub title: String,
-    pub due_date: TradeDate,
-    pub symbol: Option<String>,
     pub completed: bool,
     pub created_at: String,
     pub updated_at: String,

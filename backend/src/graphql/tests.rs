@@ -3642,8 +3642,8 @@ async fn todo_graphql_create_list_update_and_delete_round_trip() {
     let json = gql(
         app,
         r#"mutation {
-            createTodo(input: { title: "Buy ROBO ETF", dueDate: "2026-04-27", symbol: "robo" }) {
-                id title dueDate symbol completed
+            createTodo(input: { title: "Buy ROBO ETF" }) {
+                id title completed
             }
         }"#,
     )
@@ -3652,8 +3652,6 @@ async fn todo_graphql_create_list_update_and_delete_round_trip() {
     let todo = &json["data"]["createTodo"];
     let todo_id = todo["id"].as_i64().expect("todo id should be returned");
     assert_eq!(todo["title"], "Buy ROBO ETF");
-    assert_eq!(todo["dueDate"], "2026-04-27");
-    assert_eq!(todo["symbol"], "ROBO");
     assert_eq!(todo["completed"], false);
 
     let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
@@ -3667,7 +3665,7 @@ async fn todo_graphql_create_list_update_and_delete_round_trip() {
     assert_eq!(json["data"]["updateTodoCompleted"]["completed"], true);
 
     let app = build_app_with_fx_status(pool.clone(), FxRefreshAvailability::Available, None);
-    let json = gql(app, "{ todos { id title dueDate symbol completed } }").await;
+    let json = gql(app, "{ todos { id title completed } }").await;
     let todos = json["data"]["todos"]
         .as_array()
         .expect("todos should be returned");

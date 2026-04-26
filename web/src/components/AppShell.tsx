@@ -6,7 +6,14 @@ import { NavLink, Outlet } from "react-router-dom";
 import { AssistantPanel } from "@/components/AssistantPanel";
 import { Button } from "@/components/ui/button";
 import { APP_VERSION, getApiBaseUrl, getHealthApiUrl, getVersionApiUrl } from "@/lib/env";
-import { ChatBubbleIcon, EyeClosedIcon, EyeIcon, LogoIcon, SettingsIcon } from "@/components/Icons";
+import {
+  ChatBubbleIcon,
+  EyeClosedIcon,
+  EyeIcon,
+  LogoIcon,
+  SettingsIcon,
+  TodoIcon,
+} from "@/components/Icons";
 import { useUiState } from "@/lib/ui-state";
 import { cn } from "@/lib/utils";
 import { type AssetsQuery, type TodosNavQuery } from "@/gql/types";
@@ -188,6 +195,7 @@ export function AppShell() {
               <div className="flex items-center gap-4 sm:gap-6">
                 {primaryNavItems.map((item) => (
                   <NavLink
+                    aria-label={item.to === "/todos" ? "Todos" : undefined}
                     key={item.to}
                     className={({ isActive }) =>
                       cn(
@@ -197,9 +205,14 @@ export function AppShell() {
                           : "border-transparent text-muted-foreground hover:text-foreground",
                       )
                     }
+                    title={item.to === "/todos" ? "Todos" : undefined}
                     to={item.to}
                   >
-                    <span>{item.label}</span>
+                    {item.to === "/todos" ? (
+                      <TodoIcon className="size-4" />
+                    ) : (
+                      <span>{item.label}</span>
+                    )}
                     {item.to === "/todos" && pendingTodoCount > 0 ? (
                       <span className="ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-foreground px-1.5 py-0.5 text-[10px] font-semibold leading-none text-background tabular-nums">
                         {pendingTodoCount > 99 ? "99+" : pendingTodoCount}

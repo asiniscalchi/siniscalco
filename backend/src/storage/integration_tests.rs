@@ -3736,8 +3736,6 @@ async fn todos_can_be_created_listed_completed_and_deleted() {
         &pool,
         CreateTodoInput {
             title: " Review ETF idea ".to_string(),
-            due_date: trade_date("2026-04-28"),
-            symbol: Some(" robo ".to_string()),
         },
     )
     .await
@@ -3746,21 +3744,18 @@ async fn todos_can_be_created_listed_completed_and_deleted() {
         &pool,
         CreateTodoInput {
             title: "Check broker cash".to_string(),
-            due_date: trade_date("2026-04-27"),
-            symbol: None,
         },
     )
     .await
     .expect("todo insert should succeed");
 
     assert_eq!(later.title, "Review ETF idea");
-    assert_eq!(later.symbol.as_deref(), Some("ROBO"));
     assert!(!later.completed);
 
     let todos = list_todos(&pool).await.expect("todo list should succeed");
     assert_eq!(
         todos.iter().map(|todo| todo.id).collect::<Vec<_>>(),
-        vec![earlier.id, later.id]
+        vec![later.id, earlier.id]
     );
 
     let completed = update_todo_completed(&pool, earlier.id, true)

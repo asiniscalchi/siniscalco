@@ -31,8 +31,6 @@ function renderTodosPage() {
 type Todo = {
   id: number;
   title: string;
-  dueDate: string;
-  symbol: string | null;
   completed: boolean;
   createdAt: string;
   updatedAt: string;
@@ -66,8 +64,6 @@ describe("TodosPage", () => {
       {
         id: 1,
         title: "Buy ROBO ETF",
-        dueDate: "2026-04-27",
-        symbol: "ROBO",
         completed: false,
         createdAt: "2026-04-26T00:00:00Z",
         updatedAt: "2026-04-26T00:00:00Z",
@@ -89,14 +85,10 @@ describe("TodosPage", () => {
       if (body.query.includes("mutation CreateTodo")) {
         const input = body.variables?.input as {
           title: string;
-          dueDate: string;
-          symbol: string | null;
         };
         const todo = {
           id: nextId,
           title: input.title,
-          dueDate: input.dueDate,
-          symbol: input.symbol?.toUpperCase() ?? null,
           completed: false,
           createdAt: "2026-04-26T01:00:00Z",
           updatedAt: "2026-04-26T01:00:00Z",
@@ -129,21 +121,13 @@ describe("TodosPage", () => {
     renderTodosPage();
 
     expect(await screen.findByText("Buy ROBO ETF")).toBeTruthy();
-    expect(screen.getByText("ROBO")).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText("Todo"), {
       target: { value: "Review cash balance" },
     });
-    fireEvent.change(screen.getByLabelText("Due date"), {
-      target: { value: "2026-04-28" },
-    });
-    fireEvent.change(screen.getByLabelText("Symbol"), {
-      target: { value: "usd" },
-    });
     fireEvent.click(screen.getByRole("button", { name: "Add todo" }));
 
     expect(await screen.findByText("Review cash balance")).toBeTruthy();
-    expect(screen.getByText("USD")).toBeTruthy();
 
     fireEvent.click(screen.getByLabelText("Mark Buy ROBO ETF done"));
 
