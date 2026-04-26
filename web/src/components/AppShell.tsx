@@ -212,7 +212,7 @@ export function AppShell() {
                       <span className="relative inline-flex size-5 items-center justify-center">
                         <TodoIcon className="size-4" />
                         {pendingTodoCount > 0 ? (
-                          <span className="absolute -right-1 -top-1 inline-flex min-w-3.5 items-center justify-center rounded-full bg-red-600 px-1 py-px text-[9px] font-semibold leading-none text-white tabular-nums ring-2 ring-background">
+                          <span className="absolute -right-2 -top-1 inline-flex min-w-3.5 items-center justify-center rounded-full bg-red-600 px-1 py-px text-[9px] font-semibold leading-none text-white tabular-nums ring-2 ring-background">
                             {pendingTodoCount > 99 ? "99+" : pendingTodoCount}
                           </span>
                         ) : null}
