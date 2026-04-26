@@ -352,6 +352,12 @@ describe("App shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open assistant chat" }));
 
     expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(screen.getByTestId("assistant-panel").className).toContain(
+      "sm:w-[90dvw]",
+    );
+    expect(screen.getByTestId("assistant-panel").className).toContain(
+      "sm:h-[90dvh]",
+    );
     expect(screen.getByRole("textbox", { name: "Assistant message" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Show chat history" }));

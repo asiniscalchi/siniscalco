@@ -357,7 +357,10 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
       role="dialog"
     >
       <AssistantRuntimeBoundary>
-        <div className="flex h-[min(46rem,100%)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl">
+        <div
+          className="flex h-[min(90dvh,calc(100dvh-1.5rem))] w-[min(90dvw,calc(100dvw-1.5rem))] flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl sm:h-[90dvh] sm:w-[90dvw]"
+          data-testid="assistant-panel"
+        >
           {/* Header */}
           <div className="flex items-center justify-between gap-2 border-b px-3 py-3 sm:gap-4 sm:px-5">
             <div className="flex min-w-0 items-center gap-2 sm:gap-4">
