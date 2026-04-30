@@ -14,6 +14,7 @@ import { type AssetsQuery } from "@/gql/types";
 import { ASSETS_QUERY } from "./assets-query";
 import {
   type AssetItem,
+  dailyGainPctRaw,
   formatDailyGain,
   formatGain,
   formatPrice,
@@ -21,6 +22,7 @@ import {
   priceHealthLabel,
   priceLabel,
   quoteSourceLabel,
+  totalGainPctRaw,
 } from "./asset-utils";
 
 const yahooFinanceUrl = (symbol: string) =>
@@ -34,15 +36,46 @@ const DELETE_ASSET_MUTATION = gql`
 
 import { AssetFormModal } from "./AssetFormModal";
 
+type SortField = "alpha" | "daily" | "gain";
+type SortDir = "asc" | "desc";
+
 export function AssetsTableCard() {
   const [isLocked, setIsLocked] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
+  const [sortField, setSortField] = useState<SortField>("alpha");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   const { data, loading, error, refetch } = useQuery<AssetsQuery>(ASSETS_QUERY, { fetchPolicy: "cache-and-network", pollInterval: MARKET_DATA_POLL_INTERVAL });
   const assets = data?.assets ?? [];
   const priceHealth = priceHealthLabel(assets);
+
+  const sortedAssets = [...assets].sort((a, b) => {
+    let cmp = 0;
+    if (sortField === "alpha") {
+      cmp = a.symbol.localeCompare(b.symbol);
+    } else if (sortField === "daily") {
+      cmp = (dailyGainPctRaw(a) ?? -Infinity) - (dailyGainPctRaw(b) ?? -Infinity);
+    } else {
+      cmp = (totalGainPctRaw(a) ?? -Infinity) - (totalGainPctRaw(b) ?? -Infinity);
+    }
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  function handleSort(field: SortField) {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  }
+
+  function sortIndicator(field: SortField) {
+    if (sortField !== field) return <span className="ml-0.5 opacity-30">↕</span>;
+    return <span className="ml-0.5">{sortDir === "asc" ? "↑" : "↓"}</span>;
+  }
 
   const [deleteAssetMutation] = useMutation(DELETE_ASSET_MUTATION, {
     refetchQueries: ["Assets"],
@@ -149,8 +182,27 @@ export function AssetsTableCard() {
             </div>
           ) : (
             <>
+              <div className="mb-2 flex gap-1 sm:hidden">
+                {(["alpha", "daily", "gain"] as SortField[]).map((field) => (
+                  <button
+                    key={field}
+                    className={cn(
+                      "rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
+                      sortField === field
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-muted-foreground/30 text-muted-foreground hover:border-foreground/50",
+                    )}
+                    onClick={() => handleSort(field)}
+                    type="button"
+                  >
+                    {field === "alpha" ? "Name" : field === "daily" ? "24h %" : "Gain %"}
+                    {sortIndicator(field)}
+                  </button>
+                ))}
+              </div>
+
               <div className="space-y-1.5 sm:hidden">
-                {assets.map((asset) => {
+                {sortedAssets.map((asset) => {
                   const daily = formatDailyGain(asset);
                   const gain = formatGain(asset);
                   const totalValue = formatTotalValue(asset);
@@ -258,17 +310,29 @@ export function AssetsTableCard() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left font-semibold text-[11px] uppercase tracking-wider text-muted-foreground">
-                      <th className="pb-3 pr-4">Asset</th>
+                      <th className="pb-3 pr-4">
+                        <button className="flex items-center gap-0.5 hover:text-foreground transition-colors" onClick={() => handleSort("alpha")} type="button">
+                          Asset{sortIndicator("alpha")}
+                        </button>
+                      </th>
                       <th className="pb-3 pr-4">Type</th>
                       <th className="pb-3 pr-4">Price</th>
                       <th className="pb-3 pr-4">Holdings</th>
-                      <th className="pb-3 pr-4">24h</th>
-                      <th className="pb-3 pr-4">Gain</th>
+                      <th className="pb-3 pr-4">
+                        <button className="flex items-center gap-0.5 hover:text-foreground transition-colors" onClick={() => handleSort("daily")} type="button">
+                          24h{sortIndicator("daily")}
+                        </button>
+                      </th>
+                      <th className="pb-3 pr-4">
+                        <button className="flex items-center gap-0.5 hover:text-foreground transition-colors" onClick={() => handleSort("gain")} type="button">
+                          Gain{sortIndicator("gain")}
+                        </button>
+                      </th>
                       {!isLocked && <th className="pb-3 text-right">Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {assets.map((asset) => {
+                    {sortedAssets.map((asset) => {
                       const source = quoteSourceLabel(asset);
 
                       return (

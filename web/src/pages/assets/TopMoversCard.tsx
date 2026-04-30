@@ -51,7 +51,7 @@ export function TopMoversCard() {
   if (winners.length === 0 && losers.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-1 text-sm">
+    <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 px-1 text-sm">
       <div className="flex items-center gap-4" data-testid="top-movers-winners">
         {winners.map((e) => (
           <span key={e.asset.id} className="flex items-center gap-1.5">
