@@ -2,6 +2,7 @@ import { type AssetType } from "@/gql/types";
 import { type PortfolioSummary } from "@/lib/types";
 import { useUiState } from "@/lib/ui-state";
 
+import { TopMoversCard } from "@/pages/assets/TopMoversCard";
 import { AllocationCard } from "./AllocationCard";
 import { PortfolioAccountBreakdown } from "./PortfolioAccountBreakdown";
 import { PortfolioEmptyState } from "./PortfolioEmptyState";
@@ -34,6 +35,7 @@ export function PortfolioReadyState({ summary, assetTypeById }: { summary: Portf
   return (
     <div className="flex flex-col gap-8">
       <PortfolioSummarySection summary={summary} hideValues={hideValues} />
+      <TopMoversCard />
       <PortfolioHistoryCard
         baseValue={baseValue}
         currentValue={currentValue}
