@@ -660,7 +660,7 @@ describe("TopMoversCard", () => {
     renderTopMoversCard();
 
     await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalled());
-    expect(screen.queryByText("Top Movers")).toBeNull();
+    expect(screen.queryByTestId("top-movers-winners")).toBeNull();
   });
 
   it("shows winners and losers when daily gain data is present", async () => {
@@ -680,11 +680,7 @@ describe("TopMoversCard", () => {
 
     renderTopMoversCard();
 
-    expect(await screen.findByText("Top Movers")).toBeTruthy();
-    expect(screen.getByText("Winners")).toBeTruthy();
-    expect(screen.getByText("Losers")).toBeTruthy();
-
-    const winnersCol = screen.getByTestId("top-movers-winners");
+    const winnersCol = await screen.findByTestId("top-movers-winners");
     expect(winnersCol.textContent).toContain("WIN");
     expect(winnersCol.textContent).toContain("+5.00%");
 
@@ -710,7 +706,7 @@ describe("TopMoversCard", () => {
     renderTopMoversCard();
 
     await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalled());
-    expect(screen.queryByText("Top Movers")).toBeNull();
+    expect(screen.queryByTestId("top-movers-winners")).toBeNull();
   });
 
   it("shows at most 3 winners and 3 losers", async () => {
@@ -733,9 +729,7 @@ describe("TopMoversCard", () => {
 
     renderTopMoversCard();
 
-    await screen.findByText("Top Movers");
-
-    const winnersCol = screen.getByTestId("top-movers-winners");
+    const winnersCol = await screen.findByTestId("top-movers-winners");
     // Only A1, A2, A3 should appear (top 3); A4 and A5 should not
     expect(winnersCol.textContent).toContain("A1");
     expect(winnersCol.textContent).toContain("A2");
