@@ -5,6 +5,7 @@ import { MARKET_DATA_POLL_INTERVAL } from "@/lib/apollo";
 import { type AssetsQuery, type AssetType, type PortfolioQuery } from "@/gql/types";
 import { ASSETS_QUERY } from "@/pages/assets/assets-query";
 
+import { TopMoversCard } from "@/pages/assets/TopMoversCard";
 import { FxRatesFooter } from "./FxRatesFooter";
 import { PortfolioErrorState } from "./PortfolioErrorState";
 import { PortfolioLoadingState } from "./PortfolioLoadingState";
@@ -42,6 +43,7 @@ export function PortfolioPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
+      <TopMoversCard />
       {loading && !data ? <PortfolioLoadingState /> : null}
       {!loading && error && !data ? (
         <PortfolioErrorState onRetry={() => void refetch()} />
