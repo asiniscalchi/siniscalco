@@ -92,6 +92,25 @@ export function formatDailyGain(asset: AssetItem): GainResult | null {
   return { pct, abs, positive: gainPct >= 0 };
 }
 
+export function dailyGainPctRaw(asset: AssetItem): number | null {
+  const { currentPrice, previousClose } = asset;
+  if (!currentPrice || !previousClose) return null;
+  const price = Number(currentPrice);
+  const close = Number(previousClose);
+  if (Number.isNaN(price) || Number.isNaN(close) || close === 0) return null;
+  return ((price - close) / close) * 100;
+}
+
+export function totalGainPctRaw(asset: AssetItem): number | null {
+  const { currentPrice, avgCostBasis, totalQuantity } = asset;
+  if (!currentPrice || !avgCostBasis || !totalQuantity) return null;
+  const price = Number(currentPrice);
+  const cost = Number(avgCostBasis);
+  const qty = Number(totalQuantity);
+  if (Number.isNaN(price) || Number.isNaN(cost) || Number.isNaN(qty) || cost === 0) return null;
+  return ((price - cost) / cost) * 100;
+}
+
 export function priceLabel(asset: AssetItem): string {
   if (asset.currentPriceAsOf) {
     const isoDate = asset.currentPriceAsOf.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
