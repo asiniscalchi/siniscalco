@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { gql } from "@apollo/client/core";
 import { useMutation, useQuery } from "@apollo/client/react";
-import { useNavigate } from "react-router-dom";
 import { MARKET_DATA_POLL_INTERVAL } from "@/lib/apollo";
 
 import { ItemLabel } from "@/components/ItemLabel";
-import { ExternalLinkIcon, LockIcon, PencilIcon, PlusIcon, TrashIcon, UnlockIcon } from "@/components/Icons";
+import { LockIcon, PencilIcon, PlusIcon, TrashIcon, UnlockIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -24,8 +23,8 @@ import {
   quoteSourceLabel,
 } from "./asset-utils";
 
-const ftMarketsUrl = (isin: string) =>
-  `https://markets.ft.com/data/equities/tearsheet/summary?s=${isin}`;
+const yahooFinanceUrl = (symbol: string) =>
+  `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
 
 const DELETE_ASSET_MUTATION = gql`
   mutation DeleteAsset($id: Int!) {
@@ -36,7 +35,6 @@ const DELETE_ASSET_MUTATION = gql`
 import { AssetFormModal } from "./AssetFormModal";
 
 export function AssetsTableCard() {
-  const navigate = useNavigate();
   const [isLocked, setIsLocked] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null);
@@ -159,17 +157,27 @@ export function AssetsTableCard() {
                   const source = quoteSourceLabel(asset);
 
                   return (
-                    <div
-                      className="flex items-start gap-3 rounded-lg border px-3 py-2 text-sm cursor-pointer hover:bg-muted/30 transition-colors"
+                    <a
+                      className="flex items-start gap-3 rounded-lg border px-3 py-2 text-sm hover:bg-muted/30 transition-colors"
                       data-testid={`mobile-asset-card-${asset.id}`}
+                      href={yahooFinanceUrl(asset.quoteSymbol ?? asset.symbol)}
                       key={asset.id}
-                      onClick={() => navigate(`/assets/${asset.id}`)}
+                      rel="noopener noreferrer"
+                      target="_blank"
                     >
                       <div className="min-w-0 flex-1">
                         <ItemLabel primary={asset.symbol} secondary={asset.name} />
                         <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                           <span className="font-mono tabular-nums">{formatPrice(asset)}</span>
                         </div>
+                        {asset.isin && (
+                          <div
+                            className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground"
+                            data-testid={`mobile-asset-isin-${asset.id}`}
+                          >
+                            {asset.isin}
+                          </div>
+                        )}
                         {source && (
                           <div
                             className="mt-0.5 truncate text-[11px] text-muted-foreground"
@@ -191,22 +199,6 @@ export function AssetsTableCard() {
                         <span className="inline-flex items-center rounded-full border bg-muted/50 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                           {asset.assetType.replace("_", " ")}
                         </span>
-                        {asset.isin && (
-                          <div
-                            className="mt-0.5 text-[11px] text-muted-foreground font-mono"
-                            data-testid={`mobile-asset-isin-${asset.id}`}
-                          >
-                            <a
-                              className="inline-flex items-center gap-1 hover:text-foreground hover:underline"
-                              href={ftMarketsUrl(asset.isin)}
-                              rel="noopener noreferrer"
-                              target="_blank"
-                            >
-                              {asset.isin}
-                              <ExternalLinkIcon className="size-3 shrink-0" />
-                            </a>
-                          </div>
-                        )}
                         {totalValue && (
                           <div
                             className="mt-0.5 font-mono tabular-nums text-[11px] text-muted-foreground"
@@ -257,7 +249,7 @@ export function AssetsTableCard() {
                           </div>
                         )}
                       </div>
-                    </div>
+                    </a>
                   );
                 })}
               </div>
@@ -269,7 +261,6 @@ export function AssetsTableCard() {
                       <th className="pb-3 pr-4">Asset</th>
                       <th className="pb-3 pr-4">Type</th>
                       <th className="pb-3 pr-4">Price</th>
-                      <th className="pb-3 pr-4">ISIN</th>
                       <th className="pb-3 pr-4">Holdings</th>
                       <th className="pb-3 pr-4">24h</th>
                       <th className="pb-3 pr-4">Gain</th>
@@ -284,7 +275,7 @@ export function AssetsTableCard() {
                       <tr
                         className="group transition-colors hover:bg-muted/30 cursor-pointer"
                         key={asset.id}
-                        onClick={() => navigate(`/assets/${asset.id}`)}
+                        onClick={() => window.open(yahooFinanceUrl(asset.quoteSymbol ?? asset.symbol), "_blank", "noopener,noreferrer")}
                       >
                         <td className="py-3 pr-4">
                           <ItemLabel primary={asset.symbol} secondary={asset.name} />
@@ -309,19 +300,6 @@ export function AssetsTableCard() {
                               {source}
                             </div>
                           )}
-                        </td>
-                        <td className="py-3 pr-4 font-mono text-[11px] text-muted-foreground">
-                          {asset.isin ? (
-                            <a
-                              className="inline-flex items-center gap-1 hover:text-foreground hover:underline"
-                              href={ftMarketsUrl(asset.isin!)}
-                              rel="noopener noreferrer"
-                              target="_blank"
-                            >
-                              {asset.isin}
-                              <ExternalLinkIcon className="size-3 shrink-0" />
-                            </a>
-                          ) : "—"}
                         </td>
                         <td className="py-3 pr-4">
                           {formatTotalValue(asset) ? (

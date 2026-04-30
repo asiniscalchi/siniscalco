@@ -7,7 +7,6 @@ import {
   AccountDetailPage,
   AccountNewPage,
   AccountsListPage,
-  AssetDetailPage,
   AssetsPage,
   PortfolioPage,
   SettingsPage,
@@ -26,7 +25,6 @@ function App() {
         <Route path="/accounts/new" element={<AccountNewPage />} />
         <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
         <Route path="/assets" element={<AssetsPage />} />
-        <Route path="/assets/:assetId" element={<AssetDetailPage />} />
         <Route path="/activity" element={<ActivityPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
