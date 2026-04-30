@@ -13,9 +13,18 @@ import { ApolloClient, HttpLink, InMemoryCache } from "@apollo/client";
 import { ApolloProvider } from "@apollo/client/react";
 
 import { AssetsPage } from ".";
+import { TopMoversCard } from "./TopMoversCard";
 
 function createTestClient() {
   return new ApolloClient({ link: new HttpLink({ uri: "http://localhost/graphql" }), cache: new InMemoryCache() });
+}
+
+function renderTopMoversCard() {
+  return render(
+    <ApolloProvider client={createTestClient()}>
+      <TopMoversCard />
+    </ApolloProvider>,
+  );
 }
 
 function renderAssetsPage() {
@@ -618,6 +627,8 @@ function makeAsset(overrides: Partial<{
     avgCostBasisCurrency: null,
     previousClose: overrides.previousClose ?? null,
     previousCloseCurrency: overrides.previousCloseCurrency ?? null,
+    convertedTotalValue: null,
+    convertedTotalValueCurrency: null,
   };
 }
 
@@ -646,9 +657,9 @@ describe("TopMoversCard", () => {
       ),
     );
 
-    renderAssetsPage();
+    renderTopMoversCard();
 
-    await screen.findAllByText("AAPL");
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalled());
     expect(screen.queryByText("Top Movers")).toBeNull();
   });
 
@@ -667,7 +678,7 @@ describe("TopMoversCard", () => {
       ),
     );
 
-    renderAssetsPage();
+    renderTopMoversCard();
 
     expect(await screen.findByText("Top Movers")).toBeTruthy();
     expect(screen.getByText("Winners")).toBeTruthy();
@@ -696,9 +707,9 @@ describe("TopMoversCard", () => {
       ),
     );
 
-    renderAssetsPage();
+    renderTopMoversCard();
 
-    await screen.findAllByText("FLAT");
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalled());
     expect(screen.queryByText("Top Movers")).toBeNull();
   });
 
@@ -720,7 +731,7 @@ describe("TopMoversCard", () => {
       ),
     );
 
-    renderAssetsPage();
+    renderTopMoversCard();
 
     await screen.findByText("Top Movers");
 
