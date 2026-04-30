@@ -170,6 +170,14 @@ export function AssetsTableCard() {
                         <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                           <span className="font-mono tabular-nums">{formatPrice(asset)}</span>
                         </div>
+                        {asset.isin && (
+                          <div
+                            className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground"
+                            data-testid={`mobile-asset-isin-${asset.id}`}
+                          >
+                            {asset.isin}
+                          </div>
+                        )}
                         {source && (
                           <div
                             className="mt-0.5 truncate text-[11px] text-muted-foreground"
