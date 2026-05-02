@@ -44,8 +44,8 @@ export function AssetsTableCard() {
   const [showModal, setShowModal] = useState(false);
   const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
-  const [sortField, setSortField] = useState<SortField>("alpha");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [sortField, setSortField] = useState<SortField>("daily");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const { data, loading, error, refetch } = useQuery<AssetsQuery>(ASSETS_QUERY, { fetchPolicy: "cache-and-network", pollInterval: MARKET_DATA_POLL_INTERVAL });
   const assets = data?.assets ?? [];
