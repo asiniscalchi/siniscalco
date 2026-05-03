@@ -431,6 +431,7 @@ fn to_portfolio_summary(
                 symbol: h.symbol,
                 name: h.name,
                 value: fmt_amount(&h.value),
+                gain_24h_amount: fmt_opt_amount(h.gain_24h_amount.as_ref()),
             })
             .collect(),
         holdings_is_partial: summary.holdings_is_partial,

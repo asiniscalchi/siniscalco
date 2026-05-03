@@ -353,6 +353,8 @@ pub struct PortfolioHolding {
     pub symbol: String,
     pub name: String,
     pub value: String,
+    #[graphql(name = "gain24hAmount")]
+    pub gain_24h_amount: Option<String>,
 }
 
 #[derive(SimpleObject)]

@@ -4,6 +4,7 @@ type FormatMoneyOptions = {
   includeCurrency?: boolean;
   minimumFractionDigits?: number;
   maximumFractionDigits?: number;
+  signDisplay?: "auto" | "never" | "always" | "exceptZero";
 };
 
 function getCurrencySymbol(currency: string): string {
@@ -30,15 +31,24 @@ function formatMoney(
     includeCurrency = true,
     minimumFractionDigits = 2,
     maximumFractionDigits = 2,
+    signDisplay = "auto",
   }: FormatMoneyOptions = {},
 ) {
   const numericValue = typeof value === "string" ? Number(value) : value;
-  const formattedNumber = Number.isNaN(numericValue)
+
+  // Use absolute value for the number part to handle sign placement manually
+  const absValue = Math.abs(numericValue);
+  const formattedAbsNumber = Number.isNaN(numericValue)
     ? String(value)
     : new Intl.NumberFormat("en-US", {
         minimumFractionDigits,
         maximumFractionDigits,
-      }).format(numericValue);
+      }).format(absValue);
+
+  const needsSign =
+    (signDisplay === "always" && !Number.isNaN(numericValue)) ||
+    (numericValue < 0 && !Number.isNaN(numericValue));
+  const sign = needsSign ? (numericValue >= 0 ? "+" : "-") : "";
 
   const symbol = currency ? getCurrencySymbol(currency) : undefined;
   // Use prefix format when a distinct symbol exists (€2.50), suffix when only
@@ -46,18 +56,23 @@ function formatMoney(
   const prefixSymbol = symbol && symbol !== currency ? symbol : undefined;
   const suffixCode = !prefixSymbol && currency ? currency : undefined;
 
-  const visibleText =
+  const visibleNumber =
     includeCurrency && (prefixSymbol ?? suffixCode)
       ? prefixSymbol
-        ? `${prefixSymbol}${formattedNumber}`
-        : `${formattedNumber} ${suffixCode}`
-      : formattedNumber;
-  const hiddenText =
+        ? `${prefixSymbol}${formattedAbsNumber}`
+        : `${formattedAbsNumber} ${suffixCode}`
+      : formattedAbsNumber;
+
+  const visibleText = `${sign}${visibleNumber}`;
+
+  const hiddenNumber =
     includeCurrency && (prefixSymbol ?? suffixCode)
       ? prefixSymbol
         ? `${prefixSymbol}${HIDDEN_MONEY_MASK}`
         : `${HIDDEN_MONEY_MASK} ${suffixCode}`
       : HIDDEN_MONEY_MASK;
+
+  const hiddenText = `${sign}${hiddenNumber}`;
 
   return {
     text: hidden ? hiddenText : visibleText,

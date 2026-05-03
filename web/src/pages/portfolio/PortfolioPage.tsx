@@ -23,7 +23,7 @@ const PORTFOLIO_QUERY = gql`
       }
       cashByCurrency { currency amount convertedAmount }
       allocationTotals { label amount }
-      holdings { assetId symbol name value }
+      holdings { assetId symbol name value gain24hAmount }
     }
   }
 `;

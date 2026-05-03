@@ -268,6 +268,7 @@ export type PortfolioCashByCurrency = {
 export type PortfolioHolding = {
   __typename?: 'PortfolioHolding';
   assetId: Maybe<Scalars['Int']['output']>;
+  gain24hAmount: Maybe<Scalars['String']['output']>;
   name: Scalars['String']['output'];
   symbol: Scalars['String']['output'];
   value: Scalars['String']['output'];
@@ -599,7 +600,7 @@ export type PortfolioHistoryQuery = { __typename?: 'QueryRoot', portfolioHistory
 export type PortfolioQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type PortfolioQuery = { __typename?: 'QueryRoot', portfolio: { __typename?: 'PortfolioSummary', displayCurrency: string, totalValueStatus: SummaryStatus, totalValueAmount: string | null, gain24hAmount: string | null, totalGainAmount: string | null, fxLastUpdated: string | null, fxRefreshStatus: RefreshAvailability, fxRefreshError: string | null, allocationIsPartial: boolean, holdingsIsPartial: boolean, accountTotals: Array<{ __typename?: 'PortfolioAccountTotal', id: number, name: string, accountType: AccountType, summaryStatus: SummaryStatus, cashTotalAmount: string | null, assetTotalAmount: string | null, totalAmount: string | null, totalCurrency: string }>, cashByCurrency: Array<{ __typename?: 'PortfolioCashByCurrency', currency: string, amount: string, convertedAmount: string | null }>, allocationTotals: Array<{ __typename?: 'PortfolioAllocationSlice', label: string, amount: string }>, holdings: Array<{ __typename?: 'PortfolioHolding', assetId: number | null, symbol: string, name: string, value: string }> } };
+export type PortfolioQuery = { __typename?: 'QueryRoot', portfolio: { __typename?: 'PortfolioSummary', displayCurrency: string, totalValueStatus: SummaryStatus, totalValueAmount: string | null, gain24hAmount: string | null, totalGainAmount: string | null, fxLastUpdated: string | null, fxRefreshStatus: RefreshAvailability, fxRefreshError: string | null, allocationIsPartial: boolean, holdingsIsPartial: boolean, accountTotals: Array<{ __typename?: 'PortfolioAccountTotal', id: number, name: string, accountType: AccountType, summaryStatus: SummaryStatus, cashTotalAmount: string | null, assetTotalAmount: string | null, totalAmount: string | null, totalCurrency: string }>, cashByCurrency: Array<{ __typename?: 'PortfolioCashByCurrency', currency: string, amount: string, convertedAmount: string | null }>, allocationTotals: Array<{ __typename?: 'PortfolioAllocationSlice', label: string, amount: string }>, holdings: Array<{ __typename?: 'PortfolioHolding', assetId: number | null, symbol: string, name: string, value: string, gain24hAmount: string | null }> } };
 
 export type TodosQueryVariables = Exact<{ [key: string]: never; }>;
 

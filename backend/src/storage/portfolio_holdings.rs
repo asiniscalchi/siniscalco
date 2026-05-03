@@ -39,6 +39,7 @@ pub(crate) async fn compute_top_holdings(
             symbol: cash.currency.as_str().to_string(),
             name: format!("{} Cash", cash.currency.as_str()),
             value: parse_decimal_amount(converted_value),
+            gain_24h_amount: None,
         });
         holding_keys.insert(cash.currency.as_str().to_string());
     }
@@ -75,9 +76,28 @@ pub(crate) async fn compute_top_holdings(
                 }
             };
 
+            let gain_24h_amount = match (asset.previous_close, asset.previous_close_currency) {
+                (Some(prev_close), Some(prev_currency)) if prev_currency == price_currency => {
+                    let gain_per_unit = price.as_decimal() - prev_close.as_decimal();
+                    let total_gain = gain_per_unit * position.quantity.as_decimal();
+                    rate.map(|r| parse_decimal_amount(total_gain * r))
+                }
+                _ => None,
+            };
+
             if let Some(index) = asset_holding_indexes.get(&position.asset_id).copied() {
                 let existing_value = holdings[index].value.as_decimal() + converted_value;
                 holdings[index].value = parse_decimal_amount(existing_value);
+
+                if let Some(gain) = gain_24h_amount {
+                    let current_gain = holdings[index]
+                        .gain_24h_amount
+                        .as_ref()
+                        .map(|g| g.as_decimal())
+                        .unwrap_or(Decimal::ZERO);
+                    holdings[index].gain_24h_amount =
+                        Some(parse_decimal_amount(current_gain + gain.as_decimal()));
+                }
                 continue;
             }
 
@@ -86,6 +106,7 @@ pub(crate) async fn compute_top_holdings(
                 symbol: asset.symbol.to_string(),
                 name: asset.name.to_string(),
                 value: parse_decimal_amount(converted_value),
+                gain_24h_amount,
             });
             asset_holding_indexes.insert(position.asset_id, holdings.len() - 1);
         }

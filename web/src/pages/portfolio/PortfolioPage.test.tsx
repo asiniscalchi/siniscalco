@@ -511,4 +511,90 @@ describe("PortfolioPage", () => {
     expect(screen.getByText("€120.00")).toBeTruthy();
     expect(screen.getByText("38.7%")).toBeTruthy();
   });
+
+  it("renders 24h gains in top holdings", async () => {
+    mockPortfolioRequest({
+      displayCurrency: "EUR",
+      totalValueStatus: "OK",
+      totalValueAmount: "100.00000000",
+      gain24hAmount: "5.50000000",
+      totalGainAmount: "10.00000000",
+      accountTotals: [],
+      cashByCurrency: [
+        { currency: "EUR", amount: "0.00000000", convertedAmount: "0.00000000" },
+      ],
+      fxLastUpdated: null,
+      fxRefreshStatus: "AVAILABLE",
+      fxRefreshError: null,
+      allocationTotals: [{ label: "Stock", amount: "100.00000000" }],
+      allocationIsPartial: false,
+      holdings: [
+        { assetId: 1, symbol: "AAPL", name: "Apple", value: "100.00000000", gain24hAmount: "5.50000000" },
+      ],
+      holdingsIsPartial: false,
+    });
+
+    renderPortfolioPage();
+
+    expect(await screen.findByText("AAPL")).toBeTruthy();
+    expect(screen.getAllByText("€100.00").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("+€5.50").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("+€5.50")[0].className).toContain("text-green-600");
+  });
+
+  it("aggregates 24h gains in 'Other' holdings group", async () => {
+    mockPortfolioRequest({
+      displayCurrency: "EUR",
+      totalValueStatus: "OK",
+      totalValueAmount: "1000.00000000",
+      accountTotals: [],
+      cashByCurrency: [
+        { currency: "EUR", amount: "0.00000000", convertedAmount: "0.00000000" },
+      ],
+      fxLastUpdated: null,
+      fxRefreshStatus: "AVAILABLE",
+      fxRefreshError: null,
+      allocationTotals: [{ label: "Stock", amount: "1000.00000000" }],
+      allocationIsPartial: false,
+      holdings: [
+        { assetId: 1, symbol: "H1", name: "H1", value: "500.00000000", gain24hAmount: "10.00000000" },
+        { assetId: 2, symbol: "H2", name: "H2", value: "100.00000000", gain24hAmount: "1.00000000" },
+        { assetId: 3, symbol: "H3", name: "H3", value: "100.00000000", gain24hAmount: "1.00000000" },
+        { assetId: 4, symbol: "H4", name: "H4", value: "100.00000000", gain24hAmount: "1.00000000" },
+        { assetId: 5, symbol: "H5", name: "H5", value: "100.00000000", gain24hAmount: "1.00000000" },
+        { assetId: 6, symbol: "H6", name: "H6", value: "50.00000000", gain24hAmount: "1.00000000" },
+        { assetId: 7, symbol: "H7", name: "H7", value: "50.00000000", gain24hAmount: "5.00000000" },
+      ],
+      holdingsIsPartial: false,
+    });
+
+    renderPortfolioPage();
+
+    // H1 to H6 will be shown individually (top 6), H7 will be in 'Other'
+    // Wait, the split logic is:
+    // let splitIdx = n;
+    // if (n > 6) {
+    //   for (let i = 0; i < n; i++) {
+    //     const tailSum = chartableHoldings.slice(i).reduce((s, h) => s + h.value, 0);
+    //     if (total > 0 && tailSum / total <= 0.1) {
+    //       splitIdx = i;
+    //       break;
+    //     }
+    //   }
+    // }
+    // total = 1000.
+    // i=0: tailSum=1000 (100% > 10%)
+    // i=1: tailSum=500 (50% > 10%)
+    // i=2: tailSum=400 (40% > 10%)
+    // i=3: tailSum=300 (30% > 10%)
+    // i=4: tailSum=200 (20% > 10%)
+    // i=5: tailSum=100 (10% <= 10%) -> splitIdx = 5.
+    // top5 = H1 to H5. others = H6, H7.
+    // 'Other' value = 50 + 50 = 100.
+    // 'Other' gain = 1 + 5 = 6.
+
+    expect(await screen.findByText("Other")).toBeTruthy();
+    expect(screen.getAllByText("€100.00").length).toBeGreaterThan(0);
+    expect(screen.getByText("+€6.00")).toBeTruthy();
+  });
 });
