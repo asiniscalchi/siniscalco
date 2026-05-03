@@ -164,6 +164,7 @@ type PortfolioHolding {
 	symbol: String!
 	name: String!
 	value: String!
+	gain24hAmount: String
 }
 
 type PortfolioSnapshot {

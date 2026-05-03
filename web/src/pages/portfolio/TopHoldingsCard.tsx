@@ -1,3 +1,4 @@
+import { clsx } from "clsx";
 import { ItemLabel } from "@/components/ItemLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DonutChart } from "@/components/ui/donut-chart";
@@ -12,6 +13,7 @@ type ChartItem = {
   value: number;
   assetId?: number | null;
   color: string;
+  gain24hAmount?: string | null;
 };
 
 const TYPE_PALETTES: Record<AssetType, string[]> = {
@@ -114,6 +116,7 @@ export function TopHoldingsCard({
       fullName: h.name,
       value: h.value,
       assetId: h.assetId,
+      gain24hAmount: h.gain24hAmount,
     })),
     ...(others.length > 0
       ? [
@@ -124,6 +127,9 @@ export function TopHoldingsCard({
             }`,
             value: others.reduce((sum, h) => sum + h.value, 0),
             assetId: undefined,
+            gain24hAmount: others.some(h => h.gain24hAmount != null)
+              ? others.reduce((sum, h) => sum + Number(h.gain24hAmount ?? 0), 0).toString()
+              : null,
           },
         ]
       : []),
@@ -175,12 +181,26 @@ export function TopHoldingsCard({
                     <ItemLabel primary={item.name} secondary={item.fullName} />
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
-                    <MoneyText
-                      className="text-right text-xs text-muted-foreground"
-                      currency={displayCurrency}
-                      hidden={hideValues}
-                      value={item.value.toString()}
-                    />
+                    <div className="flex flex-col items-end">
+                      <MoneyText
+                        className="text-right text-xs font-medium"
+                        currency={displayCurrency}
+                        hidden={hideValues}
+                        value={item.value.toString()}
+                      />
+                      {item.gain24hAmount && !hideValues && (
+                        <MoneyText
+                          className={clsx(
+                            "text-[10px] tabular-nums",
+                            Number(item.gain24hAmount) >= 0 ? "text-green-600" : "text-red-600"
+                          )}
+                          currency={displayCurrency}
+                          hidden={hideValues}
+                          signDisplay="always"
+                          value={item.gain24hAmount}
+                        />
+                      )}
+                    </div>
                     <span className="w-14 text-right font-mono text-xs tabular-nums text-muted-foreground">
                       {hideValues ? "•••%" : `${percentage.toFixed(1)}%`}
                     </span>

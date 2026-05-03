@@ -281,6 +281,7 @@ pub struct PortfolioHoldingRecord {
     pub symbol: String,
     pub name: String,
     pub value: Amount,
+    pub gain_24h_amount: Option<Amount>,
 }
 
 pub struct CreateTransferInput {

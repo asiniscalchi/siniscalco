@@ -13,15 +13,9 @@ export function MoneyText({
   currency,
   hidden,
   className,
-  includeCurrency,
-  minimumFractionDigits,
-  maximumFractionDigits,
+  ...options
 }: MoneyTextProps) {
-  const formatted = formatMoney(value, currency, hidden, {
-    includeCurrency,
-    minimumFractionDigits,
-    maximumFractionDigits,
-  });
+  const formatted = formatMoney(value, currency, hidden, options);
 
   return (
     <span
