@@ -89,6 +89,11 @@ pub async fn spawn_fx_refresh_task(
     tokio::spawn(async move {
         let client = Client::new();
 
+        info!(
+            refresh_interval_seconds = config.refresh_interval.as_secs(),
+            "fx refresh task started"
+        );
+
         loop {
             info!(
                 endpoint = %config.base_url,

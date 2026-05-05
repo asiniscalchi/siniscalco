@@ -24,6 +24,12 @@ pub async fn spawn_asset_price_refresh_task(pool: SqlitePool, config: AssetPrice
     tokio::spawn(async move {
         let client = Client::new();
 
+        info!(
+            refresh_interval_seconds = config.refresh_interval.as_secs(),
+            "asset price refresh task started; first full refresh in {} seconds",
+            config.refresh_interval.as_secs()
+        );
+
         match fill_missing_asset_prices(&pool, &client, &config).await {
             Ok(0) => {}
             Ok(updated_count) => info!(updated_count, "startup asset price fill succeeded"),

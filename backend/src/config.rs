@@ -189,6 +189,10 @@ pub struct Config {
     /// SearXNG instance URL (enables web search via MCP for the AI assistant)
     #[arg(long, env = "SEARXNG_URL")]
     pub searxng_url: Option<String>,
+
+    /// Refresh interval in seconds for asset prices and FX rates
+    #[arg(long, env = "REFRESH_INTERVAL_SECS", default_value_t = DEFAULT_REFRESH_INTERVAL_SECS)]
+    pub refresh_interval_secs: u64,
 }
 
 impl Config {
@@ -198,6 +202,10 @@ impl Config {
         lines.push("## General".to_string());
         lines.push(format!("- **Port:** {}", self.port));
         lines.push(format!("- **Database:** `{}`", self.db_path));
+        lines.push(format!(
+            "- **Refresh Interval:** {} seconds",
+            self.refresh_interval_secs
+        ));
         lines.push(String::new());
 
         lines.push("## FX Rates (Frankfurter)".to_string());
@@ -319,14 +327,14 @@ impl Config {
 
     pub fn fx_refresh_config(&self) -> FxRefreshConfig {
         FxRefreshConfig {
-            refresh_interval: Duration::from_secs(DEFAULT_REFRESH_INTERVAL_SECS),
+            refresh_interval: Duration::from_secs(self.refresh_interval_secs),
             base_url: trim_url(&self.fx_refresh_base_url),
         }
     }
 
     pub fn asset_price_refresh_config(&self) -> AssetPriceRefreshConfig {
         AssetPriceRefreshConfig {
-            refresh_interval: Duration::from_secs(DEFAULT_REFRESH_INTERVAL_SECS),
+            refresh_interval: Duration::from_secs(self.refresh_interval_secs),
             coingecko_base_url: trim_url(&self.coingecko_base_url),
             coincap_base_url: trim_url(&self.coincap_base_url),
             coincap_api_key: non_empty(self.coincap_api_key.as_deref()),
@@ -380,5 +388,16 @@ mod tests {
 
         assert!(price_config.yahoo_finance_enabled);
         assert_eq!(price_config.stock_providers()[0].name(), "yahoo");
+        assert_eq!(price_config.refresh_interval, Duration::from_secs(3600));
+    }
+
+    #[test]
+    fn refresh_interval_can_be_configured() {
+        let config = Config::parse_from(["siniscalco", "--refresh-interval-secs", "60"]);
+        let price_config = config.asset_price_refresh_config();
+        let fx_config = config.fx_refresh_config();
+
+        assert_eq!(price_config.refresh_interval, Duration::from_secs(60));
+        assert_eq!(fx_config.refresh_interval, Duration::from_secs(60));
     }
 }
