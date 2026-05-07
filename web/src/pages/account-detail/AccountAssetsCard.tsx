@@ -3,7 +3,7 @@ import { useQuery } from "@apollo/client/react";
 import { MARKET_DATA_POLL_INTERVAL } from "@/lib/apollo";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ItemLabel } from "@/components/ItemLabel";
+import { AssetLabel } from "../assets/AssetLabel";
 import { type AccountPositionsQuery, type AccountAssetsQuery, type AccountFxRatesQuery } from "@/gql/types";
 
 const ACCOUNT_POSITIONS_QUERY = gql`
@@ -140,7 +140,7 @@ export function AccountAssetsCard({ accountId, baseCurrency }: AccountAssetsCard
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-2">
-                      <ItemLabel primary={asset.symbol} secondary={asset.name} />
+                      <AssetLabel name={asset.name} noLink symbol={asset.symbol} />
                     </div>
                     <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                       <span className="inline-flex items-center rounded-full border bg-muted/50 px-1.5 py-px font-medium uppercase tracking-wide">
@@ -178,7 +178,7 @@ export function AccountAssetsCard({ accountId, baseCurrency }: AccountAssetsCard
                   {accountAssets.map((asset) => (
                     <tr key={asset.assetId}>
                       <td className="py-3 pr-4">
-                        <ItemLabel primary={asset.symbol} secondary={asset.name} />
+                        <AssetLabel name={asset.name} symbol={asset.symbol} />
                       </td>
                       <td className="py-3 pr-4">
                         <span className="inline-flex items-center rounded-full border bg-muted/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">

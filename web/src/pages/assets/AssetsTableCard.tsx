@@ -3,7 +3,6 @@ import { gql } from "@apollo/client/core";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { MARKET_DATA_POLL_INTERVAL } from "@/lib/apollo";
 
-import { ItemLabel } from "@/components/ItemLabel";
 import { LockIcon, PencilIcon, PlusIcon, TrashIcon, UnlockIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,18 +22,17 @@ import {
   priceLabel,
   quoteSourceLabel,
   totalGainPctRaw,
+  yahooFinanceUrl,
 } from "./asset-utils";
 
-const yahooFinanceUrl = (symbol: string) =>
-  `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
+import { AssetFormModal } from "./AssetFormModal";
+import { AssetLabel } from "./AssetLabel";
 
 const DELETE_ASSET_MUTATION = gql`
   mutation DeleteAsset($id: Int!) {
     deleteAsset(id: $id)
   }
 `;
-
-import { AssetFormModal } from "./AssetFormModal";
 
 type SortField = "alpha" | "daily" | "gain";
 type SortDir = "asc" | "desc";
@@ -218,7 +216,7 @@ export function AssetsTableCard() {
                       target="_blank"
                     >
                       <div className="min-w-0 flex-1">
-                        <ItemLabel primary={asset.symbol} secondary={asset.name} />
+                        <AssetLabel name={asset.name} noLink symbol={asset.symbol} />
                         <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                           <span className="font-mono tabular-nums">{formatPrice(asset)}</span>
                         </div>
@@ -342,7 +340,11 @@ export function AssetsTableCard() {
                         onClick={() => window.open(yahooFinanceUrl(asset.quoteSymbol ?? asset.symbol), "_blank", "noopener,noreferrer")}
                       >
                         <td className="py-3 pr-4">
-                          <ItemLabel primary={asset.symbol} secondary={asset.name} />
+                          <AssetLabel
+                            name={asset.name}
+                            quoteSymbol={asset.quoteSymbol}
+                            symbol={asset.symbol}
+                          />
                         </td>
                         <td className="py-3 pr-4">
                           <span className="inline-flex items-center rounded-full border bg-muted/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">

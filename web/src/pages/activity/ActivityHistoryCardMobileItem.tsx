@@ -3,6 +3,7 @@ import { MoneyText } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 import { ItemLabel } from "@/components/ItemLabel";
+import { AssetLabel } from "../assets/AssetLabel";
 import { ActivityHistoryCardActions } from "./ActivityHistoryCardActions";
 import {
   getActivityTypeClassName,
@@ -41,9 +42,10 @@ export function ActivityHistoryCardMobileItem({
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             {item.kind === "trade" ? (
-              <ItemLabel
-                primary={assetById.get(item.data.assetId)?.symbol || "Unknown"}
-                secondary={assetById.get(item.data.assetId)?.name}
+              <AssetLabel
+                name={assetById.get(item.data.assetId)?.name ?? ""}
+                noLink
+                symbol={assetById.get(item.data.assetId)?.symbol ?? "Unknown"}
               />
             ) : item.kind === "cash" ? (
               <ItemLabel primary={item.data.currency} secondary="Cash" />

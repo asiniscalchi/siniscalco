@@ -2,6 +2,7 @@ import { MoneyText } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 import { ItemLabel } from "@/components/ItemLabel";
+import { AssetLabel } from "../assets/AssetLabel";
 import { ActivityHistoryCardActions } from "./ActivityHistoryCardActions";
 import {
   getActivityTypeClassName,
@@ -46,9 +47,9 @@ export function ActivityHistoryCardDesktopRow({
       </td>
       <td className="py-3 pr-4">
         {item.kind === "trade" ? (
-          <ItemLabel
-            primary={assetById.get(item.data.assetId)?.symbol || "Unknown"}
-            secondary={assetById.get(item.data.assetId)?.name}
+          <AssetLabel
+            name={assetById.get(item.data.assetId)?.name ?? ""}
+            symbol={assetById.get(item.data.assetId)?.symbol ?? "Unknown"}
           />
         ) : item.kind === "cash" ? (
           <span className="text-muted-foreground">{item.data.currency}</span>
