@@ -3,7 +3,6 @@ import { gql } from "@apollo/client/core";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { MARKET_DATA_POLL_INTERVAL } from "@/lib/apollo";
 
-import { ItemLabel } from "@/components/ItemLabel";
 import { LockIcon, PencilIcon, PlusIcon, TrashIcon, UnlockIcon } from "@/components/Icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

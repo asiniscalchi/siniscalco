@@ -3,7 +3,6 @@ import { useQuery } from "@apollo/client/react";
 import { MARKET_DATA_POLL_INTERVAL } from "@/lib/apollo";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ItemLabel } from "@/components/ItemLabel";
 import { AssetLabel } from "../assets/AssetLabel";
 import { type AccountPositionsQuery, type AccountAssetsQuery, type AccountFxRatesQuery } from "@/gql/types";
 
