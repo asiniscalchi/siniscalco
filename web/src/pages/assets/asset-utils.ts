@@ -141,6 +141,9 @@ export function quoteSourceUpdatedLabel(asset: AssetItem): string | null {
   return isoDate ? `Detected ${isoDate}` : null;
 }
 
+export const yahooFinanceUrl = (symbol: string) =>
+  `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
+
 export function priceHealthLabel(assets: AssetItem[]): string {
   const priced = assets.filter((asset) => asset.currentPrice && asset.currentPriceCurrency).length;
   const pending = assets.length - priced;

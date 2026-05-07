@@ -1,5 +1,6 @@
 import { clsx } from "clsx";
 import { ItemLabel } from "@/components/ItemLabel";
+import { AssetLabel } from "../assets/AssetLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DonutChart } from "@/components/ui/donut-chart";
 import { type AssetType } from "@/gql/types";
@@ -178,7 +179,11 @@ export function TopHoldingsCard({
                       className="inline-block h-3 w-3 shrink-0 rounded-full"
                       style={{ backgroundColor: item.color }}
                     />
-                    <ItemLabel primary={item.name} secondary={item.fullName} />
+                    {item.name === "Other" ? (
+                      <ItemLabel primary={item.name} secondary={item.fullName} />
+                    ) : (
+                      <AssetLabel name={item.fullName} symbol={item.name} />
+                    )}
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     <div className="flex flex-col items-end">
