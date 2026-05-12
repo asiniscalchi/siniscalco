@@ -1,13 +1,10 @@
 mod asset_price_refresh;
-pub mod assistant;
-pub mod chat_threads;
 mod config;
 mod db;
 mod format;
 mod fx_refresh;
 mod graphql;
 mod logging;
-pub mod mcp;
 pub mod mcp_server;
 mod portfolio_snapshot_job;
 pub mod storage;
@@ -20,7 +17,7 @@ pub use logging::{default_log_filter, init_tracing};
 
 // ── HTTP / GraphQL ───────────────────────────────────────────────────────────
 
-pub use graphql::{AppState, AssistantState, build_router, build_router_with_state, schema_sdl};
+pub use graphql::{AppState, build_router, build_router_with_state, schema_sdl};
 
 // ── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -49,10 +46,6 @@ pub use asset_price_refresh::{
 // ── Portfolio snapshots ──────────────────────────────────────────────────────
 
 pub use portfolio_snapshot_job::spawn_portfolio_snapshot_task;
-
-// ── MCP ──────────────────────────────────────────────────────────────────────
-
-pub use mcp::SharedMcpClient;
 
 // ── Storage: domain types ────────────────────────────────────────────────────
 

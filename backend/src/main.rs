@@ -5,10 +5,9 @@ use if_addrs::get_if_addrs;
 use tracing::{error, info};
 
 use backend::{
-    AppState, AssetPriceRefreshConfig, AssistantState, Config, FxRefreshConfig, SharedMcpClient,
-    build_router_with_state, connect_db_file, init_tracing, mcp::McpClient,
-    new_shared_fx_refresh_status, spawn_asset_price_refresh_task, spawn_fx_refresh_task,
-    spawn_portfolio_snapshot_task,
+    AppState, AssetPriceRefreshConfig, Config, FxRefreshConfig, build_router_with_state,
+    connect_db_file, init_tracing, new_shared_fx_refresh_status, spawn_asset_price_refresh_task,
+    spawn_fx_refresh_task, spawn_portfolio_snapshot_task,
 };
 
 #[tokio::main]
@@ -38,27 +37,6 @@ async fn main() {
     let fx_refresh_config = config.fx_refresh_config();
     let asset_price_refresh_config = config.asset_price_refresh_config();
     let http_client = reqwest::Client::new();
-    let persisted_model = match backend::assistant::load_selected_model_setting(&pool).await {
-        Ok(value) => value,
-        Err(error) => {
-            tracing::warn!(error = %error, "failed to load persisted assistant model");
-            None
-        }
-    };
-    let persisted_reasoning_effort =
-        match backend::assistant::load_reasoning_effort_setting(&pool).await {
-            Ok(value) => value,
-            Err(error) => {
-                tracing::warn!(error = %error, "failed to load persisted reasoning effort");
-                None
-            }
-        };
-    let assistant_models = backend::assistant::new_shared_assistant_model_registry(
-        config.openai_api_key.as_deref(),
-        persisted_model.as_deref(),
-        persisted_reasoning_effort.as_deref(),
-    );
-    let mcp_client = spawn_mcp_client(config.searxng_url.as_deref()).await;
 
     let app = build_router_with_state(AppState {
         pool: pool.clone(),
@@ -66,30 +44,16 @@ async fn main() {
         asset_price_refresh_config: asset_price_refresh_config.clone(),
         http_client: http_client.clone(),
         config_markdown: config.to_markdown(),
-        assistant: AssistantState {
-            openai_api_key: config.openai_api_key.clone(),
-            models: assistant_models.clone(),
-            chat_semaphore: backend::assistant::new_assistant_chat_semaphore(),
-            openai_responses_url: backend::assistant::openai_responses_url().to_string(),
-            openai_models_url: backend::assistant::openai_models_url().to_string(),
-            mcp_client,
-        },
     });
     let address = SocketAddr::from(([0, 0, 0, 0], config.port));
 
     log_fx_refresh_configuration(&fx_refresh_config);
     log_asset_price_refresh_configuration(&asset_price_refresh_config);
+    info!(endpoint = "/mcp", "MCP server enabled");
 
     spawn_fx_refresh_task(pool.clone(), fx_refresh_status, fx_refresh_config).await;
     spawn_asset_price_refresh_task(pool.clone(), asset_price_refresh_config).await;
     spawn_portfolio_snapshot_task(pool.clone()).await;
-    backend::assistant::spawn_assistant_model_refresh_task(
-        assistant_models,
-        http_client,
-        config.openai_api_key.clone(),
-        backend::assistant::openai_models_url().to_string(),
-    )
-    .await;
 
     log_listening_addresses(address);
 
@@ -103,20 +67,6 @@ async fn main() {
     if let Err(error) = axum::serve(listener, app).await {
         error!(error = %error, "backend server error");
         std::process::exit(1);
-    }
-}
-
-async fn spawn_mcp_client(searxng_url: Option<&str>) -> Option<SharedMcpClient> {
-    let url = searxng_url?;
-    match McpClient::spawn(url).await {
-        Ok(client) => {
-            info!(searxng_url = url, "MCP SearXNG client started");
-            Some(std::sync::Arc::new(client))
-        }
-        Err(e) => {
-            tracing::warn!(error = %e, "failed to start MCP SearXNG client; web search will be unavailable");
-            None
-        }
     }
 }
 

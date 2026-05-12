@@ -7,7 +7,7 @@ use async_graphql_axum::GraphQL;
 use axum::{
     Json, Router,
     http::{Method, header::CONTENT_TYPE},
-    routing::{get, post, put},
+    routing::get,
 };
 use serde::Serialize;
 use sqlx::SqlitePool;
@@ -19,11 +19,7 @@ use tower_http::{
 use mutation::MutationRoot;
 use query::QueryRoot;
 
-use crate::{
-    AssetPriceRefreshConfig, SharedFxRefreshStatus,
-    assistant::{SharedAssistantChatSemaphore, SharedAssistantModelRegistry},
-    mcp::SharedMcpClient,
-};
+use crate::{AssetPriceRefreshConfig, SharedFxRefreshStatus};
 
 pub type AppSchema = Schema<QueryRoot, MutationRoot, EmptySubscription>;
 
@@ -34,22 +30,11 @@ pub fn schema_sdl() -> String {
 }
 
 #[derive(Clone)]
-pub struct AssistantState {
-    pub openai_api_key: Option<String>,
-    pub models: SharedAssistantModelRegistry,
-    pub chat_semaphore: SharedAssistantChatSemaphore,
-    pub openai_responses_url: String,
-    pub openai_models_url: String,
-    pub mcp_client: Option<SharedMcpClient>,
-}
-
-#[derive(Clone)]
 pub struct AppState {
     pub pool: SqlitePool,
     pub fx_refresh_status: SharedFxRefreshStatus,
     pub asset_price_refresh_config: AssetPriceRefreshConfig,
     pub http_client: reqwest::Client,
-    pub assistant: AssistantState,
     pub config_markdown: String,
 }
 
@@ -76,18 +61,6 @@ pub fn build_router(pool: SqlitePool) -> Router {
         asset_price_refresh_config: config.asset_price_refresh_config(),
         http_client: reqwest::Client::new(),
         config_markdown: config.to_markdown(),
-        assistant: AssistantState {
-            openai_api_key: config.openai_api_key.clone(),
-            models: crate::assistant::new_shared_assistant_model_registry(
-                config.openai_api_key.as_deref(),
-                None,
-                None,
-            ),
-            chat_semaphore: crate::assistant::new_assistant_chat_semaphore(),
-            openai_responses_url: crate::assistant::openai_responses_url().to_string(),
-            openai_models_url: crate::assistant::openai_models_url().to_string(),
-            mcp_client: None,
-        },
     })
 }
 
@@ -108,46 +81,6 @@ pub fn build_router_with_state(state: AppState) -> Router {
         .route("/health", get(health))
         .route("/version", get(version))
         .route("/config", get(config_summary))
-        .route("/assistant/chat", post(crate::assistant::chat))
-        .route(
-            "/assistant/generate-title",
-            post(crate::assistant::generate_title),
-        )
-        .route("/assistant/models", get(crate::assistant::models))
-        .route(
-            "/assistant/models/selected",
-            put(crate::assistant::select_model),
-        )
-        .route(
-            "/assistant/models/reasoning-effort",
-            put(crate::assistant::set_reasoning_effort),
-        )
-        .route(
-            "/assistant/system-prompt",
-            get(crate::assistant::get_system_prompt)
-                .put(crate::assistant::update_system_prompt)
-                .delete(crate::assistant::delete_system_prompt),
-        )
-        .route(
-            "/assistant/threads",
-            get(crate::chat_threads::list_threads).post(crate::chat_threads::create_thread),
-        )
-        .route(
-            "/assistant/threads/{thread_id}",
-            get(crate::chat_threads::get_thread).delete(crate::chat_threads::delete_thread),
-        )
-        .route(
-            "/assistant/threads/{thread_id}/title",
-            put(crate::chat_threads::rename_thread),
-        )
-        .route(
-            "/assistant/threads/{thread_id}/status",
-            put(crate::chat_threads::update_thread_status),
-        )
-        .route(
-            "/assistant/threads/{thread_id}/messages",
-            get(crate::chat_threads::get_thread_messages).post(crate::chat_threads::append_message),
-        )
         .route_service("/graphql", GraphQL::new(schema))
         .nest_service(
             "/mcp",

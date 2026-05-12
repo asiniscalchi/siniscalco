@@ -507,6 +507,7 @@ pub fn build_mcp_service(
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 fn tool_error(err: StorageError) -> CallToolResult {
+    tracing::error!(error = %err, "MCP tool error");
     CallToolResult::error(vec![Content::text(format!("Error: {err}"))])
 }
 
