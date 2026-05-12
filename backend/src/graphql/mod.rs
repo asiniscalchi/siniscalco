@@ -149,6 +149,10 @@ pub fn build_router_with_state(state: AppState) -> Router {
             get(crate::chat_threads::get_thread_messages).post(crate::chat_threads::append_message),
         )
         .route_service("/graphql", GraphQL::new(schema))
+        .nest_service(
+            "/mcp",
+            crate::mcp_server::build_mcp_service(state.pool.clone()),
+        )
         .layer(TraceLayer::new_for_http())
         .layer(cors)
         .with_state(state)
