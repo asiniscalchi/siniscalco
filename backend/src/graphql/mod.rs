@@ -82,6 +82,10 @@ pub fn build_router_with_state(state: AppState) -> Router {
         .route("/version", get(version))
         .route("/config", get(config_summary))
         .route_service("/graphql", GraphQL::new(schema))
+        .nest_service(
+            "/mcp",
+            crate::mcp_server::build_mcp_service(state.pool.clone()),
+        )
         .layer(TraceLayer::new_for_http())
         .layer(cors)
         .with_state(state)

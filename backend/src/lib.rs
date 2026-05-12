@@ -5,6 +5,7 @@ mod format;
 mod fx_refresh;
 mod graphql;
 mod logging;
+pub mod mcp_server;
 mod portfolio_snapshot_job;
 pub mod storage;
 
