@@ -49,6 +49,7 @@ async fn main() {
 
     log_fx_refresh_configuration(&fx_refresh_config);
     log_asset_price_refresh_configuration(&asset_price_refresh_config);
+    info!(endpoint = "/mcp", "MCP server enabled");
 
     spawn_fx_refresh_task(pool.clone(), fx_refresh_status, fx_refresh_config).await;
     spawn_asset_price_refresh_task(pool.clone(), asset_price_refresh_config).await;
