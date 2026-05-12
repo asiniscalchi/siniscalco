@@ -20,7 +20,7 @@ use crate::{
     storage::{
         AccountId, AssetId, StorageError, get_account, get_asset, get_portfolio_summary,
         list_account_balances, list_account_positions, list_account_summaries, list_assets,
-        list_transfers_by_account,
+        list_transactions, list_transfers_by_account,
     },
 };
 
@@ -357,6 +357,43 @@ impl PortfolioServer {
             Err(e) => tool_error(e),
         }
     }
+
+    #[tool(
+        description = "List recent asset transactions (buys, sells, dividends) across all accounts, newest first. Accepts an optional limit (default 50, max 200)."
+    )]
+    async fn list_transactions(&self, Parameters(args): Parameters<LimitArgs>) -> CallToolResult {
+        let limit = args.limit.unwrap_or(50).min(200) as usize;
+
+        match list_transactions(&self.pool).await {
+            Ok(transactions) => {
+                if transactions.is_empty() {
+                    return CallToolResult::success(vec![Content::text("No transactions found.")]);
+                }
+
+                let shown = transactions.iter().take(limit);
+                let mut lines = vec![format!(
+                    "Transactions (showing up to {limit} of {}):",
+                    transactions.len()
+                )];
+                for t in shown {
+                    lines.push(format!(
+                        "  [{}] {} {} qty={} price={} {} (account={} asset={})",
+                        t.id,
+                        t.trade_date.as_str(),
+                        t.transaction_type.as_str(),
+                        fmt_amount(&t.quantity),
+                        fmt_amount(&t.unit_price),
+                        t.currency_code.as_str(),
+                        t.account_id.as_i64(),
+                        t.asset_id.as_i64(),
+                    ));
+                }
+
+                CallToolResult::success(vec![Content::text(lines.join("\n"))])
+            }
+            Err(e) => tool_error(e),
+        }
+    }
 }
 
 #[tool_handler]
@@ -436,7 +473,8 @@ mod tests {
         assert!(names.contains(&"list_accounts"), "{names:?}");
         assert!(names.contains(&"get_account_details"), "{names:?}");
         assert!(names.contains(&"get_asset_details"), "{names:?}");
-        assert_eq!(tools.len(), 5);
+        assert!(names.contains(&"list_transactions"), "{names:?}");
+        assert_eq!(tools.len(), 6);
     }
 
     #[tokio::test]
@@ -546,5 +584,17 @@ mod tests {
         assert!(text.contains("Apple Inc."), "{text}");
         assert!(text.contains("AAPL"), "{text}");
         assert!(text.contains("US0378331005"), "{text}");
+    }
+
+    #[tokio::test]
+    async fn list_transactions_empty_db() {
+        let pool = test_pool().await;
+        let server = PortfolioServer::new(pool);
+        let result = server
+            .list_transactions(Parameters(LimitArgs { limit: None }))
+            .await;
+        assert!(!result.is_error.unwrap_or(false));
+        let text = &result.content[0].as_text().expect("text content").text;
+        assert_eq!(text, "No transactions found.");
     }
 }
