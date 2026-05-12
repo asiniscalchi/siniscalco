@@ -20,7 +20,7 @@ use crate::{
     storage::{
         AccountId, AssetId, StorageError, get_account, get_asset, get_portfolio_summary,
         list_account_balances, list_account_positions, list_account_summaries, list_assets,
-        list_transactions, list_transfers_by_account,
+        list_portfolio_snapshots, list_transactions, list_transfers_by_account,
     },
 };
 
@@ -394,6 +394,37 @@ impl PortfolioServer {
             Err(e) => tool_error(e),
         }
     }
+
+    #[tool(
+        description = "List historical daily portfolio snapshots in EUR, ordered oldest to newest. Provides a time series of total portfolio value."
+    )]
+    async fn list_portfolio_snapshots(&self) -> CallToolResult {
+        match list_portfolio_snapshots(&self.pool, PRODUCT_BASE_CURRENCY).await {
+            Ok(snapshots) => {
+                if snapshots.is_empty() {
+                    return CallToolResult::success(vec![Content::text(
+                        "No portfolio snapshots found.",
+                    )]);
+                }
+
+                let currency = PRODUCT_BASE_CURRENCY.as_str();
+                let mut lines = vec![format!(
+                    "Portfolio snapshots ({} total, {currency}):",
+                    snapshots.len()
+                )];
+                for s in &snapshots {
+                    lines.push(format!(
+                        "  {} {}",
+                        s.recorded_at,
+                        fmt_amount(&s.total_value),
+                    ));
+                }
+
+                CallToolResult::success(vec![Content::text(lines.join("\n"))])
+            }
+            Err(e) => tool_error(e),
+        }
+    }
 }
 
 #[tool_handler]
@@ -474,7 +505,8 @@ mod tests {
         assert!(names.contains(&"get_account_details"), "{names:?}");
         assert!(names.contains(&"get_asset_details"), "{names:?}");
         assert!(names.contains(&"list_transactions"), "{names:?}");
-        assert_eq!(tools.len(), 6);
+        assert!(names.contains(&"list_portfolio_snapshots"), "{names:?}");
+        assert_eq!(tools.len(), 7);
     }
 
     #[tokio::test]
@@ -596,5 +628,15 @@ mod tests {
         assert!(!result.is_error.unwrap_or(false));
         let text = &result.content[0].as_text().expect("text content").text;
         assert_eq!(text, "No transactions found.");
+    }
+
+    #[tokio::test]
+    async fn list_portfolio_snapshots_empty_db() {
+        let pool = test_pool().await;
+        let server = PortfolioServer::new(pool);
+        let result = server.list_portfolio_snapshots().await;
+        assert!(!result.is_error.unwrap_or(false));
+        let text = &result.content[0].as_text().expect("text content").text;
+        assert_eq!(text, "No portfolio snapshots found.");
     }
 }
