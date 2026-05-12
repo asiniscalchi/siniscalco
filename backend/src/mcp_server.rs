@@ -500,7 +500,7 @@ pub fn build_mcp_service(
     StreamableHttpService::new(
         move || Ok(PortfolioServer::new(pool.clone())),
         LocalSessionManager::default().into(),
-        StreamableHttpServerConfig::default(),
+        StreamableHttpServerConfig::default().disable_allowed_hosts(),
     )
 }
 
