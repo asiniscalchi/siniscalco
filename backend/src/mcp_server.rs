@@ -20,7 +20,8 @@ use crate::{
     storage::{
         AccountId, AssetId, StorageError, get_account, get_asset, get_portfolio_summary,
         list_account_balances, list_account_positions, list_account_summaries, list_assets,
-        list_portfolio_snapshots, list_transactions, list_transfers_by_account,
+        list_portfolio_allocation, list_portfolio_snapshots, list_transactions,
+        list_transfers_by_account,
     },
 };
 
@@ -425,6 +426,48 @@ impl PortfolioServer {
             Err(e) => tool_error(e),
         }
     }
+
+    #[tool(
+        description = "Get the current portfolio allocation breakdown by asset class (Stock, ETF, Bond, Crypto, Cash, Other) with value in EUR and percentage weight."
+    )]
+    async fn list_portfolio_allocation(&self) -> CallToolResult {
+        match list_portfolio_allocation(&self.pool, PRODUCT_BASE_CURRENCY).await {
+            Ok((slices, is_partial)) => {
+                if slices.is_empty() {
+                    return CallToolResult::success(vec![Content::text(
+                        "No allocation data found.",
+                    )]);
+                }
+
+                let currency = PRODUCT_BASE_CURRENCY.as_str();
+                let total: rust_decimal::Decimal =
+                    slices.iter().map(|s| s.amount.as_decimal()).sum();
+                let partial_note = if is_partial {
+                    " (partial — some prices missing)"
+                } else {
+                    ""
+                };
+
+                let mut lines = vec![format!("Portfolio allocation ({currency}){partial_note}:")];
+                for s in &slices {
+                    let pct = if total.is_zero() {
+                        rust_decimal::Decimal::ZERO
+                    } else {
+                        (s.amount.as_decimal() / total * rust_decimal::Decimal::ONE_HUNDRED)
+                            .round_dp(1)
+                    };
+                    lines.push(format!(
+                        "  {}: {} {currency} ({pct}%)",
+                        s.label,
+                        fmt_amount(&s.amount),
+                    ));
+                }
+
+                CallToolResult::success(vec![Content::text(lines.join("\n"))])
+            }
+            Err(e) => tool_error(e),
+        }
+    }
 }
 
 #[tool_handler]
@@ -436,8 +479,15 @@ impl ServerHandler for PortfolioServer {
                 option_env!("GIT_VERSION").unwrap_or("unknown"),
             ))
             .with_instructions(
-                "Portfolio server: use get_portfolio_summary for an overview, \
-                 list_assets for individual holdings, list_accounts for account details.",
+                "Portfolio server tools: \
+                 get_portfolio_summary — overall value, 24h gain, top holdings; \
+                 list_accounts — all accounts with totals; \
+                 get_account_details(account_id) — account cash, positions, transfers; \
+                 list_assets — all tracked assets with price and quantity; \
+                 get_asset_details(asset_id) — single asset with price, cost basis, ISIN; \
+                 list_transactions(limit?) — recent buy/sell/dividend records; \
+                 list_portfolio_snapshots — daily portfolio value time series; \
+                 list_portfolio_allocation — breakdown by asset class with percentages.",
             )
     }
 }
@@ -506,7 +556,8 @@ mod tests {
         assert!(names.contains(&"get_asset_details"), "{names:?}");
         assert!(names.contains(&"list_transactions"), "{names:?}");
         assert!(names.contains(&"list_portfolio_snapshots"), "{names:?}");
-        assert_eq!(tools.len(), 7);
+        assert!(names.contains(&"list_portfolio_allocation"), "{names:?}");
+        assert_eq!(tools.len(), 8);
     }
 
     #[tokio::test]
@@ -638,5 +689,15 @@ mod tests {
         assert!(!result.is_error.unwrap_or(false));
         let text = &result.content[0].as_text().expect("text content").text;
         assert_eq!(text, "No portfolio snapshots found.");
+    }
+
+    #[tokio::test]
+    async fn list_portfolio_allocation_empty_db() {
+        let pool = test_pool().await;
+        let server = PortfolioServer::new(pool);
+        let result = server.list_portfolio_allocation().await;
+        assert!(!result.is_error.unwrap_or(false));
+        let text = &result.content[0].as_text().expect("text content").text;
+        assert_eq!(text, "No allocation data found.");
     }
 }

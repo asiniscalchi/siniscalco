@@ -90,3 +90,20 @@ pub use todos::{create_todo, delete_todo, list_todos, update_todo_completed};
 pub use trade_date::TradeDate;
 pub use transfer_id::TransferId;
 pub use transfers::{create_transfer, delete_transfer, list_transfers, list_transfers_by_account};
+
+pub async fn list_portfolio_allocation(
+    pool: &sqlx::SqlitePool,
+    display_currency: Currency,
+) -> Result<(Vec<records::PortfolioAllocationSliceRecord>, bool), StorageError> {
+    let accounts = accounts::list_accounts(pool).await?;
+    let all_assets = assets::list_assets(pool).await?;
+    let assets_by_id: std::collections::BTreeMap<AssetId, records::AssetRecord> =
+        all_assets.into_iter().map(|a| (a.id, a)).collect();
+    portfolio_allocation::compute_allocation_totals(
+        pool,
+        &accounts,
+        &assets_by_id,
+        display_currency,
+    )
+    .await
+}
