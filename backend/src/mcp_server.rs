@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 use crate::{
     PRODUCT_BASE_CURRENCY, fmt_amount, fmt_opt_amount,
     storage::{
-        AccountId, AssetId, StorageError, get_account, get_portfolio_summary,
+        AccountId, AssetId, StorageError, get_account, get_asset, get_portfolio_summary,
         list_account_balances, list_account_positions, list_account_summaries, list_assets,
         list_transfers_by_account,
     },
@@ -292,6 +292,71 @@ impl PortfolioServer {
 
         CallToolResult::success(vec![Content::text(lines.join("\n"))])
     }
+
+    #[tool(
+        description = "Get details for a single tracked asset by ID: symbol, name, type, current price, total quantity, average cost basis, previous close, and quote source."
+    )]
+    async fn get_asset_details(&self, Parameters(args): Parameters<AssetIdArgs>) -> CallToolResult {
+        let asset_id = match AssetId::try_from(args.asset_id) {
+            Ok(id) => id,
+            Err(e) => {
+                return CallToolResult::error(vec![Content::text(format!(
+                    "Invalid asset_id: {e}"
+                ))]);
+            }
+        };
+
+        match get_asset(&self.pool, asset_id).await {
+            Ok(asset) => {
+                let price = fmt_opt_amount(asset.current_price.as_ref())
+                    .zip(asset.current_price_currency.map(|c| c.as_str().to_string()))
+                    .map(|(p, ccy)| format!("{p} {ccy}"))
+                    .unwrap_or_else(|| "n/a".to_string());
+                let prev_close = fmt_opt_amount(asset.previous_close.as_ref())
+                    .zip(
+                        asset
+                            .previous_close_currency
+                            .map(|c| c.as_str().to_string()),
+                    )
+                    .map(|(p, ccy)| format!("{p} {ccy}"))
+                    .unwrap_or_else(|| "n/a".to_string());
+                let qty = fmt_opt_amount(asset.total_quantity.as_ref())
+                    .unwrap_or_else(|| "n/a".to_string());
+                let cost_basis = fmt_opt_amount(asset.avg_cost_basis.as_ref())
+                    .zip(
+                        asset
+                            .avg_cost_basis_currency
+                            .map(|c| c.as_str().to_string()),
+                    )
+                    .map(|(p, ccy)| format!("{p} {ccy}"))
+                    .unwrap_or_else(|| "n/a".to_string());
+
+                let mut lines = vec![
+                    format!("[{}] {} ({})", asset.id.as_i64(), asset.name, asset.symbol),
+                    format!("Type: {:?}", asset.asset_type),
+                    format!("Current price:  {price}"),
+                    format!("Previous close: {prev_close}"),
+                    format!("Total quantity: {qty}"),
+                    format!("Avg cost basis: {cost_basis}"),
+                ];
+
+                if let Some(isin) = &asset.isin {
+                    lines.push(format!("ISIN: {isin}"));
+                }
+                if let (Some(provider), Some(symbol)) =
+                    (&asset.quote_source_provider, &asset.quote_source_symbol)
+                {
+                    lines.push(format!("Quote source: {provider} / {symbol}"));
+                }
+                if let Some(as_of) = &asset.current_price_as_of {
+                    lines.push(format!("Price as of: {as_of}"));
+                }
+
+                CallToolResult::success(vec![Content::text(lines.join("\n"))])
+            }
+            Err(e) => tool_error(e),
+        }
+    }
 }
 
 #[tool_handler]
@@ -337,8 +402,11 @@ mod tests {
     use rmcp::handler::server::wrapper::Parameters;
 
     use super::*;
-    use crate::storage::{AccountName, AccountType, CreateAccountInput, Currency};
-    use crate::{init_db, storage::create_account};
+    use crate::storage::{
+        AccountName, AccountType, AssetName, AssetSymbol, AssetType, CreateAccountInput,
+        CreateAssetInput, Currency,
+    };
+    use crate::{init_db, storage::create_account, storage::create_asset};
 
     async fn test_pool() -> SqlitePool {
         let opts = SqliteConnectOptions::from_str("sqlite::memory:")
@@ -367,7 +435,8 @@ mod tests {
         assert!(names.contains(&"list_assets"), "{names:?}");
         assert!(names.contains(&"list_accounts"), "{names:?}");
         assert!(names.contains(&"get_account_details"), "{names:?}");
-        assert_eq!(tools.len(), 4);
+        assert!(names.contains(&"get_asset_details"), "{names:?}");
+        assert_eq!(tools.len(), 5);
     }
 
     #[tokio::test]
@@ -441,5 +510,41 @@ mod tests {
         assert!(!result.is_error.unwrap_or(false));
         let text = &result.content[0].as_text().expect("text content").text;
         assert!(text.contains("Test Broker"), "{text}");
+    }
+
+    #[tokio::test]
+    async fn get_asset_details_not_found() {
+        let pool = test_pool().await;
+        let server = PortfolioServer::new(pool);
+        let result = server
+            .get_asset_details(Parameters(AssetIdArgs { asset_id: 999 }))
+            .await;
+        assert!(result.is_error.unwrap_or(false));
+    }
+
+    #[tokio::test]
+    async fn get_asset_details_with_data() {
+        let pool = test_pool().await;
+        create_asset(
+            &pool,
+            CreateAssetInput {
+                symbol: AssetSymbol::try_from("AAPL").unwrap(),
+                name: AssetName::try_from("Apple Inc.").unwrap(),
+                asset_type: AssetType::Stock,
+                quote_symbol: None,
+                isin: Some("US0378331005".to_string()),
+            },
+        )
+        .await
+        .unwrap();
+        let server = PortfolioServer::new(pool);
+        let result = server
+            .get_asset_details(Parameters(AssetIdArgs { asset_id: 1 }))
+            .await;
+        assert!(!result.is_error.unwrap_or(false));
+        let text = &result.content[0].as_text().expect("text content").text;
+        assert!(text.contains("Apple Inc."), "{text}");
+        assert!(text.contains("AAPL"), "{text}");
+        assert!(text.contains("US0378331005"), "{text}");
     }
 }
