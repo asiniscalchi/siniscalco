@@ -5,8 +5,6 @@ mod format;
 mod fx_refresh;
 mod graphql;
 mod logging;
-pub mod mcp;
-pub mod mcp_server;
 mod portfolio_snapshot_job;
 pub mod storage;
 
@@ -47,10 +45,6 @@ pub use asset_price_refresh::{
 // ── Portfolio snapshots ──────────────────────────────────────────────────────
 
 pub use portfolio_snapshot_job::spawn_portfolio_snapshot_task;
-
-// ── MCP ──────────────────────────────────────────────────────────────────────
-
-pub use mcp::SharedMcpClient;
 
 // ── Storage: domain types ────────────────────────────────────────────────────
 
