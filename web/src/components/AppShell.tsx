@@ -3,11 +3,9 @@ import { gql } from "@apollo/client/core";
 import { useApolloClient, useQuery } from "@apollo/client/react";
 import { NavLink, Outlet } from "react-router-dom";
 
-import { AssistantPanel } from "@/components/AssistantPanel";
 import { Button } from "@/components/ui/button";
 import { APP_VERSION, getApiBaseUrl, getHealthApiUrl, getVersionApiUrl } from "@/lib/env";
 import {
-  ChatBubbleIcon,
   EyeClosedIcon,
   EyeIcon,
   LogoIcon,
@@ -131,7 +129,6 @@ export function AppShell() {
   const { data: todosNavData } = useQuery<TodosNavQuery>(TODOS_NAV_QUERY, {
     fetchPolicy: "cache-and-network",
   });
-  const [assistantOpen, setAssistantOpen] = useState(false);
   const [ringKey, setRingKey] = useState(0);
   const apiBaseUrl = getApiBaseUrl();
   const [backendStatus, setBackendStatus] = useState<
@@ -318,20 +315,6 @@ export function AppShell() {
           <Outlet />
         </div>
       </div>
-      <button
-        aria-expanded={assistantOpen}
-        aria-haspopup="dialog"
-        aria-label="Open assistant chat"
-        className={cn(
-          "fixed bottom-6 right-6 z-50 flex size-14 items-center justify-center rounded-full bg-foreground text-background shadow-lg transition-all hover:scale-105 active:scale-95",
-          assistantOpen && "opacity-40 blur-[2px] hover:scale-100",
-        )}
-        onClick={() => setAssistantOpen((o) => !o)}
-        type="button"
-      >
-        <ChatBubbleIcon className="size-6" />
-      </button>
-      <AssistantPanel open={assistantOpen} onClose={() => setAssistantOpen(false)} />
     </>
   );
 }
