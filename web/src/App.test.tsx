@@ -14,9 +14,6 @@ import { ApolloProvider } from "@apollo/client/react";
 
 import {
   getApiBaseUrl,
-  getAssistantModelsApiUrl,
-  getAssistantSelectedModelApiUrl,
-  getAssistantThreadsApiUrl,
   getVersionApiUrl,
 } from "@/lib/env";
 import { UiStateProvider } from "@/lib/ui-state-provider";
@@ -88,54 +85,6 @@ function mockGqlAndHealth(
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),
-      );
-    }
-
-    if (url === getAssistantThreadsApiUrl()) {
-      return Promise.resolve(
-        new Response(JSON.stringify([]), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
-    }
-
-    if (url === getAssistantModelsApiUrl()) {
-      return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            models: ["gpt-4o-mini", "gpt-4.1-mini"],
-            selected_model: "gpt-4o-mini",
-            openai_enabled: true,
-            last_refreshed_at: "2026-03-29T12:00:00Z",
-            refresh_error: null,
-          }),
-          {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          },
-        ),
-      );
-    }
-
-    if (url === getAssistantSelectedModelApiUrl()) {
-      const body = init?.body
-        ? (JSON.parse(String(init.body)) as { model: string })
-        : { model: "gpt-4o-mini" };
-      return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            models: ["gpt-4o-mini", "gpt-4.1-mini"],
-            selected_model: body.model,
-            openai_enabled: true,
-            last_refreshed_at: "2026-03-29T12:00:00Z",
-            refresh_error: null,
-          }),
-          {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          },
-        ),
       );
     }
 
@@ -213,7 +162,6 @@ describe("App shell", () => {
     expect(screen.queryByText(getApiBaseUrl())).toBeNull();
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeTruthy();
     expect(screen.getByTitle("Backend: checking")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Open assistant chat" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Portfolio" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Accounts" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Transfers" })).toBeNull();
@@ -340,54 +288,6 @@ describe("App shell", () => {
     });
     expect(screen.getAllByText("-10.00%").length).toBeGreaterThan(0);
     expect(screen.getAllByText("0.00%").length).toBeGreaterThan(0);
-  });
-
-  it("opens the assistant popup from the shell header", async () => {
-    mockGqlAndHealth(200);
-
-    renderApp(["/accounts"]);
-
-    expect(await screen.findByTitle("Backend: connected")).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "Open assistant chat" }));
-
-    expect(await screen.findByRole("dialog")).toBeTruthy();
-    expect(screen.getByTestId("assistant-panel").className).toContain(
-      "sm:w-[90dvw]",
-    );
-    expect(screen.getByTestId("assistant-panel").className).toContain(
-      "sm:h-[90dvh]",
-    );
-    expect(screen.getByRole("textbox", { name: "Assistant message" })).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "Show chat history" }));
-    expect(await screen.findByText("Chats")).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "Show settings" }));
-    expect(await screen.findByRole("combobox", { name: "Assistant model" })).toBeTruthy();
-  });
-
-  it("updates the assistant model from the popup selector", async () => {
-    mockGqlAndHealth(200);
-
-    renderApp(["/accounts"]);
-
-    fireEvent.click(await screen.findByRole("button", { name: "Open assistant chat" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Show settings" }));
-
-    const modelSelect = await screen.findByRole("combobox", {
-      name: "Assistant model",
-    });
-    fireEvent.change(modelSelect, { target: { value: "gpt-4.1-mini" } });
-
-    await waitFor(() => {
-      expect(vi.mocked(fetch).mock.calls).toContainEqual([
-        getAssistantSelectedModelApiUrl(),
-        expect.objectContaining({
-          method: "PUT",
-        }),
-      ]);
-    });
   });
 
   it("keeps the shell rendered while navigating between wrapped routes", async () => {

@@ -1,6 +1,4 @@
 mod asset_price_refresh;
-pub mod assistant;
-pub mod chat_threads;
 mod config;
 mod db;
 mod format;
@@ -20,7 +18,7 @@ pub use logging::{default_log_filter, init_tracing};
 
 // ── HTTP / GraphQL ───────────────────────────────────────────────────────────
 
-pub use graphql::{AppState, AssistantState, build_router, build_router_with_state, schema_sdl};
+pub use graphql::{AppState, build_router, build_router_with_state, schema_sdl};
 
 // ── Formatting helpers ───────────────────────────────────────────────────────
 

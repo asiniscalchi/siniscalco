@@ -182,14 +182,6 @@ pub struct Config {
     #[arg(long, env = "ITICK_API_KEY")]
     pub itick_api_key: Option<String>,
 
-    /// OpenAI API key (enables the AI assistant chat endpoint)
-    #[arg(long, env = "OPENAI_API_KEY")]
-    pub openai_api_key: Option<String>,
-
-    /// SearXNG instance URL (enables web search via MCP for the AI assistant)
-    #[arg(long, env = "SEARXNG_URL")]
-    pub searxng_url: Option<String>,
-
     /// Refresh interval in seconds for asset prices and FX rates
     #[arg(long, env = "REFRESH_INTERVAL_SECS", default_value_t = DEFAULT_REFRESH_INTERVAL_SECS)]
     pub refresh_interval_secs: u64,
@@ -303,24 +295,6 @@ impl Config {
             };
             lines.push(format!("- **{name}** ({status}): `{url}`{key_info}"));
         }
-
-        lines.push(String::new());
-        lines.push("## AI Assistant".to_string());
-        lines.push(format!(
-            "- **OpenAI API key:** {}",
-            if self.openai_api_key.is_some() {
-                "configured"
-            } else {
-                "not set"
-            }
-        ));
-        lines.push(format!(
-            "- **SearXNG URL:** {}",
-            self.searxng_url
-                .as_deref()
-                .map(|u| format!("`{u}`"))
-                .unwrap_or_else(|| "not set".to_string())
-        ));
 
         lines.join("\n")
     }

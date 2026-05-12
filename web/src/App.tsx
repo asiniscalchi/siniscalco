@@ -3,7 +3,6 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import {
   ActivityPage,
-  AssistantPage,
   AccountDetailPage,
   AccountNewPage,
   AccountsListPage,
@@ -18,7 +17,6 @@ function App() {
     <Routes>
       <Route path="/" element={<Navigate to="/portfolio" replace />} />
       <Route element={<AppShell />}>
-        <Route path="/assistant" element={<AssistantPage />} />
         <Route path="/portfolio" element={<PortfolioPage />} />
         <Route path="/todos" element={<TodosPage />} />
         <Route path="/accounts" element={<AccountsListPage />} />
