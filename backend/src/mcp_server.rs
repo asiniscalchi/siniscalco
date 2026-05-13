@@ -1,15 +1,18 @@
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{
+        prompt::PromptContext,
         router::{prompt::PromptRouter, tool::ToolRouter},
         wrapper::Parameters,
     },
     model::{
-        Annotated, CallToolResult, Content, ErrorCode, Implementation, InitializeResult,
-        ListResourceTemplatesResult, ListResourcesResult, PaginatedRequestParams, RawResource,
+        Annotated, CallToolResult, Content, ErrorCode, GetPromptRequestParams, GetPromptResult,
+        Implementation, InitializeResult, ListPromptsResult, ListResourceTemplatesResult,
+        ListResourcesResult, PaginatedRequestParams, PromptMessage, PromptMessageRole, RawResource,
         RawResourceTemplate, ReadResourceRequestParams, ReadResourceResult, ResourceContents,
         ServerCapabilities, ServerInfo,
     },
+    prompt, prompt_router,
     service::RequestContext,
     tool, tool_handler, tool_router,
 };
@@ -43,6 +46,14 @@ pub struct LimitArgs {
     limit: Option<u32>,
 }
 
+// ── Prompt argument types ─────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AccountReviewArgs {
+    /// Numeric account ID as returned by list_accounts.
+    pub account_id: i64,
+}
+
 // ── Server ────────────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
@@ -60,7 +71,7 @@ impl PortfolioServer {
         Self {
             pool,
             tool_router: Self::tool_router(),
-            prompt_router: PromptRouter::default(),
+            prompt_router: Self::prompt_router(),
         }
     }
 
@@ -178,6 +189,64 @@ impl PortfolioServer {
     }
 }
 
+#[prompt_router]
+impl PortfolioServer {
+    #[prompt(
+        name = "portfolio_recap",
+        description = "Write a concise recap of the user's portfolio anchored on the current summary and allocation."
+    )]
+    async fn portfolio_recap_prompt(&self) -> Vec<PromptMessage> {
+        let text = "Write a concise recap of the user's portfolio.\n\
+                    \n\
+                    1. Read `portfolio://summary` to get the total value, 24h gain, and top \
+                    holdings.\n\
+                    2. Read `portfolio://allocation` to get the breakdown by asset class.\n\
+                    3. Produce 4-6 sentences covering total value, biggest holdings, dominant \
+                    allocation, and any 24h movement worth flagging."
+            .to_string();
+        vec![PromptMessage::new_text(PromptMessageRole::User, text)]
+    }
+
+    #[prompt(
+        name = "account_review",
+        description = "Review a single investment account: cash balances, positions, and recent activity."
+    )]
+    async fn account_review_prompt(
+        &self,
+        Parameters(args): Parameters<AccountReviewArgs>,
+    ) -> Vec<PromptMessage> {
+        let id = args.account_id;
+        let text = format!(
+            "Review account [{id}].\n\
+             \n\
+             1. Read `account://{id}` for the account's cash balances, current positions, and \
+             transfer history.\n\
+             2. Call `list_transactions` (default limit) and filter to entries with \
+             account={id}.\n\
+             3. Produce a short report: cash by currency, the largest positions, and anything \
+             unusual in recent transactions or transfers."
+        );
+        vec![PromptMessage::new_text(PromptMessageRole::User, text)]
+    }
+
+    #[prompt(
+        name = "allocation_drift_check",
+        description = "Surface concentration risk or imbalances in the current asset-class allocation."
+    )]
+    async fn allocation_drift_check_prompt(&self) -> Vec<PromptMessage> {
+        let text = "Inspect the user's current asset-class allocation for concentration risk.\n\
+                    \n\
+                    1. Read `portfolio://allocation` for the breakdown by asset class with \
+                    weights.\n\
+                    2. Flag any single class above 70% or below 5% relative to a typical \
+                    diversified portfolio, and note whether the allocation is marked partial.\n\
+                    3. Suggest one or two concrete rebalance moves if drift is significant; \
+                    otherwise confirm the allocation looks reasonable."
+            .to_string();
+        vec![PromptMessage::new_text(PromptMessageRole::User, text)]
+    }
+}
+
 #[tool_handler]
 impl ServerHandler for PortfolioServer {
     fn get_info(&self) -> ServerInfo {
@@ -185,6 +254,7 @@ impl ServerHandler for PortfolioServer {
             ServerCapabilities::builder()
                 .enable_tools()
                 .enable_resources()
+                .enable_prompts()
                 .build(),
         )
         .with_server_info(Implementation::new(
@@ -192,7 +262,7 @@ impl ServerHandler for PortfolioServer {
             option_env!("GIT_VERSION").unwrap_or("unknown"),
         ))
         .with_instructions(
-            "Portfolio server tools and resources. \
+            "Portfolio server tools, resources, and prompts. \
              Tools (formatted text): list_accounts — all accounts with totals; \
              list_assets — all tracked assets with price and quantity; \
              list_transactions(limit?) — recent buy/sell/dividend records. \
@@ -200,7 +270,8 @@ impl ServerHandler for PortfolioServer {
              asset://{id} — single asset with price, cost basis, ISIN; \
              portfolio://summary — overall value, 24h gain, holdings; \
              portfolio://snapshots — daily portfolio value time series; \
-             portfolio://allocation — breakdown by asset class with weights.",
+             portfolio://allocation — breakdown by asset class with weights. \
+             Prompts: portfolio_recap, account_review(account_id), allocation_drift_check.",
         )
     }
 
@@ -229,6 +300,27 @@ impl ServerHandler for PortfolioServer {
         _context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, McpError> {
         self.read_resource_by_uri(&request.uri).await
+    }
+
+    async fn list_prompts(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListPromptsResult, McpError> {
+        Ok(ListPromptsResult {
+            prompts: self.prompt_router.list_all(),
+            meta: None,
+            next_cursor: None,
+        })
+    }
+
+    async fn get_prompt(
+        &self,
+        request: GetPromptRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<GetPromptResult, McpError> {
+        let prompt_context = PromptContext::new(self, request.name, request.arguments, context);
+        self.prompt_router.get_prompt(prompt_context).await
     }
 }
 
@@ -930,10 +1022,76 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_info_advertises_resources_capability() {
+    async fn get_info_advertises_resources_and_prompts_capability() {
         let server = PortfolioServer::new(test_pool().await);
         let info = server.get_info();
         assert!(info.capabilities.resources.is_some());
         assert!(info.capabilities.tools.is_some());
+        assert!(info.capabilities.prompts.is_some());
+    }
+
+    #[tokio::test]
+    async fn prompt_router_lists_expected_prompts() {
+        let server = PortfolioServer::new(test_pool().await);
+        let prompts = server.prompt_router.list_all();
+        let mut names: Vec<&str> = prompts.iter().map(|p| p.name.as_str()).collect();
+        names.sort();
+        assert_eq!(
+            names,
+            vec![
+                "account_review",
+                "allocation_drift_check",
+                "portfolio_recap"
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn portfolio_recap_prompt_emits_user_message_referencing_resources() {
+        let server = PortfolioServer::new(test_pool().await);
+        let messages = server.portfolio_recap_prompt().await;
+        assert_eq!(messages.len(), 1);
+        let PromptMessage {
+            role,
+            content: rmcp::model::PromptMessageContent::Text { text },
+            ..
+        } = &messages[0]
+        else {
+            panic!("expected text content");
+        };
+        assert!(matches!(role, PromptMessageRole::User));
+        assert!(text.contains("portfolio://summary"));
+        assert!(text.contains("portfolio://allocation"));
+    }
+
+    #[tokio::test]
+    async fn account_review_prompt_substitutes_account_id() {
+        let server = PortfolioServer::new(test_pool().await);
+        let messages = server
+            .account_review_prompt(Parameters(AccountReviewArgs { account_id: 42 }))
+            .await;
+        let PromptMessage {
+            content: rmcp::model::PromptMessageContent::Text { text },
+            ..
+        } = &messages[0]
+        else {
+            panic!("expected text content");
+        };
+        assert!(text.contains("account://42"));
+        assert!(text.contains("account=42"));
+    }
+
+    #[tokio::test]
+    async fn allocation_drift_check_prompt_references_allocation_resource() {
+        let server = PortfolioServer::new(test_pool().await);
+        let messages = server.allocation_drift_check_prompt().await;
+        let PromptMessage {
+            content: rmcp::model::PromptMessageContent::Text { text },
+            ..
+        } = &messages[0]
+        else {
+            panic!("expected text content");
+        };
+        assert!(text.contains("portfolio://allocation"));
     }
 }
