@@ -17,8 +17,6 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use sqlx::SqlitePool;
 
-use std::collections::BTreeMap;
-
 use crate::{
     PRODUCT_BASE_CURRENCY, fmt_amount, fmt_opt_amount,
     storage::{
@@ -38,18 +36,6 @@ pub use rmcp::transport::streamable_http_server::{
 #[allow(dead_code)]
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct NoArgs {}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct AccountIdArgs {
-    /// Numeric account ID as returned by list_accounts.
-    account_id: i64,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct AssetIdArgs {
-    /// Numeric asset ID as returned by list_assets.
-    asset_id: i64,
-}
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct LimitArgs {
@@ -75,48 +61,6 @@ impl PortfolioServer {
             pool,
             tool_router: Self::tool_router(),
             prompt_router: PromptRouter::default(),
-        }
-    }
-
-    #[tool(
-        description = "Get the overall portfolio summary including total value, 24h gain, and top holdings in the base currency (EUR)."
-    )]
-    async fn get_portfolio_summary(&self) -> CallToolResult {
-        match get_portfolio_summary(&self.pool, PRODUCT_BASE_CURRENCY).await {
-            Ok(summary) => {
-                let total = fmt_opt_amount(summary.total_value_amount.as_ref());
-                let gain_24h = fmt_opt_amount(summary.gain_24h_amount.as_ref());
-                let total_gain = fmt_opt_amount(summary.total_gain_amount.as_ref());
-                let currency = summary.display_currency.as_str().to_string();
-
-                let mut lines = vec![
-                    format!("Portfolio Summary ({currency})"),
-                    format!(
-                        "Total value: {}",
-                        total.unwrap_or_else(|| "n/a".to_string())
-                    ),
-                    format!(
-                        "24h gain:    {}",
-                        gain_24h.unwrap_or_else(|| "n/a".to_string())
-                    ),
-                    format!(
-                        "Total gain:  {}",
-                        total_gain.unwrap_or_else(|| "n/a".to_string())
-                    ),
-                ];
-
-                if !summary.holdings.is_empty() {
-                    lines.push(String::new());
-                    lines.push("Top holdings:".to_string());
-                    for h in &summary.holdings {
-                        let value = fmt_amount(&h.value);
-                        lines.push(format!("  {} ({}) — {value} {currency}", h.name, h.symbol));
-                    }
-                }
-
-                CallToolResult::success(vec![Content::text(lines.join("\n"))])
-            }
-            Err(e) => tool_error(e),
         }
     }
 
@@ -197,173 +141,6 @@ impl PortfolioServer {
     }
 
     #[tool(
-        description = "Get details for a single investment account by ID: name, type, cash balances by currency, current asset positions, and transfers."
-    )]
-    async fn get_account_details(
-        &self,
-        Parameters(args): Parameters<AccountIdArgs>,
-    ) -> CallToolResult {
-        let account_id = match AccountId::try_from(args.account_id) {
-            Ok(id) => id,
-            Err(e) => {
-                return CallToolResult::error(vec![Content::text(format!(
-                    "Invalid account_id: {e}"
-                ))]);
-            }
-        };
-
-        let account = match get_account(&self.pool, account_id).await {
-            Ok(a) => a,
-            Err(e) => return tool_error(e),
-        };
-        let balances = match list_account_balances(&self.pool, account_id).await {
-            Ok(b) => b,
-            Err(e) => return tool_error(e),
-        };
-        let positions = match list_account_positions(&self.pool, account_id).await {
-            Ok(p) => p,
-            Err(e) => return tool_error(e),
-        };
-        let transfers = match list_transfers_by_account(&self.pool, account_id).await {
-            Ok(t) => t,
-            Err(e) => return tool_error(e),
-        };
-        let all_assets = match list_assets(&self.pool).await {
-            Ok(a) => a,
-            Err(e) => return tool_error(e),
-        };
-        let assets_by_id: BTreeMap<AssetId, String> = all_assets
-            .iter()
-            .map(|a| (a.id, format!("{} ({})", a.name.as_str(), a.symbol.as_str())))
-            .collect();
-
-        let mut lines = vec![
-            format!(
-                "Account [{}]: {}",
-                account.id.as_i64(),
-                account.name.as_str()
-            ),
-            format!("Type: {}", account.account_type.as_str()),
-            format!("Base currency: {}", account.base_currency.as_str()),
-        ];
-
-        if balances.is_empty() {
-            lines.push("Cash balances: none".to_string());
-        } else {
-            lines.push("Cash balances:".to_string());
-            for b in &balances {
-                lines.push(format!(
-                    "  {} {}",
-                    fmt_amount(&b.amount),
-                    b.currency.as_str()
-                ));
-            }
-        }
-
-        if positions.is_empty() {
-            lines.push("Positions: none".to_string());
-        } else {
-            lines.push("Positions:".to_string());
-            for p in &positions {
-                let label = assets_by_id
-                    .get(&p.asset_id)
-                    .map(String::as_str)
-                    .unwrap_or("unknown asset");
-                lines.push(format!("  {} qty={}", label, p.quantity));
-            }
-        }
-
-        if transfers.is_empty() {
-            lines.push("Transfers: none".to_string());
-        } else {
-            lines.push(format!("Transfers ({} total):", transfers.len()));
-            for t in transfers.iter().take(20) {
-                let direction = if t.from_account_id == account_id {
-                    "out"
-                } else {
-                    "in"
-                };
-                lines.push(format!(
-                    "  [{}] {} {direction} {} {} → {} {}",
-                    t.id.as_i64(),
-                    t.transfer_date.as_str(),
-                    fmt_amount(&t.from_amount),
-                    t.from_currency.as_str(),
-                    fmt_amount(&t.to_amount),
-                    t.to_currency.as_str(),
-                ));
-            }
-        }
-
-        CallToolResult::success(vec![Content::text(lines.join("\n"))])
-    }
-
-    #[tool(
-        description = "Get details for a single tracked asset by ID: symbol, name, type, current price, total quantity, average cost basis, previous close, and quote source."
-    )]
-    async fn get_asset_details(&self, Parameters(args): Parameters<AssetIdArgs>) -> CallToolResult {
-        let asset_id = match AssetId::try_from(args.asset_id) {
-            Ok(id) => id,
-            Err(e) => {
-                return CallToolResult::error(vec![Content::text(format!(
-                    "Invalid asset_id: {e}"
-                ))]);
-            }
-        };
-
-        match get_asset(&self.pool, asset_id).await {
-            Ok(asset) => {
-                let price = fmt_opt_amount(asset.current_price.as_ref())
-                    .zip(asset.current_price_currency.map(|c| c.as_str().to_string()))
-                    .map(|(p, ccy)| format!("{p} {ccy}"))
-                    .unwrap_or_else(|| "n/a".to_string());
-                let prev_close = fmt_opt_amount(asset.previous_close.as_ref())
-                    .zip(
-                        asset
-                            .previous_close_currency
-                            .map(|c| c.as_str().to_string()),
-                    )
-                    .map(|(p, ccy)| format!("{p} {ccy}"))
-                    .unwrap_or_else(|| "n/a".to_string());
-                let qty = fmt_opt_amount(asset.total_quantity.as_ref())
-                    .unwrap_or_else(|| "n/a".to_string());
-                let cost_basis = fmt_opt_amount(asset.avg_cost_basis.as_ref())
-                    .zip(
-                        asset
-                            .avg_cost_basis_currency
-                            .map(|c| c.as_str().to_string()),
-                    )
-                    .map(|(p, ccy)| format!("{p} {ccy}"))
-                    .unwrap_or_else(|| "n/a".to_string());
-
-                let mut lines = vec![
-                    format!("[{}] {} ({})", asset.id.as_i64(), asset.name, asset.symbol),
-                    format!("Type: {:?}", asset.asset_type),
-                    format!("Current price:  {price}"),
-                    format!("Previous close: {prev_close}"),
-                    format!("Total quantity: {qty}"),
-                    format!("Avg cost basis: {cost_basis}"),
-                ];
-
-                if let Some(isin) = &asset.isin {
-                    lines.push(format!("ISIN: {isin}"));
-                }
-                if let (Some(provider), Some(symbol)) =
-                    (&asset.quote_source_provider, &asset.quote_source_symbol)
-                {
-                    lines.push(format!("Quote source: {provider} / {symbol}"));
-                }
-                if let Some(as_of) = &asset.current_price_as_of {
-                    lines.push(format!("Price as of: {as_of}"));
-                }
-
-                CallToolResult::success(vec![Content::text(lines.join("\n"))])
-            }
-            Err(e) => tool_error(e),
-        }
-    }
-
-    #[tool(
         description = "List recent asset transactions (buys, sells, dividends) across all accounts, newest first. Accepts an optional limit (default 50, max 200)."
     )]
     async fn list_transactions(&self, Parameters(args): Parameters<LimitArgs>) -> CallToolResult {
@@ -399,79 +176,6 @@ impl PortfolioServer {
             Err(e) => tool_error(e),
         }
     }
-
-    #[tool(
-        description = "List historical daily portfolio snapshots in EUR, ordered oldest to newest. Provides a time series of total portfolio value."
-    )]
-    async fn list_portfolio_snapshots(&self) -> CallToolResult {
-        match list_portfolio_snapshots(&self.pool, PRODUCT_BASE_CURRENCY).await {
-            Ok(snapshots) => {
-                if snapshots.is_empty() {
-                    return CallToolResult::success(vec![Content::text(
-                        "No portfolio snapshots found.",
-                    )]);
-                }
-
-                let currency = PRODUCT_BASE_CURRENCY.as_str();
-                let mut lines = vec![format!(
-                    "Portfolio snapshots ({} total, {currency}):",
-                    snapshots.len()
-                )];
-                for s in &snapshots {
-                    lines.push(format!(
-                        "  {} {}",
-                        s.recorded_at,
-                        fmt_amount(&s.total_value),
-                    ));
-                }
-
-                CallToolResult::success(vec![Content::text(lines.join("\n"))])
-            }
-            Err(e) => tool_error(e),
-        }
-    }
-
-    #[tool(
-        description = "Get the current portfolio allocation breakdown by asset class (Stock, ETF, Bond, Crypto, Cash, Other) with value in EUR and percentage weight."
-    )]
-    async fn list_portfolio_allocation(&self) -> CallToolResult {
-        match list_portfolio_allocation(&self.pool, PRODUCT_BASE_CURRENCY).await {
-            Ok((slices, is_partial)) => {
-                if slices.is_empty() {
-                    return CallToolResult::success(vec![Content::text(
-                        "No allocation data found.",
-                    )]);
-                }
-
-                let currency = PRODUCT_BASE_CURRENCY.as_str();
-                let total: rust_decimal::Decimal =
-                    slices.iter().map(|s| s.amount.as_decimal()).sum();
-                let partial_note = if is_partial {
-                    " (partial — some prices missing)"
-                } else {
-                    ""
-                };
-
-                let mut lines = vec![format!("Portfolio allocation ({currency}){partial_note}:")];
-                for s in &slices {
-                    let pct = if total.is_zero() {
-                        rust_decimal::Decimal::ZERO
-                    } else {
-                        (s.amount.as_decimal() / total * rust_decimal::Decimal::ONE_HUNDRED)
-                            .round_dp(1)
-                    };
-                    lines.push(format!(
-                        "  {}: {} {currency} ({pct}%)",
-                        s.label,
-                        fmt_amount(&s.amount),
-                    ));
-                }
-
-                CallToolResult::success(vec![Content::text(lines.join("\n"))])
-            }
-            Err(e) => tool_error(e),
-        }
-    }
 }
 
 #[tool_handler]
@@ -489,16 +193,14 @@ impl ServerHandler for PortfolioServer {
         ))
         .with_instructions(
             "Portfolio server tools and resources. \
-             Tools: get_portfolio_summary — overall value, 24h gain, top holdings; \
-             list_accounts — all accounts with totals; \
-             get_account_details(account_id) — account cash, positions, transfers; \
+             Tools (formatted text): list_accounts — all accounts with totals; \
              list_assets — all tracked assets with price and quantity; \
-             get_asset_details(asset_id) — single asset with price, cost basis, ISIN; \
-             list_transactions(limit?) — recent buy/sell/dividend records; \
-             list_portfolio_snapshots — daily portfolio value time series; \
-             list_portfolio_allocation — breakdown by asset class with percentages. \
-             Resources (JSON): account://{id}, asset://{id}, portfolio://summary, \
-             portfolio://snapshots, portfolio://allocation.",
+             list_transactions(limit?) — recent buy/sell/dividend records. \
+             Resources (JSON): account://{id} — account cash/positions/transfers; \
+             asset://{id} — single asset with price, cost basis, ISIN; \
+             portfolio://summary — overall value, 24h gain, holdings; \
+             portfolio://snapshots — daily portfolio value time series; \
+             portfolio://allocation — breakdown by asset class with weights.",
         )
     }
 
@@ -961,30 +663,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn list_tools_returns_three_tools() {
+    async fn list_tools_returns_remaining_tool_set() {
         let pool = test_pool().await;
         let server = PortfolioServer::new(pool);
         let tools = server.tool_router.list_all();
-        let names: Vec<&str> = tools.iter().map(|t| t.name.as_ref()).collect();
-        assert!(names.contains(&"get_portfolio_summary"), "{names:?}");
-        assert!(names.contains(&"list_assets"), "{names:?}");
-        assert!(names.contains(&"list_accounts"), "{names:?}");
-        assert!(names.contains(&"get_account_details"), "{names:?}");
-        assert!(names.contains(&"get_asset_details"), "{names:?}");
-        assert!(names.contains(&"list_transactions"), "{names:?}");
-        assert!(names.contains(&"list_portfolio_snapshots"), "{names:?}");
-        assert!(names.contains(&"list_portfolio_allocation"), "{names:?}");
-        assert_eq!(tools.len(), 8);
-    }
-
-    #[tokio::test]
-    async fn get_portfolio_summary_empty_db() {
-        let pool = test_pool().await;
-        let server = PortfolioServer::new(pool);
-        let result = server.get_portfolio_summary().await;
-        assert!(!result.is_error.unwrap_or(false));
-        let text = &result.content[0].as_text().expect("text content").text;
-        assert!(text.contains("Portfolio Summary"), "{text}");
+        let mut names: Vec<&str> = tools.iter().map(|t| t.name.as_ref()).collect();
+        names.sort();
+        assert_eq!(
+            names,
+            vec!["list_accounts", "list_assets", "list_transactions"]
+        );
     }
 
     #[tokio::test]
@@ -995,39 +683,6 @@ mod tests {
         assert!(!result.is_error.unwrap_or(false));
         let text = &result.content[0].as_text().expect("text content").text;
         assert_eq!(text, "No accounts found.");
-    }
-
-    #[tokio::test]
-    async fn get_account_details_not_found() {
-        let pool = test_pool().await;
-        let server = PortfolioServer::new(pool);
-        let result = server
-            .get_account_details(Parameters(AccountIdArgs { account_id: 999 }))
-            .await;
-        assert!(result.is_error.unwrap_or(false));
-    }
-
-    #[tokio::test]
-    async fn get_account_details_with_data() {
-        let pool = test_pool().await;
-        create_account(
-            &pool,
-            CreateAccountInput {
-                name: account_name("My Broker"),
-                account_type: AccountType::Broker,
-                base_currency: Currency::try_from("EUR").unwrap(),
-            },
-        )
-        .await
-        .unwrap();
-        let server = PortfolioServer::new(pool);
-        let result = server
-            .get_account_details(Parameters(AccountIdArgs { account_id: 1 }))
-            .await;
-        assert!(!result.is_error.unwrap_or(false));
-        let text = &result.content[0].as_text().expect("text content").text;
-        assert!(text.contains("My Broker"), "{text}");
-        assert!(text.contains("Broker"), "{text}");
     }
 
     #[tokio::test]
@@ -1051,42 +706,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_asset_details_not_found() {
-        let pool = test_pool().await;
-        let server = PortfolioServer::new(pool);
-        let result = server
-            .get_asset_details(Parameters(AssetIdArgs { asset_id: 999 }))
-            .await;
-        assert!(result.is_error.unwrap_or(false));
-    }
-
-    #[tokio::test]
-    async fn get_asset_details_with_data() {
-        let pool = test_pool().await;
-        create_asset(
-            &pool,
-            CreateAssetInput {
-                symbol: AssetSymbol::try_from("AAPL").unwrap(),
-                name: AssetName::try_from("Apple Inc.").unwrap(),
-                asset_type: AssetType::Stock,
-                quote_symbol: None,
-                isin: Some("US0378331005".to_string()),
-            },
-        )
-        .await
-        .unwrap();
-        let server = PortfolioServer::new(pool);
-        let result = server
-            .get_asset_details(Parameters(AssetIdArgs { asset_id: 1 }))
-            .await;
-        assert!(!result.is_error.unwrap_or(false));
-        let text = &result.content[0].as_text().expect("text content").text;
-        assert!(text.contains("Apple Inc."), "{text}");
-        assert!(text.contains("AAPL"), "{text}");
-        assert!(text.contains("US0378331005"), "{text}");
-    }
-
-    #[tokio::test]
     async fn list_transactions_empty_db() {
         let pool = test_pool().await;
         let server = PortfolioServer::new(pool);
@@ -1096,26 +715,6 @@ mod tests {
         assert!(!result.is_error.unwrap_or(false));
         let text = &result.content[0].as_text().expect("text content").text;
         assert_eq!(text, "No transactions found.");
-    }
-
-    #[tokio::test]
-    async fn list_portfolio_snapshots_empty_db() {
-        let pool = test_pool().await;
-        let server = PortfolioServer::new(pool);
-        let result = server.list_portfolio_snapshots().await;
-        assert!(!result.is_error.unwrap_or(false));
-        let text = &result.content[0].as_text().expect("text content").text;
-        assert_eq!(text, "No portfolio snapshots found.");
-    }
-
-    #[tokio::test]
-    async fn list_portfolio_allocation_empty_db() {
-        let pool = test_pool().await;
-        let server = PortfolioServer::new(pool);
-        let result = server.list_portfolio_allocation().await;
-        assert!(!result.is_error.unwrap_or(false));
-        let text = &result.content[0].as_text().expect("text content").text;
-        assert_eq!(text, "No allocation data found.");
     }
 
     #[test]
