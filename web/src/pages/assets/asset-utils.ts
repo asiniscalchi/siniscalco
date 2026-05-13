@@ -147,7 +147,11 @@ export const yahooFinanceUrl = (symbol: string) =>
 export const coinMarketCapUrl = (symbol: string) =>
   `https://coinmarketcap.com/currencies/${encodeURIComponent(symbol.toLowerCase())}/`;
 
-export function assetExternalUrl(asset: Pick<AssetItem, "assetType" | "symbol" | "quoteSymbol">): string {
+export function assetExternalUrl(asset: {
+  assetType: AssetItem["assetType"];
+  symbol: string;
+  quoteSymbol?: string | null;
+}): string {
   const symbol = asset.quoteSymbol ?? asset.symbol;
   return asset.assetType === "CRYPTO" ? coinMarketCapUrl(symbol) : yahooFinanceUrl(symbol);
 }
