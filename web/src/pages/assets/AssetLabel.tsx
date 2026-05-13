@@ -24,7 +24,7 @@ export function AssetLabel({
   return (
     <ItemLabel
       className={className}
-      href={assetExternalUrl({ symbol, quoteSymbol, assetType: assetType ?? "STOCK" })}
+      href={assetExternalUrl({ symbol, name, quoteSymbol, assetType: assetType ?? "STOCK" })}
       primary={symbol}
       secondary={name}
       target="_blank"
