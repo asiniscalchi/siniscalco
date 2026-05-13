@@ -22,7 +22,7 @@ import {
   priceLabel,
   quoteSourceLabel,
   totalGainPctRaw,
-  yahooFinanceUrl,
+  assetExternalUrl,
 } from "./asset-utils";
 
 import { AssetFormModal } from "./AssetFormModal";
@@ -210,7 +210,7 @@ export function AssetsTableCard() {
                     <a
                       className="flex items-start gap-3 rounded-lg border px-3 py-2 text-sm hover:bg-muted/30 transition-colors"
                       data-testid={`mobile-asset-card-${asset.id}`}
-                      href={yahooFinanceUrl(asset.quoteSymbol ?? asset.symbol)}
+                      href={assetExternalUrl(asset)}
                       key={asset.id}
                       rel="noopener noreferrer"
                       target="_blank"
@@ -337,10 +337,11 @@ export function AssetsTableCard() {
                       <tr
                         className="group transition-colors hover:bg-muted/30 cursor-pointer"
                         key={asset.id}
-                        onClick={() => window.open(yahooFinanceUrl(asset.quoteSymbol ?? asset.symbol), "_blank", "noopener,noreferrer")}
+                        onClick={() => window.open(assetExternalUrl(asset), "_blank", "noopener,noreferrer")}
                       >
                         <td className="py-3 pr-4">
                           <AssetLabel
+                            assetType={asset.assetType}
                             name={asset.name}
                             quoteSymbol={asset.quoteSymbol}
                             symbol={asset.symbol}
