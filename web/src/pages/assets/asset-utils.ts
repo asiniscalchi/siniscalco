@@ -144,16 +144,21 @@ export function quoteSourceUpdatedLabel(asset: AssetItem): string | null {
 export const yahooFinanceUrl = (symbol: string) =>
   `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
 
-export const coinMarketCapUrl = (symbol: string) =>
-  `https://coinmarketcap.com/currencies/${encodeURIComponent(symbol.toLowerCase())}/`;
+export const coinMarketCapUrl = (name: string) =>
+  `https://coinmarketcap.com/currencies/${encodeURIComponent(
+    name.trim().toLowerCase().replace(/\s+/g, "-"),
+  )}/`;
 
 export function assetExternalUrl(asset: {
   assetType: AssetItem["assetType"];
   symbol: string;
+  name: string;
   quoteSymbol?: string | null;
 }): string {
-  const symbol = asset.quoteSymbol ?? asset.symbol;
-  return asset.assetType === "CRYPTO" ? coinMarketCapUrl(symbol) : yahooFinanceUrl(symbol);
+  if (asset.assetType === "CRYPTO") {
+    return coinMarketCapUrl(asset.name);
+  }
+  return yahooFinanceUrl(asset.quoteSymbol ?? asset.symbol);
 }
 
 export function priceHealthLabel(assets: AssetItem[]): string {
