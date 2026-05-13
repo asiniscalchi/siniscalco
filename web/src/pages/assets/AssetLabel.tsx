@@ -1,16 +1,19 @@
 import { ItemLabel } from "@/components/ItemLabel";
-import { yahooFinanceUrl } from "./asset-utils";
+import { type AssetType } from "@/gql/types";
+import { assetExternalUrl } from "./asset-utils";
 
 export function AssetLabel({
   symbol,
   name,
   quoteSymbol,
+  assetType,
   className,
   noLink,
 }: {
   symbol: string;
   name: string;
   quoteSymbol?: string | null;
+  assetType?: AssetType;
   className?: string;
   noLink?: boolean;
 }) {
@@ -21,7 +24,7 @@ export function AssetLabel({
   return (
     <ItemLabel
       className={className}
-      href={yahooFinanceUrl(quoteSymbol ?? symbol)}
+      href={assetExternalUrl({ symbol, quoteSymbol, assetType: assetType ?? "STOCK" })}
       primary={symbol}
       secondary={name}
       target="_blank"
