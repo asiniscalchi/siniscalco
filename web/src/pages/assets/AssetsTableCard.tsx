@@ -193,7 +193,7 @@ export function AssetsTableCard() {
                     onClick={() => handleSort(field)}
                     type="button"
                   >
-                    {field === "alpha" ? "Name" : field === "daily" ? "24h %" : "Gain %"}
+                    {field === "alpha" ? "Name" : field === "daily" ? "24h %" : "Total Gain"}
                     {sortIndicator(field)}
                   </button>
                 ))}
@@ -323,7 +323,7 @@ export function AssetsTableCard() {
                       </th>
                       <th className="pb-3 pr-4">
                         <button className="flex items-center gap-0.5 hover:text-foreground transition-colors" onClick={() => handleSort("gain")} type="button">
-                          Gain{sortIndicator("gain")}
+                          Total Gain{sortIndicator("gain")}
                         </button>
                       </th>
                       {!isLocked && <th className="pb-3 text-right">Actions</th>}
