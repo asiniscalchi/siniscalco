@@ -182,7 +182,11 @@ export function TopHoldingsCard({
                     {item.name === "Other" ? (
                       <ItemLabel primary={item.name} secondary={item.fullName} />
                     ) : (
-                      <AssetLabel name={item.fullName} symbol={item.name} />
+                      <AssetLabel
+                        assetType={item.assetId != null ? assetTypeById.get(item.assetId) : undefined}
+                        name={item.fullName}
+                        symbol={item.name}
+                      />
                     )}
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
