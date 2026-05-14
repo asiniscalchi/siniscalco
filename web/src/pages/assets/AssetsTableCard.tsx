@@ -193,112 +193,131 @@ export function AssetsTableCard() {
                     onClick={() => handleSort(field)}
                     type="button"
                   >
-                    {field === "alpha" ? "Name" : field === "daily" ? "24h %" : "Gain %"}
+                    {field === "alpha" ? "Name" : field === "daily" ? "24h %" : "Total Gain"}
                     {sortIndicator(field)}
                   </button>
                 ))}
               </div>
 
-              <div className="space-y-1.5 sm:hidden">
+              <div className="space-y-1 sm:hidden">
                 {sortedAssets.map((asset) => {
                   const daily = formatDailyGain(asset);
                   const gain = formatGain(asset);
                   const totalValue = formatTotalValue(asset);
                   const source = quoteSourceLabel(asset);
+                  const gainTone = gain
+                    ? gain.positive
+                      ? "text-green-600 dark:text-green-400"
+                      : "text-red-600 dark:text-red-400"
+                    : "";
+                  const dailyTone = daily
+                    ? daily.positive
+                      ? "text-green-600 dark:text-green-400"
+                      : "text-red-600 dark:text-red-400"
+                    : "";
+                  const secondaryParts = [
+                    asset.isin,
+                    source,
+                    asset.totalQuantity ? `Qty ${asset.totalQuantity}` : null,
+                  ].filter(Boolean) as string[];
 
                   return (
                     <a
-                      className="flex items-start gap-3 rounded-lg border px-3 py-2 text-sm hover:bg-muted/30 transition-colors"
+                      className="block rounded-lg border px-3 py-2 hover:bg-muted/30 transition-colors"
                       data-testid={`mobile-asset-card-${asset.id}`}
                       href={assetExternalUrl(asset)}
                       key={asset.id}
                       rel="noopener noreferrer"
                       target="_blank"
                     >
-                      <div className="min-w-0 flex-1">
-                        <AssetLabel name={asset.name} noLink symbol={asset.symbol} />
-                        <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                          <span className="font-mono tabular-nums">{formatPrice(asset)}</span>
+                      <div className="flex items-baseline justify-between gap-3">
+                        <div
+                          className="min-w-0 flex-1 truncate text-sm font-bold"
+                          data-testid={`mobile-asset-symbol-${asset.id}`}
+                        >
+                          {asset.symbol}
                         </div>
-                        {asset.isin && (
-                          <div
-                            className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground"
-                            data-testid={`mobile-asset-isin-${asset.id}`}
-                          >
-                            {asset.isin}
-                          </div>
-                        )}
-                        {source && (
-                          <div
-                            className="mt-0.5 truncate text-[11px] text-muted-foreground"
-                            data-testid={`mobile-asset-source-${asset.id}`}
-                          >
-                            {source}
-                          </div>
-                        )}
+                        <div className="shrink-0 font-mono text-sm tabular-nums">
+                          {formatPrice(asset)}
+                        </div>
+                      </div>
+                      <div className="mt-0.5 flex items-baseline justify-between gap-3">
+                        <div className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
+                          {asset.name}
+                        </div>
                         {daily && (
-                          <div className={`mt-0.5 font-mono tabular-nums text-[11px] ${daily.positive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                            24h: {daily.abs ? `${daily.abs} (${daily.pct})` : daily.pct}
+                          <div
+                            className={`shrink-0 font-mono text-[11px] tabular-nums ${dailyTone}`}
+                            data-testid={`mobile-asset-daily-${asset.id}`}
+                          >
+                            {daily.pct}
                           </div>
                         )}
                       </div>
-                      <div
-                        className="flex shrink-0 self-stretch flex-col items-end text-right"
-                        data-testid={`mobile-asset-side-${asset.id}`}
-                      >
-                        <span className="inline-flex items-center rounded-full border bg-muted/50 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                          {asset.assetType.replace("_", " ")}
-                        </span>
-                        {totalValue && (
+                      <div className="mt-1 flex items-baseline justify-between gap-3 border-t pt-1">
+                        <div
+                          className="font-mono text-[12px] tabular-nums"
+                          data-testid={`mobile-asset-total-value-${asset.id}`}
+                        >
+                          {totalValue ?? "—"}
+                        </div>
+                        {gain ? (
                           <div
-                            className="mt-0.5 font-mono tabular-nums text-[11px] text-muted-foreground"
-                            data-testid={`mobile-asset-total-value-${asset.id}`}
-                          >
-                            {totalValue}
-                          </div>
-                        )}
-                        {!isLocked && (
-                          <div className="mt-2 flex shrink-0 gap-0.5" onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              disabled={isDeleting !== null}
-                              onClick={() => {
-                                setEditingAsset(asset);
-                                setShowModal(true);
-                              }}
-                              size="icon"
-                              title="Edit asset"
-                              variant="ghost"
-                            >
-                              <PencilIcon />
-                              <span className="sr-only">Edit</span>
-                            </Button>
-                            <Button
-                              className="text-destructive hover:bg-destructive/10"
-                              disabled={isDeleting !== null}
-                              onClick={() => void handleDeleteClick(asset)}
-                              size="icon"
-                              title="Delete asset"
-                              variant="ghost"
-                            >
-                              {isDeleting === asset.id ? (
-                                <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                              ) : (
-                                <TrashIcon />
-                              )}
-                              <span className="sr-only">Delete</span>
-                            </Button>
-                          </div>
-                        )}
-                        {gain && (
-                          <div
-                            className={`mt-auto font-mono tabular-nums text-[11px] ${gain.positive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
+                            className={`flex shrink-0 items-baseline gap-2 font-mono text-[11px] tabular-nums ${gainTone}`}
                             data-testid={`mobile-asset-gain-${asset.id}`}
                           >
-                            {gain.abs && <div>Gain: {gain.abs}</div>}
-                            <div data-testid={`mobile-asset-gain-pct-${asset.id}`}>{gain.pct}</div>
+                            {gain.abs && <span>{gain.abs}</span>}
+                            <span data-testid={`mobile-asset-gain-pct-${asset.id}`}>{gain.pct}</span>
+                          </div>
+                        ) : (
+                          <div className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+                            —
                           </div>
                         )}
                       </div>
+                      {secondaryParts.length > 0 && (
+                        <div
+                          className="mt-0.5 truncate text-[10px] text-muted-foreground"
+                          data-testid={`mobile-asset-meta-${asset.id}`}
+                        >
+                          {secondaryParts.join(" · ")}
+                        </div>
+                      )}
+                      {!isLocked && (
+                        <div
+                          className="mt-1 flex justify-end gap-0.5"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Button
+                            disabled={isDeleting !== null}
+                            onClick={() => {
+                              setEditingAsset(asset);
+                              setShowModal(true);
+                            }}
+                            size="icon"
+                            title="Edit asset"
+                            variant="ghost"
+                          >
+                            <PencilIcon />
+                            <span className="sr-only">Edit</span>
+                          </Button>
+                          <Button
+                            className="text-destructive hover:bg-destructive/10"
+                            disabled={isDeleting !== null}
+                            onClick={() => void handleDeleteClick(asset)}
+                            size="icon"
+                            title="Delete asset"
+                            variant="ghost"
+                          >
+                            {isDeleting === asset.id ? (
+                              <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                            ) : (
+                              <TrashIcon />
+                            )}
+                            <span className="sr-only">Delete</span>
+                          </Button>
+                        </div>
+                      )}
                     </a>
                   );
                 })}
@@ -323,7 +342,7 @@ export function AssetsTableCard() {
                       </th>
                       <th className="pb-3 pr-4">
                         <button className="flex items-center gap-0.5 hover:text-foreground transition-colors" onClick={() => handleSort("gain")} type="button">
-                          Gain{sortIndicator("gain")}
+                          Total Gain{sortIndicator("gain")}
                         </button>
                       </th>
                       {!isLocked && <th className="pb-3 text-right">Actions</th>}
