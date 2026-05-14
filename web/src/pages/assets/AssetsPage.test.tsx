@@ -151,7 +151,7 @@ describe("AssetsPage", () => {
     expect((await screen.findAllByText("AAPL")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Apple Inc.").length).toBeGreaterThan(0);
     expect(screen.getAllByText("STOCK").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("US0378331005").length).toBeGreaterThan(0);
+    expect(screen.getByTestId("mobile-asset-meta-1").textContent).toContain("US0378331005");
     expect(screen.getAllByText("$189.33").length).toBeGreaterThan(0);
     expect(screen.getByText("Updated 2026-03-24")).toBeTruthy();
     expect(screen.getAllByText("AAPL via Yahoo").length).toBeGreaterThan(0);
@@ -280,7 +280,7 @@ describe("AssetsPage", () => {
     expect(screen.getByText("Actions")).toBeTruthy();
   });
 
-  it("keeps the mobile asset summary values on the right side of the card", async () => {
+  it("shows price, holdings and total gain in a compact mobile card", async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -304,8 +304,8 @@ describe("AssetsPage", () => {
                 convertedTotalValueCurrency: "EUR",
                 avgCostBasis: "100.00",
                 avgCostBasisCurrency: "USD",
-                previousClose: null,
-                previousCloseCurrency: null,
+                previousClose: "140.00",
+                previousCloseCurrency: "USD",
               },
             ],
           },
@@ -319,23 +319,22 @@ describe("AssetsPage", () => {
     await screen.findAllByText("AAPL");
 
     const mobileCard = screen.getByTestId("mobile-asset-card-1");
-    const sideColumn = screen.getByTestId("mobile-asset-side-1");
-    const isin = screen.getByTestId("mobile-asset-isin-1");
+    const symbol = screen.getByTestId("mobile-asset-symbol-1");
     const totalValue = screen.getByTestId("mobile-asset-total-value-1");
+    const daily = screen.getByTestId("mobile-asset-daily-1");
     const gainStack = screen.getByTestId("mobile-asset-gain-1");
     const gainPct = screen.getByTestId("mobile-asset-gain-pct-1");
+    const meta = screen.getByTestId("mobile-asset-meta-1");
 
-    expect(mobileCard.className).toContain("items-start");
-    expect(sideColumn.className).toContain("items-end");
-    expect(sideColumn.className).toContain("text-right");
-    expect(sideColumn.textContent).toContain("STOCK");
-    expect(isin.className).toContain("mt-0.5");
-    expect(isin.textContent).toContain("US0378331005");
-    expect(totalValue.className).toContain("mt-0.5");
+    expect(symbol.className).toContain("font-bold");
+    expect(symbol.textContent).toBe("AAPL");
+    expect(mobileCard.textContent).toContain("$150.00");
     expect(totalValue.textContent).toBe("€1,840.00");
-    expect(gainStack.className).toContain("mt-auto");
-    expect(gainStack.textContent).toContain("Gain: +$100.00");
+    expect(daily.textContent).toBe("+7.14%");
+    expect(gainStack.textContent).toContain("+$100.00");
     expect(gainPct.textContent).toBe("+50.00%");
+    expect(meta.textContent).toContain("US0378331005");
+    expect(meta.textContent).toContain("Qty 2");
   });
 
   it("handles create asset", async () => {
