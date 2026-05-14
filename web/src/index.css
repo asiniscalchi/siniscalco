@@ -101,7 +101,7 @@
   .asset-ticker-track {
     display: flex;
     width: max-content;
-    animation: asset-ticker-scroll 28s linear infinite;
+    will-change: transform;
   }
 
   .asset-ticker-set {
@@ -112,16 +112,6 @@
     justify-content: space-around;
     gap: 2rem;
     padding-right: 2rem;
-  }
-}
-
-@keyframes asset-ticker-scroll {
-  from {
-    transform: translateX(0);
-  }
-
-  to {
-    transform: translateX(-50%);
   }
 }
 
@@ -136,10 +126,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .asset-ticker-track {
-    animation: none;
-  }
-
   .refresh-countdown-ring {
     animation: none;
   }
