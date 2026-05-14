@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { gql } from "@apollo/client/core";
 import { useApolloClient, useQuery } from "@apollo/client/react";
 import { NavLink, Outlet } from "react-router-dom";
@@ -86,6 +86,101 @@ function AssetValueTicker() {
     [data?.assets],
   );
 
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const setRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const track = trackRef.current;
+    const firstSet = setRef.current;
+    if (!track || !firstSet) return;
+    if (typeof window !== "undefined" &&
+        window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+
+    const SPEED_PX_PER_SEC = 60;
+    let offset = 0;
+    let lastTime = 0;
+    let rafId = 0;
+    let dragging = false;
+    let dragStartX = 0;
+    let dragStartOffset = 0;
+    let resumeTimeoutId: number | null = null;
+
+    const setWidth = () => firstSet.getBoundingClientRect().width;
+    const wrap = (value: number, w: number) =>
+      w > 0 ? (((value % w) + w) % w) - w : value;
+
+    const apply = () => {
+      track.style.transform = `translateX(${offset}px)`;
+    };
+
+    const tick = (now: number) => {
+      if (!lastTime) lastTime = now;
+      const dt = (now - lastTime) / 1000;
+      lastTime = now;
+      offset = wrap(offset - SPEED_PX_PER_SEC * dt, setWidth());
+      apply();
+      rafId = requestAnimationFrame(tick);
+    };
+
+    const startAnim = () => {
+      if (rafId) return;
+      lastTime = 0;
+      rafId = requestAnimationFrame(tick);
+    };
+    const stopAnim = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = 0;
+    };
+    const clearResume = () => {
+      if (resumeTimeoutId !== null) {
+        clearTimeout(resumeTimeoutId);
+        resumeTimeoutId = null;
+      }
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      dragging = true;
+      dragStartX = e.clientX;
+      dragStartOffset = offset;
+      try { track.setPointerCapture(e.pointerId); } catch { /* noop */ }
+      stopAnim();
+      clearResume();
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (!dragging) return;
+      offset = wrap(dragStartOffset + (e.clientX - dragStartX), setWidth());
+      apply();
+    };
+    const onPointerEnd = (e: PointerEvent) => {
+      if (!dragging) return;
+      dragging = false;
+      try { track.releasePointerCapture(e.pointerId); } catch { /* noop */ }
+      clearResume();
+      resumeTimeoutId = window.setTimeout(() => {
+        resumeTimeoutId = null;
+        startAnim();
+      }, 1000);
+    };
+
+    track.addEventListener("pointerdown", onPointerDown);
+    track.addEventListener("pointermove", onPointerMove);
+    track.addEventListener("pointerup", onPointerEnd);
+    track.addEventListener("pointercancel", onPointerEnd);
+
+    startAnim();
+
+    return () => {
+      stopAnim();
+      clearResume();
+      track.removeEventListener("pointerdown", onPointerDown);
+      track.removeEventListener("pointermove", onPointerMove);
+      track.removeEventListener("pointerup", onPointerEnd);
+      track.removeEventListener("pointercancel", onPointerEnd);
+    };
+  }, [items]);
+
   if (error || (loading && items.length === 0) || items.length === 0) {
     return null;
   }
@@ -100,9 +195,17 @@ function AssetValueTicker() {
       className="overflow-hidden border-t border-emerald-500/20 bg-black py-1 text-emerald-400"
       data-testid="asset-value-ticker"
     >
-      <div aria-hidden="true" className="asset-ticker-track">
+      <div
+        aria-hidden="true"
+        className="asset-ticker-track cursor-grab touch-pan-y select-none active:cursor-grabbing"
+        ref={trackRef}
+      >
         {[0, 1].map((copy) => (
-          <div className="asset-ticker-set" key={copy}>
+          <div
+            className="asset-ticker-set"
+            key={copy}
+            ref={copy === 0 ? setRef : undefined}
+          >
             {items.map((item) => (
               <span
                 className="inline-flex items-center gap-2 whitespace-nowrap font-mono text-xs font-semibold uppercase tabular-nums sm:text-sm"
