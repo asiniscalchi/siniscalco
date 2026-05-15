@@ -9,6 +9,7 @@ export const ASSETS_QUERY = gql`
       avgCostBasis avgCostBasisCurrency
       previousClose previousCloseCurrency
       convertedTotalValue convertedTotalValueCurrency
+      convertedTotalCostBasis convertedTotalCostBasisCurrency
     }
   }
 `;

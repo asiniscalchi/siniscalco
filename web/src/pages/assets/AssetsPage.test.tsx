@@ -302,6 +302,8 @@ describe("AssetsPage", () => {
                 totalQuantity: "2",
                 convertedTotalValue: "1840.000000",
                 convertedTotalValueCurrency: "EUR",
+                convertedTotalCostBasis: "1226.666666",
+                convertedTotalCostBasisCurrency: "EUR",
                 avgCostBasis: "100.00",
                 avgCostBasisCurrency: "USD",
                 previousClose: "140.00",
@@ -331,10 +333,56 @@ describe("AssetsPage", () => {
     expect(mobileCard.textContent).toContain("$150.00");
     expect(totalValue.textContent).toBe("€1,840.00");
     expect(daily.textContent).toBe("+7.14%");
-    expect(gainStack.textContent).toContain("+$100.00");
+    expect(gainStack.textContent).toContain("+€613.33");
     expect(gainPct.textContent).toBe("+50.00%");
     expect(meta.textContent).toContain("US0378331005");
     expect(meta.textContent).toContain("Qty 2");
+  });
+
+  it("shows absolute total gain in the display currency when cost basis was recorded in a different currency", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            assets: [
+              {
+                id: 1,
+                symbol: "AAPL",
+                name: "Apple Inc.",
+                assetType: "STOCK",
+                quoteSymbol: null,
+                isin: null,
+                quoteSourceSymbol: null,
+                quoteSourceProvider: null,
+                quoteSourceLastSuccessAt: null,
+                currentPrice: "200.00",
+                currentPriceCurrency: "USD",
+                currentPriceAsOf: null,
+                totalQuantity: "2",
+                convertedTotalValue: "360.00",
+                convertedTotalValueCurrency: "EUR",
+                convertedTotalCostBasis: "100.00",
+                convertedTotalCostBasisCurrency: "EUR",
+                avgCostBasis: "50.00",
+                avgCostBasisCurrency: "EUR",
+                previousClose: null,
+                previousCloseCurrency: null,
+              },
+            ],
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    renderAssetsPage();
+
+    await screen.findAllByText("AAPL");
+
+    const gainStack = await screen.findByTestId("mobile-asset-gain-1");
+    // value €360 - cost €100 = +€260.00 ; pct = 260/100 = +260.00%
+    expect(gainStack.textContent).toContain("+€260.00");
+    expect(gainStack.textContent).toContain("+260.00%");
   });
 
   it("handles create asset", async () => {
