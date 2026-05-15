@@ -1,12 +1,8 @@
 services:
   backend:
     build:
-      context: ./backend
-    pull_policy: never
-
-  web:
-    build:
-      context: ./web
+      context: .
+      dockerfile: backend/Dockerfile
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
     pull_policy: never
