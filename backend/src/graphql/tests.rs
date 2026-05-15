@@ -164,7 +164,6 @@ async fn gql(app: Router, query: &str) -> Value {
     serde_json::from_slice(&bytes).unwrap()
 }
 
-
 async fn start_test_quote_server(payload: Value) -> String {
     let app = Router::new().route(
         "/quote",
