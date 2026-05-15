@@ -14,13 +14,7 @@ Example:
 
 ```bash
 cp .env.example .env.local
-echo 'VITE_API_BASE_URL=http://127.0.0.1:3000' > .env.local
+echo 'VITE_API_BASE_URL=http://127.0.0.1:3000/api' > .env.local
 ```
 
-If `VITE_API_BASE_URL` is not set, the app defaults to `/api`. That default is intended for the container build, where nginx proxies `/api/` to `BACKEND_UPSTREAM`.
-
-For the Docker image, set `BACKEND_UPSTREAM` at runtime when the backend service is not named `backend`, for example:
-
-```bash
-BACKEND_UPSTREAM=siniscalco-backend:3000
-```
+If `VITE_API_BASE_URL` is not set, the app defaults to `/api`. That default is intended for the container build, where the backend serves the bundled frontend and exposes its API under `/api`.

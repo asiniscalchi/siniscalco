@@ -17,6 +17,10 @@ pub struct Config {
     #[arg(long, env = "DB_PATH", default_value = "data/app.db")]
     pub db_path: String,
 
+    /// Directory containing the built web frontend (index.html, assets/). Leave empty to disable static serving.
+    #[arg(long, env = "WEB_DIR", default_value = "web/dist")]
+    pub web_dir: String,
+
     /// Frankfurter API base URL for FX rate refresh
     #[arg(
         long,
@@ -194,6 +198,7 @@ impl Config {
         lines.push("## General".to_string());
         lines.push(format!("- **Port:** {}", self.port));
         lines.push(format!("- **Database:** `{}`", self.db_path));
+        lines.push(format!("- **Web directory:** `{}`", self.web_dir));
         lines.push(format!(
             "- **Refresh Interval:** {} seconds",
             self.refresh_interval_secs
