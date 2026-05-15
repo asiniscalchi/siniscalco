@@ -20,18 +20,17 @@ Example:
 
 ```bash
 cp web/.env.example web/.env.local
-echo 'VITE_API_BASE_URL=http://127.0.0.1:3000' > web/.env.local
+echo 'VITE_API_BASE_URL=http://127.0.0.1:3000/api' > web/.env.local
 ```
 
-For local Vite development, set `VITE_API_BASE_URL` explicitly. If it is not set, the frontend defaults to `/api`, which is intended for the container build where nginx proxies API requests.
+For local Vite development, set `VITE_API_BASE_URL` explicitly. If it is not set, the frontend defaults to `/api`, which is the path the backend exposes its API under when it serves the bundled frontend.
 
 ## Deployment
 
-This repository now includes separate container images for the backend and frontend:
+The backend serves both the API and the bundled Vite frontend from a single container image:
 
-- [`backend/Dockerfile`](backend/Dockerfile) builds the Rust API service
-- [`web/Dockerfile`](web/Dockerfile) builds and serves the static Vite app with nginx
-- [`docker-compose.yml`](docker-compose.yml) deploys prebuilt tagged images
+- [`backend/Dockerfile`](backend/Dockerfile) builds the Rust API and bundles the static frontend (built with `VITE_API_BASE_URL=/api`) into `/app/web`
+- [`docker-compose.yml`](docker-compose.yml) deploys the prebuilt tagged image
 - [`docker-compose.build.yml`](docker-compose.build.yml) adds local build support on top of the base compose file
 
 ### Backend runtime
@@ -40,38 +39,18 @@ The backend expects:
 
 - `PORT`
 - `DB_PATH`
+- `WEB_DIR` (defaults to `web/dist` for local runs and `/app/web` in the container; leave it pointing at a directory containing `index.html` and the Vite asset output)
 - optional market data provider keys from [`backend/.env.example`](backend/.env.example)
 
 `DB_PATH` should point to persistent storage. Do not rely on the container filesystem for SQLite durability.
 
 Stock price refresh uses Yahoo Finance by default, which requires no API key and supports Yahoo-style exchange suffixes such as `GRID.MI`. Paid providers such as Twelve Data are optional fallbacks; leave their API key variables empty to stay on the no-key path.
 
-### Frontend runtime
-
-The frontend image is built with `VITE_API_BASE_URL` as a build argument. For Compose usage it should be set to `/api`, which sends browser requests through the nginx proxy in the web container. Nginx then forwards those requests to the backend service over the Compose network.
-
-The nginx backend upstream is runtime-configurable with `BACKEND_UPSTREAM`. The included Compose file defaults it to `backend:3000`. If your deployment uses a different backend service name, set it without rebuilding the web image, for example:
-
-```bash
-export BACKEND_UPSTREAM=siniscalco-backend:3000
-docker compose up -d
-```
-
-For a deployment that serves the frontend and backend separately, build the web image with the public backend URL, for example:
-
-```bash
-docker build \
-  --build-arg VITE_API_BASE_URL=https://api.example.com \
-  -t siniscalco-web \
-  web
-```
-
 ### Tagged image deploy with Compose
 
-The CI workflow publishes tagged images to GHCR on every git tag push. The default Compose configuration pulls images from the `asiniscalchi` namespace unless `GHCR_OWNER`, `BACKEND_IMAGE`, or `WEB_IMAGE` is set.
+The CI workflow publishes a tagged backend image to GHCR on every git tag push. The default Compose configuration pulls from the `asiniscalchi` namespace unless `GHCR_OWNER` or `BACKEND_IMAGE` is set.
 
 - `ghcr.io/<owner>/siniscalco-backend:<tag>`
-- `ghcr.io/<owner>/siniscalco-web:<tag>`
 
 Deploy a release tag by setting a shared `APP_TAG`:
 
@@ -80,8 +59,6 @@ export APP_TAG=v0.1.0
 docker compose pull
 docker compose up -d
 ```
-
-If you need to override one image explicitly, set `BACKEND_IMAGE` or `WEB_IMAGE`.
 
 ### Local build with Compose
 
@@ -92,25 +69,19 @@ export APP_TAG=dev
 docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
 ```
 
-The base compose file keeps the final image names and tags stable. The build override adds `build:` and `pull_policy: never` so `--build` does not try to pull first. By default, the build override sets `VITE_API_BASE_URL=/api`.
+The base compose file keeps the final image name and tag stable. The build override adds `build:` and `pull_policy: never` so `--build` does not try to pull first. The build sets `VITE_API_BASE_URL=/api` by default.
 
 ### Runtime endpoints
 
 The default compose ports expose:
 
-- backend on `http://127.0.0.1:3000`
-- frontend on `http://127.0.0.1:8080`
+- backend (API + frontend) on `http://127.0.0.1:3000`
 
 The compose file uses a named volume for backend SQLite data.
 
 ### Frontend URL behavior
 
-The published `siniscalco-web` image is only correct for the `VITE_API_BASE_URL` used when that image was built.
-
-The CI workflow builds and pushes the web image with `VITE_API_BASE_URL=/api`, which is suitable for Compose setups because nginx proxies `/api/` to `BACKEND_UPSTREAM`. For a deployment where the API is hosted on a separate public origin, either:
-
-- rebuild the web image from the desired tag with the correct public `VITE_API_BASE_URL`
-- or update the CI workflow to build the tagged web image with the correct deployment URL
+The bundled frontend always targets `VITE_API_BASE_URL` as set at build time, defaulting to `/api`. For a deployment where the API is hosted on a separate public origin, rebuild the image with the desired public `VITE_API_BASE_URL`.
 
 ### CI
 
@@ -118,7 +89,7 @@ The CI workflow builds and pushes the web image with `VITE_API_BASE_URL=/api`, w
 
 - backend tests
 - frontend lint, typecheck, tests, and build
-- Docker image builds for the backend and frontend
+- a Docker image build that bundles backend + frontend
 
 ## License
 
