@@ -298,6 +298,33 @@ pub async fn convert_asset_total_value_in_currency(
     Ok(Some(parse_decimal_amount(total_value * rate)))
 }
 
+pub async fn convert_asset_total_cost_basis_in_currency(
+    pool: &SqlitePool,
+    asset: &AssetRecord,
+    target_currency: Currency,
+) -> Result<Option<Amount>, StorageError> {
+    let Some(quantity) = asset.total_quantity else {
+        return Ok(None);
+    };
+    let Some(cost) = asset.avg_cost_basis else {
+        return Ok(None);
+    };
+    let Some(cost_currency) = asset.avg_cost_basis_currency else {
+        return Ok(None);
+    };
+
+    let total_cost = quantity.as_decimal() * cost.as_decimal();
+    if cost_currency == target_currency {
+        return Ok(Some(parse_decimal_amount(total_cost)));
+    }
+
+    let Some(rate) = get_direct_fx_rate(pool, cost_currency, target_currency).await? else {
+        return Ok(None);
+    };
+
+    Ok(Some(parse_decimal_amount(total_cost * rate)))
+}
+
 pub async fn compute_portfolio_value_at(
     pool: &SqlitePool,
     as_of: &str,

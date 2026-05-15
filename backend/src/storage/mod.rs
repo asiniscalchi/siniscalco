@@ -66,7 +66,8 @@ pub use fx::{
 };
 pub use fx_rate::FxRate;
 pub use portfolio::{
-    compute_portfolio_value_at, convert_asset_total_value_in_currency, get_portfolio_summary,
+    compute_portfolio_value_at, convert_asset_total_cost_basis_in_currency,
+    convert_asset_total_value_in_currency, get_portfolio_summary,
 };
 pub use portfolio_account_summaries::{get_account_value_summary, list_account_summaries};
 pub use portfolio_snapshots::{

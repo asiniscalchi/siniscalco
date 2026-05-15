@@ -58,6 +58,8 @@ export type Asset = {
   assetType: AssetType;
   avgCostBasis: Maybe<Scalars['String']['output']>;
   avgCostBasisCurrency: Maybe<Scalars['String']['output']>;
+  convertedTotalCostBasis: Maybe<Scalars['String']['output']>;
+  convertedTotalCostBasisCurrency: Maybe<Scalars['String']['output']>;
   convertedTotalValue: Maybe<Scalars['String']['output']>;
   convertedTotalValueCurrency: Maybe<Scalars['String']['output']>;
   createdAt: Scalars['String']['output'];
@@ -585,7 +587,7 @@ export type DeleteAssetMutation = { __typename?: 'MutationRoot', deleteAsset: nu
 export type AssetsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type AssetsQuery = { __typename?: 'QueryRoot', assets: Array<{ __typename?: 'Asset', id: number, symbol: string, name: string, assetType: AssetType, quoteSymbol: string | null, isin: string | null, quoteSourceSymbol: string | null, quoteSourceProvider: string | null, quoteSourceLastSuccessAt: string | null, currentPrice: string | null, currentPriceCurrency: string | null, currentPriceAsOf: string | null, totalQuantity: string | null, avgCostBasis: string | null, avgCostBasisCurrency: string | null, previousClose: string | null, previousCloseCurrency: string | null, convertedTotalValue: string | null, convertedTotalValueCurrency: string | null }> };
+export type AssetsQuery = { __typename?: 'QueryRoot', assets: Array<{ __typename?: 'Asset', id: number, symbol: string, name: string, assetType: AssetType, quoteSymbol: string | null, isin: string | null, quoteSourceSymbol: string | null, quoteSourceProvider: string | null, quoteSourceLastSuccessAt: string | null, currentPrice: string | null, currentPriceCurrency: string | null, currentPriceAsOf: string | null, totalQuantity: string | null, avgCostBasis: string | null, avgCostBasisCurrency: string | null, previousClose: string | null, previousCloseCurrency: string | null, convertedTotalValue: string | null, convertedTotalValueCurrency: string | null, convertedTotalCostBasis: string | null, convertedTotalCostBasisCurrency: string | null }> };
 
 export type FxRatesQueryVariables = Exact<{ [key: string]: never; }>;
 

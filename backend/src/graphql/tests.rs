@@ -164,19 +164,6 @@ async fn gql(app: Router, query: &str) -> Value {
     serde_json::from_slice(&bytes).unwrap()
 }
 
-async fn get_json(app: Router, path: &str) -> (StatusCode, Value) {
-    let response = app
-        .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
-        .await
-        .unwrap();
-
-    let status = response.status();
-    let bytes = response.into_body().collect().await.unwrap().to_bytes();
-    let json = serde_json::from_slice(&bytes).unwrap();
-
-    (status, json)
-}
-
 async fn start_test_quote_server(payload: Value) -> String {
     let app = Router::new().route(
         "/quote",
@@ -489,7 +476,7 @@ async fn asset_query_returns_converted_total_value_in_eur() {
     let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
     let json = gql(
         app,
-        "{ assets { symbol convertedTotalValue convertedTotalValueCurrency } }",
+        "{ assets { symbol convertedTotalValue convertedTotalValueCurrency convertedTotalCostBasis convertedTotalCostBasisCurrency } }",
     )
     .await;
 
@@ -497,6 +484,9 @@ async fn asset_query_returns_converted_total_value_in_eur() {
     assert_eq!(asset["symbol"], "AAPL");
     assert_eq!(asset["convertedTotalValue"], "1080.000000");
     assert_eq!(asset["convertedTotalValueCurrency"], "EUR");
+    // 10 units @ avg cost 100 USD = 1000 USD; 1000 * 0.9 = 900 EUR.
+    assert_eq!(asset["convertedTotalCostBasis"], "900.000000");
+    assert_eq!(asset["convertedTotalCostBasisCurrency"], "EUR");
 }
 
 #[tokio::test]

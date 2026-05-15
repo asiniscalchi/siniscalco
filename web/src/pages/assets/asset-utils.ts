@@ -49,26 +49,23 @@ export function formatTotalValue(asset: AssetItem): string | null {
 }
 
 export function formatGain(asset: AssetItem): GainResult | null {
-  const { currentPrice, currentPriceCurrency, totalQuantity, avgCostBasis, avgCostBasisCurrency } =
-    asset;
-  if (!currentPrice || !avgCostBasis || !totalQuantity) return null;
+  const { convertedTotalValue, convertedTotalCostBasis, convertedTotalValueCurrency } = asset;
+  if (!convertedTotalValue || !convertedTotalCostBasis) return null;
 
-  const price = Number(currentPrice);
-  const cost = Number(avgCostBasis);
-  const qty = Number(totalQuantity);
-  if (Number.isNaN(price) || Number.isNaN(cost) || Number.isNaN(qty) || cost === 0) return null;
+  const value = Number(convertedTotalValue);
+  const costTotal = Number(convertedTotalCostBasis);
+  if (Number.isNaN(value) || Number.isNaN(costTotal) || costTotal === 0) return null;
 
-  const gainPct = ((price - cost) / cost) * 100;
-  const sameCurrency = currentPriceCurrency && avgCostBasisCurrency === currentPriceCurrency;
-  const gainAbs = sameCurrency ? (price - cost) * qty : null;
+  const gainAbs = value - costTotal;
+  const gainPct = (gainAbs / costTotal) * 100;
+  const positive = gainAbs >= 0;
+  const sign = positive ? "+" : "-";
 
-  const sign = gainPct >= 0 ? "+" : "";
-  const pct = `${sign}${gainPct.toFixed(2)}%`;
-  const abs = gainAbs !== null
-    ? `${sign}${formatMoney(gainAbs, currentPriceCurrency ?? undefined, false).text}`
-    : null;
-
-  return { pct, abs, positive: gainPct >= 0 };
+  return {
+    pct: `${positive ? "+" : ""}${gainPct.toFixed(2)}%`,
+    abs: `${sign}${formatMoney(Math.abs(gainAbs), convertedTotalValueCurrency ?? undefined, false).text}`,
+    positive,
+  };
 }
 
 export function formatDailyGain(asset: AssetItem): GainResult | null {
@@ -102,13 +99,12 @@ export function dailyGainPctRaw(asset: AssetItem): number | null {
 }
 
 export function totalGainPctRaw(asset: AssetItem): number | null {
-  const { currentPrice, avgCostBasis, totalQuantity } = asset;
-  if (!currentPrice || !avgCostBasis || !totalQuantity) return null;
-  const price = Number(currentPrice);
-  const cost = Number(avgCostBasis);
-  const qty = Number(totalQuantity);
-  if (Number.isNaN(price) || Number.isNaN(cost) || Number.isNaN(qty) || cost === 0) return null;
-  return ((price - cost) / cost) * 100;
+  const { convertedTotalValue, convertedTotalCostBasis } = asset;
+  if (!convertedTotalValue || !convertedTotalCostBasis) return null;
+  const value = Number(convertedTotalValue);
+  const cost = Number(convertedTotalCostBasis);
+  if (Number.isNaN(value) || Number.isNaN(cost) || cost === 0) return null;
+  return ((value - cost) / cost) * 100;
 }
 
 export function priceLabel(asset: AssetItem): string {
