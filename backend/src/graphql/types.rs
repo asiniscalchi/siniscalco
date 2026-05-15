@@ -269,6 +269,8 @@ pub struct Asset {
     pub previous_close_currency: Option<String>,
     pub converted_total_value: Option<String>,
     pub converted_total_value_currency: Option<String>,
+    pub converted_total_cost_basis: Option<String>,
+    pub converted_total_cost_basis_currency: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }

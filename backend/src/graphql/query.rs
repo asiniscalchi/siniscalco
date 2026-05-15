@@ -3,12 +3,12 @@ use sqlx::SqlitePool;
 
 use crate::{
     AccountId, AssetId, PRODUCT_BASE_CURRENCY, SharedFxRefreshStatus, compact_decimal_output,
-    convert_asset_total_value_in_currency, fmt_amount, fmt_opt_amount, get_account,
-    get_account_value_summary, get_asset, get_portfolio_summary, get_transaction,
-    list_account_balances, list_account_positions, list_account_summaries, list_all_cash_movements,
-    list_asset_transactions, list_assets, list_cash_movements, list_currencies,
-    list_fx_rate_summary, list_portfolio_snapshots, list_todos, list_transactions, list_transfers,
-    list_transfers_by_account, storage::StorageError,
+    convert_asset_total_cost_basis_in_currency, convert_asset_total_value_in_currency, fmt_amount,
+    fmt_opt_amount, get_account, get_account_value_summary, get_asset, get_portfolio_summary,
+    get_transaction, list_account_balances, list_account_positions, list_account_summaries,
+    list_all_cash_movements, list_asset_transactions, list_assets, list_cash_movements,
+    list_currencies, list_fx_rate_summary, list_portfolio_snapshots, list_todos, list_transactions,
+    list_transfers, list_transfers_by_account, storage::StorageError,
 };
 
 use super::types::*;
@@ -73,6 +73,8 @@ pub(crate) fn to_asset(
     asset: crate::AssetRecord,
     converted_total_value: Option<crate::Amount>,
     converted_total_value_currency: Option<crate::Currency>,
+    converted_total_cost_basis: Option<crate::Amount>,
+    converted_total_cost_basis_currency: Option<crate::Currency>,
 ) -> Asset {
     Asset {
         id: asset.id.as_i64(),
@@ -99,6 +101,9 @@ pub(crate) fn to_asset(
         converted_total_value: fmt_opt_amount(converted_total_value.as_ref()),
         converted_total_value_currency: converted_total_value_currency
             .map(|currency| currency.as_str().to_string()),
+        converted_total_cost_basis: fmt_opt_amount(converted_total_cost_basis.as_ref()),
+        converted_total_cost_basis_currency: converted_total_cost_basis_currency
+            .map(|currency| currency.as_str().to_string()),
         created_at: asset.created_at,
         updated_at: asset.updated_at,
     }
@@ -110,11 +115,15 @@ async fn to_asset_with_display_total(
 ) -> Result<Asset, StorageError> {
     let converted_total_value =
         convert_asset_total_value_in_currency(pool, &asset, PRODUCT_BASE_CURRENCY).await?;
+    let converted_total_cost_basis =
+        convert_asset_total_cost_basis_in_currency(pool, &asset, PRODUCT_BASE_CURRENCY).await?;
 
     Ok(to_asset(
         asset,
         converted_total_value,
         converted_total_value.map(|_| PRODUCT_BASE_CURRENCY),
+        converted_total_cost_basis,
+        converted_total_cost_basis.map(|_| PRODUCT_BASE_CURRENCY),
     ))
 }
 
