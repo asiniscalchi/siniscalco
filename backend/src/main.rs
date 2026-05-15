@@ -1,8 +1,8 @@
-use std::{collections::BTreeSet, net::SocketAddr};
+use std::{collections::BTreeSet, net::SocketAddr, path::PathBuf};
 
 use clap::Parser;
 use if_addrs::get_if_addrs;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use backend::{
     AppState, AssetPriceRefreshConfig, Config, FxRefreshConfig, build_router_with_state,
@@ -38,12 +38,14 @@ async fn main() {
     let asset_price_refresh_config = config.asset_price_refresh_config();
     let http_client = reqwest::Client::new();
 
+    let web_dir = resolve_web_dir(&config.web_dir);
     let app = build_router_with_state(AppState {
         pool: pool.clone(),
         fx_refresh_status: fx_refresh_status.clone(),
         asset_price_refresh_config: asset_price_refresh_config.clone(),
         http_client: http_client.clone(),
         config_markdown: config.to_markdown(),
+        web_dir,
     });
     let address = SocketAddr::from(([0, 0, 0, 0], config.port));
 
@@ -68,6 +70,22 @@ async fn main() {
         error!(error = %error, "backend server error");
         std::process::exit(1);
     }
+}
+
+fn resolve_web_dir(raw: &str) -> Option<PathBuf> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let path = PathBuf::from(trimmed);
+    if !path.is_dir() {
+        warn!(
+            web_dir = %path.display(),
+            "configured WEB_DIR does not exist; frontend will not be served"
+        );
+        return None;
+    }
+    Some(path)
 }
 
 fn log_listening_addresses(address: SocketAddr) {

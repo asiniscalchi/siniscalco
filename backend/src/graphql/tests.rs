@@ -131,6 +131,7 @@ fn build_app_with_fx_status(
         asset_price_refresh_config: no_price_config(),
         http_client: reqwest::Client::new(),
         config_markdown: String::new(),
+        web_dir: None,
     })
 }
 
@@ -141,6 +142,7 @@ fn build_app_with_price_config(pool: sqlx::SqlitePool, config: AssetPriceRefresh
         asset_price_refresh_config: config,
         http_client: reqwest::Client::new(),
         config_markdown: String::new(),
+        web_dir: None,
     })
 }
 
@@ -150,7 +152,7 @@ async fn gql(app: Router, query: &str) -> Value {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/graphql")
+                .uri("/api/graphql")
                 .header("content-type", "application/json")
                 .body(Body::from(serde_json::to_vec(&body).unwrap()))
                 .unwrap(),
@@ -192,7 +194,7 @@ async fn serves_health_route() {
     let response = app
         .oneshot(
             Request::builder()
-                .uri("/health")
+                .uri("/api/health")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -200,6 +202,120 @@ async fn serves_health_route() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
+}
+
+// ── SPA static fallback ──────────────────────────────────────────────────────
+
+fn build_app_with_web_dir(pool: sqlx::SqlitePool, web_dir: std::path::PathBuf) -> Router {
+    build_router_with_state(AppState {
+        pool,
+        fx_refresh_status: std::sync::Arc::new(RwLock::new(FxRefreshStatus::available())),
+        asset_price_refresh_config: no_price_config(),
+        http_client: reqwest::Client::new(),
+        config_markdown: String::new(),
+        web_dir: Some(web_dir),
+    })
+}
+
+#[tokio::test]
+async fn serves_spa_index_at_root() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::write(dir.path().join("index.html"), "<html>spa</html>").unwrap();
+
+    let pool = test_pool().await;
+    let app = build_app_with_web_dir(pool, dir.path().to_path_buf());
+
+    let response = app
+        .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(&body[..], b"<html>spa</html>");
+}
+
+#[tokio::test]
+async fn falls_back_to_index_for_unknown_spa_route() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::write(dir.path().join("index.html"), "<html>spa</html>").unwrap();
+
+    let pool = test_pool().await;
+    let app = build_app_with_web_dir(pool, dir.path().to_path_buf());
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/some/client-route")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(&body[..], b"<html>spa</html>");
+}
+
+#[tokio::test]
+async fn api_routes_take_precedence_over_spa() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::write(dir.path().join("index.html"), "<html>spa</html>").unwrap();
+
+    let pool = test_pool().await;
+    let app = build_app_with_web_dir(pool, dir.path().to_path_buf());
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/health")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(&body[..], b"ok");
+}
+
+#[tokio::test]
+async fn serves_root_level_static_assets() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::write(dir.path().join("index.html"), "<html>spa</html>").unwrap();
+    std::fs::write(dir.path().join("favicon.svg"), "<svg/>").unwrap();
+
+    let pool = test_pool().await;
+    let app = build_app_with_web_dir(pool, dir.path().to_path_buf());
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/favicon.svg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(&body[..], b"<svg/>");
+}
+
+#[tokio::test]
+async fn root_returns_404_when_web_dir_not_configured() {
+    let pool = test_pool().await;
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+
+    let response = app
+        .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
 // ── currencies ────────────────────────────────────────────────────────────────
