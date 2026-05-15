@@ -50,7 +50,7 @@ Stock price refresh uses Yahoo Finance by default, which requires no API key and
 
 The CI workflow publishes a tagged backend image to GHCR on every git tag push. The default Compose configuration pulls from the `asiniscalchi` namespace unless `GHCR_OWNER` or `BACKEND_IMAGE` is set.
 
-- `ghcr.io/<owner>/siniscalco-backend:<tag>`
+- `ghcr.io/<owner>/siniscalco:<tag>`
 
 Deploy a release tag by setting a shared `APP_TAG`:
 
