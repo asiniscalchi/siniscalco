@@ -87,7 +87,7 @@ pub async fn spawn_fx_refresh_task(
     config: FxRefreshConfig,
 ) {
     tokio::spawn(async move {
-        let client = Client::new();
+        let client = crate::new_http_client();
 
         info!(
             refresh_interval_seconds = config.refresh_interval.as_secs(),

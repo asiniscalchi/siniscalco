@@ -6,8 +6,8 @@ use tracing::{error, info, warn};
 
 use backend::{
     AppState, AssetPriceRefreshConfig, Config, FxRefreshConfig, build_router_with_state,
-    connect_db_file, init_tracing, new_shared_fx_refresh_status, spawn_asset_price_refresh_task,
-    spawn_fx_refresh_task, spawn_portfolio_snapshot_task,
+    connect_db_file, init_tracing, new_http_client, new_shared_fx_refresh_status,
+    spawn_asset_price_refresh_task, spawn_fx_refresh_task, spawn_portfolio_snapshot_task,
 };
 
 #[tokio::main]
@@ -36,7 +36,7 @@ async fn main() {
     let fx_refresh_status = new_shared_fx_refresh_status();
     let fx_refresh_config = config.fx_refresh_config();
     let asset_price_refresh_config = config.asset_price_refresh_config();
-    let http_client = reqwest::Client::new();
+    let http_client = new_http_client();
 
     let web_dir = resolve_web_dir(&config.web_dir);
     let app = build_router_with_state(AppState {
