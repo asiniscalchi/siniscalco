@@ -97,4 +97,3 @@ pub fn new_http_client() -> reqwest::Client {
         .build()
         .unwrap_or_else(|_| reqwest::Client::new())
 }
-
