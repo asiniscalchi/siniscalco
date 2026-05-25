@@ -15,14 +15,13 @@ pub use providers::{
 pub use refresh::{fill_missing_asset_prices, refresh_asset_prices, refresh_single_asset_price};
 pub use types::{AssetPriceRefreshError, AssetQuote};
 
-use reqwest::Client;
 use sqlx::SqlitePool;
 use tokio::time::sleep;
 use tracing::{info, warn};
 
 pub async fn spawn_asset_price_refresh_task(pool: SqlitePool, config: AssetPriceRefreshConfig) {
     tokio::spawn(async move {
-        let client = Client::new();
+        let client = crate::new_http_client();
 
         info!(
             refresh_interval_seconds = config.refresh_interval.as_secs(),

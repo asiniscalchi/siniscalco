@@ -62,7 +62,7 @@ pub fn build_router(pool: SqlitePool) -> Router {
         pool,
         fx_refresh_status: crate::new_shared_fx_refresh_status(),
         asset_price_refresh_config: config.asset_price_refresh_config(),
-        http_client: reqwest::Client::new(),
+        http_client: crate::new_http_client(),
         config_markdown: config.to_markdown(),
         web_dir: None,
     })
