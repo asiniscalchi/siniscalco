@@ -7,6 +7,13 @@ export type GainResult = {
   pct: string;
   abs: string | null;
   positive: boolean;
+  tone: "positive" | "negative" | "neutral";
+};
+
+export const gainToneClass: Record<GainResult["tone"], string> = {
+  positive: "text-green-600 dark:text-green-400",
+  negative: "text-red-600 dark:text-red-400",
+  neutral: "text-muted-foreground",
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -65,6 +72,7 @@ export function formatGain(asset: AssetItem): GainResult | null {
     pct: `${positive ? "+" : ""}${gainPct.toFixed(2)}%`,
     abs: `${sign}${formatMoney(Math.abs(gainAbs), convertedTotalValueCurrency ?? undefined, false).text}`,
     positive,
+    tone: gainAbs > 0 ? "positive" : gainAbs < 0 ? "negative" : "neutral",
   };
 }
 
@@ -86,7 +94,12 @@ export function formatDailyGain(asset: AssetItem): GainResult | null {
     ? `${sign}${formatMoney(gainAbs, currentPriceCurrency ?? undefined, false).text}`
     : null;
 
-  return { pct, abs, positive: gainPct >= 0 };
+  return {
+    pct,
+    abs,
+    positive: gainPct >= 0,
+    tone: gainPct > 0 ? "positive" : gainPct < 0 ? "negative" : "neutral",
+  };
 }
 
 export function dailyGainPctRaw(asset: AssetItem): number | null {

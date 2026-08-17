@@ -18,6 +18,7 @@ import {
   formatGain,
   formatPrice,
   formatTotalValue,
+  gainToneClass,
   priceHealthLabel,
   priceLabel,
   quoteSourceLabel,
@@ -205,16 +206,8 @@ export function AssetsTableCard() {
                   const gain = formatGain(asset);
                   const totalValue = formatTotalValue(asset);
                   const source = quoteSourceLabel(asset);
-                  const gainTone = gain
-                    ? gain.positive
-                      ? "text-green-600 dark:text-green-400"
-                      : "text-red-600 dark:text-red-400"
-                    : "";
-                  const dailyTone = daily
-                    ? daily.positive
-                      ? "text-green-600 dark:text-green-400"
-                      : "text-red-600 dark:text-red-400"
-                    : "";
+                  const gainTone = gain ? gainToneClass[gain.tone] : "";
+                  const dailyTone = daily ? gainToneClass[daily.tone] : "";
                   const secondaryParts = [
                     asset.isin,
                     source,
@@ -408,7 +401,7 @@ export function AssetsTableCard() {
                             const daily = formatDailyGain(asset);
                             if (!daily) return <span className="text-muted-foreground">—</span>;
                             return (
-                              <div className={daily.positive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
+                              <div className={gainToneClass[daily.tone]}>
                                 {daily.abs && (
                                   <div className="font-mono text-[13px] tabular-nums">{daily.abs}</div>
                                 )}
@@ -422,7 +415,7 @@ export function AssetsTableCard() {
                             const gain = formatGain(asset);
                             if (!gain) return <span className="text-muted-foreground">—</span>;
                             return (
-                              <div className={gain.positive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
+                              <div className={gainToneClass[gain.tone]}>
                                 {gain.abs && (
                                   <div className="font-mono text-[13px] tabular-nums">{gain.abs}</div>
                                 )}
