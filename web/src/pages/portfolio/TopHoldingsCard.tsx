@@ -7,6 +7,7 @@ import { type AssetType } from "@/gql/types";
 import { BOND_COLORS, CASH_SLICE_COLORS, CRYPTO_COLORS, ETF_COLORS, OTHER_COLORS, STOCK_COLORS } from "@/lib/colors";
 import { MoneyText } from "@/lib/money";
 import { type PortfolioHolding } from "@/lib/types";
+import { gainToneClass } from "@/pages/assets/asset-utils";
 
 type ChartItem = {
   name: string;
@@ -168,6 +169,11 @@ export function TopHoldingsCard({
             {chartData.map((item) => {
               const percentage =
                 holdingsTotal > 0 ? (item.value / holdingsTotal) * 100 : 0;
+              const gain24hAmount = item.gain24hAmount ? Number(item.gain24hAmount) : null;
+              const gain24hTone =
+                gain24hAmount === null
+                  ? gainToneClass.neutral
+                  : gainToneClass[gain24hAmount > 0 ? "positive" : gain24hAmount < 0 ? "negative" : "neutral"];
 
               return (
                 <div
@@ -199,10 +205,7 @@ export function TopHoldingsCard({
                       />
                       {item.gain24hAmount && !hideValues && (
                         <MoneyText
-                          className={clsx(
-                            "text-[10px] tabular-nums",
-                            Number(item.gain24hAmount) >= 0 ? "text-green-600" : "text-red-600"
-                          )}
+                          className={clsx("text-[10px] tabular-nums", gain24hTone)}
                           currency={displayCurrency}
                           hidden={hideValues}
                           signDisplay="always"

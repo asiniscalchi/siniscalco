@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { type PortfolioHistoryQuery } from "@/gql/types";
 import { formatMoney } from "@/lib/format-money";
 import { useUiState } from "@/lib/ui-state";
+import { gainToneClass } from "@/pages/assets/asset-utils";
 
 const PORTFOLIO_HISTORY_QUERY = gql`
   query PortfolioHistory {
@@ -100,7 +101,12 @@ export function PortfolioHistoryCard({
     if (first === 0) return null;
     const amount = last - first;
     const pct = (amount / first) * 100;
-    return { amount, pct, positive: amount >= 0 };
+    return {
+      amount,
+      pct,
+      positive: amount >= 0,
+      tone: amount > 0 ? "positive" : amount < 0 ? "negative" : "neutral",
+    } as const;
   })();
 
   return (
@@ -111,7 +117,7 @@ export function PortfolioHistoryCard({
             <CardTitle>Portfolio Value</CardTitle>
             {gainInfo && (
               <span
-                className={`font-mono text-sm tabular-nums ${gainInfo.positive ? "text-green-500" : "text-red-500"}`}
+                className={`font-mono text-sm tabular-nums ${gainToneClass[gainInfo.tone]}`}
               >
                 {hideValues ? "•••" : `${gainInfo.positive ? "+" : ""}${formatMoney(gainInfo.amount, currency, false).text} (${gainInfo.pct.toFixed(2)}%)`}
               </span>
