@@ -1,8 +1,8 @@
-use std::{fs, path::Path, str::FromStr};
+use std::{fs, path::Path, str::FromStr, time::Duration};
 
 use sqlx::{
     SqlitePool,
-    sqlite::{SqliteConnectOptions, SqlitePoolOptions},
+    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
 };
 use tracing::info;
 
@@ -11,7 +11,9 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 pub async fn connect_db(database_url: &str) -> Result<SqlitePool, sqlx::Error> {
     let options = SqliteConnectOptions::from_str(database_url)?
         .create_if_missing(true)
-        .foreign_keys(true);
+        .foreign_keys(true)
+        .journal_mode(SqliteJournalMode::Wal)
+        .busy_timeout(Duration::from_secs(5));
 
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
@@ -139,6 +141,26 @@ mod tests {
         .expect("table lookup should succeed");
 
         assert_eq!(tables, 5);
+    }
+
+    #[tokio::test]
+    async fn enables_wal_journal_mode_and_busy_timeout() {
+        let file = NamedTempFile::new().expect("temp db file should be created");
+        let pool = connect_db_file(file.path())
+            .await
+            .expect("file database should initialize");
+
+        let journal_mode: String = sqlx::query_scalar("PRAGMA journal_mode")
+            .fetch_one(&pool)
+            .await
+            .expect("journal_mode pragma should succeed");
+        assert_eq!(journal_mode, "wal");
+
+        let busy_timeout: i64 = sqlx::query_scalar("PRAGMA busy_timeout")
+            .fetch_one(&pool)
+            .await
+            .expect("busy_timeout pragma should succeed");
+        assert_eq!(busy_timeout, 5000);
     }
 
     #[tokio::test]
