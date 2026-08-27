@@ -10,26 +10,16 @@ Minimal portfolio app.
 
 ## Frontend backend URL
 
-The frontend reads the backend base URL from `VITE_API_BASE_URL`.
+The frontend always calls the backend under the relative `/api` path.
 
-1. Copy [`web/.env.example`](web/.env.example) to `web/.env.local`.
-2. Set `VITE_API_BASE_URL` to the backend URL you want the frontend to use.
-3. Start the frontend with `npm run dev` from `web/`.
-
-Example:
-
-```bash
-cp web/.env.example web/.env.local
-echo 'VITE_API_BASE_URL=http://127.0.0.1:3000/api' > web/.env.local
-```
-
-For local Vite development, set `VITE_API_BASE_URL` explicitly. If it is not set, the frontend defaults to `/api`, which is the path the backend exposes its API under when it serves the bundled frontend.
+- Production: the backend serves both the API and the bundled frontend, so same-origin `/api` requests just work.
+- Local development: the Vite dev server proxies `/api` to `http://127.0.0.1:3000` (see [`web/vite.config.ts`](web/vite.config.ts)), so no environment variable is needed. Start the backend with `cargo run` from `backend/`, then `npm run dev` from `web/`.
 
 ## Deployment
 
 The backend serves both the API and the bundled Vite frontend from a single container image:
 
-- [`backend/Dockerfile`](backend/Dockerfile) builds the Rust API and bundles the static frontend (built with `VITE_API_BASE_URL=/api`) into `/app/web`
+- [`backend/Dockerfile`](backend/Dockerfile) builds the Rust API and bundles the static frontend (which targets `/api`) into `/app/web`
 - [`docker-compose.yml`](docker-compose.yml) deploys the prebuilt tagged image
 - [`docker-compose.build.yml`](docker-compose.build.yml) adds local build support on top of the base compose file
 
@@ -69,7 +59,7 @@ export APP_TAG=dev
 docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
 ```
 
-The base compose file keeps the final image name and tag stable. The build override adds `build:` and `pull_policy: never` so `--build` does not try to pull first. The build sets `VITE_API_BASE_URL=/api` by default.
+The base compose file keeps the final image name and tag stable. The build override adds `build:` and `pull_policy: never` so `--build` does not try to pull first.
 
 ### Runtime endpoints
 
@@ -81,7 +71,7 @@ The compose file uses a named volume for backend SQLite data.
 
 ### Frontend URL behavior
 
-The bundled frontend always targets `VITE_API_BASE_URL` as set at build time, defaulting to `/api`. For a deployment where the API is hosted on a separate public origin, rebuild the image with the desired public `VITE_API_BASE_URL`.
+The bundled frontend always targets the relative `/api` path on its own origin. To host the API on a separate public origin, place a reverse proxy that forwards `/api` to the backend.
 
 ### CI
 

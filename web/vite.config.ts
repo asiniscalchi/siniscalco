@@ -22,6 +22,12 @@ function getGitVersion(): string {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  server: {
+    proxy: {
+      // Local development only: forward API calls to the backend started with `cargo run`.
+      "/api": "http://127.0.0.1:3000",
+    },
+  },
   define: {
     __APP_VERSION__: JSON.stringify(getGitVersion()),
   },
