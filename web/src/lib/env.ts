@@ -1,5 +1,7 @@
+export const API_BASE_URL = "/api";
+
 export function getApiBaseUrl() {
-  return import.meta.env.VITE_API_BASE_URL?.trim() || "/api";
+  return API_BASE_URL;
 }
 
 export function getHealthApiUrl() {
