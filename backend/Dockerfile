@@ -6,8 +6,6 @@ WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
 COPY web/ ./
-ARG VITE_API_BASE_URL=/api
-ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 ARG GIT_VERSION
 ENV GIT_VERSION=${GIT_VERSION}
 RUN npm run build
