@@ -41,7 +41,20 @@ async fn list_tools_returns_remaining_tool_set() {
     names.sort();
     assert_eq!(
         names,
-        vec!["list_accounts", "list_assets", "list_transactions"]
+        vec![
+            "create_account",
+            "create_asset",
+            "create_cash_movement",
+            "create_transaction",
+            "create_transfer",
+            "delete_account",
+            "delete_asset",
+            "delete_transaction",
+            "list_accounts",
+            "list_assets",
+            "list_transactions",
+            "update_transaction",
+        ]
     );
 }
 
