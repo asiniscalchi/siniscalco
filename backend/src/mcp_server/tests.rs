@@ -756,25 +756,42 @@ async fn delete_account_tool_removes_empty_account_only() {
 }
 
 #[tokio::test]
-async fn delete_account_tool_fails_when_ledger_entries_exist() {
+async fn delete_account_tool_fails_when_transactions_exist() {
     let pool = test_pool().await;
     let account_id = seed_account(&pool, "Broker").await;
-    let server = PortfolioServer::new(pool.clone());
-    server
-        .create_cash_movement(Parameters(CreateCashMovementArgs {
-            account_id,
-            currency: "EUR".to_string(),
-            amount: "100.00".to_string(),
-            date: "2026-01-05".to_string(),
-            notes: None,
-        }))
-        .await;
+    let asset_id = seed_asset(&pool, "VWCE").await;
+    seed_opening_transaction(&pool, account_id, asset_id).await;
+    let server = PortfolioServer::new(pool);
 
     let result = server
         .delete_account(Parameters(DeleteByIdArgs { id: account_id }))
         .await;
     assert!(result.is_error.unwrap_or(false), "{}", text_of(&result));
-    assert!(text_of(&result).contains("cannot delete an account that has ledger entries"));
+    assert!(text_of(&result).contains("cannot delete an account that has transactions"));
+}
+
+#[tokio::test]
+async fn delete_account_tool_fails_when_transfers_exist() {
+    let pool = test_pool().await;
+    let from = seed_account(&pool, "Bank").await;
+    let to = seed_account(&pool, "Broker").await;
+    let server = PortfolioServer::new(pool.clone());
+    // Insert a bare transfer row (no cash entries) to exercise the transfer guard.
+    sqlx::query(
+        "INSERT INTO account_transfers (from_account_id, to_account_id, from_currency, from_amount, \
+         to_currency, to_amount, transfer_date) VALUES (?, ?, 'EUR', 10000, 'EUR', 10000, '2026-01-05')",
+    )
+    .bind(from)
+    .bind(to)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let result = server
+        .delete_account(Parameters(DeleteByIdArgs { id: to }))
+        .await;
+    assert!(result.is_error.unwrap_or(false), "{}", text_of(&result));
+    assert!(text_of(&result).contains("cannot delete an account that has transfers"));
 }
 
 #[tokio::test]
