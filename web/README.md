@@ -1,20 +1,8 @@
 # siniscalco web
 
-## Set the backend URL
+## Backend URL
 
-The frontend uses `VITE_API_BASE_URL` as the backend base URL.
+The frontend calls the backend under the relative `/api` path.
 
-For local Vite development, point it directly at the backend:
-
-1. Copy `.env.example` to `.env.local`.
-2. Set `VITE_API_BASE_URL`.
-3. Run `npm run dev`.
-
-Example:
-
-```bash
-cp .env.example .env.local
-echo 'VITE_API_BASE_URL=http://127.0.0.1:3000/api' > .env.local
-```
-
-If `VITE_API_BASE_URL` is not set, the app defaults to `/api`. That default is intended for the container build, where the backend serves the bundled frontend and exposes its API under `/api`.
+- Local development: the Vite dev server proxies `/api` to `http://127.0.0.1:3000` (see `vite.config.ts`). Start the backend with `cargo run` from `backend/`, then run `npm run dev`.
+- Production: the backend serves the bundled frontend and exposes its API under `/api`, so same-origin requests work out of the box.
