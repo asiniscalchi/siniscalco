@@ -32,6 +32,62 @@ fn account_name(s: &str) -> AccountName {
     AccountName::try_from(s).unwrap()
 }
 
+fn text_of(result: &CallToolResult) -> &str {
+    &result.content[0].as_text().expect("text content").text
+}
+
+async fn seed_account(pool: &SqlitePool, name: &str) -> i64 {
+    let id = create_account(
+        pool,
+        CreateAccountInput {
+            name: account_name(name),
+            account_type: AccountType::Broker,
+            base_currency: Currency::try_from("EUR").unwrap(),
+        },
+    )
+    .await
+    .unwrap();
+    id.as_i64()
+}
+
+async fn seed_asset(pool: &SqlitePool, symbol: &str) -> i64 {
+    let id = create_asset(
+        pool,
+        CreateAssetInput {
+            symbol: AssetSymbol::try_from(symbol).unwrap(),
+            name: AssetName::try_from("Vanguard FTSE All-World").unwrap(),
+            asset_type: AssetType::Etf,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .unwrap();
+    id.as_i64()
+}
+
+async fn seed_opening_transaction(pool: &SqlitePool, account_id: i64, asset_id: i64) -> i64 {
+    let server = PortfolioServer::new(pool.clone());
+    let result = server
+        .create_transaction(Parameters(CreateTransactionArgs {
+            account_id,
+            asset_id,
+            transaction_type: "OPENING".to_string(),
+            trade_date: "2026-01-02".to_string(),
+            quantity: "10".to_string(),
+            unit_price: "100.00".to_string(),
+            currency_code: "EUR".to_string(),
+            notes: None,
+        }))
+        .await;
+    assert!(!result.is_error.unwrap_or(false), "{}", text_of(&result));
+    // Parse the id out of "Transaction created with id N. ..."
+    let text = text_of(&result);
+    let after = text.split_once("id ").unwrap().1;
+    let digits: String = after.chars().take_while(char::is_ascii_digit).collect();
+    digits.parse().unwrap()
+}
+
 #[tokio::test]
 async fn list_tools_returns_remaining_tool_set() {
     let pool = test_pool().await;
@@ -41,7 +97,20 @@ async fn list_tools_returns_remaining_tool_set() {
     names.sort();
     assert_eq!(
         names,
-        vec!["list_accounts", "list_assets", "list_transactions"]
+        vec![
+            "create_account",
+            "create_asset",
+            "create_cash_movement",
+            "create_transaction",
+            "create_transfer",
+            "delete_account",
+            "delete_asset",
+            "delete_transaction",
+            "list_accounts",
+            "list_assets",
+            "list_transactions",
+            "update_transaction",
+        ]
     );
 }
 
@@ -371,4 +440,392 @@ async fn allocation_drift_check_prompt_references_allocation_resource() {
         panic!("expected text content");
     };
     assert!(text.contains("portfolio://allocation"));
+}
+
+// ── Write tool tests ──────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn create_account_tool_creates_and_lists() {
+    let pool = test_pool().await;
+    let server = PortfolioServer::new(pool.clone());
+
+    let result = server
+        .create_account(Parameters(CreateAccountArgs {
+            name: "Interactive Brokers".to_string(),
+            account_type: "Broker".to_string(),
+            base_currency: "EUR".to_string(),
+        }))
+        .await;
+    assert!(!result.is_error.unwrap_or(false), "{}", text_of(&result));
+    assert!(text_of(&result).contains("Account created with id"));
+
+    let listing = server.list_accounts().await;
+    let text = text_of(&listing);
+    assert!(text.contains("Interactive Brokers"), "{text}");
+}
+
+#[tokio::test]
+async fn create_account_tool_rejects_invalid_type() {
+    let pool = test_pool().await;
+    let server = PortfolioServer::new(pool);
+    let result = server
+        .create_account(Parameters(CreateAccountArgs {
+            name: "Bad".to_string(),
+            account_type: "savings".to_string(),
+            base_currency: "EUR".to_string(),
+        }))
+        .await;
+    assert!(result.is_error.unwrap_or(false));
+    assert!(text_of(&result).contains("invalid account_type"));
+}
+
+#[tokio::test]
+async fn create_asset_tool_uppercases_symbol() {
+    let pool = test_pool().await;
+    let server = PortfolioServer::new(pool);
+    let result = server
+        .create_asset(Parameters(CreateAssetArgs {
+            symbol: "vwce".to_string(),
+            name: "Vanguard FTSE All-World".to_string(),
+            asset_type: "ETF".to_string(),
+            quote_symbol: None,
+            isin: Some("IE00BK5BQT80".to_string()),
+        }))
+        .await;
+    assert!(!result.is_error.unwrap_or(false), "{}", text_of(&result));
+    assert!(text_of(&result).contains("Asset created with id"));
+
+    let listing = server.list_assets().await;
+    let text = text_of(&listing);
+    assert!(text.contains("VWCE"), "{text}");
+}
+
+#[tokio::test]
+async fn create_asset_tool_rejects_invalid_type() {
+    let pool = test_pool().await;
+    let server = PortfolioServer::new(pool);
+    let result = server
+        .create_asset(Parameters(CreateAssetArgs {
+            symbol: "VWCE".to_string(),
+            name: "X".to_string(),
+            asset_type: "COMMODITY".to_string(),
+            quote_symbol: None,
+            isin: None,
+        }))
+        .await;
+    assert!(result.is_error.unwrap_or(false));
+    assert!(text_of(&result).contains("invalid asset_type"));
+}
+
+#[tokio::test]
+async fn create_transaction_tool_roundtrip() {
+    let pool = test_pool().await;
+    let account_id = seed_account(&pool, "Broker").await;
+    let asset_id = seed_asset(&pool, "VWCE").await;
+    let server = PortfolioServer::new(pool.clone());
+
+    let result = server
+        .create_transaction(Parameters(CreateTransactionArgs {
+            account_id,
+            asset_id,
+            transaction_type: "BUY".to_string(),
+            trade_date: "2026-01-05".to_string(),
+            quantity: "12.5".to_string(),
+            unit_price: "128.43".to_string(),
+            currency_code: "EUR".to_string(),
+            notes: Some("monthly buy".to_string()),
+        }))
+        .await;
+    assert!(!result.is_error.unwrap_or(false), "{}", text_of(&result));
+    assert!(text_of(&result).contains("Transaction created with id"));
+
+    let listing = server
+        .list_transactions(Parameters(LimitArgs { limit: None }))
+        .await;
+    let text = text_of(&listing);
+    assert!(text.contains("BUY"), "{text}");
+    assert!(text.contains("qty=12.5"), "{text}");
+}
+
+#[tokio::test]
+async fn create_transaction_tool_rejects_invalid_type_and_date() {
+    let pool = test_pool().await;
+    let account_id = seed_account(&pool, "Broker").await;
+    let asset_id = seed_asset(&pool, "VWCE").await;
+    let server = PortfolioServer::new(pool);
+
+    let result = server
+        .create_transaction(Parameters(CreateTransactionArgs {
+            account_id,
+            asset_id,
+            transaction_type: "DIVIDEND".to_string(),
+            trade_date: "2026-01-05".to_string(),
+            quantity: "1".to_string(),
+            unit_price: "1".to_string(),
+            currency_code: "EUR".to_string(),
+            notes: None,
+        }))
+        .await;
+    assert!(result.is_error.unwrap_or(false));
+    assert!(text_of(&result).contains("invalid transaction_type"));
+
+    let result = server
+        .create_transaction(Parameters(CreateTransactionArgs {
+            account_id,
+            asset_id,
+            transaction_type: "BUY".to_string(),
+            trade_date: "05/01/2026".to_string(),
+            quantity: "1".to_string(),
+            unit_price: "1".to_string(),
+            currency_code: "EUR".to_string(),
+            notes: None,
+        }))
+        .await;
+    assert!(result.is_error.unwrap_or(false));
+}
+
+#[tokio::test]
+async fn update_transaction_tool_replaces_fields() {
+    let pool = test_pool().await;
+    let account_id = seed_account(&pool, "Broker").await;
+    let asset_id = seed_asset(&pool, "VWCE").await;
+    let tx_id = seed_opening_transaction(&pool, account_id, asset_id).await;
+    let server = PortfolioServer::new(pool);
+
+    let result = server
+        .update_transaction(Parameters(UpdateTransactionArgs {
+            transaction_id: tx_id,
+            account_id,
+            asset_id,
+            transaction_type: "OPENING".to_string(),
+            trade_date: "2026-01-03".to_string(),
+            quantity: "20".to_string(),
+            unit_price: "95.50".to_string(),
+            currency_code: "EUR".to_string(),
+            notes: Some("corrected".to_string()),
+        }))
+        .await;
+    assert!(!result.is_error.unwrap_or(false), "{}", text_of(&result));
+    let text = text_of(&result);
+    assert!(
+        text.contains(&format!("Transaction {tx_id} updated.")),
+        "{text}"
+    );
+    assert!(text.contains("qty=20"), "{text}");
+}
+
+#[tokio::test]
+async fn update_transaction_tool_rejects_update_violating_position() {
+    let pool = test_pool().await;
+    let account_id = seed_account(&pool, "Broker").await;
+    let asset_id = seed_asset(&pool, "VWCE").await;
+    let tx_id = seed_opening_transaction(&pool, account_id, asset_id).await;
+    let server = PortfolioServer::new(pool);
+
+    // Quantity above the current position should be rejected on SELL.
+    let result = server
+        .update_transaction(Parameters(UpdateTransactionArgs {
+            transaction_id: tx_id,
+            account_id,
+            asset_id,
+            transaction_type: "SELL".to_string(),
+            trade_date: "2026-01-03".to_string(),
+            quantity: "999".to_string(),
+            unit_price: "100.00".to_string(),
+            currency_code: "EUR".to_string(),
+            notes: None,
+        }))
+        .await;
+    assert!(result.is_error.unwrap_or(false), "{}", text_of(&result));
+}
+
+#[tokio::test]
+async fn delete_transaction_tool_removes_transaction() {
+    let pool = test_pool().await;
+    let account_id = seed_account(&pool, "Broker").await;
+    let asset_id = seed_asset(&pool, "VWCE").await;
+    let tx_id = seed_opening_transaction(&pool, account_id, asset_id).await;
+    let server = PortfolioServer::new(pool.clone());
+
+    let result = server
+        .delete_transaction(Parameters(DeleteByIdArgs { id: tx_id }))
+        .await;
+    assert!(!result.is_error.unwrap_or(false), "{}", text_of(&result));
+    assert!(text_of(&result).contains(&format!("Transaction {tx_id} deleted.")));
+
+    let listing = server
+        .list_transactions(Parameters(LimitArgs { limit: None }))
+        .await;
+    assert_eq!(text_of(&listing), "No transactions found.");
+
+    // Deleting again should fail (already gone).
+    let result = server
+        .delete_transaction(Parameters(DeleteByIdArgs { id: tx_id }))
+        .await;
+    assert!(result.is_error.unwrap_or(false));
+}
+
+#[tokio::test]
+async fn create_transfer_tool_moves_cash_between_accounts() {
+    let pool = test_pool().await;
+    let from = seed_account(&pool, "Bank").await;
+    let to = seed_account(&pool, "Broker").await;
+    let server = PortfolioServer::new(pool);
+
+    let result = server
+        .create_transfer(Parameters(CreateTransferArgs {
+            from_account_id: from,
+            to_account_id: to,
+            from_currency: "EUR".to_string(),
+            from_amount: "1000.00".to_string(),
+            to_currency: "USD".to_string(),
+            to_amount: "1080.50".to_string(),
+            transfer_date: "2026-01-05".to_string(),
+            notes: None,
+        }))
+        .await;
+    assert!(!result.is_error.unwrap_or(false), "{}", text_of(&result));
+    assert!(text_of(&result).contains("Transfer created with id"));
+
+    // Same-account transfer should be rejected.
+    let result = server
+        .create_transfer(Parameters(CreateTransferArgs {
+            from_account_id: from,
+            to_account_id: from,
+            from_currency: "EUR".to_string(),
+            from_amount: "10".to_string(),
+            to_currency: "EUR".to_string(),
+            to_amount: "10".to_string(),
+            transfer_date: "2026-01-05".to_string(),
+            notes: None,
+        }))
+        .await;
+    assert!(result.is_error.unwrap_or(false));
+}
+
+#[tokio::test]
+async fn create_cash_movement_tool_records_deposit() {
+    let pool = test_pool().await;
+    let account_id = seed_account(&pool, "Bank").await;
+    let server = PortfolioServer::new(pool);
+
+    let result = server
+        .create_cash_movement(Parameters(CreateCashMovementArgs {
+            account_id,
+            currency: "EUR".to_string(),
+            amount: "500.00".to_string(),
+            date: "2026-01-05".to_string(),
+            notes: Some("salary".to_string()),
+        }))
+        .await;
+    assert!(!result.is_error.unwrap_or(false), "{}", text_of(&result));
+    assert!(text_of(&result).contains("Cash movement recorded"));
+}
+
+#[tokio::test]
+async fn create_cash_movement_tool_rejects_bad_date() {
+    let pool = test_pool().await;
+    let account_id = seed_account(&pool, "Bank").await;
+    let server = PortfolioServer::new(pool);
+    let result = server
+        .create_cash_movement(Parameters(CreateCashMovementArgs {
+            account_id,
+            currency: "EUR".to_string(),
+            amount: "100".to_string(),
+            date: "yesterday".to_string(),
+            notes: None,
+        }))
+        .await;
+    assert!(result.is_error.unwrap_or(false));
+}
+
+#[tokio::test]
+async fn delete_account_tool_removes_empty_account_only() {
+    let pool = test_pool().await;
+    let server = PortfolioServer::new(pool.clone());
+    let account_id = seed_account(&pool, "Temp").await;
+
+    let result = server
+        .delete_account(Parameters(DeleteByIdArgs { id: account_id }))
+        .await;
+    assert!(!result.is_error.unwrap_or(false), "{}", text_of(&result));
+    assert!(text_of(&result).contains(&format!("Account {account_id} deleted.")));
+
+    let listing = server.list_accounts().await;
+    assert_eq!(text_of(&listing), "No accounts found.");
+}
+
+#[tokio::test]
+async fn delete_account_tool_fails_when_transactions_exist() {
+    let pool = test_pool().await;
+    let account_id = seed_account(&pool, "Broker").await;
+    let asset_id = seed_asset(&pool, "VWCE").await;
+    seed_opening_transaction(&pool, account_id, asset_id).await;
+    let server = PortfolioServer::new(pool);
+
+    let result = server
+        .delete_account(Parameters(DeleteByIdArgs { id: account_id }))
+        .await;
+    assert!(result.is_error.unwrap_or(false), "{}", text_of(&result));
+    assert!(text_of(&result).contains("cannot delete an account that has transactions"));
+}
+
+#[tokio::test]
+async fn delete_account_tool_fails_when_transfers_exist() {
+    let pool = test_pool().await;
+    let from = seed_account(&pool, "Bank").await;
+    let to = seed_account(&pool, "Broker").await;
+    let server = PortfolioServer::new(pool.clone());
+    // Insert a bare transfer row (no cash entries) to exercise the transfer guard.
+    sqlx::query(
+        "INSERT INTO account_transfers (from_account_id, to_account_id, from_currency, from_amount, \
+         to_currency, to_amount, transfer_date) VALUES (?, ?, 'EUR', 10000, 'EUR', 10000, '2026-01-05')",
+    )
+    .bind(from)
+    .bind(to)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let result = server
+        .delete_account(Parameters(DeleteByIdArgs { id: to }))
+        .await;
+    assert!(result.is_error.unwrap_or(false), "{}", text_of(&result));
+    assert!(text_of(&result).contains("cannot delete an account that has transfers"));
+}
+
+#[tokio::test]
+async fn delete_asset_tool_removes_unused_asset_only() {
+    let pool = test_pool().await;
+    let server = PortfolioServer::new(pool.clone());
+    let asset_id = seed_asset(&pool, "VWCE").await;
+
+    let result = server
+        .delete_asset(Parameters(DeleteByIdArgs { id: asset_id }))
+        .await;
+    assert!(!result.is_error.unwrap_or(false), "{}", text_of(&result));
+    assert!(text_of(&result).contains(&format!("Asset {asset_id} deleted.")));
+
+    let listing = server.list_assets().await;
+    assert_eq!(text_of(&listing), "No assets found.");
+
+    // Deleting an unknown asset should error, not silently succeed.
+    let result = server
+        .delete_asset(Parameters(DeleteByIdArgs { id: 999_999 }))
+        .await;
+    assert!(result.is_error.unwrap_or(false));
+}
+
+#[tokio::test]
+async fn delete_asset_tool_fails_when_transactions_exist() {
+    let pool = test_pool().await;
+    let account_id = seed_account(&pool, "Broker").await;
+    let asset_id = seed_asset(&pool, "VWCE").await;
+    seed_opening_transaction(&pool, account_id, asset_id).await;
+    let server = PortfolioServer::new(pool);
+
+    let result = server
+        .delete_asset(Parameters(DeleteByIdArgs { id: asset_id }))
+        .await;
+    assert!(result.is_error.unwrap_or(false), "{}", text_of(&result));
 }

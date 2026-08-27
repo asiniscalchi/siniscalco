@@ -129,6 +129,33 @@ pub async fn delete_account(pool: &SqlitePool, account_id: AccountId) -> Result<
         ));
     }
 
+    let has_transactions = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM asset_transactions WHERE account_id = ?",
+    )
+    .bind(account_id.as_i64())
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if has_transactions > 0 {
+        return Err(StorageError::Validation(
+            "cannot delete an account that has transactions",
+        ));
+    }
+
+    let has_transfers = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM account_transfers WHERE from_account_id = ? OR to_account_id = ?",
+    )
+    .bind(account_id.as_i64())
+    .bind(account_id.as_i64())
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if has_transfers > 0 {
+        return Err(StorageError::Validation(
+            "cannot delete an account that has transfers",
+        ));
+    }
+
     let result = sqlx::query("DELETE FROM accounts WHERE id = ?")
         .bind(account_id.as_i64())
         .execute(&mut *tx)

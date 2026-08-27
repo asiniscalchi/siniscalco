@@ -22,8 +22,16 @@ use serde::Deserialize;
 use sqlx::SqlitePool;
 
 use crate::{
-    fmt_amount, fmt_opt_amount,
-    storage::{StorageError, list_account_summaries, list_assets, list_transactions},
+    AccountId, AccountName, AccountType, Amount, AssetId, AssetName, AssetQuantity, AssetSymbol,
+    AssetTransactionType, AssetType, AssetUnitPrice, Currency, TradeDate, fmt_amount,
+    fmt_opt_amount,
+    storage::{
+        CreateAccountInput, CreateAssetInput, CreateAssetTransactionInput, CreateCashMovementInput,
+        CreateTransferInput, StorageError, create_account, create_asset, create_asset_transaction,
+        create_cash_movement, create_transfer, delete_account, delete_asset,
+        delete_asset_transaction, list_account_summaries, list_assets, list_transactions,
+        update_asset_transaction,
+    },
 };
 
 pub use rmcp::transport::streamable_http_server::{
@@ -40,6 +48,112 @@ pub struct NoArgs {}
 pub struct LimitArgs {
     /// Maximum number of rows to return (default 50, max 200).
     limit: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct CreateAccountArgs {
+    /// Unique account name.
+    pub name: String,
+    /// Account type: bank, broker, or crypto.
+    pub account_type: String,
+    /// Base currency code, e.g. EUR or USD.
+    pub base_currency: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct CreateAssetArgs {
+    /// Ticker symbol, e.g. VWCE. Uppercased automatically.
+    pub symbol: String,
+    /// Human-readable asset name.
+    pub name: String,
+    /// Asset class: STOCK, ETF, BOND, CRYPTO, CASH_EQUIVALENT, or OTHER.
+    pub asset_type: String,
+    /// Optional quote currency (defaults to the asset symbol for quotes).
+    pub quote_symbol: Option<String>,
+    /// Optional ISIN.
+    pub isin: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct CreateTransactionArgs {
+    /// Account ID as returned by list_accounts.
+    pub account_id: i64,
+    /// Asset ID as returned by list_assets.
+    pub asset_id: i64,
+    /// Transaction type: BUY, SELL, or OPENING (initial position, empty account only).
+    pub transaction_type: String,
+    /// Trade date in YYYY-MM-DD format.
+    pub trade_date: String,
+    /// Quantity as a decimal string, e.g. "12.5".
+    pub quantity: String,
+    /// Unit price as a decimal string, e.g. "128.43".
+    pub unit_price: String,
+    /// Currency code of the unit price, e.g. EUR.
+    pub currency_code: String,
+    /// Optional free-text note.
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct UpdateTransactionArgs {
+    /// Transaction ID as returned by list_transactions.
+    pub transaction_id: i64,
+    /// Account ID as returned by list_accounts.
+    pub account_id: i64,
+    /// Asset ID as returned by list_assets.
+    pub asset_id: i64,
+    /// Transaction type: BUY, SELL, or OPENING.
+    pub transaction_type: String,
+    /// Trade date in YYYY-MM-DD format.
+    pub trade_date: String,
+    /// Quantity as a decimal string, e.g. "12.5".
+    pub quantity: String,
+    /// Unit price as a decimal string, e.g. "128.43".
+    pub unit_price: String,
+    /// Currency code of the unit price, e.g. EUR.
+    pub currency_code: String,
+    /// Optional free-text note.
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct DeleteByIdArgs {
+    /// ID of the record to delete.
+    pub id: i64,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct CreateTransferArgs {
+    /// Source account ID.
+    pub from_account_id: i64,
+    /// Destination account ID.
+    pub to_account_id: i64,
+    /// Currency debited from the source account, e.g. EUR.
+    pub from_currency: String,
+    /// Amount debited as a decimal string, e.g. "1000.00".
+    pub from_amount: String,
+    /// Currency credited to the destination account, e.g. USD.
+    pub to_currency: String,
+    /// Amount credited as a decimal string, e.g. "1080.50".
+    pub to_amount: String,
+    /// Transfer date in YYYY-MM-DD format.
+    pub transfer_date: String,
+    /// Optional free-text note.
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct CreateCashMovementArgs {
+    /// Account ID as returned by list_accounts.
+    pub account_id: i64,
+    /// Currency code, e.g. EUR.
+    pub currency: String,
+    /// Amount as a decimal string. Negative for withdrawals, positive for deposits.
+    pub amount: String,
+    /// Movement date in YYYY-MM-DD format.
+    pub date: String,
+    /// Optional free-text note.
+    pub notes: Option<String>,
 }
 
 // ── Prompt argument types ─────────────────────────────────────────────────────
@@ -183,6 +297,325 @@ impl PortfolioServer {
             Err(e) => tool_error(e),
         }
     }
+
+    #[tool(
+        description = "Create a new investment account. account_type must be bank, broker, or crypto. base_currency is a currency code like EUR."
+    )]
+    async fn create_account(
+        &self,
+        Parameters(args): Parameters<CreateAccountArgs>,
+    ) -> CallToolResult {
+        let name = match AccountName::try_from(args.name.as_str()) {
+            Ok(n) => n,
+            Err(e) => return tool_error(e),
+        };
+        let account_type = match parse_account_type(&args.account_type) {
+            Ok(t) => t,
+            Err(e) => return tool_error(e),
+        };
+        let base_currency = match Currency::try_from(args.base_currency.as_str()) {
+            Ok(c) => c,
+            Err(e) => return tool_error(e),
+        };
+
+        match create_account(
+            &self.pool,
+            CreateAccountInput {
+                name,
+                account_type,
+                base_currency,
+            },
+        )
+        .await
+        {
+            Ok(id) => CallToolResult::success(vec![Content::text(format!(
+                "Account created with id {}.",
+                id.as_i64()
+            ))]),
+            Err(e) => tool_error(e),
+        }
+    }
+
+    #[tool(
+        description = "Create a new tracked asset. asset_type must be STOCK, ETF, BOND, CRYPTO, CASH_EQUIVALENT, or OTHER. Symbol is uppercased automatically."
+    )]
+    async fn create_asset(&self, Parameters(args): Parameters<CreateAssetArgs>) -> CallToolResult {
+        let symbol = match AssetSymbol::try_from(args.symbol.trim().to_uppercase().as_str()) {
+            Ok(s) => s,
+            Err(e) => return tool_error(e),
+        };
+        let name = match AssetName::try_from(args.name.as_str()) {
+            Ok(n) => n,
+            Err(e) => return tool_error(e),
+        };
+        let asset_type = match parse_asset_type(&args.asset_type) {
+            Ok(t) => t,
+            Err(e) => return tool_error(e),
+        };
+        let quote_symbol = match &args.quote_symbol {
+            Some(q) => match AssetSymbol::try_from(q.trim().to_uppercase().as_str()) {
+                Ok(s) => Some(s.as_str().to_string()),
+                Err(e) => return tool_error(e),
+            },
+            None => None,
+        };
+        let isin = args
+            .isin
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+
+        match create_asset(
+            &self.pool,
+            CreateAssetInput {
+                symbol,
+                name,
+                asset_type,
+                quote_symbol,
+                isin: isin.map(str::to_string),
+            },
+        )
+        .await
+        {
+            Ok(id) => CallToolResult::success(vec![Content::text(format!(
+                "Asset created with id {}.",
+                id.as_i64()
+            ))]),
+            Err(e) => tool_error(e),
+        }
+    }
+
+    #[tool(
+        description = "Record a transaction (BUY, SELL, or OPENING) for an asset in an account. OPENING records an initial position and only works when the account has no existing position for that asset. Dates are YYYY-MM-DD. Quantities and prices are decimal strings."
+    )]
+    async fn create_transaction(
+        &self,
+        Parameters(args): Parameters<CreateTransactionArgs>,
+    ) -> CallToolResult {
+        let input = match parse_transaction_args(
+            args.account_id,
+            args.asset_id,
+            &args.transaction_type,
+            &args.trade_date,
+            &args.quantity,
+            &args.unit_price,
+            &args.currency_code,
+            args.notes,
+        ) {
+            Ok(i) => i,
+            Err(e) => return tool_error(e),
+        };
+
+        match create_asset_transaction(&self.pool, input).await {
+            Ok(tx) => CallToolResult::success(vec![Content::text(format!(
+                "Transaction created with id {}. {} {} qty={} price={} {} (account={} asset={})",
+                tx.id,
+                tx.trade_date.as_str(),
+                tx.transaction_type.as_str(),
+                fmt_amount(&tx.quantity),
+                fmt_amount(&tx.unit_price),
+                tx.currency_code.as_str(),
+                tx.account_id.as_i64(),
+                tx.asset_id.as_i64(),
+            ))]),
+            Err(e) => tool_error(e),
+        }
+    }
+
+    #[tool(
+        description = "Update an existing transaction by id. All fields are replaced; position constraints (no negative position, OPENING only from empty) are revalidated."
+    )]
+    async fn update_transaction(
+        &self,
+        Parameters(args): Parameters<UpdateTransactionArgs>,
+    ) -> CallToolResult {
+        let input = match parse_transaction_args(
+            args.account_id,
+            args.asset_id,
+            &args.transaction_type,
+            &args.trade_date,
+            &args.quantity,
+            &args.unit_price,
+            &args.currency_code,
+            args.notes,
+        ) {
+            Ok(i) => i,
+            Err(e) => return tool_error(e),
+        };
+
+        match update_asset_transaction(&self.pool, args.transaction_id, input).await {
+            Ok(tx) => CallToolResult::success(vec![Content::text(format!(
+                "Transaction {} updated. {} {} qty={} price={} {} (account={} asset={})",
+                tx.id,
+                tx.trade_date.as_str(),
+                tx.transaction_type.as_str(),
+                fmt_amount(&tx.quantity),
+                fmt_amount(&tx.unit_price),
+                tx.currency_code.as_str(),
+                tx.account_id.as_i64(),
+                tx.asset_id.as_i64(),
+            ))]),
+            Err(e) => tool_error(e),
+        }
+    }
+
+    #[tool(
+        description = "Delete a transaction by id (as returned by list_transactions). Deleting a SELL/BUY reverts its effect on the position."
+    )]
+    async fn delete_transaction(
+        &self,
+        Parameters(args): Parameters<DeleteByIdArgs>,
+    ) -> CallToolResult {
+        match delete_asset_transaction(&self.pool, args.id).await {
+            Ok(()) => CallToolResult::success(vec![Content::text(format!(
+                "Transaction {} deleted.",
+                args.id
+            ))]),
+            Err(e) => tool_error(e),
+        }
+    }
+
+    #[tool(
+        description = "Transfer cash between two accounts. Supports currency conversion by specifying different from/to currency and amount (the FX rate is derived). Dates are YYYY-MM-DD."
+    )]
+    async fn create_transfer(
+        &self,
+        Parameters(args): Parameters<CreateTransferArgs>,
+    ) -> CallToolResult {
+        let from_account_id = match AccountId::try_from(args.from_account_id) {
+            Ok(v) => v,
+            Err(e) => return tool_error(e),
+        };
+        let to_account_id = match AccountId::try_from(args.to_account_id) {
+            Ok(v) => v,
+            Err(e) => return tool_error(e),
+        };
+        let from_currency = match Currency::try_from(args.from_currency.as_str()) {
+            Ok(v) => v,
+            Err(e) => return tool_error(e),
+        };
+        let to_currency = match Currency::try_from(args.to_currency.as_str()) {
+            Ok(v) => v,
+            Err(e) => return tool_error(e),
+        };
+        let from_amount = match Amount::try_from(args.from_amount.as_str()) {
+            Ok(v) => v,
+            Err(e) => return tool_error(e),
+        };
+        let to_amount = match Amount::try_from(args.to_amount.as_str()) {
+            Ok(v) => v,
+            Err(e) => return tool_error(e),
+        };
+        let transfer_date = match TradeDate::try_from(args.transfer_date.as_str()) {
+            Ok(v) => v,
+            Err(e) => return tool_error(e),
+        };
+
+        match create_transfer(
+            &self.pool,
+            CreateTransferInput {
+                from_account_id,
+                to_account_id,
+                from_currency,
+                from_amount,
+                to_currency,
+                to_amount,
+                transfer_date,
+                notes: args.notes,
+            },
+        )
+        .await
+        {
+            Ok(t) => CallToolResult::success(vec![Content::text(format!(
+                "Transfer created with id {}. {} {} {} -> {} {} {}.",
+                t.id.as_i64(),
+                t.transfer_date.as_str(),
+                fmt_amount(&t.from_amount),
+                t.from_currency.as_str(),
+                fmt_amount(&t.to_amount),
+                t.to_currency.as_str(),
+                "",
+            ))]),
+            Err(e) => tool_error(e),
+        }
+    }
+
+    #[tool(
+        description = "Record a cash deposit (positive amount) or withdrawal (negative amount) on an account. Dates are YYYY-MM-DD."
+    )]
+    async fn create_cash_movement(
+        &self,
+        Parameters(args): Parameters<CreateCashMovementArgs>,
+    ) -> CallToolResult {
+        let account_id = match AccountId::try_from(args.account_id) {
+            Ok(v) => v,
+            Err(e) => return tool_error(e),
+        };
+        let currency = match Currency::try_from(args.currency.as_str()) {
+            Ok(v) => v,
+            Err(e) => return tool_error(e),
+        };
+        let amount = match Amount::try_from(args.amount.as_str()) {
+            Ok(v) => v,
+            Err(e) => return tool_error(e),
+        };
+        let date = match TradeDate::try_from(args.date.as_str()) {
+            Ok(v) => v,
+            Err(e) => return tool_error(e),
+        };
+
+        match create_cash_movement(
+            &self.pool,
+            CreateCashMovementInput {
+                account_id,
+                currency,
+                amount,
+                date,
+                notes: args.notes,
+            },
+        )
+        .await
+        {
+            Ok(m) => CallToolResult::success(vec![Content::text(format!(
+                "Cash movement recorded ({} {} on account {}).",
+                fmt_amount(&m.amount),
+                m.currency.as_str(),
+                m.account_id.as_i64(),
+            ))]),
+            Err(e) => tool_error(e),
+        }
+    }
+
+    #[tool(
+        description = "Delete an account by id. Fails if the account still has transactions, transfers, or cash entries."
+    )]
+    async fn delete_account(&self, Parameters(args): Parameters<DeleteByIdArgs>) -> CallToolResult {
+        let account_id = match AccountId::try_from(args.id) {
+            Ok(v) => v,
+            Err(e) => return tool_error(e),
+        };
+        match delete_account(&self.pool, account_id).await {
+            Ok(()) => CallToolResult::success(vec![Content::text(format!(
+                "Account {} deleted.",
+                args.id
+            ))]),
+            Err(e) => tool_error(e),
+        }
+    }
+
+    #[tool(description = "Delete an asset by id. Fails if the asset still has transactions.")]
+    async fn delete_asset(&self, Parameters(args): Parameters<DeleteByIdArgs>) -> CallToolResult {
+        let asset_id = match AssetId::try_from(args.id) {
+            Ok(v) => v,
+            Err(e) => return tool_error(e),
+        };
+        match delete_asset(&self.pool, asset_id).await {
+            Ok(()) => {
+                CallToolResult::success(vec![Content::text(format!("Asset {} deleted.", args.id))])
+            }
+            Err(e) => tool_error(e),
+        }
+    }
 }
 
 #[prompt_router]
@@ -259,9 +692,17 @@ impl ServerHandler for PortfolioServer {
         ))
         .with_instructions(
             "Portfolio server tools, resources, and prompts. \
-             Tools (formatted text): list_accounts — all accounts with totals; \
+             Read tools (formatted text): list_accounts — all accounts with totals; \
              list_assets — all tracked assets with price and quantity; \
              list_transactions(limit?) — recent buy/sell/dividend records. \
+             Write tools: create_account — new account; \
+             create_asset — new tracked asset; \
+             create_transaction — record BUY/SELL/OPENING; \
+             update_transaction — replace an existing transaction; \
+             delete_transaction — remove a transaction; \
+             create_transfer — cash between accounts with optional FX conversion; \
+             create_cash_movement — deposit/withdrawal; \
+             delete_account, delete_asset — remove records. \
              Resources (JSON): account://{id} — account cash/positions/transfers; \
              asset://{id} — single asset with price, cost basis, ISIN; \
              portfolio://summary — overall value, 24h gain, holdings; \
@@ -339,6 +780,76 @@ pub fn build_mcp_service(
 fn tool_error(err: StorageError) -> CallToolResult {
     tracing::error!(error = %err, "MCP tool error");
     CallToolResult::error(vec![Content::text(format!("Error: {err}"))])
+}
+
+fn parse_account_type(value: &str) -> Result<AccountType, StorageError> {
+    let normalized = value.trim().to_lowercase();
+    match normalized.as_str() {
+        "bank" => Ok(AccountType::Bank),
+        "broker" => Ok(AccountType::Broker),
+        "crypto" => Ok(AccountType::Crypto),
+        _ => Err(StorageError::Validation(
+            "invalid account_type: expected bank, broker, or crypto",
+        )),
+    }
+}
+
+fn parse_asset_type(value: &str) -> Result<AssetType, StorageError> {
+    let normalized = value.trim().to_uppercase();
+    match normalized.as_str() {
+        "STOCK" => Ok(AssetType::Stock),
+        "ETF" => Ok(AssetType::Etf),
+        "BOND" => Ok(AssetType::Bond),
+        "CRYPTO" => Ok(AssetType::Crypto),
+        "CASH_EQUIVALENT" => Ok(AssetType::CashEquivalent),
+        "OTHER" => Ok(AssetType::Other),
+        _ => Err(StorageError::Validation(
+            "invalid asset_type: expected STOCK, ETF, BOND, CRYPTO, CASH_EQUIVALENT, or OTHER",
+        )),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn parse_transaction_args(
+    account_id: i64,
+    asset_id: i64,
+    transaction_type: &str,
+    trade_date: &str,
+    quantity: &str,
+    unit_price: &str,
+    currency_code: &str,
+    notes: Option<String>,
+) -> Result<CreateAssetTransactionInput, StorageError> {
+    let account_id = AccountId::try_from(account_id)?;
+    let asset_id = AssetId::try_from(asset_id)?;
+    let transaction_type = {
+        let normalized = transaction_type.trim().to_uppercase();
+        match normalized.as_str() {
+            "BUY" => AssetTransactionType::Buy,
+            "SELL" => AssetTransactionType::Sell,
+            "OPENING" => AssetTransactionType::Opening,
+            _ => {
+                return Err(StorageError::Validation(
+                    "invalid transaction_type: expected BUY, SELL, or OPENING",
+                ));
+            }
+        }
+    };
+    let trade_date = TradeDate::try_from(trade_date)?;
+    let quantity = AssetQuantity::try_from(quantity)?;
+    let unit_price = AssetUnitPrice::try_from(unit_price)?;
+    let currency_code = Currency::try_from(currency_code)?;
+
+    Ok(CreateAssetTransactionInput {
+        account_id,
+        asset_id,
+        transaction_type,
+        trade_date,
+        quantity,
+        unit_price,
+        currency_code,
+        notes,
+    })
 }
 
 #[cfg(test)]
