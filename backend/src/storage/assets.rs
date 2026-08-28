@@ -50,7 +50,7 @@ pub async fn list_assets(pool: &SqlitePool) -> Result<Vec<AssetRecord>, StorageE
             asset_prices.currency_code,
             asset_prices.as_of,
             (
-                SELECT SUM(CASE transaction_type WHEN 'BUY' THEN quantity ELSE -quantity END)
+                SELECT SUM(CASE transaction_type WHEN 'SELL' THEN -quantity ELSE quantity END)
                 FROM asset_transactions
                 WHERE asset_id = assets.id
             ) as total_quantity,
@@ -110,7 +110,7 @@ pub async fn get_asset(pool: &SqlitePool, asset_id: AssetId) -> Result<AssetReco
             asset_prices.currency_code,
             asset_prices.as_of,
             (
-                SELECT SUM(CASE transaction_type WHEN 'BUY' THEN quantity ELSE -quantity END)
+                SELECT SUM(CASE transaction_type WHEN 'SELL' THEN -quantity ELSE quantity END)
                 FROM asset_transactions
                 WHERE asset_id = assets.id
             ) as total_quantity,
