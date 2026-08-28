@@ -508,6 +508,67 @@ async fn creates_asset_transactions_and_derives_positions() {
 }
 
 #[tokio::test]
+async fn opening_transaction_counts_toward_asset_total_quantity() {
+    let pool = test_pool().await;
+
+    let account_id = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Imported Broker"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .expect("account insert should succeed");
+
+    let amd_id = create_asset(
+        &pool,
+        CreateAssetInput {
+            symbol: asset_symbol("AMD"),
+            name: asset_name("Advanced Micro Devices"),
+            asset_type: AssetType::Stock,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .expect("asset insert should succeed");
+
+    create_asset_transaction(
+        &pool,
+        CreateAssetTransactionInput {
+            account_id,
+            asset_id: amd_id,
+            transaction_type: AssetTransactionType::Opening,
+            trade_date: trade_date("2026-08-28"),
+            quantity: asset_quantity("100"),
+            unit_price: asset_unit_price("108.92551"),
+            currency_code: Currency::Usd,
+            notes: Some("imported position".to_string()),
+        },
+    )
+    .await
+    .expect("opening insert should succeed");
+
+    let assets = list_assets(&pool).await.expect("asset list should succeed");
+
+    let amd = assets
+        .iter()
+        .find(|asset| asset.symbol.as_str() == "AMD")
+        .expect("AMD asset should be listed");
+
+    assert_eq!(
+        amd.total_quantity
+            .as_ref()
+            .map(|q| q.as_decimal())
+            .expect("opening position should produce a total quantity"),
+        rust_decimal::Decimal::new(100, 0),
+        "OPENING quantity must count positively toward total_quantity"
+    );
+}
+
+#[tokio::test]
 async fn derives_positions_for_maximum_supported_transaction_quantities() {
     let pool = test_pool().await;
 
