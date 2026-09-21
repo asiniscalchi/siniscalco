@@ -62,13 +62,13 @@ pub async fn list_assets(pool: &SqlitePool) -> Result<Vec<AssetRecord>, StorageE
                     AS INTEGER)
                 ELSE NULL END
                 FROM asset_transactions
-                WHERE asset_id = assets.id AND transaction_type = 'BUY'
-            ) as avg_cost_basis,
+                WHERE asset_id = assets.id AND transaction_type IN ('BUY', 'OPENING')
+                             ) as avg_cost_basis,
             (
                 SELECT CASE WHEN MIN(currency_code) = MAX(currency_code) THEN MIN(currency_code) ELSE NULL END
                 FROM asset_transactions
-                WHERE asset_id = assets.id AND transaction_type = 'BUY'
-            ) as avg_cost_basis_currency,
+                WHERE asset_id = assets.id AND transaction_type IN ('BUY', 'OPENING')
+                             ) as avg_cost_basis_currency,
             (
                 SELECT price FROM asset_price_history
                 WHERE asset_id = assets.id AND recorded_at < datetime('now', '-24 hours')
@@ -122,13 +122,13 @@ pub async fn get_asset(pool: &SqlitePool, asset_id: AssetId) -> Result<AssetReco
                     AS INTEGER)
                 ELSE NULL END
                 FROM asset_transactions
-                WHERE asset_id = assets.id AND transaction_type = 'BUY'
-            ) as avg_cost_basis,
+                WHERE asset_id = assets.id AND transaction_type IN ('BUY', 'OPENING')
+                             ) as avg_cost_basis,
             (
                 SELECT CASE WHEN MIN(currency_code) = MAX(currency_code) THEN MIN(currency_code) ELSE NULL END
                 FROM asset_transactions
-                WHERE asset_id = assets.id AND transaction_type = 'BUY'
-            ) as avg_cost_basis_currency,
+                WHERE asset_id = assets.id AND transaction_type IN ('BUY', 'OPENING')
+                             ) as avg_cost_basis_currency,
             (
                 SELECT price FROM asset_price_history
                 WHERE asset_id = assets.id AND recorded_at < datetime('now', '-24 hours')

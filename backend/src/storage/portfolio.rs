@@ -197,7 +197,7 @@ async fn load_per_account_avg_cost_basis(
         r#"
         SELECT account_id, asset_id, quantity, unit_price, fx_rate
         FROM asset_transactions
-        WHERE transaction_type = 'BUY'
+        WHERE transaction_type IN ('BUY', 'OPENING')
         "#,
     )
     .fetch_all(pool)
