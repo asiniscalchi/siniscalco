@@ -23,7 +23,7 @@ export function MoneyText({
         "inline-block whitespace-nowrap font-mono tabular-nums",
         className,
       )}
-      style={{ width: `${formatted.widthCh}ch` }}
+      style={hidden ? { width: `${formatted.widthCh}ch` } : undefined}
     >
       {formatted.text}
     </span>
