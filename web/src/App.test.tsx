@@ -440,7 +440,9 @@ describe("App shell", () => {
 
     const totalAmounts = await screen.findAllByText("€153.70");
     const totalAmount = totalAmounts[0];
-    const initialWidth = totalAmount.getAttribute("style");
+    // Visible amounts must not carry a fixed width (ch-based widths are
+    // narrower than the rendered text and make values overlap neighbors).
+    expect(totalAmount.getAttribute("style")).toBeNull();
     expect(screen.getByText("€103.70")).toBeTruthy();
 
     fireEvent.click(
@@ -451,9 +453,15 @@ describe("App shell", () => {
     expect(screen.queryByText("€153.70")).toBeNull();
     expect(screen.queryByText("€103.70")).toBeNull();
     expect(window.localStorage.getItem("ui.hide_values")).toBe("true");
-    expect(screen.getAllByText("€••••")[0].getAttribute("style")).toBe(
-      initialWidth,
-    );
+    const hiddenWidth = screen
+      .getAllByText("€••••")[0]
+      .getAttribute("style");
+    expect(hiddenWidth).toMatch(/^width: \d+ch;$/);
+    // MoneyText elements (the totals) keep a fixed width so masked totals
+    // stay aligned; plain-text masked labels have no style.
+    for (const el of screen.getAllByText("€••••")) {
+      expect([hiddenWidth, null]).toContain(el.getAttribute("style"));
+    }
 
     view.unmount();
     renderApp(["/portfolio"]);
