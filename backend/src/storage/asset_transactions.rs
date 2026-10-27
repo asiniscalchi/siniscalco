@@ -44,9 +44,14 @@ pub async fn create_asset_transaction(
 
     let timestamp = current_utc_timestamp()?;
 
-    // Insert the row with a placeholder fx_rate of 1; we will update it once
-    // we know the transaction_id and have applied the cash impact.
-    let placeholder_rate = FxRate::from_scaled_i64(1_000_000).unwrap();
+    // OPENING locks historical FX independently of cash. BUY/SELL get their
+    // rate below when applying their cash impact.
+    let initial_rate = FxRate::from_scaled_i64(1_000_000).unwrap();
+    let initial_rate = if input.transaction_type == AssetTransactionType::Opening {
+        resolve_opening_fx_rate(&mut tx, &input, initial_rate).await?
+    } else {
+        initial_rate
+    };
     let result = sqlx::query(
         r#"
         INSERT INTO asset_transactions (
@@ -72,7 +77,7 @@ pub async fn create_asset_transaction(
     .bind(input.quantity.as_scaled_i64())
     .bind(input.unit_price.as_scaled_i64())
     .bind(input.currency_code.as_str())
-    .bind(placeholder_rate.as_scaled_i64())
+    .bind(initial_rate.as_scaled_i64())
     .bind(input.notes.as_deref())
     .bind(&timestamp)
     .bind(&timestamp)
@@ -81,8 +86,7 @@ pub async fn create_asset_transaction(
 
     let transaction_id = result.last_insert_rowid();
 
-    // Opening positions do not affect cash; skip the impact and leave the
-    // placeholder fx_rate of 1 in place.
+    // Opening positions do not affect cash; their rate is already resolved.
     if input.transaction_type.has_cash_impact() {
         let fx_rate = apply_cash_impact(
             &mut tx,
@@ -216,9 +220,9 @@ pub async fn update_asset_transaction(
     // neutral and avoids injecting FX drift through data-entry corrections.
     //
     // If the currency changes, resolve the current live rate for the new pair.
-    // Opening positions have no cash impact so the fx_rate stays as the placeholder.
+    // Opening positions always resolve historical FX, even on no-op updates.
     let new_fx_rate = if !input.transaction_type.has_cash_impact() {
-        FxRate::from_scaled_i64(1_000_000).unwrap()
+        resolve_opening_fx_rate(&mut tx, &input, existing_transaction.fx_rate).await?
     } else {
         let can_reuse_locked_rate = input.currency_code == existing_transaction.currency_code
             && existing_base_currency == updated_base_currency
@@ -453,6 +457,45 @@ pub(crate) async fn list_account_positions_as_of(
 }
 
 // ── Private helpers ───────────────────────────────────────────────────────────
+
+/// Select direct transaction-currency -> account-base history. Prefer the last
+/// observation on/before the trade day, otherwise the first later observation.
+/// Keep the existing rate if history is absent (the default 1 on create).
+/// Keep this selection rule in sync with migration 0008.
+async fn resolve_opening_fx_rate(
+    connection: &mut SqliteConnection,
+    input: &CreateAssetTransactionInput,
+    existing_rate: FxRate,
+) -> Result<FxRate, StorageError> {
+    let base_currency = load_account_base_currency(connection, input.account_id).await?;
+    if input.currency_code == base_currency {
+        return FxRate::from_scaled_i64(1_000_000);
+    }
+
+    let rate = sqlx::query_scalar::<_, Option<i64>>(
+        r#"
+        SELECT COALESCE(
+            (SELECT rate FROM fx_rate_history
+             WHERE from_currency = ?1 AND to_currency = ?2
+               AND date(recorded_at) <= ?3
+             ORDER BY recorded_at DESC, id DESC LIMIT 1),
+            (SELECT rate FROM fx_rate_history
+             WHERE from_currency = ?1 AND to_currency = ?2
+               AND date(recorded_at) > ?3
+             ORDER BY recorded_at ASC, id ASC LIMIT 1)
+        )
+        "#,
+    )
+    .bind(input.currency_code.as_str())
+    .bind(base_currency.as_str())
+    .bind(input.trade_date.as_str())
+    .fetch_one(&mut *connection)
+    .await?;
+
+    rate.map(FxRate::from_scaled_i64)
+        .transpose()
+        .map(|rate| rate.unwrap_or(existing_rate))
+}
 
 async fn load_current_quantity(
     connection: &mut SqliteConnection,

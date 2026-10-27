@@ -8,6 +8,20 @@ Minimal portfolio app.
 - frontend: `npm run dev` from `web/`
 - tests: `cargo test` from `backend/` and `npm test` from `web/`
 
+## Opening position FX
+
+OPENING transactions have no cash impact. Their cost basis uses stored FX history
+from the transaction currency to the account base currency: the latest observation
+on or before the trade date, or the earliest later observation if none precedes it.
+For multiple observations on the trade date, the last one is used. Same-currency
+positions use 1. No inverse, multi-hop, or current live rate is substituted.
+
+Migration 0008 corrects existing OPENING rates with this rule. If the direct pair
+has no history, the migration and updates preserve the stored rate; new OPENING
+transactions retain the existing default of 1. Such positions still need history
+and a subsequent update to obtain a converted cost basis. BUY/SELL behavior is
+unchanged.
+
 ## Frontend backend URL
 
 The frontend always calls the backend under the relative `/api` path.
