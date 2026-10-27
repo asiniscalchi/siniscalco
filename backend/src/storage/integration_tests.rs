@@ -510,6 +510,7 @@ async fn creates_asset_transactions_and_derives_positions() {
 #[tokio::test]
 async fn opening_transaction_counts_toward_asset_total_quantity() {
     let pool = test_pool().await;
+    seed_opening_fx_history(&pool).await;
 
     let account_id = create_account(
         &pool,
@@ -571,6 +572,7 @@ async fn opening_transaction_counts_toward_asset_total_quantity() {
 #[tokio::test]
 async fn opening_transaction_produces_avg_cost_basis() {
     let pool = test_pool().await;
+    seed_opening_fx_history(&pool).await;
 
     let account_id = create_account(
         &pool,
@@ -3963,7 +3965,6 @@ async fn seed_opening_fx_history(pool: &sqlx::SqlitePool) {
         ('USD', 'EUR', 800000, '2026-01-02T09:00:00Z'),
         ('USD', 'EUR', 900000, '2026-01-02T18:00:00Z'),
         ('USD', 'EUR', 950000, '2026-01-10T12:00:00Z'),
-        ('EUR', 'USD', 1200000, '2026-01-02T18:00:00Z'),
         ('GBP', 'EUR', 1100000, '2026-01-02T18:00:00Z');",
     )
     .execute(pool)
@@ -4031,6 +4032,8 @@ async fn opening_fx_updates_recompute_date_currency_account_and_noop() {
     )
     .await
     .unwrap();
+    // Explicitly exercise a non-EUR base account; this pair is seeded outside the EUR-only API.
+    sqlx::query("INSERT INTO fx_rate_history (from_currency, to_currency, rate, recorded_at) VALUES ('EUR', 'USD', 1200000, '2026-01-02T18:00:00Z')").execute(&pool).await.unwrap();
     let updated = super::update_asset_transaction(
         &pool,
         record.id,
@@ -4056,32 +4059,180 @@ async fn opening_fx_updates_recompute_date_currency_account_and_noop() {
 }
 
 #[tokio::test]
-async fn opening_fx_missing_direct_history_preserves_rate_and_ignores_live_inverse() {
+async fn opening_fx_notes_only_without_history_keeps_rate() {
     let pool = test_pool().await;
     let (account, asset) = opening_fx_fixture(&pool).await;
-    sqlx::raw_sql("INSERT INTO fx_rates VALUES ('USD', 'EUR', 750000, '2026-01-02');
-        INSERT INTO fx_rate_history (from_currency, to_currency, rate, recorded_at) VALUES ('EUR', 'USD', 1200000, '2026-01-02');")
-        .execute(&pool).await.unwrap();
+    seed_opening_fx_history(&pool).await;
     let record = create_asset_transaction(
         &pool,
         opening_fx_input(account, asset, "2026-01-02", Currency::Usd),
     )
     .await
     .unwrap();
-    assert_eq!(record.fx_rate, fx_rate("1"));
-    sqlx::query("UPDATE asset_transactions SET fx_rate = 870000 WHERE id = ?")
-        .bind(record.id)
+    sqlx::query("DELETE FROM fx_rate_history")
         .execute(&pool)
         .await
         .unwrap();
-    let updated = super::update_asset_transaction(
+    let mut input = opening_fx_input(account, asset, "2026-01-02", Currency::Usd);
+    input.notes = Some("Correction".into());
+    let updated = super::update_asset_transaction(&pool, record.id, input)
+        .await
+        .unwrap();
+    assert_eq!(updated.fx_rate, record.fx_rate);
+    assert_eq!(updated.notes.as_deref(), Some("Correction"));
+}
+
+#[tokio::test]
+async fn opening_fx_create_without_history_is_validation_error() {
+    let pool = test_pool().await;
+    let (account, asset) = opening_fx_fixture(&pool).await;
+    // A live direct rate must not substitute for history.
+    sqlx::query("INSERT INTO fx_rates VALUES ('USD', 'EUR', 750000, '2026-01-02')")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let result = create_asset_transaction(
         &pool,
-        record.id,
         opening_fx_input(account, asset, "2026-01-02", Currency::Usd),
+    )
+    .await;
+    assert!(matches!(
+        result,
+        Err(StorageError::Validation(
+            "fx rate not available for transaction currency conversion"
+        ))
+    ));
+    assert!(
+        list_asset_transactions(&pool, account)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn opening_fx_currency_without_history_rolls_back() {
+    assert_opening_fx_missing_history_rolls_back("currency").await;
+}
+
+#[tokio::test]
+async fn opening_fx_account_without_history_rolls_back() {
+    assert_opening_fx_missing_history_rolls_back("account").await;
+}
+
+#[tokio::test]
+async fn opening_fx_buy_without_history_rolls_back() {
+    assert_opening_fx_missing_history_rolls_back("buy").await;
+}
+
+#[tokio::test]
+async fn opening_fx_sell_without_history_rolls_back() {
+    assert_opening_fx_missing_history_rolls_back("sell").await;
+}
+
+async fn assert_opening_fx_missing_history_rolls_back(scenario: &str) {
+    let pool = test_pool().await;
+    let (account, asset) = opening_fx_fixture(&pool).await;
+    seed_opening_fx_history(&pool).await;
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate("0.7"),
+        },
     )
     .await
     .unwrap();
-    assert_eq!(updated.fx_rate, fx_rate("0.87"));
+    seed_balance(&pool, account, Currency::Eur, amt("50000")).await;
+    let mut input = opening_fx_input(account, asset, "2026-01-02", Currency::Usd);
+    if scenario == "buy" {
+        input.transaction_type = AssetTransactionType::Buy;
+    }
+    if scenario == "sell" {
+        let mut seed = opening_fx_input(account, asset, "2026-01-01", Currency::Usd);
+        seed.quantity = asset_quantity("60");
+        create_asset_transaction(&pool, seed).await.unwrap();
+        input.transaction_type = AssetTransactionType::Sell;
+    }
+    let record = create_asset_transaction(&pool, input).await.unwrap();
+    let balances = list_account_balances(&pool, account).await.unwrap();
+    let cash_before: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cash_entries")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    sqlx::query("DELETE FROM fx_rate_history")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let mut input = opening_fx_input(account, asset, "2026-01-02", Currency::Usd);
+    if scenario == "currency" {
+        input.currency_code = Currency::Chf;
+    }
+    if scenario == "account" {
+        input.account_id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: account_name("GBP base"),
+                account_type: AccountType::Broker,
+                base_currency: Currency::Gbp,
+            },
+        )
+        .await
+        .unwrap();
+    }
+    let result = super::update_asset_transaction(&pool, record.id, input).await;
+    assert!(
+        matches!(
+            result,
+            Err(StorageError::Validation(
+                "fx rate not available for transaction currency conversion"
+            ))
+        ),
+        "{scenario}: {result:?}"
+    );
+    assert_eq!(
+        super::get_transaction(&pool, record.id).await.unwrap(),
+        record,
+        "{scenario}"
+    );
+    assert_eq!(
+        list_account_balances(&pool, account).await.unwrap(),
+        balances,
+        "{scenario}"
+    );
+    let cash_after: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cash_entries")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(cash_before, cash_after, "{scenario}");
+}
+
+#[tokio::test]
+async fn opening_fx_identical_timestamp_uses_id_tiebreak() {
+    for (date, expected) in [("2026-01-02", "0.9"), ("2026-01-01", "0.8")] {
+        let pool = test_pool().await;
+        let (account, asset) = opening_fx_fixture(&pool).await;
+        sqlx::query("INSERT INTO fx_rate_history (from_currency, to_currency, rate, recorded_at) VALUES ('USD','EUR',800000,'2026-01-02T12:00:00Z'), ('USD','EUR',900000,'2026-01-02T12:00:00Z')").execute(&pool).await.unwrap();
+        let record =
+            create_asset_transaction(&pool, opening_fx_input(account, asset, date, Currency::Usd))
+                .await
+                .unwrap();
+        assert_eq!(record.fx_rate, fx_rate(expected));
+        // Portfolio history must keep its at-or-before-only behavior.
+        let historical =
+            super::fx::get_historical_fx_rate(&pool, Currency::Usd, Currency::Eur, date)
+                .await
+                .unwrap();
+        assert_eq!(
+            historical,
+            if date == "2026-01-01" {
+                None
+            } else {
+                Some(fx_rate("0.9").as_decimal())
+            }
+        );
+    }
 }
 
 #[tokio::test]
