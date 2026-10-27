@@ -3911,3 +3911,408 @@ async fn todos_can_be_created_listed_completed_and_deleted() {
     assert_eq!(todos.len(), 1);
     assert_eq!(todos[0].id, earlier.id);
 }
+
+// OPENING FX regressions: history is a direct multiplier into account base currency.
+async fn opening_fx_fixture(pool: &sqlx::SqlitePool) -> (AccountId, AssetId) {
+    let account = create_account(
+        pool,
+        CreateAccountInput {
+            name: account_name("Opening FX"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .unwrap();
+    let asset = create_asset(
+        pool,
+        CreateAssetInput {
+            symbol: asset_symbol("META"),
+            name: asset_name("Meta"),
+            asset_type: AssetType::Stock,
+            quote_symbol: None,
+            isin: None,
+        },
+    )
+    .await
+    .unwrap();
+    (account, asset)
+}
+
+fn opening_fx_input(
+    account_id: AccountId,
+    asset_id: AssetId,
+    date: &str,
+    currency: Currency,
+) -> CreateAssetTransactionInput {
+    CreateAssetTransactionInput {
+        account_id,
+        asset_id,
+        transaction_type: AssetTransactionType::Opening,
+        trade_date: trade_date(date),
+        quantity: asset_quantity("30"),
+        unit_price: asset_unit_price("663.84"),
+        currency_code: currency,
+        notes: None,
+    }
+}
+
+async fn seed_opening_fx_history(pool: &sqlx::SqlitePool) {
+    sqlx::raw_sql(
+        "INSERT INTO fx_rate_history (from_currency, to_currency, rate, recorded_at) VALUES
+        ('USD', 'EUR', 800000, '2026-01-02T09:00:00Z'),
+        ('USD', 'EUR', 900000, '2026-01-02T18:00:00Z'),
+        ('USD', 'EUR', 950000, '2026-01-10T12:00:00Z'),
+        ('EUR', 'USD', 1200000, '2026-01-02T18:00:00Z'),
+        ('GBP', 'EUR', 1100000, '2026-01-02T18:00:00Z');",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn opening_fx_selects_trade_day_previous_or_first_later_without_cash() {
+    for (date, currency, expected) in [
+        ("2026-01-02", Currency::Usd, "0.9"),
+        ("2026-01-05", Currency::Usd, "0.9"),
+        ("2026-01-01", Currency::Usd, "0.8"),
+        ("2026-01-10", Currency::Usd, "0.95"),
+        ("2026-01-02", Currency::Eur, "1"),
+    ] {
+        let pool = test_pool().await;
+        let (account, asset) = opening_fx_fixture(&pool).await;
+        seed_opening_fx_history(&pool).await;
+        let record =
+            create_asset_transaction(&pool, opening_fx_input(account, asset, date, currency))
+                .await
+                .unwrap();
+        assert_eq!(record.fx_rate, fx_rate(expected), "{date} {currency:?}");
+        let cash: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cash_entries")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(cash, 0);
+    }
+}
+
+#[tokio::test]
+async fn opening_fx_updates_recompute_date_currency_account_and_noop() {
+    let pool = test_pool().await;
+    let (account, asset) = opening_fx_fixture(&pool).await;
+    seed_opening_fx_history(&pool).await;
+    let record = create_asset_transaction(
+        &pool,
+        opening_fx_input(account, asset, "2026-01-02", Currency::Usd),
+    )
+    .await
+    .unwrap();
+    for (date, currency, expected) in [
+        ("2026-01-10", Currency::Usd, "0.95"),
+        ("2026-01-02", Currency::Gbp, "1.1"),
+        ("2026-01-02", Currency::Eur, "1"),
+    ] {
+        let updated = super::update_asset_transaction(
+            &pool,
+            record.id,
+            opening_fx_input(account, asset, date, currency),
+        )
+        .await
+        .unwrap();
+        assert_eq!(updated.fx_rate, fx_rate(expected));
+    }
+    let usd_account = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("USD broker"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Usd,
+        },
+    )
+    .await
+    .unwrap();
+    let updated = super::update_asset_transaction(
+        &pool,
+        record.id,
+        opening_fx_input(usd_account, asset, "2026-01-02", Currency::Eur),
+    )
+    .await
+    .unwrap();
+    assert_eq!(updated.fx_rate, fx_rate("1.2"));
+    sqlx::query("UPDATE fx_rate_history SET rate = 1300000 WHERE from_currency = 'EUR' AND to_currency = 'USD'").execute(&pool).await.unwrap();
+    let updated = super::update_asset_transaction(
+        &pool,
+        record.id,
+        opening_fx_input(usd_account, asset, "2026-01-02", Currency::Eur),
+    )
+    .await
+    .unwrap();
+    assert_eq!(updated.fx_rate, fx_rate("1.3"));
+    let cash: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cash_entries")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(cash, 0);
+}
+
+#[tokio::test]
+async fn opening_fx_missing_direct_history_preserves_rate_and_ignores_live_inverse() {
+    let pool = test_pool().await;
+    let (account, asset) = opening_fx_fixture(&pool).await;
+    sqlx::raw_sql("INSERT INTO fx_rates VALUES ('USD', 'EUR', 750000, '2026-01-02');
+        INSERT INTO fx_rate_history (from_currency, to_currency, rate, recorded_at) VALUES ('EUR', 'USD', 1200000, '2026-01-02');")
+        .execute(&pool).await.unwrap();
+    let record = create_asset_transaction(
+        &pool,
+        opening_fx_input(account, asset, "2026-01-02", Currency::Usd),
+    )
+    .await
+    .unwrap();
+    assert_eq!(record.fx_rate, fx_rate("1"));
+    sqlx::query("UPDATE asset_transactions SET fx_rate = 870000 WHERE id = ?")
+        .bind(record.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let updated = super::update_asset_transaction(
+        &pool,
+        record.id,
+        opening_fx_input(account, asset, "2026-01-02", Currency::Usd),
+    )
+    .await
+    .unwrap();
+    assert_eq!(updated.fx_rate, fx_rate("0.87"));
+}
+
+#[tokio::test]
+async fn opening_fx_buy_sell_conversion_reverses_cash_at_locked_rate() {
+    for kind in [AssetTransactionType::Buy, AssetTransactionType::Sell] {
+        let pool = test_pool().await;
+        let (account, asset) = opening_fx_fixture(&pool).await;
+        seed_opening_fx_history(&pool).await;
+        upsert_fx_rate(
+            &pool,
+            UpsertFxRateInput {
+                from_currency: Currency::Usd,
+                to_currency: Currency::Eur,
+                rate: fx_rate("0.7"),
+            },
+        )
+        .await
+        .unwrap();
+        seed_balance(&pool, account, Currency::Eur, amt("50000")).await;
+        if kind == AssetTransactionType::Sell {
+            let mut seed = opening_fx_input(account, asset, "2026-01-01", Currency::Usd);
+            seed.quantity = asset_quantity("60");
+            create_asset_transaction(&pool, seed).await.unwrap();
+        }
+        let mut input = opening_fx_input(account, asset, "2026-01-02", Currency::Usd);
+        input.transaction_type = kind;
+        let record = create_asset_transaction(&pool, input).await.unwrap();
+        assert_eq!(record.fx_rate, fx_rate("0.7")); // BUY/SELL still use live rates.
+        let updated = super::update_asset_transaction(
+            &pool,
+            record.id,
+            opening_fx_input(account, asset, "2026-01-02", Currency::Usd),
+        )
+        .await
+        .unwrap();
+        assert_eq!(updated.fx_rate, fx_rate("0.9"));
+        assert_eq!(
+            list_account_balances(&pool, account).await.unwrap()[0].amount,
+            amt("50000")
+        );
+        let cash_before: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cash_entries")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        super::update_asset_transaction(
+            &pool,
+            record.id,
+            opening_fx_input(account, asset, "2026-01-10", Currency::Usd),
+        )
+        .await
+        .unwrap();
+        let cash_after: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cash_entries")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(cash_before, cash_after);
+    }
+}
+
+#[tokio::test]
+async fn opening_fx_portfolio_gain_uses_converted_cost_basis() {
+    let pool = test_pool().await;
+    let (account, asset) = opening_fx_fixture(&pool).await;
+    seed_opening_fx_history(&pool).await;
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate("0.95"),
+        },
+    )
+    .await
+    .unwrap();
+    upsert_asset_price(
+        &pool,
+        UpsertAssetPriceInput {
+            asset_id: asset,
+            price: asset_unit_price("700"),
+            currency: Currency::Usd,
+            as_of: "2026-01-10T12:00:00Z".to_owned(),
+        },
+    )
+    .await
+    .unwrap();
+    create_asset_transaction(
+        &pool,
+        opening_fx_input(account, asset, "2026-01-02", Currency::Usd),
+    )
+    .await
+    .unwrap();
+    let summary = super::get_portfolio_summary(&pool, Currency::Eur)
+        .await
+        .unwrap();
+    // Market value: 30 * 700 * .95 = 19950 EUR. Cost: 30 * 663.84 * .9 = 17923.68 EUR.
+    assert_eq!(summary.total_gain_amount, Some(amt("2026.32")));
+}
+
+#[tokio::test]
+async fn opening_fx_migration_backfills_legacy_rows_without_changing_cash_or_trades() {
+    // Build a real pre-fix database using the original migrations, including their checksums.
+    let options = SqliteConnectOptions::from_str("sqlite::memory:")
+        .unwrap()
+        .foreign_keys(true);
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(options)
+        .await
+        .unwrap();
+    let mut migrator = sqlx::migrate!("./migrations");
+    migrator.migrations = migrator
+        .iter()
+        .filter(|m| m.version <= 7)
+        .cloned()
+        .collect::<Vec<_>>()
+        .into();
+    migrator.run(&pool).await.unwrap();
+    let (account, asset) = opening_fx_fixture(&pool).await;
+    seed_opening_fx_history(&pool).await;
+    for (date, currency, kind) in [
+        ("2026-01-02", "USD", "OPENING"),
+        ("2026-01-05", "USD", "OPENING"),
+        ("2026-01-01", "USD", "OPENING"),
+        ("2026-01-10", "USD", "OPENING"),
+        ("2026-01-02", "EUR", "OPENING"),
+        ("2026-01-02", "CHF", "OPENING"),
+        ("2026-01-02", "USD", "BUY"),
+        ("2026-01-02", "USD", "SELL"),
+    ] {
+        sqlx::query("INSERT INTO asset_transactions (account_id, asset_id, transaction_type, trade_date, quantity, unit_price, currency_code, fx_rate) VALUES (?, ?, ?, ?, 30000000, 663840000, ?, 870000)")
+            .bind(account.as_i64()).bind(asset.as_i64()).bind(kind).bind(date).bind(currency).execute(&pool).await.unwrap();
+    }
+    seed_balance(&pool, account, Currency::Eur, amt("123")).await;
+    init_db(&pool).await.unwrap();
+    let rates: Vec<i64> = sqlx::query_scalar("SELECT fx_rate FROM asset_transactions ORDER BY id")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        rates,
+        vec![
+            900000, 900000, 800000, 950000, 1000000, 870000, 870000, 870000
+        ]
+    );
+    assert_eq!(
+        list_account_balances(&pool, account).await.unwrap()[0].amount,
+        amt("123")
+    );
+    let cash: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cash_entries")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(cash, 1);
+    init_db(&pool).await.unwrap(); // Migration is applied once.
+    let rates_again: Vec<i64> =
+        sqlx::query_scalar("SELECT fx_rate FROM asset_transactions ORDER BY id")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    assert_eq!(rates_again, rates);
+}
+
+#[tokio::test]
+async fn opening_fx_lookup_errors_roll_back_create_and_cash_reversal() {
+    let pool = test_pool().await;
+    let (account, asset) = opening_fx_fixture(&pool).await;
+    upsert_fx_rate(
+        &pool,
+        UpsertFxRateInput {
+            from_currency: Currency::Usd,
+            to_currency: Currency::Eur,
+            rate: fx_rate("0.7"),
+        },
+    )
+    .await
+    .unwrap();
+    seed_balance(&pool, account, Currency::Eur, amt("50000")).await;
+    let mut input = opening_fx_input(account, asset, "2026-01-02", Currency::Usd);
+    input.transaction_type = AssetTransactionType::Buy;
+    let record = create_asset_transaction(&pool, input).await.unwrap();
+    let balances = list_account_balances(&pool, account).await.unwrap();
+    let cash_before: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cash_entries")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    // A database failure must propagate, rather than being mistaken for absent history.
+    sqlx::query("DROP TABLE fx_rate_history")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let result = super::update_asset_transaction(
+        &pool,
+        record.id,
+        opening_fx_input(account, asset, "2026-01-02", Currency::Usd),
+    )
+    .await;
+    assert!(matches!(result, Err(StorageError::Database(_))));
+    assert_eq!(
+        super::get_transaction(&pool, record.id).await.unwrap(),
+        record
+    );
+    assert_eq!(
+        list_account_balances(&pool, account).await.unwrap(),
+        balances
+    );
+    let cash_after: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cash_entries")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(cash_after, cash_before);
+
+    let other = create_account(
+        &pool,
+        CreateAccountInput {
+            name: account_name("Other"),
+            account_type: AccountType::Broker,
+            base_currency: Currency::Eur,
+        },
+    )
+    .await
+    .unwrap();
+    let result = create_asset_transaction(
+        &pool,
+        opening_fx_input(other, asset, "2026-01-02", Currency::Usd),
+    )
+    .await;
+    assert!(matches!(result, Err(StorageError::Database(_))));
+    assert!(
+        list_asset_transactions(&pool, other)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
