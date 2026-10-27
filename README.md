@@ -16,11 +16,16 @@ on or before the trade date, or the earliest later observation if none precedes 
 For multiple observations on the trade date, the last one is used. Same-currency
 positions use 1. No inverse, multi-hop, or current live rate is substituted.
 
-Migration 0008 corrects existing OPENING rates with this rule. If the direct pair
-has no history, the migration and updates preserve the stored rate; new OPENING
-transactions retain the existing default of 1. Such positions still need history
-and a subsequent update to obtain a converted cost basis. BUY/SELL behavior is
-unchanged.
+Cross-currency creates require history for the direct pair or return a validation
+error. Updates may preserve the stored rate without history only if the original
+row was OPENING and both transaction currency and account base currency are
+unchanged. Other updates require history; validation failures roll back the whole
+update, including any cash reversal. BUY/SELL behavior is unchanged.
+
+Migration 0008 corrects existing OPENING rates with this selection rule, preserving
+the stored rate when history is absent because a migration cannot reject rows.
+Identical observation timestamps are ordered by history id (highest for the
+latest observation, lowest for the earliest later observation).
 
 ## Frontend backend URL
 

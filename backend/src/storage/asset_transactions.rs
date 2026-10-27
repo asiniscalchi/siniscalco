@@ -48,7 +48,7 @@ pub async fn create_asset_transaction(
     // rate below when applying their cash impact.
     let initial_rate = FxRate::from_scaled_i64(1_000_000).unwrap();
     let initial_rate = if input.transaction_type == AssetTransactionType::Opening {
-        resolve_opening_fx_rate(&mut tx, &input, initial_rate).await?
+        resolve_opening_fx_rate(&mut tx, &input, None).await?
     } else {
         initial_rate
     };
@@ -222,7 +222,11 @@ pub async fn update_asset_transaction(
     // If the currency changes, resolve the current live rate for the new pair.
     // Opening positions always resolve historical FX, even on no-op updates.
     let new_fx_rate = if !input.transaction_type.has_cash_impact() {
-        resolve_opening_fx_rate(&mut tx, &input, existing_transaction.fx_rate).await?
+        let existing_rate = (input.currency_code == existing_transaction.currency_code
+            && existing_base_currency == updated_base_currency
+            && existing_transaction.transaction_type == AssetTransactionType::Opening)
+            .then_some(existing_transaction.fx_rate);
+        resolve_opening_fx_rate(&mut tx, &input, existing_rate).await?
     } else {
         let can_reuse_locked_rate = input.currency_code == existing_transaction.currency_code
             && existing_base_currency == updated_base_currency
@@ -458,43 +462,25 @@ pub(crate) async fn list_account_positions_as_of(
 
 // ── Private helpers ───────────────────────────────────────────────────────────
 
-/// Select direct transaction-currency -> account-base history. Prefer the last
-/// observation on/before the trade day, otherwise the first later observation.
-/// Keep the existing rate if history is absent (the default 1 on create).
-/// Keep this selection rule in sync with migration 0008.
+/// Preserve a legacy rate only when the caller has verified the same OPENING pair.
 async fn resolve_opening_fx_rate(
     connection: &mut SqliteConnection,
     input: &CreateAssetTransactionInput,
-    existing_rate: FxRate,
+    existing_rate: Option<FxRate>,
 ) -> Result<FxRate, StorageError> {
     let base_currency = load_account_base_currency(connection, input.account_id).await?;
-    if input.currency_code == base_currency {
-        return FxRate::from_scaled_i64(1_000_000);
-    }
-
-    let rate = sqlx::query_scalar::<_, Option<i64>>(
-        r#"
-        SELECT COALESCE(
-            (SELECT rate FROM fx_rate_history
-             WHERE from_currency = ?1 AND to_currency = ?2
-               AND date(recorded_at) <= ?3
-             ORDER BY recorded_at DESC, id DESC LIMIT 1),
-            (SELECT rate FROM fx_rate_history
-             WHERE from_currency = ?1 AND to_currency = ?2
-               AND date(recorded_at) > ?3
-             ORDER BY recorded_at ASC, id ASC LIMIT 1)
-        )
-        "#,
+    super::fx::select_historical_fx_rate(
+        &mut *connection,
+        input.currency_code,
+        base_currency,
+        input.trade_date.as_str(),
+        super::fx::HistoricalFxFallback::EarliestLater,
     )
-    .bind(input.currency_code.as_str())
-    .bind(base_currency.as_str())
-    .bind(input.trade_date.as_str())
-    .fetch_one(&mut *connection)
-    .await?;
-
-    rate.map(FxRate::from_scaled_i64)
-        .transpose()
-        .map(|rate| rate.unwrap_or(existing_rate))
+    .await?
+    .or(existing_rate)
+    .ok_or(StorageError::Validation(
+        "fx rate not available for transaction currency conversion",
+    ))
 }
 
 async fn load_current_quantity(
