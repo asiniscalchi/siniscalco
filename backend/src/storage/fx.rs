@@ -258,35 +258,68 @@ pub(crate) async fn get_direct_fx_rate(
         .transpose()
 }
 
-/// Returns the most recent FX rate from `fx_rate_history` at or before `as_of`.
-/// Returns `Some(Decimal::ONE)` when `from_currency == to_currency`.
+/// Controls whether dates before the first observation may use that observation.
+#[derive(Clone, Copy)]
+pub(crate) enum HistoricalFxFallback {
+    None,
+    EarliestLater,
+}
+
+/// Select direct-pair history, breaking timestamp ties by history id.
+/// OPENING uses EarliestLater; portfolio valuation uses only observations on/before as_of.
+/// Keep the EarliestLater selection rule in sync with frozen migration 0008.
+pub(crate) async fn select_historical_fx_rate<'e, E>(
+    executor: E,
+    from_currency: Currency,
+    to_currency: Currency,
+    as_of: &str,
+    fallback: HistoricalFxFallback,
+) -> Result<Option<FxRate>, StorageError>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
+    if from_currency == to_currency {
+        return Ok(Some(FxRate::from_scaled_i64(1_000_000)?));
+    }
+    let rate = sqlx::query_scalar::<_, Option<i64>>(
+        r#"
+        SELECT COALESCE(
+            (SELECT rate FROM fx_rate_history
+             WHERE from_currency = ?1 AND to_currency = ?2
+               AND date(recorded_at) <= date(?3)
+             ORDER BY recorded_at DESC, id DESC LIMIT 1),
+            (SELECT rate FROM fx_rate_history
+             WHERE from_currency = ?1 AND to_currency = ?2
+               AND date(recorded_at) > date(?3) AND ?4
+             ORDER BY recorded_at ASC, id ASC LIMIT 1)
+        )
+        "#,
+    )
+    .bind(from_currency.as_str())
+    .bind(to_currency.as_str())
+    .bind(as_of)
+    .bind(matches!(fallback, HistoricalFxFallback::EarliestLater))
+    .fetch_one(executor)
+    .await?;
+    rate.map(FxRate::from_scaled_i64).transpose()
+}
+
+/// Portfolio history never substitutes an observation after as_of.
 pub(crate) async fn get_historical_fx_rate(
     pool: &SqlitePool,
     from_currency: Currency,
     to_currency: Currency,
     as_of: &str,
 ) -> Result<Option<Decimal>, StorageError> {
-    if from_currency == to_currency {
-        return Ok(Some(Decimal::ONE));
-    }
-
-    let rate = sqlx::query_scalar::<_, i64>(
-        r#"
-        SELECT rate
-        FROM fx_rate_history
-        WHERE from_currency = ? AND to_currency = ? AND date(recorded_at) <= date(?)
-        ORDER BY recorded_at DESC
-        LIMIT 1
-        "#,
+    Ok(select_historical_fx_rate(
+        pool,
+        from_currency,
+        to_currency,
+        as_of,
+        HistoricalFxFallback::None,
     )
-    .bind(from_currency.as_str())
-    .bind(to_currency.as_str())
-    .bind(as_of)
-    .fetch_optional(pool)
-    .await?;
-
-    rate.map(|value| FxRate::from_scaled_i64(value).map(|r| r.as_decimal()))
-        .transpose()
+    .await?
+    .map(FxRate::as_decimal))
 }
 
 /// Returns `Some(Decimal::ONE)` when `from_currency == to_currency`,
