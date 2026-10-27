@@ -855,7 +855,7 @@ async fn updating_asset_transaction_rejects_oversell_and_keeps_original_transact
 
     assert_eq!(
         error.to_string(),
-        "sell transaction would make position negative"
+        "transaction would make position negative"
     );
 
     let transactions = list_asset_transactions(&pool, account_id)
@@ -3910,4 +3910,250 @@ async fn todos_can_be_created_listed_completed_and_deleted() {
     let todos = list_todos(&pool).await.expect("todo list should succeed");
     assert_eq!(todos.len(), 1);
     assert_eq!(todos[0].id, earlier.id);
+}
+
+// Fixtures for transaction position validation, including transfers between pairs.
+async fn opening_guard_fixture() -> (sqlx::SqlitePool, AccountId, AccountId, AssetId, AssetId) {
+    let pool = test_pool().await;
+    let mut accounts = Vec::new();
+    for name in ["Source", "Target"] {
+        let id = create_account(
+            &pool,
+            CreateAccountInput {
+                name: account_name(name),
+                account_type: AccountType::Broker,
+                base_currency: Currency::Usd,
+            },
+        )
+        .await
+        .unwrap();
+        seed_balance(&pool, id, Currency::Usd, amt("10000")).await;
+        accounts.push(id);
+    }
+    let mut assets = Vec::new();
+    for symbol in ["AAA", "BBB"] {
+        assets.push(
+            create_asset(
+                &pool,
+                CreateAssetInput {
+                    symbol: asset_symbol(symbol),
+                    name: asset_name(symbol),
+                    asset_type: AssetType::Stock,
+                    quote_symbol: None,
+                    isin: None,
+                },
+            )
+            .await
+            .unwrap(),
+        );
+    }
+    (pool, accounts[0], accounts[1], assets[0], assets[1])
+}
+
+fn position_input(
+    account_id: AccountId,
+    asset_id: AssetId,
+    transaction_type: AssetTransactionType,
+    quantity: &str,
+) -> CreateAssetTransactionInput {
+    CreateAssetTransactionInput {
+        account_id,
+        asset_id,
+        transaction_type,
+        trade_date: trade_date("2026-01-02"),
+        quantity: asset_quantity(quantity),
+        unit_price: asset_unit_price("10"),
+        currency_code: Currency::Usd,
+        notes: None,
+    }
+}
+
+#[tokio::test]
+async fn opening_update_rejects_other_positions_and_preserves_transaction() {
+    for original_type in [AssetTransactionType::Buy, AssetTransactionType::Opening] {
+        let (pool, account, _, asset, _) = opening_guard_fixture().await;
+        let original =
+            create_asset_transaction(&pool, position_input(account, asset, original_type, "10"))
+                .await
+                .unwrap();
+        create_asset_transaction(
+            &pool,
+            position_input(account, asset, AssetTransactionType::Buy, "2"),
+        )
+        .await
+        .unwrap();
+        let error = super::update_asset_transaction(
+            &pool,
+            original.id,
+            position_input(account, asset, AssetTransactionType::Opening, "12"),
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            StorageError::Validation(
+                "opening position can only be recorded when there is no existing position"
+            )
+        ));
+        assert_eq!(
+            super::get_transaction(&pool, original.id).await.unwrap(),
+            original
+        );
+    }
+}
+
+#[tokio::test]
+async fn opening_update_rejects_moves_to_occupied_account_or_asset() {
+    for move_account in [true, false] {
+        let (pool, account, other_account, asset, other_asset) = opening_guard_fixture().await;
+        let original = create_asset_transaction(
+            &pool,
+            position_input(account, asset, AssetTransactionType::Opening, "10"),
+        )
+        .await
+        .unwrap();
+        let (target_account, target_asset) = if move_account {
+            (other_account, asset)
+        } else {
+            (account, other_asset)
+        };
+        create_asset_transaction(
+            &pool,
+            position_input(target_account, target_asset, AssetTransactionType::Buy, "2"),
+        )
+        .await
+        .unwrap();
+        let error = super::update_asset_transaction(
+            &pool,
+            original.id,
+            position_input(
+                target_account,
+                target_asset,
+                AssetTransactionType::Opening,
+                "10",
+            ),
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            StorageError::Validation(
+                "opening position can only be recorded when there is no existing position"
+            )
+        ));
+        assert_eq!(
+            super::get_transaction(&pool, original.id).await.unwrap(),
+            original
+        );
+    }
+}
+
+#[tokio::test]
+async fn opening_update_allows_self_edits_conversion_and_empty_targets() {
+    let (pool, account, other_account, asset, other_asset) = opening_guard_fixture().await;
+    let original = create_asset_transaction(
+        &pool,
+        position_input(account, asset, AssetTransactionType::Buy, "10"),
+    )
+    .await
+    .unwrap();
+    let mut input = position_input(account, asset, AssetTransactionType::Opening, "12");
+    input.unit_price = asset_unit_price("15");
+    input.notes = Some("corrected".into());
+    let updated = super::update_asset_transaction(&pool, original.id, input)
+        .await
+        .unwrap();
+    assert_eq!(updated.quantity, asset_quantity("12"));
+    assert_eq!(updated.unit_price, asset_unit_price("15"));
+    assert_eq!(updated.notes.as_deref(), Some("corrected"));
+    for (target_account, target_asset) in [
+        (account, asset),
+        (other_account, asset),
+        (other_account, other_asset),
+    ] {
+        let updated = super::update_asset_transaction(
+            &pool,
+            original.id,
+            position_input(
+                target_account,
+                target_asset,
+                AssetTransactionType::Opening,
+                "14",
+            ),
+        )
+        .await
+        .unwrap();
+        assert_eq!(updated.account_id, target_account);
+        assert_eq!(updated.asset_id, target_asset);
+    }
+}
+
+#[tokio::test]
+async fn opening_update_allows_other_transactions_with_zero_net_position() {
+    let (pool, account, _, asset, _) = opening_guard_fixture().await;
+    let original = create_asset_transaction(
+        &pool,
+        position_input(account, asset, AssetTransactionType::Opening, "10"),
+    )
+    .await
+    .unwrap();
+    create_asset_transaction(
+        &pool,
+        position_input(account, asset, AssetTransactionType::Buy, "2"),
+    )
+    .await
+    .unwrap();
+    create_asset_transaction(
+        &pool,
+        position_input(account, asset, AssetTransactionType::Sell, "2"),
+    )
+    .await
+    .unwrap();
+    super::update_asset_transaction(
+        &pool,
+        original.id,
+        position_input(account, asset, AssetTransactionType::Opening, "12"),
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn reducing_moving_or_deleting_acquisitions_reports_negative_position() {
+    for kind in [AssetTransactionType::Buy, AssetTransactionType::Opening] {
+        let (pool, account, other_account, asset, _) = opening_guard_fixture().await;
+        let original = create_asset_transaction(&pool, position_input(account, asset, kind, "10"))
+            .await
+            .unwrap();
+        create_asset_transaction(
+            &pool,
+            position_input(account, asset, AssetTransactionType::Sell, "8"),
+        )
+        .await
+        .unwrap();
+        for (target, quantity) in [(account, "5"), (other_account, "10")] {
+            let error = super::update_asset_transaction(
+                &pool,
+                original.id,
+                position_input(target, asset, kind, quantity),
+            )
+            .await
+            .unwrap_err();
+            assert!(matches!(
+                error,
+                StorageError::Validation("transaction would make position negative")
+            ));
+        }
+        let error = super::delete_asset_transaction(&pool, original.id)
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            StorageError::Validation("transaction would make position negative")
+        ));
+        assert_eq!(
+            super::get_transaction(&pool, original.id).await.unwrap(),
+            original
+        );
+    }
 }
