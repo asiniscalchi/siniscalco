@@ -3067,3 +3067,37 @@ async fn todo_graphql_create_list_update_and_delete_round_trip() {
         0
     );
 }
+
+#[tokio::test]
+async fn opening_update_graphql_surfaces_position_validation_error() {
+    let pool = test_pool().await;
+    let (account_id, asset_id) =
+        setup_eur_broker_with_usd_asset(&pool, "3000.000000", "1.000000").await;
+    let tx_id = buy_usd(&pool, account_id, asset_id, "10", "100").await;
+    buy_usd(&pool, account_id, asset_id, "1", "100").await;
+    let app = build_app_with_fx_status(pool, FxRefreshAvailability::Available, None);
+    let response = gql(
+        app,
+        &format!(
+            r#"mutation {{
+                updateTransaction(id: {tx_id}, input: {{
+                    accountId: {}
+                    assetId: {}
+                    transactionType: OPENING
+                    tradeDate: "2024-01-01"
+                    quantity: "10"
+                    unitPrice: "100"
+                    currencyCode: "USD"
+                }}) {{ id }}
+            }}"#,
+            account_id.as_i64(),
+            asset_id.as_i64()
+        ),
+    )
+    .await;
+    assert_eq!(
+        response["errors"][0]["message"],
+        "opening position can only be recorded when there is no existing position"
+    );
+    assert!(response["data"].is_null());
+}

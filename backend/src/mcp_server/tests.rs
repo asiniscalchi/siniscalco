@@ -829,3 +829,32 @@ async fn delete_asset_tool_fails_when_transactions_exist() {
         .await;
     assert!(result.is_error.unwrap_or(false), "{}", text_of(&result));
 }
+
+#[tokio::test]
+async fn opening_update_tool_surfaces_position_validation_error() {
+    let pool = test_pool().await;
+    let account_id = seed_account(&pool, "Source").await;
+    let target_account = seed_account(&pool, "Target").await;
+    let asset_id = seed_asset(&pool, "VWCE").await;
+    let tx_id = seed_opening_transaction(&pool, account_id, asset_id).await;
+    seed_opening_transaction(&pool, target_account, asset_id).await;
+    let server = PortfolioServer::new(pool);
+    let result = server
+        .update_transaction(Parameters(UpdateTransactionArgs {
+            transaction_id: tx_id,
+            account_id: target_account,
+            asset_id,
+            transaction_type: "OPENING".into(),
+            trade_date: "2026-01-03".into(),
+            quantity: "10".into(),
+            unit_price: "100".into(),
+            currency_code: "EUR".into(),
+            notes: None,
+        }))
+        .await;
+    assert!(result.is_error.unwrap_or(false), "{}", text_of(&result));
+    assert_eq!(
+        text_of(&result),
+        "Error: opening position can only be recorded when there is no existing position"
+    );
+}
