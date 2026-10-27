@@ -512,14 +512,25 @@ async fn validate_position_change_for_transaction_update(
     );
     let new_delta = signed_quantity_delta(input.transaction_type, input.quantity.as_decimal());
 
-    if existing_transaction.account_id == input.account_id
-        && existing_transaction.asset_id == input.asset_id
-    {
-        let current_quantity =
-            load_current_quantity(connection, input.account_id, input.asset_id).await?;
+    let same_position = existing_transaction.account_id == input.account_id
+        && existing_transaction.asset_id == input.asset_id;
+    let current_quantity =
+        load_current_quantity(connection, input.account_id, input.asset_id).await?;
+    let other_quantity = if same_position {
+        current_quantity - old_delta
+    } else {
+        current_quantity
+    };
+    if input.transaction_type == AssetTransactionType::Opening && other_quantity > Decimal::ZERO {
+        return Err(StorageError::Validation(
+            "opening position can only be recorded when there is no existing position",
+        ));
+    }
+
+    if same_position {
         if current_quantity - old_delta + new_delta < Decimal::ZERO {
             return Err(StorageError::Validation(
-                "sell transaction would make position negative",
+                "transaction would make position negative",
             ));
         }
 
@@ -534,14 +545,13 @@ async fn validate_position_change_for_transaction_update(
     .await?;
     if old_quantity - old_delta < Decimal::ZERO {
         return Err(StorageError::Validation(
-            "sell transaction would make position negative",
+            "transaction would make position negative",
         ));
     }
 
-    let new_quantity = load_current_quantity(connection, input.account_id, input.asset_id).await?;
-    if new_quantity + new_delta < Decimal::ZERO {
+    if current_quantity + new_delta < Decimal::ZERO {
         return Err(StorageError::Validation(
-            "sell transaction would make position negative",
+            "transaction would make position negative",
         ));
     }
 
@@ -565,7 +575,7 @@ async fn validate_position_change_for_transaction_delete(
 
     if current_quantity - delta < Decimal::ZERO {
         return Err(StorageError::Validation(
-            "sell transaction would make position negative",
+            "transaction would make position negative",
         ));
     }
 
