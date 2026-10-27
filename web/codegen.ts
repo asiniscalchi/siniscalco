@@ -5,7 +5,7 @@ const config: CodegenConfig = {
   documents: ["src/**/*.tsx", "src/**/*.ts"],
   generates: {
     "src/gql/types.ts": {
-      plugins: ["typescript", "typescript-operations"],
+      plugins: ["typescript-operations"],
       config: {
         enumsAsTypes: true,
         maybeValue: "T | null",

@@ -1,4 +1,4 @@
-import type { AssetsQuery, FxRatesQuery } from "@/gql/types";
+import type { AssetsQuery, FxRatesQuery, AccountsListQuery, PortfolioQuery } from "@/gql/types";
 
 export type {
   AccountType,
@@ -6,14 +6,15 @@ export type {
   TransactionType,
   SummaryStatus,
   RefreshAvailability,
-  FxRateSummaryItem,
-  AccountSummary,
-  PortfolioAccountTotal,
-  PortfolioCashByCurrency,
-  PortfolioAllocationSlice,
-  PortfolioHolding,
-  PortfolioSummary,
 } from "@/gql/types";
 
 export type Asset = AssetsQuery["assets"][number];
 export type FxRateSummary = FxRatesQuery["fxRates"];
+
+export type FxRateSummaryItem = FxRateSummary["rates"][number];
+export type AccountSummary = AccountsListQuery["accounts"][number];
+export type PortfolioSummary = PortfolioQuery["portfolio"];
+export type PortfolioAccountTotal = PortfolioSummary["accountTotals"][number];
+export type PortfolioCashByCurrency = PortfolioSummary["cashByCurrency"][number];
+export type PortfolioAllocationSlice = PortfolioSummary["allocationTotals"][number];
+export type PortfolioHolding = PortfolioSummary["holdings"][number];

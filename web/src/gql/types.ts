@@ -1,51 +1,11 @@
-export type Maybe<T> = T | null;
-export type InputMaybe<T> = T | null;
-export type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
-export type MakeOptional<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]?: Maybe<T[SubKey]> };
-export type MakeMaybe<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]: Maybe<T[SubKey]> };
-export type MakeEmpty<T extends { [key: string]: unknown }, K extends keyof T> = { [_ in K]?: never };
+/** Internal type. DO NOT USE DIRECTLY. */
+type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
+/** Internal type. DO NOT USE DIRECTLY. */
 export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
-/** All built-in and custom scalars, mapped to their actual values */
-export type Scalars = {
-  ID: { input: string; output: string; }
-  String: { input: string; output: string; }
-  Boolean: { input: boolean; output: boolean; }
-  Int: { input: number; output: number; }
-  Float: { input: number; output: number; }
-};
-
-export type AccountDetail = {
-  __typename?: 'AccountDetail';
-  accountType: AccountType;
-  assetTotalAmount: Maybe<Scalars['String']['output']>;
-  balances: Array<Balance>;
-  baseCurrency: Scalars['String']['output'];
-  cashTotalAmount: Maybe<Scalars['String']['output']>;
-  createdAt: Scalars['String']['output'];
-  id: Scalars['Int']['output'];
-  name: Scalars['String']['output'];
-  summaryStatus: SummaryStatus;
-  totalAmount: Maybe<Scalars['String']['output']>;
-  totalCurrency: Maybe<Scalars['String']['output']>;
-};
-
 export type AccountInput = {
   accountType: AccountType;
-  baseCurrency: Scalars['String']['input'];
-  name: Scalars['String']['input'];
-};
-
-export type AccountSummary = {
-  __typename?: 'AccountSummary';
-  accountType: AccountType;
-  assetTotalAmount: Maybe<Scalars['String']['output']>;
-  baseCurrency: Scalars['String']['output'];
-  cashTotalAmount: Maybe<Scalars['String']['output']>;
-  id: Scalars['Int']['output'];
-  name: Scalars['String']['output'];
-  summaryStatus: SummaryStatus;
-  totalAmount: Maybe<Scalars['String']['output']>;
-  totalCurrency: Maybe<Scalars['String']['output']>;
+  baseCurrency: string;
+  name: string;
 };
 
 export type AccountType =
@@ -53,46 +13,12 @@ export type AccountType =
   | 'BROKER'
   | 'CRYPTO';
 
-export type Asset = {
-  __typename?: 'Asset';
-  assetType: AssetType;
-  avgCostBasis: Maybe<Scalars['String']['output']>;
-  avgCostBasisCurrency: Maybe<Scalars['String']['output']>;
-  convertedTotalCostBasis: Maybe<Scalars['String']['output']>;
-  convertedTotalCostBasisCurrency: Maybe<Scalars['String']['output']>;
-  convertedTotalValue: Maybe<Scalars['String']['output']>;
-  convertedTotalValueCurrency: Maybe<Scalars['String']['output']>;
-  createdAt: Scalars['String']['output'];
-  currentPrice: Maybe<Scalars['String']['output']>;
-  currentPriceAsOf: Maybe<Scalars['String']['output']>;
-  currentPriceCurrency: Maybe<Scalars['String']['output']>;
-  id: Scalars['Int']['output'];
-  isin: Maybe<Scalars['String']['output']>;
-  name: Scalars['String']['output'];
-  previousClose: Maybe<Scalars['String']['output']>;
-  previousCloseCurrency: Maybe<Scalars['String']['output']>;
-  quoteSourceLastSuccessAt: Maybe<Scalars['String']['output']>;
-  quoteSourceProvider: Maybe<Scalars['String']['output']>;
-  quoteSourceSymbol: Maybe<Scalars['String']['output']>;
-  quoteSymbol: Maybe<Scalars['String']['output']>;
-  symbol: Scalars['String']['output'];
-  totalQuantity: Maybe<Scalars['String']['output']>;
-  updatedAt: Scalars['String']['output'];
-};
-
 export type AssetInput = {
   assetType: AssetType;
-  isin?: InputMaybe<Scalars['String']['input']>;
-  name: Scalars['String']['input'];
-  quoteSymbol?: InputMaybe<Scalars['String']['input']>;
-  symbol: Scalars['String']['input'];
-};
-
-export type AssetPosition = {
-  __typename?: 'AssetPosition';
-  accountId: Scalars['Int']['output'];
-  assetId: Scalars['Int']['output'];
-  quantity: Scalars['String']['output'];
+  isin?: string | null | undefined;
+  name: string;
+  quoteSymbol?: string | null | undefined;
+  symbol: string;
 };
 
 export type AssetType =
@@ -103,255 +29,11 @@ export type AssetType =
   | 'OTHER'
   | 'STOCK';
 
-export type Balance = {
-  __typename?: 'Balance';
-  amount: Scalars['String']['output'];
-  currency: Scalars['String']['output'];
-  updatedAt: Scalars['String']['output'];
-};
-
-export type CashMovement = {
-  __typename?: 'CashMovement';
-  accountId: Scalars['Int']['output'];
-  amount: Scalars['String']['output'];
-  createdAt: Scalars['String']['output'];
-  currency: Scalars['String']['output'];
-  date: Scalars['String']['output'];
-  id: Scalars['Int']['output'];
-  notes: Maybe<Scalars['String']['output']>;
-};
-
 export type CashMovementInput = {
-  amount: Scalars['String']['input'];
-  currency: Scalars['String']['input'];
-  date: Scalars['String']['input'];
-  notes?: InputMaybe<Scalars['String']['input']>;
-};
-
-export type FxRateSummary = {
-  __typename?: 'FxRateSummary';
-  lastUpdated: Maybe<Scalars['String']['output']>;
-  rates: Array<FxRateSummaryItem>;
-  refreshError: Maybe<Scalars['String']['output']>;
-  refreshStatus: RefreshAvailability;
-  targetCurrency: Scalars['String']['output'];
-};
-
-export type FxRateSummaryItem = {
-  __typename?: 'FxRateSummaryItem';
-  currency: Scalars['String']['output'];
-  rate: Scalars['String']['output'];
-};
-
-export type MutationRoot = {
-  __typename?: 'MutationRoot';
-  createAccount: AccountDetail;
-  createAsset: Asset;
-  createCashMovement: CashMovement;
-  createTodo: Todo;
-  createTransaction: Transaction;
-  createTransfer: Transfer;
-  deleteAccount: Scalars['Int']['output'];
-  deleteAsset: Scalars['Int']['output'];
-  deleteTodo: Scalars['Int']['output'];
-  deleteTransaction: Scalars['Int']['output'];
-  deleteTransfer: Scalars['Int']['output'];
-  updateAccount: AccountDetail;
-  updateAsset: Asset;
-  updateTodoCompleted: Todo;
-  updateTransaction: Transaction;
-};
-
-
-export type MutationRootCreateAccountArgs = {
-  input: AccountInput;
-};
-
-
-export type MutationRootCreateAssetArgs = {
-  input: AssetInput;
-};
-
-
-export type MutationRootCreateCashMovementArgs = {
-  accountId: Scalars['Int']['input'];
-  input: CashMovementInput;
-};
-
-
-export type MutationRootCreateTodoArgs = {
-  input: TodoInput;
-};
-
-
-export type MutationRootCreateTransactionArgs = {
-  input: TransactionInput;
-};
-
-
-export type MutationRootCreateTransferArgs = {
-  input: TransferInput;
-};
-
-
-export type MutationRootDeleteAccountArgs = {
-  id: Scalars['Int']['input'];
-};
-
-
-export type MutationRootDeleteAssetArgs = {
-  id: Scalars['Int']['input'];
-};
-
-
-export type MutationRootDeleteTodoArgs = {
-  id: Scalars['Int']['input'];
-};
-
-
-export type MutationRootDeleteTransactionArgs = {
-  id: Scalars['Int']['input'];
-};
-
-
-export type MutationRootDeleteTransferArgs = {
-  id: Scalars['Int']['input'];
-};
-
-
-export type MutationRootUpdateAccountArgs = {
-  id: Scalars['Int']['input'];
-  input: AccountInput;
-};
-
-
-export type MutationRootUpdateAssetArgs = {
-  id: Scalars['Int']['input'];
-  input: AssetInput;
-};
-
-
-export type MutationRootUpdateTodoCompletedArgs = {
-  completed: Scalars['Boolean']['input'];
-  id: Scalars['Int']['input'];
-};
-
-
-export type MutationRootUpdateTransactionArgs = {
-  id: Scalars['Int']['input'];
-  input: TransactionInput;
-};
-
-export type PortfolioAccountTotal = {
-  __typename?: 'PortfolioAccountTotal';
-  accountType: AccountType;
-  assetTotalAmount: Maybe<Scalars['String']['output']>;
-  cashTotalAmount: Maybe<Scalars['String']['output']>;
-  id: Scalars['Int']['output'];
-  name: Scalars['String']['output'];
-  summaryStatus: SummaryStatus;
-  totalAmount: Maybe<Scalars['String']['output']>;
-  totalCurrency: Scalars['String']['output'];
-};
-
-export type PortfolioAllocationSlice = {
-  __typename?: 'PortfolioAllocationSlice';
-  amount: Scalars['String']['output'];
-  label: Scalars['String']['output'];
-};
-
-export type PortfolioCashByCurrency = {
-  __typename?: 'PortfolioCashByCurrency';
-  amount: Scalars['String']['output'];
-  convertedAmount: Maybe<Scalars['String']['output']>;
-  currency: Scalars['String']['output'];
-};
-
-export type PortfolioHolding = {
-  __typename?: 'PortfolioHolding';
-  assetId: Maybe<Scalars['Int']['output']>;
-  gain24hAmount: Maybe<Scalars['String']['output']>;
-  name: Scalars['String']['output'];
-  symbol: Scalars['String']['output'];
-  value: Scalars['String']['output'];
-};
-
-export type PortfolioSnapshot = {
-  __typename?: 'PortfolioSnapshot';
-  currency: Scalars['String']['output'];
-  recordedAt: Scalars['String']['output'];
-  totalValue: Scalars['String']['output'];
-};
-
-export type PortfolioSummary = {
-  __typename?: 'PortfolioSummary';
-  accountTotals: Array<PortfolioAccountTotal>;
-  allocationIsPartial: Scalars['Boolean']['output'];
-  allocationTotals: Array<PortfolioAllocationSlice>;
-  cashByCurrency: Array<PortfolioCashByCurrency>;
-  displayCurrency: Scalars['String']['output'];
-  fxLastUpdated: Maybe<Scalars['String']['output']>;
-  fxRefreshError: Maybe<Scalars['String']['output']>;
-  fxRefreshStatus: RefreshAvailability;
-  gain24hAmount: Maybe<Scalars['String']['output']>;
-  holdings: Array<PortfolioHolding>;
-  holdingsIsPartial: Scalars['Boolean']['output'];
-  totalGainAmount: Maybe<Scalars['String']['output']>;
-  totalValueAmount: Maybe<Scalars['String']['output']>;
-  totalValueStatus: SummaryStatus;
-};
-
-export type QueryRoot = {
-  __typename?: 'QueryRoot';
-  account: AccountDetail;
-  accountPositions: Array<AssetPosition>;
-  accounts: Array<AccountSummary>;
-  asset: Asset;
-  assets: Array<Asset>;
-  cashMovements: Array<CashMovement>;
-  currencies: Array<Scalars['String']['output']>;
-  fxRates: FxRateSummary;
-  portfolio: PortfolioSummary;
-  portfolioHistory: Array<PortfolioSnapshot>;
-  todos: Array<Todo>;
-  transaction: Transaction;
-  transactions: Array<Transaction>;
-  transfers: Array<Transfer>;
-};
-
-
-export type QueryRootAccountArgs = {
-  id: Scalars['Int']['input'];
-};
-
-
-export type QueryRootAccountPositionsArgs = {
-  accountId: Scalars['Int']['input'];
-};
-
-
-export type QueryRootAssetArgs = {
-  id: Scalars['Int']['input'];
-};
-
-
-export type QueryRootCashMovementsArgs = {
-  accountId?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-export type QueryRootTransactionArgs = {
-  id: Scalars['Int']['input'];
-};
-
-
-export type QueryRootTransactionsArgs = {
-  accountId?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-export type QueryRootTransfersArgs = {
-  accountId?: InputMaybe<Scalars['Int']['input']>;
+  amount: string;
+  currency: string;
+  date: string;
+  notes?: string | null | undefined;
 };
 
 export type RefreshAvailability =
@@ -362,43 +44,19 @@ export type SummaryStatus =
   | 'CONVERSION_UNAVAILABLE'
   | 'OK';
 
-export type Todo = {
-  __typename?: 'Todo';
-  completed: Scalars['Boolean']['output'];
-  createdAt: Scalars['String']['output'];
-  id: Scalars['Int']['output'];
-  title: Scalars['String']['output'];
-  updatedAt: Scalars['String']['output'];
-};
-
 export type TodoInput = {
-  title: Scalars['String']['input'];
-};
-
-export type Transaction = {
-  __typename?: 'Transaction';
-  accountId: Scalars['Int']['output'];
-  assetId: Scalars['Int']['output'];
-  createdAt: Scalars['String']['output'];
-  currencyCode: Scalars['String']['output'];
-  id: Scalars['Int']['output'];
-  notes: Maybe<Scalars['String']['output']>;
-  quantity: Scalars['String']['output'];
-  tradeDate: Scalars['String']['output'];
-  transactionType: TransactionType;
-  unitPrice: Scalars['String']['output'];
-  updatedAt: Scalars['String']['output'];
+  title: string;
 };
 
 export type TransactionInput = {
-  accountId: Scalars['Int']['input'];
-  assetId: Scalars['Int']['input'];
-  currencyCode: Scalars['String']['input'];
-  notes?: InputMaybe<Scalars['String']['input']>;
-  quantity: Scalars['String']['input'];
-  tradeDate: Scalars['String']['input'];
+  accountId: number;
+  assetId: number;
+  currencyCode: string;
+  notes?: string | null | undefined;
+  quantity: string;
+  tradeDate: string;
   transactionType: TransactionType;
-  unitPrice: Scalars['String']['input'];
+  unitPrice: string;
 };
 
 export type TransactionType =
@@ -406,234 +64,220 @@ export type TransactionType =
   | 'OPENING'
   | 'SELL';
 
-export type Transfer = {
-  __typename?: 'Transfer';
-  createdAt: Scalars['String']['output'];
-  fromAccountId: Scalars['Int']['output'];
-  fromAmount: Scalars['String']['output'];
-  fromCurrency: Scalars['String']['output'];
-  id: Scalars['Int']['output'];
-  notes: Maybe<Scalars['String']['output']>;
-  toAccountId: Scalars['Int']['output'];
-  toAmount: Scalars['String']['output'];
-  toCurrency: Scalars['String']['output'];
-  transferDate: Scalars['String']['output'];
-};
-
 export type TransferInput = {
-  fromAccountId: Scalars['Int']['input'];
-  fromAmount: Scalars['String']['input'];
-  fromCurrency: Scalars['String']['input'];
-  notes?: InputMaybe<Scalars['String']['input']>;
-  toAccountId: Scalars['Int']['input'];
-  toAmount: Scalars['String']['input'];
-  toCurrency: Scalars['String']['input'];
-  transferDate: Scalars['String']['input'];
+  fromAccountId: number;
+  fromAmount: string;
+  fromCurrency: string;
+  notes?: string | null | undefined;
+  toAccountId: number;
+  toAmount: string;
+  toCurrency: string;
+  transferDate: string;
 };
 
 export type TodosNavQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type TodosNavQuery = { __typename?: 'QueryRoot', todos: Array<{ __typename?: 'Todo', id: number, completed: boolean }> };
+export type TodosNavQuery = { todos: Array<{ id: number, completed: boolean }> };
 
 export type AccountPositionsQueryVariables = Exact<{
-  accountId: Scalars['Int']['input'];
+  accountId: number;
 }>;
 
 
-export type AccountPositionsQuery = { __typename?: 'QueryRoot', accountPositions: Array<{ __typename?: 'AssetPosition', accountId: number, assetId: number, quantity: string }> };
+export type AccountPositionsQuery = { accountPositions: Array<{ accountId: number, assetId: number, quantity: string }> };
 
 export type AccountAssetsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type AccountAssetsQuery = { __typename?: 'QueryRoot', assets: Array<{ __typename?: 'Asset', id: number, symbol: string, name: string, assetType: AssetType, currentPrice: string | null, currentPriceCurrency: string | null }> };
+export type AccountAssetsQuery = { assets: Array<{ id: number, symbol: string, name: string, assetType: AssetType, currentPrice: string | null, currentPriceCurrency: string | null }> };
 
 export type AccountFxRatesQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type AccountFxRatesQuery = { __typename?: 'QueryRoot', fxRates: { __typename?: 'FxRateSummary', targetCurrency: string, rates: Array<{ __typename?: 'FxRateSummaryItem', currency: string, rate: string }> } };
+export type AccountFxRatesQuery = { fxRates: { targetCurrency: string, rates: Array<{ currency: string, rate: string }> } };
 
 export type AccountBalancesQueryVariables = Exact<{
-  id: Scalars['Int']['input'];
+  id: number;
 }>;
 
 
-export type AccountBalancesQuery = { __typename?: 'QueryRoot', account: { __typename?: 'AccountDetail', id: number, balances: Array<{ __typename?: 'Balance', currency: string, amount: string, updatedAt: string }> } };
+export type AccountBalancesQuery = { account: { id: number, balances: Array<{ currency: string, amount: string, updatedAt: string }> } };
 
 export type AccountQueryVariables = Exact<{
-  id: Scalars['Int']['input'];
+  id: number;
 }>;
 
 
-export type AccountQuery = { __typename?: 'QueryRoot', account: { __typename?: 'AccountDetail', id: number, name: string, accountType: AccountType, baseCurrency: string, summaryStatus: SummaryStatus, createdAt: string, cashTotalAmount: string | null, assetTotalAmount: string | null, totalAmount: string | null, totalCurrency: string | null, balances: Array<{ __typename?: 'Balance', currency: string, amount: string, updatedAt: string }> } };
+export type AccountQuery = { account: { id: number, name: string, accountType: AccountType, baseCurrency: string, summaryStatus: SummaryStatus, createdAt: string, cashTotalAmount: string | null, assetTotalAmount: string | null, totalAmount: string | null, totalCurrency: string | null, balances: Array<{ currency: string, amount: string, updatedAt: string }> } };
 
 export type DeleteAccountMutationVariables = Exact<{
-  id: Scalars['Int']['input'];
+  id: number;
 }>;
 
 
-export type DeleteAccountMutation = { __typename?: 'MutationRoot', deleteAccount: number };
+export type DeleteAccountMutation = { deleteAccount: number };
 
 export type NewAccountCurrenciesQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type NewAccountCurrenciesQuery = { __typename?: 'QueryRoot', currencies: Array<string> };
+export type NewAccountCurrenciesQuery = { currencies: Array<string> };
 
 export type CreateAccountMutationVariables = Exact<{
   input: AccountInput;
 }>;
 
 
-export type CreateAccountMutation = { __typename?: 'MutationRoot', createAccount: { __typename?: 'AccountDetail', id: number, name: string, accountType: AccountType, baseCurrency: string } };
+export type CreateAccountMutation = { createAccount: { id: number, name: string, accountType: AccountType, baseCurrency: string } };
 
 export type AccountsListQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type AccountsListQuery = { __typename?: 'QueryRoot', accounts: Array<{ __typename?: 'AccountSummary', id: number, name: string, accountType: AccountType, baseCurrency: string, summaryStatus: SummaryStatus, cashTotalAmount: string | null, assetTotalAmount: string | null, totalAmount: string | null, totalCurrency: string | null }> };
+export type AccountsListQuery = { accounts: Array<{ id: number, name: string, accountType: AccountType, baseCurrency: string, summaryStatus: SummaryStatus, cashTotalAmount: string | null, assetTotalAmount: string | null, totalAmount: string | null, totalCurrency: string | null }> };
 
 export type AccountsListPortfolioQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type AccountsListPortfolioQuery = { __typename?: 'QueryRoot', portfolio: { __typename?: 'PortfolioSummary', displayCurrency: string, totalValueAmount: string | null, accountTotals: Array<{ __typename?: 'PortfolioAccountTotal', id: number, summaryStatus: SummaryStatus, cashTotalAmount: string | null, assetTotalAmount: string | null, totalAmount: string | null }> } };
+export type AccountsListPortfolioQuery = { portfolio: { displayCurrency: string, totalValueAmount: string | null, accountTotals: Array<{ id: number, summaryStatus: SummaryStatus, cashTotalAmount: string | null, assetTotalAmount: string | null, totalAmount: string | null }> } };
 
 export type TransactionAccountsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type TransactionAccountsQuery = { __typename?: 'QueryRoot', accounts: Array<{ __typename?: 'AccountSummary', id: number, name: string, accountType: AccountType, baseCurrency: string }> };
+export type TransactionAccountsQuery = { accounts: Array<{ id: number, name: string, accountType: AccountType, baseCurrency: string }> };
 
 export type TransactionAssetsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type TransactionAssetsQuery = { __typename?: 'QueryRoot', assets: Array<{ __typename?: 'Asset', id: number, symbol: string, name: string, assetType: AssetType }> };
+export type TransactionAssetsQuery = { assets: Array<{ id: number, symbol: string, name: string, assetType: AssetType }> };
 
 export type TransactionsQueryVariables = Exact<{
-  accountId?: InputMaybe<Scalars['Int']['input']>;
+  accountId?: number | null | undefined;
 }>;
 
 
-export type TransactionsQuery = { __typename?: 'QueryRoot', transactions: Array<{ __typename?: 'Transaction', id: number, accountId: number, assetId: number, transactionType: TransactionType, tradeDate: string, quantity: string, unitPrice: string, currencyCode: string, notes: string | null }> };
+export type TransactionsQuery = { transactions: Array<{ id: number, accountId: number, assetId: number, transactionType: TransactionType, tradeDate: string, quantity: string, unitPrice: string, currencyCode: string, notes: string | null }> };
 
 export type ActivityCashMovementsQueryVariables = Exact<{
-  accountId?: InputMaybe<Scalars['Int']['input']>;
+  accountId?: number | null | undefined;
 }>;
 
 
-export type ActivityCashMovementsQuery = { __typename?: 'QueryRoot', cashMovements: Array<{ __typename?: 'CashMovement', id: number, accountId: number, currency: string, amount: string, date: string, notes: string | null }> };
+export type ActivityCashMovementsQuery = { cashMovements: Array<{ id: number, accountId: number, currency: string, amount: string, date: string, notes: string | null }> };
 
 export type ActivityTransfersQueryVariables = Exact<{
-  accountId?: InputMaybe<Scalars['Int']['input']>;
+  accountId?: number | null | undefined;
 }>;
 
 
-export type ActivityTransfersQuery = { __typename?: 'QueryRoot', transfers: Array<{ __typename?: 'Transfer', id: number, fromAccountId: number, toAccountId: number, fromCurrency: string, fromAmount: string, toCurrency: string, toAmount: string, transferDate: string, notes: string | null }> };
+export type ActivityTransfersQuery = { transfers: Array<{ id: number, fromAccountId: number, toAccountId: number, fromCurrency: string, fromAmount: string, toCurrency: string, toAmount: string, transferDate: string, notes: string | null }> };
 
 export type DeleteTransactionMutationVariables = Exact<{
-  id: Scalars['Int']['input'];
+  id: number;
 }>;
 
 
-export type DeleteTransactionMutation = { __typename?: 'MutationRoot', deleteTransaction: number };
+export type DeleteTransactionMutation = { deleteTransaction: number };
 
 export type BalanceCurrenciesQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type BalanceCurrenciesQuery = { __typename?: 'QueryRoot', currencies: Array<string> };
+export type BalanceCurrenciesQuery = { currencies: Array<string> };
 
 export type CreateCashMovementMutationVariables = Exact<{
-  accountId: Scalars['Int']['input'];
+  accountId: number;
   input: CashMovementInput;
 }>;
 
 
-export type CreateCashMovementMutation = { __typename?: 'MutationRoot', createCashMovement: { __typename?: 'CashMovement', currency: string, amount: string, date: string } };
+export type CreateCashMovementMutation = { createCashMovement: { currency: string, amount: string, date: string } };
 
 export type CreateTransactionMutationVariables = Exact<{
   input: TransactionInput;
 }>;
 
 
-export type CreateTransactionMutation = { __typename?: 'MutationRoot', createTransaction: { __typename?: 'Transaction', id: number, accountId: number, assetId: number, transactionType: TransactionType, tradeDate: string, quantity: string, unitPrice: string, currencyCode: string, notes: string | null } };
+export type CreateTransactionMutation = { createTransaction: { id: number, accountId: number, assetId: number, transactionType: TransactionType, tradeDate: string, quantity: string, unitPrice: string, currencyCode: string, notes: string | null } };
 
 export type UpdateTransactionMutationVariables = Exact<{
-  id: Scalars['Int']['input'];
+  id: number;
   input: TransactionInput;
 }>;
 
 
-export type UpdateTransactionMutation = { __typename?: 'MutationRoot', updateTransaction: { __typename?: 'Transaction', id: number, accountId: number, assetId: number, transactionType: TransactionType, tradeDate: string, quantity: string, unitPrice: string, currencyCode: string, notes: string | null } };
+export type UpdateTransactionMutation = { updateTransaction: { id: number, accountId: number, assetId: number, transactionType: TransactionType, tradeDate: string, quantity: string, unitPrice: string, currencyCode: string, notes: string | null } };
 
 export type CreateAssetMutationVariables = Exact<{
   input: AssetInput;
 }>;
 
 
-export type CreateAssetMutation = { __typename?: 'MutationRoot', createAsset: { __typename?: 'Asset', id: number, symbol: string, name: string, assetType: AssetType, quoteSymbol: string | null, isin: string | null, currentPrice: string | null, currentPriceCurrency: string | null, currentPriceAsOf: string | null, totalQuantity: string | null } };
+export type CreateAssetMutation = { createAsset: { id: number, symbol: string, name: string, assetType: AssetType, quoteSymbol: string | null, isin: string | null, currentPrice: string | null, currentPriceCurrency: string | null, currentPriceAsOf: string | null, totalQuantity: string | null } };
 
 export type UpdateAssetMutationVariables = Exact<{
-  id: Scalars['Int']['input'];
+  id: number;
   input: AssetInput;
 }>;
 
 
-export type UpdateAssetMutation = { __typename?: 'MutationRoot', updateAsset: { __typename?: 'Asset', id: number, symbol: string, name: string, assetType: AssetType, quoteSymbol: string | null, isin: string | null, currentPrice: string | null, currentPriceCurrency: string | null, currentPriceAsOf: string | null, totalQuantity: string | null } };
+export type UpdateAssetMutation = { updateAsset: { id: number, symbol: string, name: string, assetType: AssetType, quoteSymbol: string | null, isin: string | null, currentPrice: string | null, currentPriceCurrency: string | null, currentPriceAsOf: string | null, totalQuantity: string | null } };
 
 export type DeleteAssetMutationVariables = Exact<{
-  id: Scalars['Int']['input'];
+  id: number;
 }>;
 
 
-export type DeleteAssetMutation = { __typename?: 'MutationRoot', deleteAsset: number };
+export type DeleteAssetMutation = { deleteAsset: number };
 
 export type AssetsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type AssetsQuery = { __typename?: 'QueryRoot', assets: Array<{ __typename?: 'Asset', id: number, symbol: string, name: string, assetType: AssetType, quoteSymbol: string | null, isin: string | null, quoteSourceSymbol: string | null, quoteSourceProvider: string | null, quoteSourceLastSuccessAt: string | null, currentPrice: string | null, currentPriceCurrency: string | null, currentPriceAsOf: string | null, totalQuantity: string | null, avgCostBasis: string | null, avgCostBasisCurrency: string | null, previousClose: string | null, previousCloseCurrency: string | null, convertedTotalValue: string | null, convertedTotalValueCurrency: string | null, convertedTotalCostBasis: string | null, convertedTotalCostBasisCurrency: string | null }> };
+export type AssetsQuery = { assets: Array<{ id: number, symbol: string, name: string, assetType: AssetType, quoteSymbol: string | null, isin: string | null, quoteSourceSymbol: string | null, quoteSourceProvider: string | null, quoteSourceLastSuccessAt: string | null, currentPrice: string | null, currentPriceCurrency: string | null, currentPriceAsOf: string | null, totalQuantity: string | null, avgCostBasis: string | null, avgCostBasisCurrency: string | null, previousClose: string | null, previousCloseCurrency: string | null, convertedTotalValue: string | null, convertedTotalValueCurrency: string | null, convertedTotalCostBasis: string | null, convertedTotalCostBasisCurrency: string | null }> };
 
 export type FxRatesQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type FxRatesQuery = { __typename?: 'QueryRoot', fxRates: { __typename?: 'FxRateSummary', targetCurrency: string, lastUpdated: string | null, refreshStatus: RefreshAvailability, refreshError: string | null, rates: Array<{ __typename?: 'FxRateSummaryItem', currency: string, rate: string }> } };
+export type FxRatesQuery = { fxRates: { targetCurrency: string, lastUpdated: string | null, refreshStatus: RefreshAvailability, refreshError: string | null, rates: Array<{ currency: string, rate: string }> } };
 
 export type PortfolioHistoryQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type PortfolioHistoryQuery = { __typename?: 'QueryRoot', portfolioHistory: Array<{ __typename?: 'PortfolioSnapshot', totalValue: string, currency: string, recordedAt: string }> };
+export type PortfolioHistoryQuery = { portfolioHistory: Array<{ totalValue: string, currency: string, recordedAt: string }> };
 
 export type PortfolioQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type PortfolioQuery = { __typename?: 'QueryRoot', portfolio: { __typename?: 'PortfolioSummary', displayCurrency: string, totalValueStatus: SummaryStatus, totalValueAmount: string | null, gain24hAmount: string | null, totalGainAmount: string | null, fxLastUpdated: string | null, fxRefreshStatus: RefreshAvailability, fxRefreshError: string | null, allocationIsPartial: boolean, holdingsIsPartial: boolean, accountTotals: Array<{ __typename?: 'PortfolioAccountTotal', id: number, name: string, accountType: AccountType, summaryStatus: SummaryStatus, cashTotalAmount: string | null, assetTotalAmount: string | null, totalAmount: string | null, totalCurrency: string }>, cashByCurrency: Array<{ __typename?: 'PortfolioCashByCurrency', currency: string, amount: string, convertedAmount: string | null }>, allocationTotals: Array<{ __typename?: 'PortfolioAllocationSlice', label: string, amount: string }>, holdings: Array<{ __typename?: 'PortfolioHolding', assetId: number | null, symbol: string, name: string, value: string, gain24hAmount: string | null }> } };
+export type PortfolioQuery = { portfolio: { displayCurrency: string, totalValueStatus: SummaryStatus, totalValueAmount: string | null, gain24hAmount: string | null, totalGainAmount: string | null, fxLastUpdated: string | null, fxRefreshStatus: RefreshAvailability, fxRefreshError: string | null, allocationIsPartial: boolean, holdingsIsPartial: boolean, accountTotals: Array<{ id: number, name: string, accountType: AccountType, summaryStatus: SummaryStatus, cashTotalAmount: string | null, assetTotalAmount: string | null, totalAmount: string | null, totalCurrency: string }>, cashByCurrency: Array<{ currency: string, amount: string, convertedAmount: string | null }>, allocationTotals: Array<{ label: string, amount: string }>, holdings: Array<{ assetId: number | null, symbol: string, name: string, value: string, gain24hAmount: string | null }> } };
 
 export type TodosQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type TodosQuery = { __typename?: 'QueryRoot', todos: Array<{ __typename?: 'Todo', id: number, title: string, completed: boolean, createdAt: string, updatedAt: string }> };
+export type TodosQuery = { todos: Array<{ id: number, title: string, completed: boolean, createdAt: string, updatedAt: string }> };
 
 export type CreateTodoMutationVariables = Exact<{
   input: TodoInput;
 }>;
 
 
-export type CreateTodoMutation = { __typename?: 'MutationRoot', createTodo: { __typename?: 'Todo', id: number, title: string, completed: boolean, createdAt: string, updatedAt: string } };
+export type CreateTodoMutation = { createTodo: { id: number, title: string, completed: boolean, createdAt: string, updatedAt: string } };
 
 export type UpdateTodoCompletedMutationVariables = Exact<{
-  id: Scalars['Int']['input'];
-  completed: Scalars['Boolean']['input'];
+  id: number;
+  completed: boolean;
 }>;
 
 
-export type UpdateTodoCompletedMutation = { __typename?: 'MutationRoot', updateTodoCompleted: { __typename?: 'Todo', id: number, completed: boolean, updatedAt: string } };
+export type UpdateTodoCompletedMutation = { updateTodoCompleted: { id: number, completed: boolean, updatedAt: string } };
 
 export type DeleteTodoMutationVariables = Exact<{
-  id: Scalars['Int']['input'];
+  id: number;
 }>;
 
 
-export type DeleteTodoMutation = { __typename?: 'MutationRoot', deleteTodo: number };
+export type DeleteTodoMutation = { deleteTodo: number };
 
 export type CreateTransferMutationVariables = Exact<{
   input: TransferInput;
 }>;
 
 
-export type CreateTransferMutation = { __typename?: 'MutationRoot', createTransfer: { __typename?: 'Transfer', id: number, fromAccountId: number, toAccountId: number, fromCurrency: string, fromAmount: string, toCurrency: string, toAmount: string, transferDate: string, notes: string | null } };
+export type CreateTransferMutation = { createTransfer: { id: number, fromAccountId: number, toAccountId: number, fromCurrency: string, fromAmount: string, toCurrency: string, toAmount: string, transferDate: string, notes: string | null } };
